@@ -195,7 +195,8 @@ jobs:
       uses: docker/setup-buildx-action@v3
 
     - name: Login to Docker Hub
-      if: steps.check.outputs.needs_build == 'true' && secrets.DOCKERHUB_USERNAME != ''
+      if: steps.check.outputs.needs_build == 'true'
+      continue-on-error: true
       uses: docker/login-action@v3
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -217,19 +218,34 @@ jobs:
     - name: Prepare Docker tags
       if: steps.check.outputs.needs_build == 'true'
       id: docker_tags
+      env:
+        DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       run: |
         GHCR_IMAGE="ghcr.io/${{ steps.lowercase.outputs.owner }}/ai-relay"
         TAGS="${GHCR_IMAGE}:${{ steps.version.outputs.new_tag }}"
         TAGS="${TAGS}\n${GHCR_IMAGE}:latest"
 
-        if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ]; then
-          DOCKERHUB_IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/ai-relay"
+        DOCKERHUB_SECTION=""
+        if [ -n "$DOCKERHUB_USERNAME" ]; then
+          DOCKERHUB_IMAGE="${DOCKERHUB_USERNAME}/ai-relay"
           TAGS="${TAGS}\n${DOCKERHUB_IMAGE}:${{ steps.version.outputs.new_tag }}"
           TAGS="${TAGS}\n${DOCKERHUB_IMAGE}:latest"
+
+          # 生成 Docker Hub 部分的 Release 描述
+          DOCKERHUB_SECTION="### Docker Hub
+\`\`\`bash
+docker pull ${DOCKERHUB_IMAGE}:${{ steps.version.outputs.new_tag }}
+docker pull ${DOCKERHUB_IMAGE}:latest
+\`\`\`
+"
         fi
 
         echo "tags<<EOF" >> $GITHUB_OUTPUT
         echo -e "$TAGS" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+        echo "dockerhub_section<<EOF" >> $GITHUB_OUTPUT
+        echo "$DOCKERHUB_SECTION" >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
 
     - name: Build and push Docker image
@@ -264,7 +280,7 @@ jobs:
           docker pull ghcr.io/${{ steps.lowercase.outputs.owner }}/ai-relay:latest
           ```
 
-          ${{ secrets.DOCKERHUB_USERNAME != '' && format('### Docker Hub\n```bash\ndocker pull {0}/ai-relay:{1}\ndocker pull {0}/ai-relay:latest\n```\n', secrets.DOCKERHUB_USERNAME, steps.version.outputs.new_tag) || '' }}
+          ${{ steps.docker_tags.outputs.dockerhub_section }}
           ## 📦 更新内容
 
           ${{ steps.changelog.outputs.content }}
