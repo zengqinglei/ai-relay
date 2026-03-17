@@ -1,8 +1,6 @@
 # AI-Relay
 
-## 目录
 - [AI-Relay](#ai-relay)
-  - [目录](#目录)
   - [项目概述](#项目概述)
   - [核心功能](#核心功能)
   - [如何部署](#如何部署)
@@ -18,7 +16,7 @@
 
 ## 项目概述
 
-**在线演示 Demo**: https://ai-demo.zengql.dpdns.org（需 FQ 访问）
+**在线演示 Demo**: https://ai-demo.zengql.dpdns.org （需 FQ 访问）
 - 账号：`admin`
 - 密码：`Admin@123456`
 
@@ -76,7 +74,7 @@ docker run -d \
   -e ConnectionStrings__Redis="your-redis-host:6379" \
   -e DefaultAdmin__Password="YourAdminPassword" \
   -e Jwt__SecretKey="YourSecretKey-MinimumLength32Characters!" \
-  ghcr.io/zengqinglei/ai-relay/airelay:latest
+  ghcr.io/zengqinglei/ai-relay:latest
 ```
 
 ## 本地快速开始

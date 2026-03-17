@@ -131,11 +131,6 @@ jobs:
         # 2. 更新 backend/common.props
         sed -i "s|<Version>.*</Version>|<Version>$NEW_VERSION</Version>|" backend/common.props
 
-        # 3. 更新 frontend/package.json
-        cd frontend
-        npm version $NEW_VERSION --no-git-tag-version --allow-same-version
-        cd ..
-
         echo "✅ 版本文件已更新"
 
     - name: Generate changelog
@@ -184,7 +179,7 @@ jobs:
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
 
-        git add VERSION backend/common.props frontend/package.json frontend/package-lock.json
+        git add VERSION backend/common.props
         git commit -m "chore: bump version to ${{ steps.version.outputs.new_version }} [skip ci]"
         git push origin HEAD:main
 
