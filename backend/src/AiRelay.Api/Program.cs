@@ -21,6 +21,7 @@ using Leistd.Security.AspNetCore;
 using Leistd.Tracing.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
@@ -115,6 +116,25 @@ try
 
     // 4.5. Leistd Security 服务
     builder.Services.AddLeistdSecurity();
+
+    // 4.6. DataProtection 配置（生产环境必需）
+    var redisConnStr = builder.Configuration.GetConnectionString("Redis");
+    if (!string.IsNullOrEmpty(redisConnStr))
+    {
+        // 使用 Redis 持久化密钥
+        builder.Services.AddDataProtection()
+            .PersistKeysToStackExchangeRedis(
+                StackExchange.Redis.ConnectionMultiplexer.Connect(redisConnStr),
+                "DataProtection-Keys");
+    }
+    else
+    {
+        // 开发环境：使用文件系统（容器重启会丢失）
+        var keysPath = Path.Combine(builder.Environment.ContentRootPath, "DataProtection-Keys");
+        Directory.CreateDirectory(keysPath);
+        builder.Services.AddDataProtection()
+            .PersistKeysToFileSystem(new DirectoryInfo(keysPath));
+    }
 
     // 5. 安全配置 (AuthN & AuthZ)
     var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>()
