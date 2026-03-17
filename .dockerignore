@@ -1,0 +1,37 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.vs
+.vscode
+.idea
+*.swp
+*.swo
+
+# 文档
+README.md
+docs/
+*.md
+
+# 前端
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+frontend/coverage/
+frontend/.npm/
+
+# 后端
+backend/**/bin/
+backend/**/obj/
+backend/**/*.user
+backend/**/*.suo
+
+# 部署
+deploy/
+
+# 其他
+.claude/
+*.log
+.DS_Store
