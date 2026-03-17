@@ -14,11 +14,8 @@ RUN npm run build -- --configuration=production
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS backend-build
 WORKDIR /src
 
-# 拷贝后端相关代码和共享配置
-COPY common.props ./
+# 拷贝后端代码（包含 common.props、components、ddd-struct）
 COPY backend/ ./backend/
-COPY components/ ./components/
-COPY ddd-struct/ ./ddd-struct/
 
 WORKDIR "/src/backend/src/AiRelay.Api"
 RUN dotnet publish "AiRelay.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false
