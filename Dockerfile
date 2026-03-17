@@ -7,10 +7,9 @@ WORKDIR /app
 # 升级 npm 到最新版本
 RUN npm install -g npm@latest
 
-# 复制 package.json 并安装依赖（利用缓存）
+# 复制 package.json 并安装依赖（利用 Docker 层缓存）
 COPY frontend/package.json ./
-RUN --mount=type=cache,target=/root/.npm \
-    npm install
+RUN npm install
 
 # 复制源代码并构建
 COPY frontend/ ./
@@ -25,10 +24,9 @@ WORKDIR /src
 # 复制后端代码（.dockerignore 已排除 bin/obj）
 COPY backend/ ./backend/
 
-# Restore 和 Build（使用缓存挂载）
+# Build
 WORKDIR "/src/backend/src/AiRelay.Api"
-RUN --mount=type=cache,target=/root/.nuget/packages \
-    dotnet publish "AiRelay.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "AiRelay.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
 # -----------------------------------
 # Stage 3: Final Runtime Image
