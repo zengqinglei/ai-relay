@@ -194,13 +194,12 @@ jobs:
       if: steps.check.outputs.needs_build == 'true'
       uses: docker/setup-buildx-action@v3
 
-    - name: Login to GHCR
+    - name: Login to Docker Hub
       if: steps.check.outputs.needs_build == 'true'
       uses: docker/login-action@v3
       with:
-        registry: ghcr.io
-        username: ${{ github.repository_owner }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
 
     - name: Build and push Docker image
       if: steps.check.outputs.needs_build == 'true'
@@ -211,8 +210,8 @@ jobs:
         platforms: linux/amd64,linux/arm64
         push: true
         tags: |
-          ghcr.io/zengql/ai-relay:${{ steps.version.outputs.new_tag }}
-          ghcr.io/zengql/ai-relay:latest
+          ${{ secrets.DOCKERHUB_USERNAME }}/ai-relay:${{ steps.version.outputs.new_tag }}
+          ${{ secrets.DOCKERHUB_USERNAME }}/ai-relay:latest
         labels: |
           org.opencontainers.image.version=${{ steps.version.outputs.new_version }}
           org.opencontainers.image.revision=${{ github.sha }}
@@ -229,8 +228,8 @@ jobs:
           ## 🐳 Docker 镜像
 
           ```bash
-          docker pull ghcr.io/zengql/ai-relay:${{ steps.version.outputs.new_tag }}
-          docker pull ghcr.io/zengql/ai-relay:latest
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/ai-relay:${{ steps.version.outputs.new_tag }}
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/ai-relay:latest
           ```
 
           ## 📦 更新内容
