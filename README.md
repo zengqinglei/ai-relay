@@ -1,18 +1,17 @@
 # AI-Relay
 
-- [AI-Relay](#ai-relay)
-  - [项目概述](#项目概述)
-  - [核心功能](#核心功能)
-  - [如何部署](#如何部署)
-    - [配置要求（最低要求）](#配置要求最低要求)
-    - [部署方式](#部署方式)
-  - [本地快速开始](#本地快速开始)
-  - [开始使用](#开始使用)
-    - [Claude CLI](#claude-cli)
-    - [Gemini CLI](#gemini-cli)
-    - [Codex CLI](#codex-cli)
-    - [OpenClaw](#openclaw)
-  - [许可证](#许可证)
+- [项目概述](#项目概述)
+- [核心功能](#核心功能)
+- [如何部署](#如何部署)
+  - [配置要求（最低要求）](#配置要求最低要求)
+  - [部署方式](#部署方式)
+- [本地快速开始](#本地快速开始)
+- [开始使用](#开始使用)
+  - [Claude CLI](#claude-cli)
+  - [Gemini CLI](#gemini-cli)
+  - [Codex CLI](#codex-cli)
+  - [OpenClaw](#openclaw)
+- [许可证](#许可证)
 
 ## 项目概述
 
