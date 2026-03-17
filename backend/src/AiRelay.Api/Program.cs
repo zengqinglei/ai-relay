@@ -123,6 +123,7 @@ try
     {
         // 使用 Redis 持久化密钥
         builder.Services.AddDataProtection()
+            .SetApplicationName("AiRelay")
             .PersistKeysToStackExchangeRedis(
                 StackExchange.Redis.ConnectionMultiplexer.Connect(redisConnStr),
                 "DataProtection-Keys");
@@ -133,6 +134,7 @@ try
         var keysPath = Path.Combine(builder.Environment.ContentRootPath, "DataProtection-Keys");
         Directory.CreateDirectory(keysPath);
         builder.Services.AddDataProtection()
+            .SetApplicationName("AiRelay")
             .PersistKeysToFileSystem(new DirectoryInfo(keysPath));
     }
 
