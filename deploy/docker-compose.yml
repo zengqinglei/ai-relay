@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   backend:
-    image: ghcr.io/zengqinglei/ai-relay:latest
+    image: ghcr.io/zengql/ai-relay:latest
     container_name: ai-relay
     ports:
       - "80:8080"
