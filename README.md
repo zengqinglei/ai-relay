@@ -71,7 +71,7 @@ docker run -d \
   -p 80:8080 \
   -e ASPNETCORE_ENVIRONMENT=Production \
   -e ConnectionStrings__Default="Host=your-db-host;Database=AiRelay;Username=postgres;Password=YourPassword" \
-  -e ConnectionStrings__Redis="your-redis-host:6379" \
+  -e ConnectionStrings__Redis="your-redis-host:6379,password=YourRedisPassword" \
   -e DefaultAdmin__Password="YourAdminPassword" \
   -e Jwt__SecretKey="YourSecretKey-MinimumLength32Characters!" \
   ghcr.io/zengql/ai-relay:latest

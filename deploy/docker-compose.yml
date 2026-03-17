@@ -14,6 +14,8 @@ services:
       - ConnectionStrings__Default=Host=db;Port=5432;Database=AiRelay;Username=postgres;Password=YourSecurePassword!
 
       # Redis Configuration
+      # 无密码: redis:6379
+      # 有密码: redis:6379,password=YourRedisPassword
       - ConnectionStrings__Redis=redis:6379
 
       # Default Admin User (Change in production!)
