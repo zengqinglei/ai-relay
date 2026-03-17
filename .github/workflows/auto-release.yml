@@ -229,8 +229,8 @@ jobs:
           ## 🐳 Docker 镜像
 
           ```bash
-          docker pull ghcr.io/${{ github.repository }}/ai-relay:${{ steps.version.outputs.new_tag }}
-          docker pull ghcr.io/${{ github.repository }}/ai-relay:latest
+          docker pull ghcr.io/${{ github.repository_owner }}/ai-relay:${{ steps.version.outputs.new_tag }}
+          docker pull ghcr.io/${{ github.repository_owner }}/ai-relay:latest
           ```
 
           ## 📦 更新内容
