@@ -230,23 +230,18 @@ jobs:
           DOCKERHUB_IMAGE="${DOCKERHUB_USERNAME}/ai-relay"
           TAGS="${TAGS}\n${DOCKERHUB_IMAGE}:${{ steps.version.outputs.new_tag }}"
           TAGS="${TAGS}\n${DOCKERHUB_IMAGE}:latest"
-
-          # 生成 Docker Hub 部分的 Release 描述
-          DOCKERHUB_SECTION="### Docker Hub
-\`\`\`bash
-docker pull ${DOCKERHUB_IMAGE}:${{ steps.version.outputs.new_tag }}
-docker pull ${DOCKERHUB_IMAGE}:latest
-\`\`\`
-"
         fi
 
         echo "tags<<EOF" >> $GITHUB_OUTPUT
         echo -e "$TAGS" >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
 
-        echo "dockerhub_section<<EOF" >> $GITHUB_OUTPUT
-        echo "$DOCKERHUB_SECTION" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
+        # 生成 Docker Hub 部分（如果配置了）
+        if [ -n "$DOCKERHUB_USERNAME" ]; then
+          echo "dockerhub_image=${DOCKERHUB_USERNAME}/ai-relay" >> $GITHUB_OUTPUT
+        else
+          echo "dockerhub_image=" >> $GITHUB_OUTPUT
+        fi
 
     - name: Build and push Docker image
       if: steps.check.outputs.needs_build == 'true'
@@ -268,6 +263,8 @@ docker pull ${DOCKERHUB_IMAGE}:latest
     - name: Create GitHub Release
       if: steps.check.outputs.needs_build == 'true'
       uses: softprops/action-gh-release@v1
+      env:
+        DOCKERHUB_IMAGE: ${{ steps.docker_tags.outputs.dockerhub_image }}
       with:
         tag_name: ${{ steps.version.outputs.new_tag }}
         name: Release ${{ steps.version.outputs.new_version }}
@@ -279,8 +276,13 @@ docker pull ${DOCKERHUB_IMAGE}:latest
           docker pull ghcr.io/${{ steps.lowercase.outputs.owner }}/ai-relay:${{ steps.version.outputs.new_tag }}
           docker pull ghcr.io/${{ steps.lowercase.outputs.owner }}/ai-relay:latest
           ```
+          ${{ steps.docker_tags.outputs.dockerhub_image != '' && format('
+          ### Docker Hub
+          ```bash
+          docker pull {0}:{1}
+          docker pull {0}:latest
+          ```', steps.docker_tags.outputs.dockerhub_image, steps.version.outputs.new_tag) || '' }}
 
-          ${{ steps.docker_tags.outputs.dockerhub_section }}
           ## 📦 更新内容
 
           ${{ steps.changelog.outputs.content }}
