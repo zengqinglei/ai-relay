@@ -4,12 +4,15 @@
 FROM node:20-alpine AS frontend-build
 WORKDIR /app
 
+# 配置 npm 使用淘宝镜像（加速国内构建）
+RUN npm config set registry https://registry.npmmirror.com
+
 # 升级 npm 到最新版本
 RUN npm install -g npm@latest
 
 # 复制 package.json 并安装依赖（利用 Docker 层缓存）
 COPY frontend/package.json ./
-RUN npm install
+RUN npm install --prefer-offline --no-audit
 
 # 复制源代码并构建
 COPY frontend/ ./

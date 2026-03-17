@@ -195,11 +195,42 @@ jobs:
       uses: docker/setup-buildx-action@v3
 
     - name: Login to Docker Hub
-      if: steps.check.outputs.needs_build == 'true'
+      if: steps.check.outputs.needs_build == 'true' && secrets.DOCKERHUB_USERNAME != ''
       uses: docker/login-action@v3
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Login to GitHub Container Registry
+      if: steps.check.outputs.needs_build == 'true'
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set lowercase owner for GHCR
+      if: steps.check.outputs.needs_build == 'true'
+      id: lowercase
+      run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+    - name: Prepare Docker tags
+      if: steps.check.outputs.needs_build == 'true'
+      id: docker_tags
+      run: |
+        GHCR_IMAGE="ghcr.io/${{ steps.lowercase.outputs.owner }}/ai-relay"
+        TAGS="${GHCR_IMAGE}:${{ steps.version.outputs.new_tag }}"
+        TAGS="${TAGS}\n${GHCR_IMAGE}:latest"
+
+        if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ]; then
+          DOCKERHUB_IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/ai-relay"
+          TAGS="${TAGS}\n${DOCKERHUB_IMAGE}:${{ steps.version.outputs.new_tag }}"
+          TAGS="${TAGS}\n${DOCKERHUB_IMAGE}:latest"
+        fi
+
+        echo "tags<<EOF" >> $GITHUB_OUTPUT
+        echo -e "$TAGS" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
 
     - name: Build and push Docker image
       if: steps.check.outputs.needs_build == 'true'
@@ -207,16 +238,16 @@ jobs:
       with:
         context: .
         file: Dockerfile
-        platforms: linux/amd64,linux/arm64
+        platforms: linux/amd64
         push: true
-        tags: |
-          ${{ secrets.DOCKERHUB_USERNAME }}/ai-relay:${{ steps.version.outputs.new_tag }}
-          ${{ secrets.DOCKERHUB_USERNAME }}/ai-relay:latest
+        tags: ${{ steps.docker_tags.outputs.tags }}
         labels: |
           org.opencontainers.image.version=${{ steps.version.outputs.new_version }}
           org.opencontainers.image.revision=${{ github.sha }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
+        build-args: |
+          BUILDKIT_INLINE_CACHE=1
 
     - name: Create GitHub Release
       if: steps.check.outputs.needs_build == 'true'
@@ -227,11 +258,13 @@ jobs:
         body: |
           ## 🐳 Docker 镜像
 
+          ### GitHub Container Registry (推荐)
           ```bash
-          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/ai-relay:${{ steps.version.outputs.new_tag }}
-          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/ai-relay:latest
+          docker pull ghcr.io/${{ steps.lowercase.outputs.owner }}/ai-relay:${{ steps.version.outputs.new_tag }}
+          docker pull ghcr.io/${{ steps.lowercase.outputs.owner }}/ai-relay:latest
           ```
 
+          ${{ secrets.DOCKERHUB_USERNAME != '' && format('### Docker Hub\n```bash\ndocker pull {0}/ai-relay:{1}\ndocker pull {0}/ai-relay:latest\n```\n', secrets.DOCKERHUB_USERNAME, steps.version.outputs.new_tag) || '' }}
           ## 📦 更新内容
 
           ${{ steps.changelog.outputs.content }}
