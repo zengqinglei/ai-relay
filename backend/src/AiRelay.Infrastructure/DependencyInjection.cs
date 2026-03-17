@@ -104,13 +104,16 @@ public static class DependencyInjection
 
         if (!string.IsNullOrEmpty(redisConnStr))
         {
+            // 解析 Redis 连接字符串（支持 Upstash URL）
+            var redisConfig = ParseRedisConnectionString(redisConnStr);
+
             services.AddStackExchangeRedisCache(options =>
             {
-                options.Configuration = redisConnStr;
+                options.ConfigurationOptions = redisConfig;
                 options.InstanceName = "AiRelay:";
             });
 
-            services.AddRedisDistributedLock(redisConnStr);
+            services.AddRedisDistributedLock(redisConfig.ToString());
 
             services.AddTransient<IConcurrencyStrategy, RedisConcurrencyStrategy>();
         }
@@ -186,5 +189,46 @@ public static class DependencyInjection
 
         return services;
 
+    }
+
+    /// <summary>
+    /// 解析 Redis 连接字符串，支持 Upstash rediss:// URL 格式
+    /// </summary>
+    private static StackExchange.Redis.ConfigurationOptions ParseRedisConnectionString(string connectionString)
+    {
+        // 如果是 redis:// 或 rediss:// URL 格式，手动解析
+        if (connectionString.StartsWith("redis://") || connectionString.StartsWith("rediss://"))
+        {
+            var uri = new Uri(connectionString);
+            var config = new StackExchange.Redis.ConfigurationOptions
+            {
+                EndPoints = { { uri.Host, uri.Port } },
+                Ssl = uri.Scheme == "rediss",
+                AbortOnConnectFail = false,
+                ConnectTimeout = 10000,
+                SyncTimeout = 10000,
+                KeepAlive = 60
+            };
+
+            // 解析用户名和密码
+            if (!string.IsNullOrEmpty(uri.UserInfo))
+            {
+                var parts = uri.UserInfo.Split(':');
+                if (parts.Length == 2)
+                {
+                    config.User = parts[0];
+                    config.Password = parts[1];
+                }
+                else if (parts.Length == 1)
+                {
+                    config.Password = parts[0];
+                }
+            }
+
+            return config;
+        }
+
+        // 否则使用默认解析
+        return StackExchange.Redis.ConfigurationOptions.Parse(connectionString);
     }
 }
