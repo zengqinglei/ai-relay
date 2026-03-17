@@ -36,10 +36,8 @@ RUN dotnet publish "AiRelay.Api.csproj" -c Release -o /app/publish /p:UseAppHost
 # -----------------------------------
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
-EXPOSE 8080
-
-# 设定环境默认配置
-ENV ASPNETCORE_HTTP_PORTS=8080
+EXPOSE 80
+EXPOSE 443
 
 # 1. 拷贝后端构建结果
 COPY --from=backend-build /app/publish .
