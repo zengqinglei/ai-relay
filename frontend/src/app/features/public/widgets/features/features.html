@@ -1,0 +1,48 @@
+<section id="features" class="py-6 px-6 lg:px-20 mt-8 mx-0 lg:mx-20">
+  <div class="grid grid-cols-12 gap-4 justify-center">
+    <!-- Section Header -->
+    <div class="col-span-12 text-center mt-20 mb-6">
+      <h2 class="text-surface-900 font-normal mb-2 text-4xl"> Marvelous Features </h2>
+      <p class="text-surface-500 text-2xl"> Placerat in egestas erat... </p>
+    </div>
+
+    <!-- Feature Cards -->
+    @for (feature of features; track feature) {
+      <div class="col-span-12 md:col-span-12 lg:col-span-4 p-0 lg:pr-8 lg:pb-8 mt-6 lg:mt-0">
+        <div class="h-40 p-0.5 rounded-lg" [style]="feature.gradient">
+          <div class="p-4 bg-surface-0 h-full rounded-lg">
+            <!-- Icon -->
+            <div class="flex items-center justify-center mb-4 w-14 h-14 rounded-lg" [class]="feature.bgColor">
+              <i class="text-2xl" [class]="'pi pi-fw ' + feature.icon + ' ' + feature.iconColor"></i>
+            </div>
+            <!-- Content -->
+            <h5 class="mb-2 text-surface-900 text-xl font-semibold">
+              {{ feature.title }}
+            </h5>
+            <p class="text-surface-600">
+              {{ feature.description }}
+            </p>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- Testimonial Section -->
+    <div class="col-span-12 mt-20 mb-20 p-2 md:p-20 rounded-2xl bg-gradient-to-br from-yellow-100 via-blue-100 to-purple-100">
+      <div class="flex flex-col justify-center items-center text-center px-4 py-4 md:py-0">
+        <h3 class="text-surface-900 mb-2 text-3xl font-semibold"> Joséphine Miller </h3>
+        <p class="text-surface-600 text-2xl mb-6"> Peak Interactive </p>
+        <blockquote class="text-surface-900 text-xl md:text-2xl mt-6 max-w-4xl leading-relaxed">
+          "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat
+          cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
+        </blockquote>
+        <img
+          src="https://primefaces.org/cdn/templates/sakai/landing/peak-logo.svg"
+          class="mt-6"
+          alt="Peak Interactive logo"
+          loading="lazy"
+        />
+      </div>
+    </div>
+  </div>
+</section>

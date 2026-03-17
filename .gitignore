@@ -1,0 +1,20 @@
+# ide
+.vs
+.vscode
+
+# ai
+.claude
+
+# .NET
+**/bin/
+**/obj/
+*.user
+*.suo
+
+# Local environment settings
+backend/**/appsettings.Debug.json
+backend/**/appsettings.Development.json
+
+# temp disable
+frontend.*.bak
+frontend-sakai-ng

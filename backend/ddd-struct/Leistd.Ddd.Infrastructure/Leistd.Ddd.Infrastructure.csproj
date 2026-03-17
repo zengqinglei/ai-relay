@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Leistd.Ddd.Domain\Leistd.Ddd.Domain.csproj" />
+    <ProjectReference Include="..\..\components\unit-of-work\Leistd.UnitOfWork.EfCore\Leistd.UnitOfWork.EfCore.csproj" />
+    <ProjectReference Include="..\..\components\dependency-injection\Leistd.DependencyInjection\Leistd.DependencyInjection.csproj" />
+    <ProjectReference Include="..\..\components\core\Leistd.Core\Leistd.Core.csproj" />
+    <ProjectReference Include="..\..\components\security\Leistd.Security.Core\Leistd.Security.Core.csproj" />
+  </ItemGroup>
+</Project>

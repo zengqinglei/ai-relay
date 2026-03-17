@@ -1,0 +1,342 @@
+<!-- Action Bar -->
+<div class="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 mb-6">
+  <div class="flex flex-col sm:flex-row flex-1 gap-3 items-stretch sm:items-center">
+    <!-- Filters -->
+    <p-select
+      [options]="platformOptions"
+      [(ngModel)]="selectedPlatform"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="全部平台"
+      [showClear]="true"
+      appendTo="body"
+      styleClass="w-full sm:w-48"
+    />
+
+    <!-- Search -->
+    <p-iconfield class="w-full sm:flex-1 sm:max-w-xs">
+      <p-inputicon class="pi pi-search" />
+      <input pInputText type="text" placeholder="搜索分组名称..." [(ngModel)]="searchQuery" class="w-full" />
+    </p-iconfield>
+  </div>
+
+  <div class="flex gap-3 items-center justify-end shrink-0">
+    <p-button
+      icon="pi pi-search"
+      label="查询"
+      (onClick)="onFilter()"
+      styleClass="w-full sm:w-auto"
+      pTooltip="查询"
+      tooltipPosition="top"
+    >
+    </p-button>
+    <p-button label="新建分组" icon="pi pi-plus" (click)="add.emit()" [outlined]="true" severity="primary" styleClass="w-full sm:w-auto">
+    </p-button>
+  </div>
+</div>
+
+<!-- Groups Table -->
+<div class="bg-surface-0 dark:bg-surface-900 rounded-xl shadow-sm border border-surface-200 dark:border-surface-700 overflow-hidden">
+  <p-table
+    #dt
+    [value]="groups()"
+    [lazy]="true"
+    (onLazyLoad)="onPage($event)"
+    [totalRecords]="totalRecords()"
+    [loading]="loading()"
+    [first]="first"
+    [rows]="rows"
+    [paginator]="true"
+    [rowHover]="true"
+    [rowsPerPageOptions]="[10, 20, 50, 100]"
+    [showCurrentPageReport]="true"
+    currentPageReportTemplate="共 {totalRecords} 条"
+    [showJumpToPageInput]="true"
+    paginatorDropdownAppendTo="body"
+    dataKey="id"
+    styleClass="w-full"
+    responsiveLayout="scroll"
+    [breakpoint]="'960px'"
+  >
+    <ng-template pTemplate="header">
+      <tr class="bg-surface-50 dark:bg-surface-800 text-muted-color text-xs uppercase font-medium backdrop-blur-sm">
+        <th style="width: 3rem" class="!bg-transparent !border-b !border-surface-200 dark:!border-surface-700"></th>
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3">分组信息</th>
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden md:table-cell"
+          >平台类型</th
+        >
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden lg:table-cell"
+          >费率倍数</th
+        >
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden xl:table-cell"
+          >调度策略</th
+        >
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden xl:table-cell"
+          >账号数</th
+        >
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden 2xl:table-cell"
+          >粘性会话</th
+        >
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden 2xl:table-cell"
+          >创建时间</th
+        >
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 text-right">操作</th>
+      </tr>
+    </ng-template>
+
+    <ng-template pTemplate="body" let-group let-expanded="expanded">
+      <tr
+        class="transition-colors group border-b border-transparent hover:bg-surface-50 dark:hover:bg-surface-800/50 text-sm text-color-secondary"
+      >
+        <td class="!bg-transparent !border-b !border-surface-200 dark:!border-surface-700 px-6 py-4">
+          <p-button
+            type="button"
+            [pRowToggler]="group"
+            [text]="true"
+            severity="secondary"
+            [rounded]="true"
+            [icon]="expanded ? 'pi pi-chevron-down' : 'pi pi-chevron-right'"
+            styleClass="w-8 h-8 !p-0"
+          />
+        </td>
+
+        <!-- Group Info -->
+        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4">
+          <div class="flex items-center gap-3">
+            <div
+              class="w-10 h-10 rounded-lg bg-surface-100 dark:bg-surface-800 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform p-2"
+            >
+              @if (group.platform) {
+                <app-platform-icon [platform]="group.platform" />
+              }
+            </div>
+            <div>
+              <p class="font-semibold text-color text-sm group-hover:text-primary transition-colors m-0">{{ group.name }}</p>
+              @if (group.description) {
+                <div class="text-[11px] text-muted-color mt-0.5 truncate max-w-[200px]" [pTooltip]="group.description">
+                  {{ group.description }}
+                </div>
+              }
+            </div>
+          </div>
+        </td>
+
+        <!-- Platform -->
+        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden md:table-cell">
+          <span
+            class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-surface-100 dark:bg-surface-800 text-muted-color border border-surface-200 dark:border-surface-700"
+          >
+            {{ group.platform | platformLabel }}
+          </span>
+        </td>
+
+        <!-- Rate Multiplier -->
+        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden lg:table-cell">
+          <div
+            class="font-mono text-sm"
+            [class.text-orange-500]="group.rateMultiplier !== 1"
+            [class.font-bold]="group.rateMultiplier !== 1"
+          >
+            {{ group.rateMultiplier | number: '1.1-2' }}x
+          </div>
+        </td>
+
+        <!-- Strategy -->
+        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden xl:table-cell">
+          <div class="flex items-center gap-2">
+            <p-tag
+              [value]="group.schedulingStrategy | schedulingStrategyLabel"
+              [severity]="group.schedulingStrategy | schedulingStrategySeverity"
+              styleClass="text-[11px] font-bold px-2 py-0.5 uppercase tracking-wide"
+            >
+            </p-tag>
+            <i
+              class="pi pi-info-circle text-muted-color cursor-help text-sm hover:text-primary transition-colors"
+              [pTooltip]="getStrategyDescription(group.schedulingStrategy)"
+              tooltipPosition="right"
+              [escape]="false"
+              tooltipStyleClass="max-w-md"
+            ></i>
+          </div>
+        </td>
+
+        <!-- Account Count -->
+        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden xl:table-cell">
+          <span
+            class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400 text-xs font-bold border border-surface-200 dark:border-surface-700"
+          >
+            {{ group.accounts?.length || 0 }}
+          </span>
+        </td>
+
+        <!-- Sticky Session -->
+        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden 2xl:table-cell">
+          @if (group.enableStickySession) {
+            <div class="flex flex-col gap-1">
+              <span class="flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                <i class="pi pi-check-circle"></i>
+                已开启
+              </span>
+              <span class="text-[10px] text-muted-color ml-4"> {{ group.stickySessionExpirationHours }} 小时过期 </span>
+            </div>
+          } @else {
+            <span class="flex items-center gap-1.5 text-xs text-muted-color">
+              <i class="pi pi-minus-circle"></i>
+              未开启
+            </span>
+          }
+        </td>
+
+        <!-- Created At -->
+        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden 2xl:table-cell">
+          <div class="text-[11px] text-muted-color font-mono tracking-tight">{{ group.creationTime | date: 'yyyy-MM-dd HH:mm:ss' }}</div>
+        </td>
+
+        <!-- Actions -->
+        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 text-right">
+          <div class="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <p-button
+              (onClick)="edit.emit(group.id)"
+              [text]="true"
+              [rounded]="true"
+              severity="secondary"
+              styleClass="w-8 h-8 !p-0"
+              pTooltip="编辑"
+              tooltipPosition="top"
+            >
+              <i class="pi pi-pencil"></i>
+            </p-button>
+            <p-button
+              (onClick)="delete.emit(group.id)"
+              [text]="true"
+              [rounded]="true"
+              severity="danger"
+              styleClass="w-8 h-8 !p-0"
+              pTooltip="删除"
+              tooltipPosition="top"
+            >
+              <i class="pi pi-trash"></i>
+            </p-button>
+          </div>
+        </td>
+      </tr>
+    </ng-template>
+
+    <!-- Row Expansion -->
+    <ng-template pTemplate="expandedrow" let-group>
+      <tr>
+        <td colspan="9" class="p-0 border-b border-surface-200 dark:border-surface-700 bg-surface-50/50 dark:bg-surface-900/50">
+          <div class="p-4 pl-20 pr-6 py-6">
+            <div class="mb-3 flex items-center gap-2">
+              <span
+                class="text-xs font-bold text-muted-color uppercase tracking-wider bg-surface-200/50 dark:bg-surface-700/50 px-2 py-1 rounded"
+              >
+                <i class="pi pi-users text-[10px] mr-1"></i>
+                关联账号 ({{ group.accounts?.length || 0 }})
+              </span>
+            </div>
+
+            @if (!group.accounts || group.accounts.length === 0) {
+              <div
+                class="text-xs text-muted-color p-4 text-center border border-dashed border-surface-300 dark:border-surface-700 rounded-md bg-surface-50/50 dark:bg-surface-800/30"
+              >
+                暂无关联账号
+              </div>
+            }
+
+            @if (group.accounts?.length > 0) {
+              <div
+                class="overflow-hidden rounded-md border border-surface-200 dark:border-surface-700 shadow-sm bg-surface-0 dark:bg-surface-900"
+              >
+                <table class="w-full text-xs text-left">
+                  <thead
+                    class="bg-surface-50 dark:bg-surface-800/50 text-muted-color font-medium border-b border-surface-200 dark:border-surface-700"
+                  >
+                    <tr>
+                      <th class="px-4 py-3 font-medium">账号名称</th>
+                      <th class="px-4 py-3 w-48 text-center font-medium">
+                        @if (showWeight(group)) {
+                          权重配置
+                        } @else if (showPriority(group)) {
+                          优先级
+                        } @else {
+                          策略
+                        }
+                      </th>
+                      <th class="px-4 py-3 w-32 text-center font-medium">并发请求</th>
+                      <th class="px-4 py-3 w-48 text-center font-medium">有效期</th>
+                      <th class="px-4 py-3 w-24 text-center font-medium">状态</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-surface-100 dark:divide-surface-800">
+                    @for (acc of group.accounts; track acc.id || acc.accountTokenId) {
+                      <tr class="hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors">
+                        <td class="px-4 py-3 font-medium text-color">{{ acc.accountTokenName || acc.accountTokenId }}</td>
+                        <td class="px-4 py-3 text-center">
+                          @if (showWeight(group)) {
+                            <div class="flex items-center justify-center gap-1">
+                              <span class="text-muted-color text-[10px]">权重:</span>
+                              <span class="font-mono font-bold text-primary">{{ acc.weight }}</span>
+                            </div>
+                          } @else if (showPriority(group)) {
+                            <div class="flex items-center justify-center gap-1">
+                              <span class="text-muted-color text-[10px]">优先级:</span>
+                              <p-tag
+                                [value]="acc.priority.toString()"
+                                [severity]="acc.priority === 0 ? 'success' : 'warn'"
+                                styleClass="text-[10px] h-5"
+                              ></p-tag>
+                            </div>
+                          } @else {
+                            <span class="text-muted-color">-</span>
+                          }
+                        </td>
+                        <td class="px-4 py-3 text-center font-mono text-[11px]">
+                          @if (acc.maxConcurrency === 0) {
+                            <span class="text-color-secondary">不限制</span>
+                          } @else {
+                            <span [ngClass]="{
+                              'text-color-secondary': acc.currentConcurrency === 0,
+                              'text-orange-500 font-bold': (acc.currentConcurrency || 0) > 0 && (acc.currentConcurrency || 0) < acc.maxConcurrency,
+                              'text-red-500 font-bold': (acc.currentConcurrency || 0) >= acc.maxConcurrency
+                            }">
+                              {{ acc.currentConcurrency || 0 }}/{{ acc.maxConcurrency }}
+                            </span>
+                          }
+                        </td>
+                        <td class="px-4 py-3 text-center text-muted-color font-mono text-[11px]">
+                          {{ getAccountValidity(acc) }}
+                        </td>
+                        <td class="px-4 py-3 text-center">
+                          <div class="flex justify-center">
+                            @if (acc.isActive !== false) {
+                              <p-tag value="启用" severity="success" styleClass="text-[10px] h-5 px-1.5"></p-tag>
+                            } @else {
+                              <p-tag value="禁用" severity="danger" styleClass="text-[10px] h-5 px-1.5"></p-tag>
+                            }
+                          </div>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          </div>
+        </td>
+      </tr>
+    </ng-template>
+
+    <ng-template pTemplate="emptymessage">
+      <tr class="hover:!bg-transparent">
+        <td colspan="9" class="!p-0 !border-0">
+          <div class="flex flex-col items-center justify-center h-64 text-muted-color">
+            <i class="pi pi-inbox text-5xl opacity-30 mb-3"></i>
+            <p class="text-base font-medium m-0">暂无分组数据</p>
+            <p class="text-sm mt-1 opacity-70">请创建新的分组</p>
+          </div>
+        </td>
+      </tr>
+    </ng-template>
+  </p-table>
+</div>

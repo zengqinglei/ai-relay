@@ -1,0 +1,31 @@
+<div class="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-2">
+  <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+    <div class="flex gap-3 items-center">
+      <div
+        class="flex items-center justify-center w-8 h-8 rounded-lg bg-surface-100 dark:bg-surface-800 text-muted-color">
+        <i class="pi pi-calendar"></i>
+      </div>
+      <p-selectbutton [options]="timeRangeOptions()" [ngModel]="selectedTimeRange()"
+        (ngModelChange)="onTimeRangeChange($event)" [allowEmpty]="false" optionLabel="label" optionValue="value"
+        size="small" styleClass="shadow-sm" />
+    </div>
+    @if (selectedTimeRange() === 'custom') {
+    <p-datepicker [ngModel]="customDates()" (ngModelChange)="onCustomDatesChange($event)" selectionMode="range"
+      [readonlyInput]="true" placeholder="选择日期范围" dateFormat="yy-mm-dd" size="small"
+      styleClass="w-full sm:w-64 shadow-sm" />
+    }
+  </div>
+
+  <div class="flex gap-3 items-center">
+    <div
+      class="flex items-center justify-center w-8 h-8 rounded-lg bg-surface-100 dark:bg-surface-800 text-muted-color">
+      @if (isRefreshing()) {
+      <i class="pi pi-spin pi-spinner text-primary"></i>
+      } @else {
+      <i class="pi pi-sync"></i>
+      }
+    </div>
+    <p-selectbutton [options]="refreshOptions()" [ngModel]="selectedRefresh()" (ngModelChange)="onRefreshChange($event)"
+      [allowEmpty]="false" optionLabel="label" optionValue="value" size="small" styleClass="shadow-sm" />
+  </div>
+</div>

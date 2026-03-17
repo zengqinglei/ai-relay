@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\components\object-mapping\Leistd.ObjectMapping.AutoMapper\Leistd.ObjectMapping.AutoMapper.csproj" />
+    <ProjectReference Include="..\..\components\security\Leistd.Security.Core\Leistd.Security.Core.csproj" />
+    <ProjectReference Include="..\..\ddd-struct\Leistd.Ddd.Application\Leistd.Ddd.Application.csproj" />
+    <ProjectReference Include="..\..\ddd-struct\Leistd.Ddd.Application.Contracts\Leistd.Ddd.Application.Contracts.csproj" />
+    <ProjectReference Include="..\AiRelay.Domain\AiRelay.Domain.csproj" />
+    <ProjectReference Include="..\AiRelay.Infrastructure\AiRelay.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

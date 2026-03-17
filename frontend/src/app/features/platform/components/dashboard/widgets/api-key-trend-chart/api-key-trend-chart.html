@@ -1,0 +1,20 @@
+<div
+  class="bg-surface-0 dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-700 h-full flex flex-col p-6 shadow-sm">
+  <div class="flex items-center justify-between shrink-0">
+    <div>
+      <h3 class="font-bold text-lg m-0 text-color">热门 API KEY 调用趋势</h3>
+      <p class="text-xs text-muted-color mt-1 mb-0">所选时间范围内调用量 TOP 7 的 API KEY</p>
+    </div>
+  </div>
+  <div class="flex-1 relative w-full min-h-0">
+    @if (chartData(); as data) {
+    <p-chart type="line" [data]="data" [options]="chartOptions()" [plugins]="chartPlugins" height="100%"
+      width="100%"></p-chart>
+    } @else {
+    <div class="h-full flex items-center justify-center text-surface-500">
+      <i class="pi pi-chart-line text-4xl"></i>
+      <span class="ml-2">暂无数据</span>
+    </div>
+    }
+  </div>
+</div>

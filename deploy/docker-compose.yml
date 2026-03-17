@@ -1,0 +1,118 @@
+version: '3.8'
+
+services:
+  backend:
+    image: ghcr.io/zengqinglei/ai-relay:latest
+    container_name: ai-relay
+    ports:
+      - "80:8080"
+    environment:
+      # Environment
+      - ASPNETCORE_ENVIRONMENT=Production
+
+      # Database Configuration (PostgreSQL)
+      - ConnectionStrings__Default=Host=db;Port=5432;Database=AiRelay;Username=postgres;Password=YourSecurePassword!
+
+      # Redis Configuration
+      - ConnectionStrings__Redis=redis:6379
+
+      # Default Admin User (Change in production!)
+      - DefaultAdmin__Username=admin
+      - DefaultAdmin__Password=Admin@123456
+      - DefaultAdmin__Email=admin@ai-relay.com
+      - DefaultAdmin__Nickname=系统管理员
+
+      # JWT Configuration (Change SecretKey in production!)
+      - Jwt__SecretKey=AiRelay-SuperSecretKey-ForProduction-MinimumLength32Characters!
+      - Jwt__Issuer=AiRelay
+      - Jwt__Audience=AiRelay
+
+      # CORS Configuration（可选）
+      - Cors__AllowAnyLocalhost=false
+      # - Cors__AllowedOrigins__0=https://your-domain.com
+
+      # External OAuth (Optional - uncomment and configure if needed)
+      # - ExternalAuth__GitHub__ClientId=your-github-client-id
+      # - ExternalAuth__GitHub__ClientSecret=your-github-client-secret
+      # - ExternalAuth__GitHub__RedirectUri=https://your-domain.com/api/external-auth/github/callback
+      # - ExternalAuth__Google__ClientId=your-google-client-id
+      # - ExternalAuth__Google__ClientSecret=your-google-client-secret
+      # - ExternalAuth__Google__RedirectUri=https://your-domain.com/api/external-auth/google/callback
+
+      # Logging（可选）
+      - Serilog__MinimumLevel__Default=Information
+      - Serilog__MinimumLevel__Override__AiRelay=Information
+      - Serilog__MinimumLevel__Override__Microsoft.AspNetCore=Warning
+      - Serilog__MinimumLevel__Override__Microsoft.EntityFrameworkCore=Warning
+
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    restart: unless-stopped
+
+    networks:
+      - ai-relay-network
+
+  db:
+    image: postgres:15-alpine
+    container_name: ai-relay-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: YourSecurePassword!
+      POSTGRES_DB: AiRelay
+      POSTGRES_INITDB_ARGS: "-E UTF8"
+
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+    restart: unless-stopped
+
+    networks:
+      - ai-relay-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: ai-relay-redis
+    command: redis-server --appendonly yes
+
+    volumes:
+      - redis-data:/data
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+    restart: unless-stopped
+
+    networks:
+      - ai-relay-network
+
+volumes:
+  pgdata:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  ai-relay-network:
+    driver: bridge

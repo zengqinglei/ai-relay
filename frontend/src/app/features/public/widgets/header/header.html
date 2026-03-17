@@ -1,0 +1,81 @@
+<header class="py-6 px-6 mx-0 md:mx-12 lg:mx-20 lg:px-20 flex items-center justify-between relative lg:static">
+  <!-- Logo -->
+  <a class="flex items-center" href="#">
+    <app-logo></app-logo>
+    <span class="text-color-emphasis font-medium text-2xl leading-normal mr-20">SAKAI</span>
+  </a>
+
+  <!-- Mobile Menu Toggle -->
+  <button pButton [text]="true" severity="secondary" [rounded]="true" pRipple class="lg:hidden!" (click)="toggleMobileMenu()">
+    <i class="pi text-2xl!" [class]="isMobileMenuOpen() ? 'pi-times' : 'pi-bars'"></i>
+  </button>
+
+  <!-- Navigation Menu -->
+  <div
+    class="items-center bg-surface grow justify-between absolute lg:static w-full left-0 top-full px-4 lg:px-0 z-20 transition-all duration-300 ease-in-out mobile-menu lg:mobile-menu-none"
+    [class]="isMobileMenuOpen() ? 'flex flex-col lg:flex-row py-4 lg:py-0' : 'hidden lg:flex'"
+  >
+    <!-- Navigation Links -->
+    <ul class="list-none p-0 m-0 flex lg:items-center select-none flex-col lg:flex-row cursor-pointer gap-4 lg:gap-8 w-full lg:w-auto">
+      <li class="w-full lg:w-auto">
+        <a
+          (click)="navigateToSection('home')"
+          pRipple
+          class="block px-4 lg:px-0 py-4 text-color-emphasis font-medium text-xl hover:text-primary cursor-pointer transition-colors rounded-lg lg:rounded-none hover:bg-surface-100 lg:hover:bg-transparent"
+        >
+          <span>Home</span>
+        </a>
+      </li>
+      <li class="w-full lg:w-auto">
+        <a
+          (click)="navigateToSection('features')"
+          pRipple
+          class="block px-4 lg:px-0 py-4 text-color-emphasis font-medium text-xl hover:text-primary cursor-pointer transition-colors rounded-lg lg:rounded-none hover:bg-surface-100 lg:hover:bg-transparent"
+        >
+          <span>Features</span>
+        </a>
+      </li>
+      <li class="w-full lg:w-auto">
+        <a
+          (click)="navigateToSection('highlights')"
+          pRipple
+          class="block px-4 lg:px-0 py-4 text-color-emphasis font-medium text-xl hover:text-primary cursor-pointer transition-colors rounded-lg lg:rounded-none hover:bg-surface-100 lg:hover:bg-transparent"
+        >
+          <span>Highlights</span>
+        </a>
+      </li>
+      <li class="w-full lg:w-auto">
+        <a
+          (click)="navigateToSection('pricing')"
+          pRipple
+          class="block px-4 lg:px-0 py-4 text-color-emphasis font-medium text-xl hover:text-primary cursor-pointer transition-colors rounded-lg lg:rounded-none hover:bg-surface-100 lg:hover:bg-transparent"
+        >
+          <span>Pricing</span>
+        </a>
+      </li>
+    </ul>
+
+    <!-- Action Buttons -->
+    <div class="flex flex-col lg:flex-row border-t lg:border-t-0 border-surface py-4 lg:py-0 mt-4 lg:mt-0 gap-2 w-full lg:w-auto">
+      <button
+        pButton
+        pRipple
+        label="Login"
+        routerLink="/auth/login"
+        [rounded]="true"
+        [text]="true"
+        class="w-full lg:w-auto"
+        (click)="isMobileMenuOpen.set(false)"
+      ></button>
+      <button
+        pButton
+        pRipple
+        label="Register"
+        routerLink="/auth/login"
+        [rounded]="true"
+        class="bg-primary hover:bg-primary-600 w-full lg:w-auto"
+        (click)="isMobileMenuOpen.set(false)"
+      ></button>
+    </div>
+  </div>
+</header>

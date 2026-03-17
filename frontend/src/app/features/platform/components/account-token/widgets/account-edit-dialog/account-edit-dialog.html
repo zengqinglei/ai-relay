@@ -1,0 +1,207 @@
+<p-dialog
+  [(visible)]="visible"
+  [modal]="true"
+  [breakpoints]="dialogConfig.breakpoints"
+  [style]="dialogConfig.style"
+  [contentStyle]="dialogConfig.contentStyle"
+  [draggable]="dialogConfig.draggable"
+  [resizable]="dialogConfig.resizable"
+  [closable]="!saving"
+  [header]="isEditMode() ? '编辑账户' : '添加账户'"
+  (onHide)="onHide()"
+  styleClass="overflow-hidden"
+>
+  <div class="p-4 md:p-6 pt-2" [formGroup]="form">
+    <p class="text-sm text-muted-color mt-0 mb-6">请填写账户的基本信息与鉴权凭证。</p>
+
+    <!-- Responsive Grid Layout -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 md:gap-x-6 gap-y-4">
+      <!-- Platform -->
+      <div class="flex flex-col gap-2">
+        <label class="block text-sm font-medium text-color">平台类型</label>
+        <p-select
+          [options]="platformOptions"
+          formControlName="platform"
+          optionLabel="label"
+          optionValue="value"
+          appendTo="body"
+          [fluid]="true"
+        />
+      </div>
+
+      <!-- Name -->
+      <div class="flex flex-col gap-2">
+        <label class="block text-sm font-medium text-color">账户名称 *</label>
+        <input pInputText formControlName="name" placeholder="e.g. zengql@live.cn" class="w-full" />
+        @if (form.get('name')?.invalid && form.get('name')?.touched) {
+          <small class="text-red-500">账户名称必填</small>
+        }
+      </div>
+
+      <!-- API Key (Hidden for OAuth Accounts) - Full Width -->
+      @if (!showOAuthFlow) {
+        <div class="col-span-2 flex flex-col gap-2 animate-fadein">
+          <label class="block text-sm font-medium text-color">
+            API Key
+            @if (!isEditMode()) {
+              <span class="text-red-500">*</span>
+            }
+          </label>
+
+          <div class="relative">
+            <input
+              pInputText
+              formControlName="credential"
+              [placeholder]="isEditMode() ? '留空则不修改' : 'sk-...'"
+              class="w-full pr-10 font-mono"
+            />
+            <i class="pi pi-key absolute right-3 top-1/2 -translate-y-1/2 text-muted-color"></i>
+          </div>
+
+          @if (form.get('credential')?.invalid && form.get('credential')?.touched) {
+            <small class="text-red-500">API Key 必填</small>
+          }
+          @if (isEditMode() && !form.get('credential')?.value) {
+            <small class="text-muted-color">留空则不修改现有 API Key</small>
+          }
+        </div>
+      }
+
+      <!-- 上游地址 (Hidden for OAuth Accounts) - Full Width -->
+      @if (!showOAuthFlow) {
+        <div class="col-span-2 flex flex-col gap-2">
+          <label class="block text-sm font-medium text-color">上游地址</label>
+          <input pInputText formControlName="baseUrl" placeholder="默认官方地址，可填自定义网关..." class="w-full font-mono" />
+          @if (form.get('baseUrl')?.invalid && form.get('baseUrl')?.touched) {
+            <small class="text-red-500">上游地址格式不正确 (需以 http:// 或 https:// 开头)</small>
+          }
+        </div>
+      }
+
+      <!-- OAuth Flow (for Non-API Key Platforms) - Full Width -->
+      @if (showOAuthFlow) {
+        <div
+          class="col-span-2 rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4 space-y-4"
+        >
+          <h3 class="text-sm font-semibold text-color">OAuth 授权流程</h3>
+
+          <!-- Step 1: Get Link -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-muted-color">1. 获取授权链接并在浏览器中打开</span>
+              <p-button
+                [label]="generatedAuthUrl ? '重新生成链接' : '生成授权链接'"
+                icon="pi pi-link"
+                size="small"
+                [outlined]="true"
+                [loading]="generatingUrl"
+                (onClick)="generateAuthUrl()"
+              ></p-button>
+            </div>
+
+            @if (generatedAuthUrl) {
+              <div class="flex gap-2 animate-fadein">
+                <input pInputText [value]="generatedAuthUrl" readonly class="flex-1 font-mono text-xs bg-surface-0 dark:bg-surface-800" />
+                <p-button
+                  icon="pi pi-copy"
+                  [outlined]="true"
+                  severity="secondary"
+                  pTooltip="复制链接"
+                  tooltipPosition="top"
+                  (onClick)="copyAuthUrl()"
+                ></p-button>
+                <p-button
+                  icon="pi pi-external-link"
+                  [outlined]="true"
+                  severity="secondary"
+                  pTooltip="打开链接"
+                  tooltipPosition="top"
+                  (onClick)="openAuthUrl()"
+                ></p-button>
+              </div>
+            }
+          </div>
+
+          <!-- Step 2: Input Code -->
+          <div class="space-y-2">
+            <label class="text-sm text-muted-color block">2. 粘贴回调地址或授权码 (Code) *</label>
+            <input
+              pInputText
+              [(ngModel)]="authCodeInput"
+              [ngModelOptions]="{ standalone: true }"
+              (input)="extractCodeFromUrl()"
+              placeholder="https://.../authcode?code=... 或直接粘贴 code"
+              class="w-full font-mono text-sm"
+            />
+            @if (authCodeTouched && !authCodeInput) {
+              <small class="text-red-500">请完成 OAuth 授权并粘贴回调地址或授权码</small>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- Max Concurrency -->
+      <div class="col-span-2 flex flex-col gap-2">
+        <label class="block text-sm font-medium text-color">最大并发数 *</label>
+        <p-inputNumber
+          formControlName="maxConcurrency"
+          [min]="0"
+          [max]="1000"
+          [showButtons]="true"
+          buttonLayout="horizontal"
+          inputId="maxConcurrency"
+          decrementButtonClass="p-button-secondary"
+          incrementButtonClass="p-button-secondary"
+          incrementButtonIcon="pi pi-plus"
+          decrementButtonIcon="pi pi-minus"
+          class="w-full"
+          [inputStyle]="{ width: '100%' }"
+        >
+        </p-inputNumber>
+        <small class="text-muted-color">设置为 0 表示不限制并发</small>
+      </div>
+
+      <!-- Spacer for alignment when maxConcurrency is in left column -->
+      <div></div>
+
+      <!-- Description - Full Width -->
+      <div class="col-span-2 flex flex-col gap-2">
+        <label class="block text-sm font-medium text-color">描述说明</label>
+        <textarea
+          pTextarea
+          formControlName="description"
+          rows="3"
+          placeholder="请输入账户备注或用途说明..."
+          class="w-full resize-none"
+        ></textarea>
+      </div>
+
+      <!-- Extended Fields -->
+      @if (showProjectId) {
+        <!-- Divider -->
+        <div class="col-span-2 relative py-2">
+          <div class="absolute inset-0 flex items-center" aria-hidden="true">
+            <div class="w-full border-t border-surface-200 dark:border-surface-700"></div>
+          </div>
+          <div class="relative flex justify-start">
+            <span class="pr-2 bg-surface-0 dark:bg-surface-900 text-xs font-semibold text-muted-color uppercase tracking-wider"
+              >扩展属性</span
+            >
+          </div>
+        </div>
+
+        <div class="col-span-2 flex flex-col gap-2 animate-fadein">
+          <label class="block text-sm font-medium text-color">项目 ID (Project ID)</label>
+          <input pInputText formControlName="projectId" placeholder="请输入 Google Cloud 项目 ID (可选)" class="w-full" />
+        </div>
+      }
+    </div>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <div class="flex justify-end gap-3 p-4">
+      <p-button label="取消" (onClick)="onHide()" severity="secondary" [outlined]="true" [disabled]="saving"> </p-button>
+      <p-button label="保存" (onClick)="onSubmit()" [loading]="saving"> </p-button>
+    </div>
+  </ng-template>
+</p-dialog>

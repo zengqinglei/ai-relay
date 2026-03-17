@@ -1,0 +1,114 @@
+<p-dialog
+  [(visible)]="visible"
+  [header]="isEditMode() ? '编辑订阅' : '新建订阅'"
+  [modal]="true"
+  [breakpoints]="dialogConfig.breakpoints"
+  [style]="dialogConfig.style"
+  [contentStyle]="dialogConfig.contentStyle"
+  [draggable]="dialogConfig.draggable"
+  [resizable]="dialogConfig.resizable"
+  [closable]="!saving"
+  (onHide)="onHide()"
+>
+  @if (loading) {
+    <div class="flex items-center justify-center h-64">
+      <p-progressSpinner ariaLabel="loading" />
+    </div>
+  } @else if (formModel()) {
+    <div class="flex flex-col gap-6">
+      <!-- Basic Info -->
+      <div class="flex flex-col gap-4">
+        <div class="flex flex-col gap-2">
+          <label class="font-bold">名称</label>
+          <input pInputText [(ngModel)]="formModel().name" placeholder="请输入订阅名称" [disabled]="isEditMode()" />
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <label class="font-bold">描述</label>
+          <textarea pTextarea [(ngModel)]="formModel().description" rows="2" class="w-full" placeholder="可选描述"></textarea>
+        </div>
+
+        @if (!isEditMode()) {
+          <div class="flex flex-col gap-2">
+            <label class="font-bold flex items-center gap-2">
+              自定义密钥
+              <i
+                class="pi pi-info-circle text-xs text-muted-color cursor-help"
+                pTooltip="留空则自动生成。自定义需6-48位，必须包含数字和字母，可包含下划线(_)或连字符(-)"
+                tooltipPosition="top"
+                tooltipStyleClass="max-w-xs"
+              ></i>
+            </label>
+            <input
+              pInputText
+              [(ngModel)]="formModel().customSecret"
+              placeholder="留空则自动生成；如需自定义，请输入 6–48 位字母数字（可含 _ 或 -）"
+              class="font-mono"
+              [class.ng-invalid]="!isSecretValid() && formModel().customSecret"
+            />
+            @if (!isSecretValid() && formModel().customSecret) {
+              <small class="text-red-500">密钥格式不正确。必须是6-48位，包含数字和字母，可包含下划线(_)或连字符(-)</small>
+            }
+          </div>
+        }
+
+        <div class="flex flex-col gap-2">
+          <label class="font-bold">过期时间</label>
+          <p-datepicker
+            [(ngModel)]="expiryDate"
+            dateFormat="yy-mm-dd"
+            [showIcon]="true"
+            [showTime]="false"
+            appendTo="body"
+            placeholder="留空表示永不过期"
+            [showButtonBar]="true"
+          ></p-datepicker>
+        </div>
+      </div>
+
+      <p-divider align="center">
+        <span class="text-gray-500 text-sm font-bold">路由配置 (Route Configuration)</span>
+      </p-divider>
+
+      <!-- Route Configuration -->
+      <div class="flex flex-col gap-3">
+        <div class="text-sm text-gray-500 mb-2">为每个平台指定一个后端服务分组。若未配置，该 ApiKey 将无法访问对应平台的服务。</div>
+
+        @for (platform of platformOptions; track platform.value) {
+          <div
+            class="flex items-center gap-4 p-3 bg-surface-50 dark:bg-surface-800 rounded-lg border border-surface-200 dark:border-surface-700"
+          >
+            <div
+              class="w-8 h-8 flex items-center justify-center bg-surface-0 dark:bg-surface-900 rounded border border-surface-200 dark:border-surface-700 shadow-sm p-1.5"
+            >
+              <app-platform-icon [platform]="platform.value" />
+            </div>
+
+            <div class="flex-1">
+              <div class="font-bold text-sm">{{ platform.label }}</div>
+              <div class="text-xs text-muted-color">{{ platform.value }}</div>
+            </div>
+
+            <div class="w-64">
+              <p-select
+                [options]="getGroupsForPlatform(platform.value)"
+                [(ngModel)]="bindingsMap[platform.value]"
+                optionLabel="name"
+                optionValue="id"
+                placeholder="未绑定 (默认无法访问)"
+                [showClear]="true"
+                appendTo="body"
+                class="w-full"
+              ></p-select>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  <ng-template pTemplate="footer">
+    <p-button label="取消" [text]="true" severity="secondary" (onClick)="visible = false" [disabled]="saving" />
+    <p-button label="保存" icon="pi pi-check" (onClick)="save()" [disabled]="!isValid() || saving" [loading]="saving" />
+  </ng-template>
+</p-dialog>

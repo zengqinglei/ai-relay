@@ -1,0 +1,81 @@
+<div class="flex flex-col h-full overflow-hidden">
+  <!-- Scrollable Content -->
+  <div class="flex-1 overflow-y-auto p-6 custom-scrollbar">
+    <!-- Metrics -->
+    <app-subscription-metrics-cards [metrics]="metrics()" />
+
+    <!-- Action Bar -->
+    <div class="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 mb-6">
+      <div class="flex flex-col sm:flex-row flex-1 gap-3 items-stretch sm:items-center">
+        <p-select
+          [options]="statusOptions"
+          [(ngModel)]="selectedStatus"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="全部状态"
+          [showClear]="true"
+          appendTo="body"
+          styleClass="w-full sm:w-48"
+        />
+
+        <p-iconfield class="w-full sm:flex-1 sm:max-w-xs">
+          <p-inputicon class="pi pi-search" />
+          <input pInputText type="text" placeholder="搜索名称..." [(ngModel)]="searchQuery" class="w-full" />
+        </p-iconfield>
+      </div>
+
+      <div class="flex gap-3 items-center justify-end shrink-0">
+        <p-button
+          icon="pi pi-search"
+          label="查询"
+          (onClick)="onFilter()"
+          styleClass="w-full sm:w-auto"
+          pTooltip="查询"
+          tooltipPosition="top"
+        >
+        </p-button>
+        <p-button
+          label="新建订阅"
+          icon="pi pi-plus"
+          (click)="openAddDialog()"
+          [outlined]="true"
+          severity="primary"
+          styleClass="w-full sm:w-auto"
+        >
+        </p-button>
+      </div>
+    </div>
+
+    <!-- Main Table -->
+    <app-subscription-table
+      [subscriptions]="subscriptions()"
+      [totalRecords]="totalRecords()"
+      [loading]="loading()"
+      (filterChange)="onPageChange($event)"
+      (edit)="openEditDialog($event)"
+      (delete)="handleDelete($event)"
+      (statusToggle)="handleStatusToggle($event)"
+      (updateExpiryAndEnable)="handleExpiryUpdate($event)"
+    />
+  </div>
+</div>
+
+<!-- Edit Dialog -->
+<app-subscription-edit-dialog
+  [(visible)]="editDialogVisible"
+  [loading]="editDialogLoading()"
+  [saving]="editDialogSaving()"
+  [subscription]="selectedSubscription()"
+  (saved)="handleSave($event)"
+/>
+
+<!-- Confirmation Dialog -->
+<p-confirmDialog
+  header="确认"
+  icon="pi pi-exclamation-triangle"
+  acceptLabel="确定"
+  rejectLabel="取消"
+  acceptButtonStyleClass="p-button-danger p-button-text"
+  rejectButtonStyleClass="p-button-text p-button-secondary"
+>
+</p-confirmDialog>

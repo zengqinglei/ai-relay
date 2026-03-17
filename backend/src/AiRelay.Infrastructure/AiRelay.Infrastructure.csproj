@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.3" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.16.0" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.16.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.3">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AiRelay.Domain\AiRelay.Domain.csproj" />
+    <ProjectReference Include="..\..\ddd-struct\Leistd.Ddd.Infrastructure\Leistd.Ddd.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\components\event-bus\Leistd.EventBus.Local\Leistd.EventBus.Local.csproj" />
+    <ProjectReference Include="..\..\components\lock\Leistd.Lock.Redis\Leistd.Lock.Redis.csproj" />
+    <ProjectReference Include="..\..\components\lock\Leistd.Lock.Memory\Leistd.Lock.Memory.csproj" />
+  </ItemGroup>
+
+</Project>

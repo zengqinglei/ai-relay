@@ -1,0 +1,103 @@
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+  <!-- 吞吐量卡片 (原 Cost 卡片位置) -->
+  <p-card styleClass="h-full group transition-all hover:-translate-y-1">
+    <div class="flex justify-between items-start mb-3 md:mb-4">
+      <div>
+        <p class="text-[10px] md:text-xs font-semibold text-muted-color uppercase tracking-wider m-0"> 请求总数 </p>
+        <h3 class="text-xl md:text-2xl font-bold mt-1 mb-0 text-color">
+          {{ formatNumber(usage().totalRequests) }}
+        </h3>
+      </div>
+      <div
+        class="w-8 h-8 md:w-10 md:h-10 rounded-lg bg-primary-500/10 flex items-center justify-center text-primary-600 dark:text-primary-500">
+        <i class="pi pi-bolt text-lg md:text-xl"></i>
+      </div>
+    </div>
+    <div class="flex items-center justify-between text-sm">
+      <span [class]="getTrendClass(usage().requestsTrend)"
+        class="flex items-center gap-1 px-1.5 py-0.5 rounded font-medium">
+        <i [class]="'pi ' + getTrendIcon(usage().requestsTrend) + ' text-[10px]'"></i>
+        {{ Math.abs(usage().requestsTrend) }}%
+      </span>
+      <span class="text-primary font-mono text-xs">{{ usage().currentRps }} RPS</span>
+    </div>
+  </p-card>
+
+  <!-- 今日消耗卡片 -->
+  <p-card styleClass="h-full group transition-all hover:-translate-y-1">
+    <div class="flex justify-between items-start mb-3 md:mb-4">
+      <div>
+        <p class="text-[10px] md:text-xs font-semibold text-muted-color uppercase tracking-wider m-0"> 消耗总额 </p>
+        <h3 class="text-xl md:text-2xl font-bold mt-1 mb-0 text-color"> ¥{{ usage().totalCost | number: '1.4-4' }} </h3>
+      </div>
+      <div
+        class="w-8 h-8 md:w-10 md:h-10 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-600 dark:text-amber-500">
+        <i class="pi pi-wallet text-lg md:text-xl"></i>
+      </div>
+    </div>
+    <div class="flex items-center justify-between text-sm mt-3">
+      <div class="flex flex-col gap-1">
+        <span class="text-xs text-muted-color">输入 Token</span>
+        <span class="font-mono text-xs font-medium text-color" [title]="formatNumber(usage().totalInputTokens)">{{
+          formatTokenCount(usage().totalInputTokens)
+          }}</span>
+      </div>
+      <div class="h-8 w-px bg-surface-200 dark:bg-surface-700"></div>
+      <div class="flex flex-col gap-1">
+        <span class="text-xs text-muted-color">输出 Token</span>
+        <span class="font-mono text-xs font-medium text-color" [title]="formatNumber(usage().totalOutputTokens)">{{
+          formatTokenCount(usage().totalOutputTokens)
+          }}</span>
+      </div>
+    </div>
+  </p-card>
+
+  <!-- 活跃订阅卡片 -->
+  <p-card styleClass="h-full group transition-all hover:-translate-y-1">
+    <div class="flex justify-between items-start mb-3 md:mb-4">
+      <div>
+        <p class="text-[10px] md:text-xs font-semibold text-muted-color uppercase tracking-wider m-0"> 活跃订阅 (API Keys)
+        </p>
+        <h3 class="text-xl md:text-2xl font-bold mt-1 mb-0 text-color">
+          {{ subscriptions().activeSubscriptions }}
+          <span class="text-base font-normal text-muted-color">/ {{ subscriptions().totalSubscriptions }}</span>
+        </h3>
+      </div>
+      <div
+        class="w-8 h-8 md:w-10 md:h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-600 dark:text-indigo-500">
+        <i class="pi pi-key text-lg md:text-xl"></i>
+      </div>
+    </div>
+    <div class="w-full bg-surface-100 dark:bg-surface-700 h-1.5 mt-3 rounded-full overflow-hidden">
+      <div class="bg-indigo-500 h-full rounded-full transition-all duration-500"
+        [style.width.%]="calculatePercentage(subscriptions().activeSubscriptions, subscriptions().totalSubscriptions)">
+      </div>
+    </div>
+    <div class="flex justify-between mt-2 text-xs text-muted-color">
+      <span>即将过期</span>
+      <span class="text-amber-500 font-medium">{{ subscriptions().expiringSoon }}</span>
+    </div>
+  </p-card>
+
+  <!-- 服务健康度卡片 -->
+  <p-card styleClass="h-full group transition-all hover:-translate-y-1">
+    <div class="flex justify-between items-start mb-3 md:mb-4">
+      <div>
+        <p class="text-[10px] md:text-xs font-semibold text-muted-color uppercase tracking-wider m-0"> 平均成功率 </p>
+        <h3 class="text-xl md:text-2xl font-bold mt-1 mb-0 text-emerald-500"> {{ accounts().averageSuccessRate }}% </h3>
+      </div>
+      <div
+        class="w-8 h-8 md:w-10 md:h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-500">
+        <i class="pi pi-heart-fill text-lg md:text-xl"></i>
+      </div>
+    </div>
+    <div class="w-full bg-surface-100 dark:bg-surface-700 h-1.5 mt-3 rounded-full overflow-hidden">
+      <div class="bg-emerald-500 h-full rounded-full transition-all duration-500"
+        [style.width.%]="accounts().averageSuccessRate"></div>
+    </div>
+    <div class="flex justify-between mt-2 text-xs text-muted-color">
+      <span>异常请求</span>
+      <span class="text-red-500 font-medium">{{ accounts().abnormalRequests24h }}</span>
+    </div>
+  </p-card>
+</div>

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8">
+  <title>AI Relay</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <!-- 提前检测主题，防止闪烁 (Fix FOIT) -->
+  <script>
+    (function () {
+      const theme = localStorage.getItem('app_theme');
+      const isDark = theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+      }
+    })();
+  </script>
+</head>
+<body>
+  <app-root>
+    <!-- 初始加载状态 (HTML Shell)，在 Angular 启动前显示 -->
+    <!-- 使用 bg-surface-ground 替代 bg-gray-50/dark:bg-[#020617] -->
+    <div
+      class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-surface-ground transition-opacity duration-300 ease-in-out">
+      <!-- 
+          Spinner 样式:
+          - 边框底色: border-surface-200 (替代 border-gray-200/slate-800)
+          - 旋转条色: border-t-primary (替代 border-t-blue-600)
+        -->
+      <div
+        class="w-10 h-10 border-4 border-surface-200 dark:border-surface-700 border-t-primary rounded-full animate-spin">
+      </div>
+      <!-- 文字颜色: text-surface-500 (替代 text-gray-600/slate-400) -->
+      <span class="mt-4 text-sm font-medium text-surface-500">加载中...</span>
+    </div>
+  </app-root>
+</body>
+
+</html>

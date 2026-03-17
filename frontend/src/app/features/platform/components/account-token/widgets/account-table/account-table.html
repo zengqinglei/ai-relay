@@ -1,0 +1,252 @@
+<!-- Action Bar -->
+<div class="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 mb-6">
+  <div class="flex flex-col sm:flex-row flex-1 gap-3 items-stretch sm:items-center">
+    <!-- Filters -->
+    <p-select [options]="platformOptions" [(ngModel)]="selectedPlatform" optionLabel="label"
+      optionValue="value" placeholder="全部平台" [showClear]="true" appendTo="body" styleClass="w-full sm:w-48" />
+
+    <p-select [options]="statusOptions" [(ngModel)]="selectedStatus" optionLabel="label"
+      optionValue="value" placeholder="全部状态" [showClear]="true" appendTo="body" styleClass="w-full sm:w-48" />
+
+    <!-- Search -->
+    <p-iconfield class="w-full sm:flex-1 sm:max-w-xs">
+      <p-inputicon class="pi pi-search" />
+      <input pInputText type="text" placeholder="搜索账户名称、上游地址..." [(ngModel)]="searchQuery"
+        class="w-full" />
+    </p-iconfield>
+  </div>
+
+  <div class="flex gap-3 items-center justify-end shrink-0">
+    <p-button
+      icon="pi pi-search"
+      label="查询"
+      (onClick)="onFilter()"
+      styleClass="w-full sm:w-auto"
+      pTooltip="查询"
+      tooltipPosition="top"
+    >
+    </p-button>
+    <p-button label="添加账户" icon="pi pi-plus" (click)="add.emit()" [outlined]="true" severity="primary"
+      styleClass="w-full sm:w-auto">
+    </p-button>
+  </div>
+</div>
+
+<!-- Accounts Table -->
+<div
+  class="bg-surface-0 dark:bg-surface-900 rounded-xl shadow-sm border border-surface-200 dark:border-surface-700 overflow-hidden">
+  <p-table [value]="accounts()" [lazy]="true" (onLazyLoad)="onPage($event)" [totalRecords]="totalRecords()"
+    [loading]="loading()" [first]="first" [rows]="rows" [paginator]="true" [rowHover]="true"
+    [rowsPerPageOptions]="[10, 20, 50, 100]" [showCurrentPageReport]="true"
+    currentPageReportTemplate="共 {totalRecords} 条" [showJumpToPageInput]="true" styleClass="w-full"
+    responsiveLayout="scroll" [breakpoint]="'960px'">
+    <ng-template pTemplate="header">
+      <tr class="bg-surface-50 dark:bg-surface-800 text-muted-color text-xs uppercase font-medium backdrop-blur-sm">
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3">
+          账户标识</th>
+        <th
+          class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden md:table-cell">
+          鉴权信息</th>
+        <th
+          class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden lg:table-cell">
+          调度状态</th>
+        <th
+          class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden xl:table-cell">
+          统计 & 健康度</th>
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3">
+          启用/禁用</th>
+        <th
+          class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden 2xl:table-cell">
+          创建时间</th>
+        <th
+          class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 text-right">
+          操作</th>
+      </tr>
+    </ng-template>
+
+    <ng-template pTemplate="body" let-acc>
+      <tr
+        class="transition-colors group border-b border-transparent hover:bg-surface-50 dark:hover:bg-surface-800/50 text-sm text-color-secondary">
+        <!-- Identity -->
+        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4">
+          <div class="flex items-center gap-3">
+            <div
+              class="w-10 h-10 rounded-lg bg-surface-100 dark:bg-surface-800 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform p-2">
+              <app-platform-icon [platform]="acc.platform" />
+            </div>
+            <div>
+              <p class="font-semibold text-color text-sm group-hover:text-primary transition-colors m-0">{{ acc.name }}
+              </p>
+              <div class="flex items-center gap-2 mt-0.5">
+                <span
+                  class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-surface-100 dark:bg-surface-800 text-muted-color border border-surface-200 dark:border-surface-700">
+                  {{ acc.platform | platformLabel }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </td>
+
+        <!-- Auth Info -->
+        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden md:table-cell">
+          <div class="flex flex-col gap-1.5">
+            <div class="flex items-center gap-2">
+              <span class="text-muted-color w-4"><i class="pi pi-lock"></i></span>
+              <span
+                class="font-mono text-xs text-muted-color bg-surface-100 dark:bg-surface-800 px-1.5 py-0.5 rounded border border-surface-200 dark:border-surface-700">
+                {{ getMaskedToken(acc.fullToken) }}
+              </span>
+            </div>
+            @if (acc.baseUrl) {
+            <div class="flex items-center gap-2 text-xs">
+              <span class="text-muted-color w-4"><i class="pi pi-globe"></i></span>
+              <a [href]="acc.baseUrl" target="_blank"
+                class="font-mono text-muted-color hover:text-primary hover:underline truncate max-w-[140px] transition-colors">{{
+                acc.baseUrl }}</a>
+            </div>
+            }
+          </div>
+        </td>
+
+        <!-- Scheduling Status -->
+        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden lg:table-cell">
+          <div class="flex flex-col gap-1.5 items-start">
+            <!-- Row 1: Concurrency -->
+            <div
+              class="flex items-center gap-1.5 text-xs text-color-secondary font-mono bg-surface-50 dark:bg-surface-800/50 px-1.5 py-0.5 rounded border border-surface-200 dark:border-surface-700/50">
+              <span class="text-[10px] text-muted-color uppercase tracking-tight">并发:</span>
+              @if (acc.maxConcurrency === 0) {
+                <span class="text-[10px] text-color-secondary font-mono">不限制</span>
+              } @else {
+                <span [ngClass]="{
+                  'text-color-secondary': acc.currentConcurrency === 0,
+                  'text-orange-500 font-bold': acc.currentConcurrency > 0 && acc.currentConcurrency < acc.maxConcurrency,
+                  'text-red-500 font-bold': acc.currentConcurrency >= acc.maxConcurrency
+                }">
+                  {{ acc.currentConcurrency }}/{{ acc.maxConcurrency }}
+                </span>
+              }
+            </div>
+
+            <!-- Row 2: Status & Expiry -->
+            <div class="flex items-center gap-2 h-5">
+              <div class="flex items-center gap-1.5">
+                <p-tag [severity]="getStatusSeverity(acc.status)" [value]="getStatusLabel(acc.status)"
+                  styleClass="text-[10px] px-1.5 py-0.5 h-5"></p-tag>
+                @if (shouldShowStatusDetail(acc)) {
+                <i class="pi pi-question-circle text-sm cursor-help" [ngClass]="getStatusIconColor(acc.status)"
+                  [pTooltip]="acc.statusDescription" tooltipPosition="right" [escape]="false" tooltipStyleClass="max-w-md"></i>
+                }
+                @if (acc.status === AccountStatus.RateLimited && acc.lockedUntil) {
+                <span
+                  class="text-[10px] font-mono opacity-80 border-l border-orange-200 dark:border-orange-500/30 pl-1.5 text-orange-600 dark:text-orange-400 cursor-help"
+                  [pTooltip]="formatUnlockTime(acc.lockedUntil)" tooltipPosition="top">
+                  {{ formatRemainingTime(getRateLimitRemainingSeconds(acc)) }}
+                </span>
+                }
+              </div>
+
+              <!-- Expiry Info (Inline) -->
+              @if (getExpiryState(acc) !== 'forever' && getExpiryState(acc) !== 'ok') {
+              <div class="flex items-center pl-2 border-l border-surface-200 dark:border-surface-700 ml-0.5">
+                @switch (getExpiryState(acc)) {
+                @case ('expired') {
+                <span class="text-[10px] text-red-500 font-medium">已过期</span>
+                }
+                @case ('warning') {
+                <span class="text-[10px] text-orange-500 font-mono">{{ formatMinutes(acc.expiresIn) }}m</span>
+                }
+                }
+              </div>
+              }
+            </div>
+          </div>
+        </td>
+
+        <!-- Stats -->
+        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden xl:table-cell">
+          <div class="flex flex-col gap-1 items-start">
+            <div class="flex items-center gap-1.5">
+              <span class="text-[10px] text-muted-color uppercase">成功率:</span>
+              <span class="text-xs font-bold px-1.5 py-0.5 rounded border" [ngClass]="{
+                  'text-color-secondary bg-surface-50 dark:bg-surface-800 border-surface-200 dark:border-surface-700': acc.usageToday <= 0,
+                  'text-red-500 bg-red-50 dark:bg-red-500/10 border-red-100 dark:border-red-500/20': acc.usageToday > 0 && acc.successRate < 70,
+                  'text-orange-500 bg-orange-50 dark:bg-orange-500/10 border-orange-100 dark:border-orange-500/20': acc.usageToday > 0 && acc.successRate >= 70 && acc.successRate < 90,
+                  'text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-100 dark:border-emerald-500/20': acc.usageToday > 0 && acc.successRate >= 90
+                }">
+                {{ acc.successRate }}%
+              </span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="text-[10px] text-muted-color uppercase">今日调用:</span>
+              <span class="text-[11px] font-mono text-color-secondary">{{ acc.usageToday | number }}</span>
+            </div>
+          </div>
+        </td>
+
+        <!-- Enable/Disable -->
+        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4">
+          <div (click)="confirmStatusToggle($event, acc)" class="inline-flex cursor-pointer" pTooltip="点击切换状态"
+            tooltipPosition="top">
+            <p-toggleswitch [ngModel]="acc.isActive" styleClass="pointer-events-none" size="small" />
+          </div>
+        </td>
+
+        <!-- Created At -->
+        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden 2xl:table-cell">
+          <div class="text-[11px] text-muted-color font-mono tracking-tight">{{ acc.creationTime | date: 'yyyy-MM-dd
+            HH:mm:ss' }}</div>
+        </td>
+
+        <!-- Actions -->
+        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 text-right">
+          <div class="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <!-- Reset Status Action -->
+            @if (acc.status === AccountStatus.RateLimited || acc.status === AccountStatus.Error) {
+            <p-button (onClick)="confirmResetStatus($event, acc)" [text]="true" [rounded]="true" severity="warn"
+              styleClass="w-8 h-8 !p-0" pTooltip="重置状态" tooltipPosition="top">
+              <i class="pi pi-refresh"></i>
+            </p-button>
+            }
+
+            <!-- Model Test (Always Visible) -->
+            <p-button (onClick)="openTestDialog(acc)" [text]="true" [rounded]="true" severity="help"
+              styleClass="w-8 h-8 !p-0" pTooltip="模型测试" tooltipPosition="top">
+              <i class="pi pi-sparkles"></i>
+            </p-button>
+
+            <!-- Edit Action (Visible only if NOT RateLimited) -->
+            @if (acc.status !== AccountStatus.RateLimited) {
+            <p-button (onClick)="edit.emit(acc.id)" [text]="true" [rounded]="true" severity="secondary"
+              styleClass="w-8 h-8 !p-0" pTooltip="编辑" tooltipPosition="top">
+              <i class="pi pi-pencil"></i>
+            </p-button>
+            }
+
+            <!-- More Menu -->
+            <p-button (onClick)="showActionMenu($event, menu, acc)" [text]="true" [rounded]="true" severity="secondary"
+              styleClass="w-8 h-8 !p-0" pTooltip="更多操作" tooltipPosition="top">
+              <i class="pi pi-ellipsis-v"></i>
+            </p-button>
+          </div>
+        </td>
+      </tr>
+    </ng-template>
+
+    <ng-template pTemplate="emptymessage">
+      <tr class="hover:!bg-transparent">
+        <td colspan="7" class="!p-0 !border-0">
+          <div class="flex flex-col items-center justify-center h-64 text-muted-color">
+            <i class="pi pi-inbox text-5xl opacity-30 mb-3"></i>
+            <p class="text-base font-medium m-0">暂无账户数据</p>
+            <p class="text-sm mt-1 opacity-70">请添加新的账户</p>
+          </div>
+        </td>
+      </tr>
+    </ng-template>
+  </p-table>
+</div>
+
+<p-menu #menu [model]="menuItems()" [popup]="true" appendTo="body" />
+<p-confirmpopup />
+<app-model-test-dialog />

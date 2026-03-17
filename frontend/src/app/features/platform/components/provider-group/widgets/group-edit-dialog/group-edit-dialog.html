@@ -1,0 +1,289 @@
+<p-dialog
+  [(visible)]="visible"
+  [header]="isEditMode() ? '编辑分组' : '新建分组'"
+  [modal]="true"
+  [breakpoints]="dialogConfig.breakpoints"
+  [style]="dialogConfig.style"
+  [contentStyle]="dialogConfig.contentStyle"
+  [draggable]="dialogConfig.draggable"
+  [resizable]="dialogConfig.resizable"
+  [closable]="!saving"
+  (onHide)="onHide()"
+>
+  <!-- Loading Spinner -->
+  @if (loading) {
+    <div class="flex items-center justify-center py-20">
+      <p-progressSpinner ariaLabel="正在加载..."></p-progressSpinner>
+    </div>
+  }
+
+  <!-- Form Content -->
+  @if (formModel() && !loading) {
+    <div class="flex flex-col gap-6">
+      <!-- Basic Info -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="flex flex-col gap-2">
+          <label class="font-bold">分组名称</label>
+          <input pInputText [(ngModel)]="formModel().name" placeholder="请输入分组名称" />
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <label class="font-bold">平台类型</label>
+          <p-select
+            [options]="platformOptions"
+            [(ngModel)]="formModel().platform"
+            optionLabel="label"
+            optionValue="value"
+            [disabled]="isEditMode()"
+            (onChange)="onPlatformChange()"
+            placeholder="选择平台"
+            appendTo="body"
+            [fluid]="true"
+          />
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <label class="font-bold">费率倍数</label>
+          <p-inputnumber
+            [(ngModel)]="formModel().rateMultiplier"
+            mode="decimal"
+            [minFractionDigits]="1"
+            [maxFractionDigits]="2"
+            [step]="0.1"
+            [min]="0.01"
+            [max]="100"
+            [showButtons]="true"
+            buttonLayout="horizontal"
+            inputStyleClass="text-center font-mono"
+            suffix=" x"
+          >
+            <ng-template pTemplate="incrementbuttonicon">
+              <span class="pi pi-plus"></span>
+            </ng-template>
+            <ng-template pTemplate="decrementbuttonicon">
+              <span class="pi pi-minus"></span>
+            </ng-template>
+          </p-inputnumber>
+          <small class="text-muted-color">范围: 0.01 - 100.00 倍</small>
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <label class="font-bold flex items-center gap-2">
+            调度策略
+            <i
+              class="pi pi-info-circle text-muted-color cursor-help text-sm hover:text-primary transition-colors"
+              [pTooltip]="getStrategyDescription(formModel().schedulingStrategy)"
+              tooltipPosition="top"
+              [escape]="false"
+              tooltipStyleClass="max-w-md"
+            ></i>
+          </label>
+          <p-select
+            [options]="strategyOptions()"
+            [(ngModel)]="formModel().schedulingStrategy"
+            optionLabel="label"
+            optionValue="value"
+            appendTo="body"
+            [fluid]="true"
+          >
+            <!-- 自定义选项模板，每个选项也有提示 -->
+            <ng-template pTemplate="item" let-option>
+              <div class="flex items-center justify-between w-full">
+                <span>{{ option.label }}</span>
+                <i
+                  class="pi pi-info-circle text-muted-color cursor-help text-xs"
+                  [pTooltip]="getStrategyDescription(option.value)"
+                  tooltipPosition="left"
+                  [escape]="false"
+                  tooltipStyleClass="max-w-md"
+                  (click)="$event.stopPropagation()"
+                ></i>
+              </div>
+            </ng-template>
+          </p-select>
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <label class="font-bold">粘性会话</label>
+          <div class="flex items-center gap-4 h-10 flex-wrap">
+            <div class="flex items-center gap-2 whitespace-nowrap">
+              <p-toggleswitch [(ngModel)]="formModel().enableStickySession" />
+              <span class="text-sm text-gray-500">{{ formModel().enableStickySession ? '已开启' : '已关闭' }}</span>
+            </div>
+
+            @if (formModel().enableStickySession) {
+              <div class="flex items-center gap-2 animate-fade-in whitespace-nowrap">
+                <span class="text-sm">过期时间(小时):</span>
+                <p-inputnumber
+                  [(ngModel)]="formModel().stickySessionExpirationHours"
+                  [min]="1"
+                  [max]="8760"
+                  [showButtons]="true"
+                  buttonLayout="horizontal"
+                  inputStyleClass="w-16 text-center !py-1"
+                  class="h-8"
+                >
+                  <ng-template pTemplate="incrementbuttonicon">
+                    <span class="pi pi-plus text-xs"></span>
+                  </ng-template>
+                  <ng-template pTemplate="decrementbuttonicon">
+                    <span class="pi pi-minus text-xs"></span>
+                  </ng-template>
+                </p-inputnumber>
+              </div>
+            }
+          </div>
+        </div>
+
+        @if (showMimicOfficialClient) {
+          <div class="flex flex-col gap-2">
+            <label class="font-bold flex items-center gap-2">
+              伪装为官方客户端
+              <i
+                class="pi pi-info-circle text-muted-color cursor-help text-sm hover:text-primary transition-colors"
+                pTooltip="开启后将模拟官方客户端请求特征，提高请求成功率"
+                tooltipPosition="top"
+                tooltipStyleClass="max-w-xs"
+              ></i>
+            </label>
+            <div class="flex items-center gap-4 h-10 flex-wrap">
+              <p-toggleswitch [(ngModel)]="formModel().allowOfficialClientMimic" />
+              <span class="text-sm text-gray-500">{{ formModel().allowOfficialClientMimic ? '已开启' : '已关闭' }}</span>
+            </div>
+          </div>
+        }
+
+        <div class="flex flex-col gap-2 md:col-span-2">
+          <label class="font-bold">描述</label>
+          <textarea pTextarea [(ngModel)]="formModel().description" rows="2" class="w-full"></textarea>
+        </div>
+      </div>
+
+      <p-divider align="center">
+        <span class="text-gray-500 text-sm font-bold">账号关联配置</span>
+      </p-divider>
+
+      <!-- Account Configuration -->
+      <div class="flex flex-col gap-4">
+        <div class="flex justify-between items-center">
+          <span class="text-sm text-gray-600">
+            当前关联账号: <span class="font-bold text-blue-600">{{ formModel().accounts.length }}</span>
+          </span>
+
+          <div class="flex gap-2">
+            <p-select
+              [options]="availableAccounts()"
+              [(ngModel)]="selectedAccountToAdd"
+              optionLabel="name"
+              optionValue="id"
+              placeholder="选择要添加的账号"
+              class="w-60"
+              [filter]="true"
+              filterBy="name"
+              [disabled]="!formModel().platform"
+              appendTo="body"
+            >
+              <ng-template pTemplate="selectedItem" let-selectedOption>
+                @if (selectedOption) {
+                  <div class="flex align-items-center gap-2">
+                    <div>{{ selectedOption.name }}</div>
+                  </div>
+                }
+              </ng-template>
+              <ng-template let-account pTemplate="item">
+                <div class="flex align-items-center gap-2">
+                  <div>{{ account.name }}</div>
+                  @if (isAccountAdded(account.id)) {
+                    <span class="text-xs text-gray-400 ml-auto">已添加</span>
+                  }
+                </div>
+              </ng-template>
+            </p-select>
+            <p-button
+              label="添加"
+              icon="pi pi-plus"
+              [disabled]="!selectedAccountToAdd || isAccountAdded(selectedAccountToAdd)"
+              (onClick)="addAccount()"
+            />
+          </div>
+        </div>
+
+        <p-table [value]="formModel().accounts" styleClass="p-datatable-sm" [scrollable]="true" scrollHeight="300px">
+          <ng-template pTemplate="header">
+            <tr>
+              <th style="width: 35%">账号名称</th>
+              <th style="width: 50%">
+                @if (showWeight) {
+                  权重配置 (1-1000)
+                } @else if (showPriority) {
+                  优先级配置 (0-100)
+                } @else {
+                  策略配置
+                }
+              </th>
+              <th style="width: 15%" class="text-center">操作</th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-account let-i="rowIndex">
+            <tr>
+              <td>{{ getAccountName(account.accountTokenId) }}</td>
+              <td>
+                @if (showWeight) {
+                  <p-inputnumber
+                    [(ngModel)]="account.weight"
+                    [min]="1"
+                    [max]="1000"
+                    [showButtons]="true"
+                    buttonLayout="horizontal"
+                    [step]="1"
+                    inputStyleClass="w-16 text-center"
+                    class="w-full"
+                  >
+                    <ng-template pTemplate="incrementbuttonicon">
+                      <span class="pi pi-plus"></span>
+                    </ng-template>
+                    <ng-template pTemplate="decrementbuttonicon">
+                      <span class="pi pi-minus"></span>
+                    </ng-template>
+                  </p-inputnumber>
+                } @else if (showPriority) {
+                  <p-inputnumber
+                    [(ngModel)]="account.priority"
+                    [min]="0"
+                    [max]="100"
+                    [showButtons]="true"
+                    buttonLayout="horizontal"
+                    inputStyleClass="w-16 text-center"
+                    class="w-full"
+                  >
+                    <ng-template pTemplate="incrementbuttonicon">
+                      <span class="pi pi-plus"></span>
+                    </ng-template>
+                    <ng-template pTemplate="decrementbuttonicon">
+                      <span class="pi pi-minus"></span>
+                    </ng-template>
+                  </p-inputnumber>
+                } @else {
+                  <p-tag severity="info" value="自动调度 (无需配置)" class="w-full block text-center"></p-tag>
+                }
+              </td>
+              <td class="text-center">
+                <p-button icon="pi pi-trash" [text]="true" severity="danger" (onClick)="removeAccount(i)" />
+              </td>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="emptymessage">
+            <tr>
+              <td colspan="3" class="text-center p-4 text-gray-500"> 请添加账号到此分组 </td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </div>
+    </div>
+  }
+
+  <ng-template pTemplate="footer">
+    <p-button label="取消" [text]="true" severity="secondary" (onClick)="visible = false" [disabled]="saving" />
+    <p-button label="保存" icon="pi pi-check" (onClick)="save()" [disabled]="!isValid() || saving" [loading]="saving" />
+  </ng-template>
+</p-dialog>

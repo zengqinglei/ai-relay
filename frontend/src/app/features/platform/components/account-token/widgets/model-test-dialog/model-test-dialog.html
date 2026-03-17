@@ -1,0 +1,125 @@
+<p-dialog
+  [(visible)]="visible"
+  [modal]="true"
+  [breakpoints]="dialogConfig.breakpoints"
+  [style]="dialogConfig.style"
+  [contentStyle]="dialogConfig.contentStyle"
+  [draggable]="dialogConfig.draggable"
+  [resizable]="dialogConfig.resizable"
+  [closeOnEscape]="true"
+  (onHide)="close()"
+>
+  <ng-template pTemplate="header">
+    <div class="flex items-center gap-2">
+      @if (account()) {
+        <div class="w-6 h-6">
+          <app-platform-icon [platform]="account()!.platform" />
+        </div>
+        <span class="font-bold whitespace-nowrap">模型测试 - {{ account()!.name }}</span>
+      }
+    </div>
+  </ng-template>
+
+  <div class="flex flex-col gap-4">
+    <!-- Model Loading Error Message -->
+    @if (modelLoadError()) {
+      <p-message severity="error" [closable]="true" (onClose)="modelLoadError.set('')">
+        <ng-template pTemplate>
+          <div class="flex items-center gap-2">
+            <i class="pi pi-exclamation-triangle"></i>
+            <span>{{ modelLoadError() }}</span>
+          </div>
+        </ng-template>
+      </p-message>
+    }
+
+    <!-- Controls -->
+    <div class="flex flex-col gap-3 p-4 bg-surface-50 dark:bg-surface-800 rounded-lg border border-surface-200 dark:border-surface-700">
+      <!-- Top Row: Model Select + Button -->
+      <div class="flex items-end gap-3">
+        <div class="flex-1">
+          <label class="block text-xs font-medium text-muted-color mb-1.5">选择模型</label>
+          <p-select
+            [options]="modelOptions()"
+            [ngModel]="selectedModel()"
+            (ngModelChange)="selectedModel.set($event)"
+            optionLabel="label"
+            optionValue="value"
+            [fluid]="true"
+            [loading]="loading()"
+            [disabled]="loading()"
+            appendTo="body"
+            [placeholder]="loading() ? '正在加载模型列表...' : '请选择一个模型'"
+          >
+          </p-select>
+        </div>
+
+        <p-button label="开始测试" icon="pi pi-play" (onClick)="startTest()" [loading]="testing()" severity="primary"> </p-button>
+      </div>
+
+      <!-- Bottom Row: System Prompt -->
+      <div>
+        <label class="block text-xs font-medium text-muted-color mb-1.5">
+          系统提示词 (System Prompt)
+          <span class="text-[10px] opacity-60 ml-1 font-normal">按 Enter 开始测试，Shift+Enter 换行</span>
+        </label>
+        <textarea
+          pTextarea
+          [ngModel]="systemPrompt()"
+          (ngModelChange)="systemPrompt.set($event)"
+          (keydown.enter)="onPromptKeyDown($any($event))"
+          rows="3"
+          class="w-full text-sm !bg-surface-0 dark:!bg-surface-900"
+          placeholder="Enter system prompt..."
+        >
+        </textarea>
+      </div>
+    </div>
+
+    <!-- Output Terminal -->
+    <div
+      class="relative min-h-[200px] max-h-[400px] bg-surface-900 text-surface-0 rounded-lg p-4 font-mono text-sm overflow-y-auto border border-surface-700 shadow-inner"
+    >
+      <!-- Loading Indicator Overlay -->
+      @if (testing() && !responseContent()) {
+        <div class="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
+          <p-progressSpinner styleClass="w-8 h-8" strokeWidth="4"></p-progressSpinner>
+        </div>
+      }
+
+      <!-- Initial Prompt -->
+      <div class="text-surface-400 mb-2 border-b border-surface-700 pb-2 whitespace-pre-wrap">
+        <span class="text-green-400 font-bold">➜</span>
+        <span class="text-blue-400 ml-2">System:</span>
+        {{ systemPrompt() }}
+      </div>
+
+      <!-- System Messages -->
+      @for (msg of systemMessages(); track msg) {
+        <div class="text-surface-500 text-xs py-0.5">
+          <span class="text-yellow-500/80">⚙</span>
+          <span class="ml-1 opacity-80">{{ msg }}</span>
+        </div>
+      }
+
+      <!-- Error Message -->
+      @if (errorMessage()) {
+        <div class="text-red-400 mt-2 bg-red-900/20 p-2 rounded border border-red-900/50">
+          <i class="pi pi-times-circle mr-2"></i>
+          {{ errorMessage() }}
+        </div>
+      }
+
+      <!-- Stream Content -->
+      <div class="terminal-output leading-relaxed text-surface-50">
+        <span class="text-purple-400 font-bold mr-2">AI:</span>
+        <span>{{ responseContent() }}</span
+        ><span class="cursor" [class.hidden]="!testing()"></span>
+      </div>
+    </div>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <p-button label="关闭" (onClick)="close()" [text]="true" severity="secondary"></p-button>
+  </ng-template>
+</p-dialog>

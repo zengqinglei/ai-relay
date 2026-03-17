@@ -1,0 +1,84 @@
+<aside
+  class="bg-surface-0 dark:bg-surface-900 border-r border-surface-200 dark:border-surface-800 flex flex-col h-full transition-all duration-300 ease-in-out"
+  [ngClass]="{
+    'w-64': !layoutService.sidebarCollapsed() || isMobileMenuOpen(),
+    'w-20': layoutService.sidebarCollapsed() && !isMobileMenuOpen()
+  }"
+>
+  <div
+    [class.gap-3]="!layoutService.sidebarCollapsed() || isMobileMenuOpen()"
+    [class.gap-0]="layoutService.sidebarCollapsed() && !isMobileMenuOpen()"
+    class="h-16 px-6 flex items-center justify-between border-b border-surface-200 dark:border-surface-800 shrink-0 overflow-hidden transition-all duration-300 ease-in-out"
+  >
+    <!-- LOGO -->
+    <div class="flex items-center gap-3">
+      <div
+        class="h-8 w-8 flex items-center justify-center bg-gradient-to-tr from-primary-900/40 to-primary-800/40 backdrop-blur-md rounded-lg border border-primary-400/30 shadow-[0_0_10px_rgba(var(--p-primary-500),0.2)] shrink-0"
+      >
+        <svg class="w-6 h-6 text-primary-300" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M50 15L20 85H35L50 45L65 85H80L50 15Z" fill="url(#logo_grad_sidebar)" stroke="white" stroke-width="4" />
+          <ellipse cx="50" cy="65" rx="30" ry="8" stroke="rgba(var(--p-primary-300),0.8)" stroke-width="4" transform="rotate(-15 50 65)" />
+          <circle cx="28" cy="58" r="5" fill="white" />
+          <defs>
+            <linearGradient id="logo_grad_sidebar" x1="20" y1="85" x2="80" y2="15" gradientUnits="userSpaceOnUse">
+              <stop stop-color="var(--p-primary-400)" />
+              <stop offset="1" stop-color="var(--p-primary-600)" />
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+
+      <span
+        class="font-bold text-lg tracking-tight bg-gradient-to-r from-primary-600 to-primary-500 bg-clip-text text-transparent whitespace-nowrap overflow-hidden transition-all duration-300 ease-in-out"
+        [class.max-w-0]="layoutService.sidebarCollapsed() && !isMobileMenuOpen()"
+        [class.opacity-0]="layoutService.sidebarCollapsed() && !isMobileMenuOpen()"
+        [class.max-w-40]="!layoutService.sidebarCollapsed() || isMobileMenuOpen()"
+        [class.opacity-100]="!layoutService.sidebarCollapsed() || isMobileMenuOpen()"
+        >AI Relay</span
+      >
+    </div>
+
+    <!-- 移动端关闭按钮 -->
+    <p-button
+      icon="pi pi-times"
+      [text]="true"
+      [rounded]="true"
+      severity="secondary"
+      class="md:hidden min-w-[44px] min-h-[44px]"
+      styleClass="w-10 h-10"
+      (onClick)="mobileMenuClosed.emit()"
+    >
+    </p-button>
+  </div>
+
+  <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto custom-scrollbar overflow-x-hidden">
+    <ul class="list-none p-0 m-0">
+      @for (item of menuItems(); track item.route; let i = $index) {
+        <li>
+          <a
+            [routerLink]="item.route"
+            routerLinkActive="!text-primary-600 dark:!text-primary-400 font-bold"
+            [routerLinkActiveOptions]="i === 0 ? { exact: true } : { exact: false }"
+            [pTooltip]="layoutService.sidebarCollapsed() && !isMobileMenuOpen() ? item.label : undefined"
+            tooltipPosition="right"
+            class="flex items-center cursor-pointer px-3 py-4 md:py-3 rounded-md text-color hover:bg-surface-100 dark:hover:bg-surface-800 transition-all duration-300 ease-in-out focus:outline-none min-h-[44px] md:min-h-0"
+            [class.gap-3]="!layoutService.sidebarCollapsed() || isMobileMenuOpen()"
+            [class.gap-0]="layoutService.sidebarCollapsed() && !isMobileMenuOpen()"
+          >
+            <div class="w-8 h-8 flex items-center justify-center shrink-0">
+              <i class="pi {{ item.icon }} text-xl"></i>
+            </div>
+            <span
+              class="font-medium whitespace-nowrap overflow-hidden transition-all duration-300 ease-in-out"
+              [class.max-w-0]="layoutService.sidebarCollapsed() && !isMobileMenuOpen()"
+              [class.opacity-0]="layoutService.sidebarCollapsed() && !isMobileMenuOpen()"
+              [class.max-w-60]="!layoutService.sidebarCollapsed() || isMobileMenuOpen()"
+              [class.opacity-100]="!layoutService.sidebarCollapsed() || isMobileMenuOpen()"
+              >{{ item.label }}</span
+            >
+          </a>
+        </li>
+      }
+    </ul>
+  </nav>
+</aside>

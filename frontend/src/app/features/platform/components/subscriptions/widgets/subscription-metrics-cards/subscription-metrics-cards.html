@@ -1,0 +1,132 @@
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+  <!-- Subscription Pool Status (Total) -->
+  <p-card styleClass="h-full group transition-all hover:-translate-y-1">
+    <div class="flex justify-between items-start mb-4">
+      <div>
+        <p class="text-xs font-semibold text-muted-color uppercase tracking-wider m-0"> 总订阅数 </p>
+        <h3 class="text-2xl font-bold mt-1 mb-0 text-color">
+          {{ metrics().totalSubscriptions }}
+        </h3>
+      </div>
+      <div class="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center text-blue-600 dark:text-blue-500">
+        <i class="pi pi-key text-xl"></i>
+      </div>
+    </div>
+    <div class="flex items-center justify-between text-sm">
+      <span class="text-muted-color text-xs">对比上周</span>
+      <span class="text-blue-500 flex items-center gap-1 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded font-medium">
+        <i class="pi pi-plus text-[10px]"></i> 5
+      </span>
+    </div>
+  </p-card>
+
+  <!-- Top 3 Usage -->
+  <p-card styleClass="h-full group transition-all hover:-translate-y-1">
+    <div class="flex justify-between items-start mb-2">
+      <div>
+        <p class="text-xs font-semibold text-muted-color uppercase tracking-wider m-0"> TOP 3 消耗订阅 </p>
+      </div>
+      <div
+        class="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center text-indigo-600 dark:text-indigo-500"
+      >
+        <i class="pi pi-chart-bar text-lg"></i>
+      </div>
+    </div>
+    <div class="flex flex-col gap-1.5">
+      @for (item of metrics().topUsageKeys; track item.name; let i = $index) {
+        <div class="flex items-center gap-2 text-xs">
+          <!-- Rank Badge -->
+          <div
+            class="flex-none w-4 h-4 rounded flex items-center justify-center font-bold text-[9px]"
+            [ngClass]="{
+              'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400': i === 0,
+              'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-400': i === 1,
+              'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400': i === 2
+            }"
+          >
+            {{ i + 1 }}
+          </div>
+
+          <!-- Name -->
+          <span class="truncate w-20 text-color font-medium" [pTooltip]="item.name">{{ item.name }}</span>
+
+          <!-- Bar -->
+          <div class="flex-1 bg-surface-100 dark:bg-surface-800 h-1 rounded-full overflow-hidden">
+            <div
+              [ngClass]="{
+                'bg-yellow-500': i === 0,
+                'bg-gray-500': i === 1,
+                'bg-orange-500': i === 2
+              }"
+              class="h-full rounded-full"
+              [style.width.%]="metrics().totalUsageToday ? (item.usage / metrics().totalUsageToday) * 100 : 0"
+            ></div>
+          </div>
+
+          <!-- Value -->
+          <span class="font-mono text-muted-color text-[10px] w-10 text-right">{{ item.usage | number }}</span>
+        </div>
+      }
+    </div>
+  </p-card>
+
+  <!-- Active Rate -->
+  <p-card styleClass="h-full group transition-all hover:-translate-y-1">
+    <div class="flex justify-between items-start mb-4">
+      <div>
+        <p class="text-xs font-semibold text-muted-color uppercase tracking-wider m-0"> 活跃占比 </p>
+        <h3 class="text-2xl font-bold mt-1 mb-0 text-emerald-500">
+          {{ metrics().totalSubscriptions ? ((metrics().activeSubscriptions / metrics().totalSubscriptions) * 100 | number: '1.0-1') : 0 }}%
+        </h3>
+      </div>
+      <div
+        class="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-500"
+      >
+        <i class="pi pi-shield text-xl"></i>
+      </div>
+    </div>
+    <div class="flex flex-col gap-1">
+      <div class="flex justify-between text-xs text-muted-color">
+        <span>{{ metrics().activeSubscriptions }} 活跃</span>
+        <span>{{ metrics().totalSubscriptions - metrics().activeSubscriptions }} 禁用</span>
+      </div>
+      <div class="w-full bg-surface-100 dark:bg-surface-800 h-1.5 rounded-full overflow-hidden">
+        <div
+          class="bg-emerald-500 h-full rounded-full"
+          [style.width.%]="metrics().totalSubscriptions ? (metrics().activeSubscriptions / metrics().totalSubscriptions) * 100 : 0"
+        ></div>
+      </div>
+    </div>
+  </p-card>
+
+  <!-- Expiry Risk -->
+  <p-card styleClass="h-full group transition-all hover:-translate-y-1">
+    <div class="flex justify-between items-start mb-4">
+      <div>
+        <p class="text-xs font-semibold text-muted-color uppercase tracking-wider m-0"> 过期预警 </p>
+        <h3 class="text-2xl font-bold mt-1 mb-0 text-color">
+          {{ metrics().expiringSoon }} <span class="text-base font-normal text-muted-color">需关注</span>
+        </h3>
+      </div>
+      <div
+        class="w-10 h-10 rounded-lg bg-orange-50 dark:bg-orange-500/10 flex items-center justify-center text-orange-600 dark:text-orange-500"
+      >
+        <i class="pi pi-clock text-xl"></i>
+      </div>
+    </div>
+
+    @if (metrics().expiringSoon === 0) {
+      <div class="flex items-center gap-2 p-1.5 bg-surface-50 dark:bg-surface-800 rounded text-muted-color">
+        <i class="pi pi-shield-check text-green-500 text-xs"></i>
+        <span class="text-xs">无近期过期订阅</span>
+      </div>
+    } @else {
+      <div
+        class="flex items-center gap-2 p-1.5 bg-orange-50 dark:bg-orange-500/10 rounded text-orange-700 dark:text-orange-300 border border-orange-100 dark:border-orange-500/20"
+      >
+        <i class="pi pi-info-circle text-xs"></i>
+        <span class="text-xs">7天内有订阅即将过期</span>
+      </div>
+    }
+  </p-card>
+</div>

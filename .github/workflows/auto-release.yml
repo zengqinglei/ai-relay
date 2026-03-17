@@ -1,0 +1,275 @@
+name: Auto Release Pipeline
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    if: github.event.pusher.name != 'github-actions[bot]' && !contains(github.event.head_commit.message, '[skip ci]')
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Check if build needed
+      id: check
+      run: |
+        echo "📋 检查是否需要构建..."
+
+        COMMIT_MSG=$(git log -1 --pretty=%B)
+        if echo "$COMMIT_MSG" | grep -qi "\[force release\]"; then
+          echo "🔄 检测到 [force release] 标记"
+          echo "needs_build=true" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        if git rev-parse HEAD~1 >/dev/null 2>&1; then
+          CHANGED_FILES=$(git diff --name-only HEAD~1..HEAD)
+        else
+          CHANGED_FILES=$(git ls-files)
+        fi
+
+        echo "变更文件："
+        echo "$CHANGED_FILES"
+
+        NEEDS_BUILD=false
+        while IFS= read -r file; do
+          [ -z "$file" ] && continue
+
+          if [[ "$file" =~ ^(frontend|backend|deploy)/.*\.(ts|cs|csproj|json|html|css|scss)$ ]] || \
+             [[ "$file" == "Dockerfile" ]] || \
+             [[ "$file" == "VERSION" ]]; then
+            echo "✅ 发现需要构建的变更: $file"
+            NEEDS_BUILD=true
+            break
+          fi
+        done <<< "$CHANGED_FILES"
+
+        if [ "$NEEDS_BUILD" = true ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "needs_build=true" >> $GITHUB_OUTPUT
+        else
+          echo "⏭️ 仅文档变更，跳过构建"
+          echo "needs_build=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Determine version bump type
+      if: steps.check.outputs.needs_build == 'true'
+      id: bump_type
+      run: |
+        echo "🔍 分析提交消息确定版本升级类型..."
+
+        COMMITS=$(git log $(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-parents=0 HEAD)..HEAD --pretty=format:"%s")
+        echo "提交消息："
+        echo "$COMMITS"
+
+        BUMP_TYPE="patch"
+
+        if echo "$COMMITS" | grep -qiE "(BREAKING CHANGE|feat!|fix!|refactor!)"; then
+          BUMP_TYPE="major"
+          echo "🚨 检测到破坏性变更 → major 版本升级"
+        elif echo "$COMMITS" | grep -qiE "^feat(\(.*\))?:"; then
+          BUMP_TYPE="minor"
+          echo "✨ 检测到新功能 → minor 版本升级"
+        else
+          echo "🐛 常规修复 → patch 版本升级"
+        fi
+
+        echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+
+    - name: Calculate new version
+      if: steps.check.outputs.needs_build == 'true'
+      id: version
+      run: |
+        CURRENT_VERSION=$(cat VERSION | tr -d '[:space:]')
+        echo "📦 当前版本: $CURRENT_VERSION"
+
+        IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+        BUMP_TYPE="${{ steps.bump_type.outputs.bump_type }}"
+
+        case $BUMP_TYPE in
+          major)
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+            ;;
+          minor)
+            MINOR=$((MINOR + 1))
+            PATCH=0
+            ;;
+          patch)
+            PATCH=$((PATCH + 1))
+            ;;
+        esac
+
+        NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+        echo "🆕 新版本: $NEW_VERSION ($BUMP_TYPE)"
+
+        echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+        echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        echo "new_tag=v$NEW_VERSION" >> $GITHUB_OUTPUT
+
+    - name: Update version files
+      if: steps.check.outputs.needs_build == 'true'
+      run: |
+        NEW_VERSION="${{ steps.version.outputs.new_version }}"
+
+        echo "📝 更新版本文件..."
+
+        # 1. 更新 VERSION 文件
+        echo "$NEW_VERSION" > VERSION
+
+        # 2. 更新 backend/common.props
+        sed -i "s|<Version>.*</Version>|<Version>$NEW_VERSION</Version>|" backend/common.props
+
+        # 3. 更新 frontend/package.json
+        cd frontend
+        npm version $NEW_VERSION --no-git-tag-version --allow-same-version
+        cd ..
+
+        echo "✅ 版本文件已更新"
+
+    - name: Generate changelog
+      if: steps.check.outputs.needs_build == 'true'
+      id: changelog
+      run: |
+        echo "📝 生成 changelog..."
+
+        LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        if [ -n "$LATEST_TAG" ]; then
+          COMMITS=$(git log $LATEST_TAG..HEAD --pretty=format:"%s" --no-merges)
+        else
+          COMMITS=$(git log --pretty=format:"%s" --no-merges)
+        fi
+
+        FEATURES=""
+        FIXES=""
+        OTHERS=""
+
+        while IFS= read -r commit; do
+          [ -z "$commit" ] && continue
+          [[ "$commit" =~ (bump version|chore:.*version) ]] && continue
+
+          if [[ "$commit" =~ ^feat(\(.*\))?:(.+)$ ]]; then
+            FEATURES="${FEATURES}- ${BASH_REMATCH[2]}\n"
+          elif [[ "$commit" =~ ^fix(\(.*\))?:(.+)$ ]]; then
+            FIXES="${FIXES}- ${BASH_REMATCH[2]}\n"
+          else
+            OTHERS="${OTHERS}- ${commit}\n"
+          fi
+        done <<< "$COMMITS"
+
+        CHANGELOG=""
+        [ -n "$FEATURES" ] && CHANGELOG="${CHANGELOG}### ✨ 新功能\n${FEATURES}\n"
+        [ -n "$FIXES" ] && CHANGELOG="${CHANGELOG}### 🐛 Bug 修复\n${FIXES}\n"
+        [ -n "$OTHERS" ] && CHANGELOG="${CHANGELOG}### 📦 其他更新\n${OTHERS}\n"
+        [ -z "$CHANGELOG" ] && CHANGELOG="- 代码优化和改进\n"
+
+        echo "content<<EOF" >> $GITHUB_OUTPUT
+        echo -e "$CHANGELOG" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Commit version changes
+      if: steps.check.outputs.needs_build == 'true'
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+        git add VERSION backend/common.props frontend/package.json frontend/package-lock.json
+        git commit -m "chore: bump version to ${{ steps.version.outputs.new_version }} [skip ci]"
+        git push origin HEAD:main
+
+    - name: Create tag
+      if: steps.check.outputs.needs_build == 'true'
+      run: |
+        NEW_TAG="${{ steps.version.outputs.new_tag }}"
+        git tag -a "$NEW_TAG" -m "Release $NEW_TAG"
+        git push origin "$NEW_TAG"
+
+    - name: Setup Docker Buildx
+      if: steps.check.outputs.needs_build == 'true'
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to GHCR
+      if: steps.check.outputs.needs_build == 'true'
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and push Docker image
+      if: steps.check.outputs.needs_build == 'true'
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: Dockerfile
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: |
+          ghcr.io/${{ github.repository }}/ai-relay:${{ steps.version.outputs.new_tag }}
+          ghcr.io/${{ github.repository }}/ai-relay:latest
+        labels: |
+          org.opencontainers.image.version=${{ steps.version.outputs.new_version }}
+          org.opencontainers.image.revision=${{ github.sha }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Create GitHub Release
+      if: steps.check.outputs.needs_build == 'true'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.version.outputs.new_tag }}
+        name: Release ${{ steps.version.outputs.new_version }}
+        body: |
+          ## 🐳 Docker 镜像
+
+          ```bash
+          docker pull ghcr.io/${{ github.repository }}/ai-relay:${{ steps.version.outputs.new_tag }}
+          docker pull ghcr.io/${{ github.repository }}/ai-relay:latest
+          ```
+
+          ## 📦 更新内容
+
+          ${{ steps.changelog.outputs.content }}
+
+          ---
+          **版本类型**: ${{ steps.bump_type.outputs.bump_type }}
+        draft: false
+        prerelease: false
+
+    - name: Cleanup old releases
+      if: steps.check.outputs.needs_build == 'true'
+      continue-on-error: true
+      run: |
+        echo "🧹 清理旧版本（保留最近 20 个）..."
+
+        ALL_TAGS=$(git tag -l 'v*' | sort -V)
+        TOTAL=$(echo "$ALL_TAGS" | wc -l)
+
+        if [ "$TOTAL" -gt 20 ]; then
+          DELETE_COUNT=$((TOTAL - 20))
+          TAGS_TO_DELETE=$(echo "$ALL_TAGS" | head -n "$DELETE_COUNT")
+
+          echo "删除 $DELETE_COUNT 个旧版本..."
+          for tag in $TAGS_TO_DELETE; do
+            echo "  删除 $tag"
+            gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
+            git push origin --delete "$tag" 2>/dev/null || true
+          done
+
+          echo "✅ 清理完成"
+        else
+          echo "✅ 版本数量未超限，无需清理"
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

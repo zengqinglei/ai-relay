@@ -1,0 +1,35 @@
+<div class="p-4 md:p-6 space-y-4 md:space-y-6">
+  <!-- 控制面板 -->
+  <app-dashboard-controls (timeRangeChange)="onTimeRangeChange($event)"
+    (refreshIntervalChange)="onRefreshIntervalChange($event)" [isRefreshing]="isRefreshing()" />
+
+  @if (dashboardData(); as data) {
+  <!-- 指标卡片行 -->
+  <div>
+    <app-metrics-cards [usage]="data.usage" [accounts]="data.accounts" [subscriptions]="data.subscriptions" />
+  </div>
+
+  <!-- 图表行：Token使用趋势 + 模型使用分布 -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+    <div class="lg:col-span-2 h-[300px] sm:h-[350px] lg:h-[420px]">
+      <app-usage-trend-chart [trendData]="data.trend" />
+    </div>
+    <div class="lg:col-span-1 h-[300px] sm:h-[350px] lg:h-[420px]">
+      <app-model-distribution-chart [data]="data.modelDistribution" />
+    </div>
+  </div>
+
+  <!-- 最近使用 TOP 10 -->
+  <div class="h-[350px] sm:h-[400px] lg:h-[450px]">
+    <app-api-key-trend-chart [data]="data.apiKeyTrend" />
+  </div>
+  } @else {
+  <!-- 加载状态 -->
+  <div class="flex items-center justify-center h-96">
+    <div class="text-center">
+      <i class="pi pi-spin pi-spinner text-4xl text-primary mb-4"></i>
+      <p class="text-muted-color">加载中...</p>
+    </div>
+  </div>
+  }
+</div>

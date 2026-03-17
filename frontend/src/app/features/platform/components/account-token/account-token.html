@@ -1,0 +1,36 @@
+<div class="flex flex-col h-full overflow-hidden">
+  <!-- Scrollable Content -->
+  <div class="flex-1 overflow-y-auto p-6 custom-scrollbar">
+    <!-- Metrics -->
+    <app-account-metrics-cards [metrics]="metrics()" />
+
+    <!-- Table & Toolbar -->
+    <app-account-table
+      [accounts]="accounts()"
+      [totalRecords]="totalCount()"
+      [loading]="loading()"
+      (filterChange)="onFilterChange($event)"
+      (add)="openAddDialog()"
+      (edit)="openEditDialog($event)"
+      (delete)="handleDelete($event)"
+      (viewDetail)="openDetailDialog($event)"
+      (statusToggle)="handleStatusToggle($event)"
+      (resetStatus)="handleResetStatus($event)"
+    />
+  </div>
+</div>
+
+<!-- Dialogs -->
+<app-account-edit-dialog [(visible)]="editDialogVisible" [account]="selectedAccount()" [saving]="editDialogSaving()" (save)="handleSave($event)" />
+
+<app-account-detail-dialog [(visible)]="detailDialogVisible" [account]="selectedAccount()" />
+
+<p-confirmDialog
+  header="确认"
+  icon="pi pi-exclamation-triangle"
+  acceptLabel="确定"
+  rejectLabel="取消"
+  acceptButtonStyleClass="p-button-danger p-button-text"
+  rejectButtonStyleClass="p-button-text p-button-secondary"
+>
+</p-confirmDialog>

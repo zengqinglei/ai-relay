@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\components\exception\Leistd.Exception.Core\Leistd.Exception.Core.csproj" />
+    <ProjectReference Include="..\..\components\lock\Leistd.Lock.Core\Leistd.Lock.Core.csproj" />
+    <ProjectReference Include="..\..\components\security\Leistd.Security.Core\Leistd.Security.Core.csproj" />
+    <ProjectReference Include="..\..\ddd-struct\Leistd.Ddd.Application\Leistd.Ddd.Application.csproj" />
+    <ProjectReference Include="..\..\ddd-struct\Leistd.Ddd.Domain\Leistd.Ddd.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,248 @@
+name: PR Code Quality Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'frontend/**/*.ts'
+      - 'frontend/**/*.html'
+      - 'frontend/**/*.css'
+      - 'frontend/**/*.scss'
+      - 'backend/**/*.cs'
+      - 'backend/**/*.csproj'
+      - '**.json'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  frontend-lint:
+    runs-on: ubuntu-latest
+    name: Frontend Lint Check
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install dependencies
+      run: |
+        cd frontend
+        npm ci --prefer-offline
+
+    - name: Get changed frontend files
+      id: changed-files
+      uses: tj-actions/changed-files@v41
+      with:
+        files: |
+          frontend/**/*.ts
+          frontend/**/*.html
+          frontend/**/*.css
+          frontend/**/*.scss
+        files_ignore: |
+          node_modules/**
+          dist/**
+
+    - name: Run ESLint
+      if: steps.changed-files.outputs.any_changed == 'true'
+      id: eslint
+      continue-on-error: true
+      run: |
+        cd frontend
+        echo "🔍 运行 ESLint..."
+
+        CHANGED_FILES="${{ steps.changed-files.outputs.all_changed_files }}"
+        FRONTEND_FILES=""
+
+        for file in $CHANGED_FILES; do
+          if [[ "$file" =~ \.(ts|html)$ ]]; then
+            FRONTEND_FILES="$FRONTEND_FILES ${file#frontend/}"
+          fi
+        done
+
+        if [ -n "$FRONTEND_FILES" ]; then
+          npx eslint $FRONTEND_FILES --format stylish > ../eslint-report.txt 2>&1 || true
+
+          if [ -s ../eslint-report.txt ]; then
+            echo "❌ ESLint 发现问题"
+            cat ../eslint-report.txt
+            exit 1
+          else
+            echo "✅ ESLint 检查通过"
+          fi
+        fi
+
+    - name: Run Stylelint
+      if: steps.changed-files.outputs.any_changed == 'true'
+      id: stylelint
+      continue-on-error: true
+      run: |
+        cd frontend
+        echo "🔍 运行 Stylelint..."
+
+        CHANGED_FILES="${{ steps.changed-files.outputs.all_changed_files }}"
+        CSS_FILES=""
+
+        for file in $CHANGED_FILES; do
+          if [[ "$file" =~ \.(css|scss)$ ]]; then
+            CSS_FILES="$CSS_FILES ${file#frontend/}"
+          fi
+        done
+
+        if [ -n "$CSS_FILES" ]; then
+          npx stylelint $CSS_FILES > ../stylelint-report.txt 2>&1 || true
+
+          if [ -s ../stylelint-report.txt ]; then
+            echo "❌ Stylelint 发现问题"
+            cat ../stylelint-report.txt
+            exit 1
+          else
+            echo "✅ Stylelint 检查通过"
+          fi
+        fi
+
+    - name: Comment PR with results
+      if: failure()
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const fs = require('fs');
+          let comment = '## 🚨 前端代码质量检查失败\n\n';
+
+          if (fs.existsSync('eslint-report.txt')) {
+            const report = fs.readFileSync('eslint-report.txt', 'utf8');
+            comment += '### ESLint 问题\n```\n' + report + '\n```\n\n';
+            comment += '**修复命令:**\n```bash\ncd frontend\nnpm run lint\n```\n\n';
+          }
+
+          if (fs.existsSync('stylelint-report.txt')) {
+            const report = fs.readFileSync('stylelint-report.txt', 'utf8');
+            comment += '### Stylelint 问题\n```\n' + report + '\n```\n\n';
+            comment += '**修复命令:**\n```bash\ncd frontend\nnpm run lint:style\n```\n\n';
+          }
+
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+
+          const botComment = comments.find(c =>
+            c.user.type === 'Bot' && c.body.includes('前端代码质量检查')
+          );
+
+          if (botComment) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: botComment.id,
+              body: comment
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
+          }
+
+  backend-lint:
+    runs-on: ubuntu-latest
+    name: Backend Code Analysis
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Get changed backend files
+      id: changed-files
+      uses: tj-actions/changed-files@v41
+      with:
+        files: |
+          backend/**/*.cs
+          backend/**/*.csproj
+
+    - name: Restore dependencies
+      if: steps.changed-files.outputs.any_changed == 'true'
+      run: |
+        cd backend/src/AiRelay.Api
+        dotnet restore
+
+    - name: Build and analyze
+      if: steps.changed-files.outputs.any_changed == 'true'
+      id: build
+      continue-on-error: true
+      run: |
+        cd backend/src/AiRelay.Api
+        echo "🔍 运行 .NET 代码分析..."
+
+        dotnet build --no-restore --configuration Release \
+          /p:TreatWarningsAsErrors=false \
+          /p:WarningLevel=4 > ../../../build-report.txt 2>&1
+
+        if grep -q "error" ../../../build-report.txt; then
+          echo "❌ 发现编译错误"
+          cat ../../../build-report.txt
+          exit 1
+        else
+          echo "✅ 代码分析通过"
+        fi
+
+    - name: Comment PR with results
+      if: failure()
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const fs = require('fs');
+          let comment = '## 🚨 后端代码分析失败\n\n';
+
+          if (fs.existsSync('build-report.txt')) {
+            const report = fs.readFileSync('build-report.txt', 'utf8');
+            const errors = report.split('\n').filter(line =>
+              line.includes('error') || line.includes('warning')
+            ).slice(0, 20).join('\n');
+
+            comment += '### 编译问题\n```\n' + errors + '\n```\n\n';
+            comment += '**修复建议:** 请在本地运行 `dotnet build` 检查详细错误信息\n';
+          }
+
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+
+          const botComment = comments.find(c =>
+            c.user.type === 'Bot' && c.body.includes('后端代码分析')
+          );
+
+          if (botComment) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: botComment.id,
+              body: comment
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
+          }

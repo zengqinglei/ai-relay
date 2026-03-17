@@ -1,0 +1,17 @@
+@import 'primeicons/primeicons.css';
+@import 'tailwindcss';
+
+@plugin "tailwindcss-primeui";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+
+  font-family: var(--font-family);
+  color: var(--p-text-color);
+
+  background-color: var(--p-surface-ground);
+}

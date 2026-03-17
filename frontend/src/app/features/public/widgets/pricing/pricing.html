@@ -1,0 +1,50 @@
+<section id="pricing" class="py-6 px-6 lg:px-20 my-2 md:my-6">
+  <!-- Section Header -->
+  <div class="text-center mb-6">
+    <h2 class="text-color-emphasis font-normal mb-2 text-4xl"> Matchless Pricing </h2>
+    <p class="text-muted-color text-2xl"> Amet consectetur adipiscing elit... </p>
+  </div>
+
+  <!-- Pricing Cards -->
+  <div class="grid grid-cols-12 gap-4 justify-between mt-20 md:mt-0">
+    @for (plan of pricingPlans; track plan) {
+      <div class="col-span-12 lg:col-span-4 p-0 md:p-4" [class.mt-6]="plan.name !== 'Free'" [class.md:mt-0]="plan.name !== 'Free'">
+        <div
+          class="p-4 flex flex-col border-surface pricing-card cursor-pointer border-2 hover:border-primary duration-300 transition-all rounded-lg"
+        >
+          <!-- Plan Name -->
+          <h3 class="text-color-emphasis text-center my-8 text-3xl">
+            {{ plan.name }}
+          </h3>
+          <!-- Plan Image -->
+          <img [src]="plan.image" class="w-10/12 mx-auto" [alt]="plan.name + ' plan'" loading="lazy" />
+          <!-- Price and CTA -->
+          <div class="my-8 flex flex-col items-center gap-4">
+            <div class="flex items-center">
+              <span class="text-5xl font-bold mr-2 text-color-emphasis">
+                {{ '$' + plan.price }}
+              </span>
+              <span class="text-muted-color"> per month </span>
+            </div>
+            <p-button
+              pRipple
+              [label]="plan.buttonLabel"
+              styleClass="p-button-rounded border-0 ml-4 font-light leading-tight bg-primary hover:bg-primary-600 text-white transition-colors"
+            ></p-button>
+          </div>
+          <!-- Divider -->
+          <p-divider class="w-full bg-surface-200 dark:bg-surface-700"></p-divider>
+          <!-- Features List -->
+          <ul class="my-8 list-none p-0 flex text-color flex-col px-8 space-y-2">
+            @for (feature of plan.features; track feature) {
+              <li class="py-2 flex items-center">
+                <i class="pi pi-fw pi-check text-xl text-cyan-500 mr-2 flex-shrink-0"></i>
+                <span class="text-xl leading-normal">{{ feature }}</span>
+              </li>
+            }
+          </ul>
+        </div>
+      </div>
+    }
+  </div>
+</section>
