@@ -8,6 +8,7 @@
       "launchUrl": "api/health",
       "applicationUrl": "http://localhost:5240",
       "environmentVariables": {
+        "TZ": "Asia/Shanghai",
         "ASPNETCORE_ENVIRONMENT": "debug"
       }
     }
