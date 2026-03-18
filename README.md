@@ -1,18 +1,40 @@
 # AI-Relay
 
-- [AI-Relay](#ai-relay)
-  - [项目概述](#项目概述)
-  - [核心功能](#核心功能)
-  - [如何部署](#如何部署)
-    - [配置要求（最低要求）](#配置要求最低要求)
-    - [部署方式](#部署方式)
-  - [本地快速开始](#本地快速开始)
-  - [开始使用](#开始使用)
-    - [Claude CLI](#claude-cli)
-    - [Gemini CLI](#gemini-cli)
-    - [Codex CLI](#codex-cli)
-    - [OpenClaw](#openclaw)
-  - [许可证](#许可证)
+<div align="center">
+
+**现代化的 AI 大模型代理服务**
+
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Docker](https://img.shields.io/badge/docker-ready-brightgreen.svg)](https://github.com/zengqinglei/ai-relay)
+
+[在线演示](https://ai-demo.zengql.dpdns.org) · [快速开始](#如何部署) · [使用文档](#开始使用)
+
+</div>
+
+---
+
+## 📑 目录
+
+<table>
+<tr>
+<td width="50%">
+
+**快速导航**
+- 🎯 [项目概述](#项目概述)
+- ⚡ [核心功能](#核心功能)
+- 🚀 [如何部署](#如何部署)
+
+</td>
+<td width="50%">
+
+**使用指南**
+- 💻 [本地开发](#本地快速开始)
+- 📖 [开始使用](#开始使用)
+- 📄 [许可证](#许可证)
+
+</td>
+</tr>
+</table>
 
 ## 项目概述
 
@@ -74,7 +96,7 @@ docker run -d \
   -e ConnectionStrings__Redis="your-redis-host:6379,password=YourRedisPassword" \
   -e DefaultAdmin__Password="YourAdminPassword" \
   -e Jwt__SecretKey="YourSecretKey-MinimumLength32Characters!" \
-  ghcr.io/zengql/ai-relay:latest
+  ghcr.io/zengqinglei/ai-relay:latest
 ```
 
 ## 本地快速开始
