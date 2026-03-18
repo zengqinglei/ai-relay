@@ -17,11 +17,19 @@ RUN npm install --prefer-offline --no-audit
 # 支持构建时传入 API Gateway 地址（用于前后端分离部署）
 # 使用方式: docker build --build-arg API_GATEWAY=https://api.example.com .
 ARG API_GATEWAY=""
-ENV API_GATEWAY=${API_GATEWAY}
 
-# 复制源代码并构建
+# 复制源代码
 COPY frontend/ ./
-RUN npm run build -- --configuration=production
+
+# 替换环境变量占位符并构建
+RUN if [ -n "$API_GATEWAY" ]; then \
+      echo "🔧 替换 API_GATEWAY: $API_GATEWAY"; \
+      sed -i "s|__API_GATEWAY__|${API_GATEWAY}|g" src/environments/environment.prod.ts; \
+    else \
+      echo "🔧 使用默认配置（空 gateway）"; \
+      sed -i "s|__API_GATEWAY__||g" src/environments/environment.prod.ts; \
+    fi && \
+    npm run build -- --configuration=production
 
 # -----------------------------------
 # Stage 2: Build Backend (.NET)
