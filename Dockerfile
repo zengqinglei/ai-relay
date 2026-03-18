@@ -36,8 +36,7 @@ RUN dotnet publish "AiRelay.Api.csproj" -c Release -o /app/publish /p:UseAppHost
 # -----------------------------------
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
-EXPOSE 80
-EXPOSE 443
+
 EXPOSE 8080
 
 # 1. 拷贝后端构建结果
@@ -45,7 +44,7 @@ COPY --from=backend-build /app/publish .
 
 # 2. 拷贝前端构建结果到后端的 wwwroot 目录，让 ASP.NET Core 直接托管静态 SPA 文件
 # Angular >= 17 生产构建会输出到 dist/<project>/browser 目录
-# COPY --from=frontend-build /app/dist/airelay-web/browser ./wwwroot
+COPY --from=frontend-build /app/dist/airelay-web/browser ./wwwroot
 
 # 启动程序（Program.cs 会在应用启动前自动执行数据库迁移）
 ENTRYPOINT ["dotnet", "AiRelay.Api.dll"]

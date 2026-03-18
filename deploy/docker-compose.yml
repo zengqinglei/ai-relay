@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   backend:
-    image: ghcr.io/zengql/ai-relay:latest
+    image: ghcr.io/zengqinglei/ai-relay:latest
     container_name: ai-relay
     ports:
       - "80:8080"
@@ -11,23 +11,21 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
 
       # Database Configuration (PostgreSQL)
-      - ConnectionStrings__Default=Host=db;Port=5432;Database=AiRelay;Username=postgres;Password=YourSecurePassword!
+      - ConnectionStrings__Default=Host=db;Port=5432;Database=AiRelay;Username=postgres;Password=YourSecurePassword;GSS Encryption Mode=Disable!
 
       # Redis Configuration
-      # 无密码: redis:6379
-      # 有密码: redis:6379,password=YourRedisPassword
-      - ConnectionStrings__Redis=redis:6379
+      - ConnectionStrings__Redis=redis:6379,password=YourRedisPassword（可选）,,ssl=true（可选）,abortConnect=false（可选）
 
       # Default Admin User (Change in production!)
-      - DefaultAdmin__Username=admin
+      - DefaultAdmin__Username=admin（可选）
       - DefaultAdmin__Password=Admin@123456
-      - DefaultAdmin__Email=admin@ai-relay.com
-      - DefaultAdmin__Nickname=系统管理员
+      - DefaultAdmin__Email=admin@ai-relay.com（可选）
+      - DefaultAdmin__Nickname=系统管理员（可选）
 
       # JWT Configuration (Change SecretKey in production!)
       - Jwt__SecretKey=AiRelay-SuperSecretKey-ForProduction-MinimumLength32Characters!
-      - Jwt__Issuer=AiRelay
-      - Jwt__Audience=AiRelay
+      - Jwt__Issuer=AiRelay（可选）
+      - Jwt__Audience=AiRelay（可选）
 
       # CORS Configuration（可选）
       - Cors__AllowAnyLocalhost=false
