@@ -86,8 +86,8 @@ export class LayoutService {
     const defaultConfig: LayoutConfig = {
       preset: 'Aura',
       primary: 'blue',
-      surface: null,
-      darkTheme: false,
+      surface: 'slate',
+      darkTheme: true,
       menuMode: 'static'
     };
 

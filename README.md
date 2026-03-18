@@ -11,7 +11,7 @@
 
 AI-Relay 通过 Angular 21 + .NET 10 + PostgreSQL + Redis 组合，实现 Claude/Gemini/OpenAI/Antigravity 兼容 API 代理、智能负载均衡、实时监控与自动化管理，帮助团队安全、可观测地管理多家 AI 服务商。
 
-[在线演示](https://ai-demo.zengql.dpdns.org) · [快速开始](#-快速开始) · [使用文档](#-开始使用)
+[在线演示](https://ai-demo.zengql.dpdns.org/#/auth/login) · [快速开始](#-快速开始) · [使用文档](#-开始使用)
 
 </div>
 
