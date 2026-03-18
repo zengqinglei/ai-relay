@@ -14,6 +14,11 @@ RUN npm install -g npm@latest
 COPY frontend/package.json ./
 RUN npm install --prefer-offline --no-audit
 
+# 支持构建时传入 API Gateway 地址（用于前后端分离部署）
+# 使用方式: docker build --build-arg API_GATEWAY=https://api.example.com .
+ARG API_GATEWAY=""
+ENV API_GATEWAY=${API_GATEWAY}
+
 # 复制源代码并构建
 COPY frontend/ ./
 RUN npm run build -- --configuration=production

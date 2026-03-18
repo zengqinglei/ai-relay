@@ -259,6 +259,7 @@ jobs:
         cache-to: type=gha,mode=max
         build-args: |
           BUILDKIT_INLINE_CACHE=1
+          API_GATEWAY=${{ vars.API_GATEWAY || '' }}
 
     - name: Create GitHub Release
       if: steps.check.outputs.needs_build == 'true'
