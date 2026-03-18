@@ -5,6 +5,6 @@ export const environment: Environment = {
   production: true,
   api: {
     ...environmentBase.api,
-    gateway: 'http://prod.api.leistd.com' // 覆盖网关地址
+    gateway: '' // 使用相对路径，前后端同域部署时无需指定网关地址
   }
 };
