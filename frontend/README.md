@@ -111,6 +111,32 @@ ng build -c uat         # UAT 环境
 ng build -c production  # 生产环境（已优化性能）
 ```
 
+### Docker 构建
+
+项目支持两种 Docker 部署模式：
+
+#### 1. 同域部署（默认）
+
+前后端在同一容器内，前端使用相对路径请求后端 API：
+
+```bash
+docker build -t ai-relay .
+```
+
+#### 2. 前后端分离部署
+
+前端独立部署，需要指定后端 API 地址：
+
+```bash
+# 构建时传入后端 API Gateway 地址
+docker build --build-arg API_GATEWAY=https://api.example.com -t ai-relay .
+```
+
+**说明**：
+- `API_GATEWAY` 为后端 API 网关地址
+- 构建时会替换 `environment.prod.ts` 中的占位符
+- 如果不传入该参数，默认使用空字符串（相对路径）
+
 ---
 
 ## 代码质量
