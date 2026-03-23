@@ -31,6 +31,7 @@ jobs:
         working-directory: frontend
         run: |
           npm install -g npm@latest
+          rm -f package-lock.json
           npm install --prefer-offline --no-audit
 
       - name: Generate environment.debug.ts with mock enabled
