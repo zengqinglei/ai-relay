@@ -57,7 +57,7 @@ jobs:
 
       - name: Build
         working-directory: frontend
-        run: ng build -c debug --base-href /ai-relay/
+        run: npm run build -- --configuration=debug --base-href /ai-relay/
 
       - name: Copy index.html as 404.html
         run: cp frontend/dist/airelay-web/browser/index.html frontend/dist/airelay-web/browser/404.html
