@@ -7,14 +7,19 @@ import { ACCOUNT_TOKENS, AVAILABLE_MODELS, MOCK_CHAT_STREAM_CHUNKS } from '../da
 
 const accounts = [...ACCOUNT_TOKENS];
 
+// Helper to mask token
+function maskToken(token: string | undefined): string {
+  if (!token || token.length < 12) return '***';
+  return `${token.substring(0, 7)}...${token.substring(token.length - 4)}`;
+}
+
 // Helper to simulate detail fields
 function enrichAccount(account: any) {
   const isOAuth = ['GEMINI_OAUTH', 'ANTIGRAVITY', 'CLAUDE_OAUTH', 'OPENAI_OAUTH'].includes(account.platform);
   if (isOAuth) {
     return {
       ...account,
-      accessToken: `ya29.mock_access_token_${account.id.substring(0, 6)}...`,
-      refreshToken: account.fullToken
+      accessToken: `ya29.mock_access_token_${account.id.substring(0, 6)}...`
     };
   }
   return account;
@@ -110,7 +115,7 @@ function createAccount(req: MockRequest) {
     id: crypto.randomUUID(),
     isActive: true,
     creationTime: new Date().toISOString(),
-    fullToken: credential || 'mock-token-fallback',
+    fullToken: maskToken(credential || 'mock-token-fallback'),
     usageToday: 0,
     usageTotal: 0,
     successRate: 0,
@@ -141,7 +146,7 @@ function updateAccount(req: MockRequest) {
 
   const updateData = { ...body };
   if (credential) {
-    updateData.fullToken = credential;
+    updateData.fullToken = maskToken(credential);
     // ✅ 只有当 expiresIn 有值时才更新（APIKEY 保持原值，通常为 null）
     if (expiresIn !== null && expiresIn !== undefined) {
       updateData.expiresIn = expiresIn;

@@ -85,7 +85,7 @@ public class OpenAiHeaderProcessor(ChatModelConnectionOptions options) : IReques
         if (!isOfficialClient)
         {
             headers["originator"] = "codex_cli_rs";
-            headers["originator"] = "codex_cli_rs/0.114.0 (Windows 10.0.26100; x86_64) WindowsTerminal";
+            headers["originator"] = "codex_cli_rs/0.116.0 (Windows 10.0.26100; x86_64) WindowsTerminal";
         }
     }
 }

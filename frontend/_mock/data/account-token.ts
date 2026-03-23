@@ -20,7 +20,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     creationTime: '2023-12-01T10:00:00Z',
     usageToday: 15420,
     usageTotal: 450120,
-    fullToken: '1//0gMockToken_EXAMPLE_ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890',
+    fullToken: '1//0gMo...Z890',
     successRate: 99.8,
     maxConcurrency: 10,
     currentConcurrency: 3
@@ -38,7 +38,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     creationTime: '2023-12-01T10:00:00Z',
     usageToday: 8900,
     usageTotal: 120500,
-    fullToken: '1//0gMockToken_EXAMPLE_ZYXWVUTSRQPONMLKJIHGFEDCBA0987654321',
+    fullToken: '1//0gMo...4321',
     successRate: 98.5,
     maxConcurrency: 5,
     currentConcurrency: 1
@@ -60,7 +60,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     creationTime: '2023-12-10T09:30:00Z',
     usageToday: 0,
     usageTotal: 12400,
-    fullToken: 'AIzaSyMockApiKey_EXAMPLE_1234567890ABCDEFGHIJ',
+    fullToken: 'AIzaSyM...GHIJ',
     successRate: 0,
     maxConcurrency: 2,
     currentConcurrency: 0
@@ -78,7 +78,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     creationTime: '2024-01-05T08:00:00Z',
     usageToday: 420,
     usageTotal: 2100,
-    fullToken: 'sk-mock-relay-key-ABCDEFGHIJKLMNOPQRSTUVWXYZ123456',
+    fullToken: 'sk-mock...3456',
     successRate: 100,
     maxConcurrency: 0,
     currentConcurrency: 12
@@ -96,7 +96,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     creationTime: '2024-02-01T11:11:00Z',
     usageToday: 3350,
     usageTotal: 50120,
-    fullToken: 'sk-mock-relay-key-ZYXWVUTSRQPONMLKJIHGFEDCBA654321',
+    fullToken: 'sk-mock...4321',
     successRate: 99.1,
     maxConcurrency: 20,
     currentConcurrency: 5
@@ -115,7 +115,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     creationTime: '2024-03-01T09:00:00Z',
     usageToday: 12500,
     usageTotal: 340000,
-    fullToken: 'sk-proj-7a8s9d0f1g2h3j4k5l6m7n8o9p0q',
+    fullToken: 'sk-proj...0q',
     successRate: 99.9,
     maxConcurrency: 50,
     currentConcurrency: 45
@@ -133,7 +133,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     creationTime: '2024-03-15T14:20:00Z',
     usageToday: 450,
     usageTotal: 2200,
-    fullToken: 'sk-dev-KeyRandomStringSequence123',
+    fullToken: 'sk-dev-...e123',
     successRate: 95.0,
     maxConcurrency: 3,
     currentConcurrency: 0
@@ -152,7 +152,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     creationTime: '2024-04-01T08:00:00Z',
     usageToday: 28500,
     usageTotal: 1250000,
-    fullToken: '1//0gAntigravity_TokenExample_ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+    fullToken: '1//0gAn...WXYZ',
     successRate: 99.2,
     maxConcurrency: 100,
     currentConcurrency: 15
@@ -171,7 +171,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     creationTime: '2024-04-10T12:30:00Z',
     usageToday: 12300,
     usageTotal: 580000,
-    fullToken: '1//0gBackup_Antigravity_Token_ZYXWVUTSRQPONMLKJIHGFEDCBA',
+    fullToken: '1//0gBa...DCBA',
     successRate: 98.7,
     maxConcurrency: 100,
     currentConcurrency: 8
@@ -190,7 +190,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     creationTime: '2024-04-15T09:15:00Z',
     usageToday: 8900,
     usageTotal: 320000,
-    fullToken: '1//0gThinking_Model_Account_12345ABCDEFGHIJ67890',
+    fullToken: '1//0gTh...7890',
     successRate: 99.5,
     maxConcurrency: 10,
     currentConcurrency: 10
@@ -210,7 +210,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     creationTime: '2024-04-20T14:45:00Z',
     usageToday: 0,
     usageTotal: 45000,
-    fullToken: '1//0gDev_Token_Expired_EXAMPLE',
+    fullToken: '1//0gDe...MPLE',
     successRate: 0,
     maxConcurrency: 5,
     currentConcurrency: 0

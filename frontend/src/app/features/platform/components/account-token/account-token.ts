@@ -65,7 +65,7 @@ export class AccountTokenPage implements OnInit {
   });
 
   ngOnInit() {
-    this.layoutService.title.set('渠道账号');
+    this.layoutService.title.set('渠道账户');
     // 移除 loadData()，让表格的 lazy loading 触发首次加载
     // 但仍需加载 metrics
     this.metricService

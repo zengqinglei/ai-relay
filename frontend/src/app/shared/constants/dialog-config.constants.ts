@@ -17,7 +17,7 @@ export interface DialogConfig {
 export const DIALOG_CONFIGS = {
   /**
    * 小型对话框 - 适用于简单表单
-   * 例如：渠道账号编辑、订阅编辑
+   * 例如：渠道账户编辑、订阅编辑
    */
   SMALL: {
     breakpoints: { '1199px': '75vw', '575px': '90vw' },
@@ -29,7 +29,7 @@ export const DIALOG_CONFIGS = {
 
   /**
    * 中型对话框 - 适用于复杂表单或一般详情
-   * 例如：渠道分组编辑、模型测试、账号详情
+   * 例如：渠道分组编辑、模型测试、账户详情
    */
   MEDIUM: {
     breakpoints: { '1199px': '80vw', '575px': '95vw' },

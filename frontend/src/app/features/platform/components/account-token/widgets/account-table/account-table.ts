@@ -139,11 +139,6 @@ export class AccountTable {
     menu.toggle(event);
   }
 
-  getMaskedToken(token: string | undefined): string {
-    if (!token || token.length < 12) return '***';
-    return `${token.substring(0, 7)}...${token.substring(token.length - 4)}`;
-  }
-
   private emitFilterChange() {
     let isActive: boolean | undefined = undefined;
     if (this.selectedStatus() === 'active') isActive = true;
