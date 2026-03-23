@@ -31,7 +31,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend
-        run: npm ci
+        run: npm install
 
       - name: Generate environment.debug.ts with mock enabled
         working-directory: frontend
