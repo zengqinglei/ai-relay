@@ -2,7 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 
-namespace AiRelay.Domain.Shared.ExternalServices.ChatModel.Cleaning;
+namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Cleaning;
 
 /// <summary>
 /// Google JSON Schema 清洗器

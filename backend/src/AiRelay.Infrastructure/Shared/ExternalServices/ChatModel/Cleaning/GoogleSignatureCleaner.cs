@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.SignatureCache;
 using Microsoft.Extensions.Logging;
 
-namespace AiRelay.Domain.Shared.ExternalServices.ChatModel.Cleaning;
+namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Cleaning;
 
 /// <summary>
 /// Google API 签名清洗器（通用于 Gemini Account 和 Antigravity）

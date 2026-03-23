@@ -37,6 +37,8 @@ using AiRelay.Domain.ProviderGroups.DomainServices.SchedulingStrategy.AccountCon
 using AiRelay.Infrastructure.SchedulingStrategy.AccountConcurrencyStrategy;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Handler;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Handler;
+using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Claude;
+using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Cleaning;
 
 namespace AiRelay.Infrastructure;
 
@@ -134,7 +136,21 @@ public static class DependencyInjection
         // 聊天模型客户端工厂
         services.AddTransient<IChatModelHandlerFactory, ChatModelHandlerFactory>();
 
-        // 注册 Chat Model Clients (使用 Strategy 模式，通过 Supports 方法自选)
+        // IClaudeCodeClientDetector（被 ClaudeChatModelHandler 通过 ActivatorUtilities 注入）
+        services.AddTransient<IClaudeCodeClientDetector, ClaudeCodeClientDetector>();
+
+        // 请求清洗服务（从 Domain 层迁移至 Infrastructure）
+        services.AddTransient<GoogleJsonSchemaCleaner>();
+        services.AddTransient<GoogleSignatureCleaner>();
+        services.AddTransient<ClaudeSystemPromptInjector>();
+        services.AddTransient<AntigravityIdentityInjector>();
+        services.AddTransient<OpenAiCodexInjector>();
+        services.AddTransient<GeminiSystemPromptInjector>();
+        services.AddTransient<ClaudeRequestCleaner>();
+        services.AddTransient<ClaudeThinkingCleaner>();
+        services.AddTransient<ClaudeCacheControlCleaner>();
+
+        // 注册 Chat Model Clients — 仅供兼容性保留，Factory 通过 ActivatorUtilities 直接创建实例
         services.AddTransient<IChatModelHandler, GeminiAccountChatModelHandler>();
         services.AddTransient<IChatModelHandler, GeminiApiChatModelHandler>();
 

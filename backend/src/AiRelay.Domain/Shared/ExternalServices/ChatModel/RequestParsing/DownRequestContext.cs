@@ -125,15 +125,9 @@ public class DownRequestContext
         return BodyJsonNode?.DeepClone() as JsonObject;
     }
 
-    // ============ 提取的信息（由 IRequestTransformer 填充） ============
+    // ============ 提取的信息（由 ExtractModelInfo 填充） ============
     public string? ModelId { get; set; }
     public string? SessionHash { get; set; }
-
-    // ============ 降级级别（用于 Antigravity 签名降级重试） ============
-    // 0 = 正常（注入签名）
-    // 1 = 第一次降级（移除 thoughtSignature）
-    // 2 = 第二次降级（移除所有 FunctionDeclaration）
-    public int DegradationLevel { get; set; }
 
     // ============ 辅助方法 ============
     public string? GetUserAgent() => Headers.TryGetValue("user-agent", out var ua) ? ua : null;

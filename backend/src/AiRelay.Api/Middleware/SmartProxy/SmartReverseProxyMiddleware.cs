@@ -18,7 +18,6 @@ using Leistd.Tracing.Core.Services;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.Extensions.Options;
 using System.Diagnostics;
-using System.Text.Json.Nodes;
 
 namespace AiRelay.Api.Middleware.SmartProxy;
 
@@ -32,7 +31,6 @@ public class SmartReverseProxyMiddleware(
     IOptions<UsageLoggingOptions> loggingOptions,
     IConcurrencyStrategy concurrencyStrategy,
     ICorrelationIdProvider correlationIdProvider,
-    AccountFingerprintAppService fingerprintAppService,
     ILogger<SmartReverseProxyMiddleware> logger)
 {
     private readonly UsageLoggingOptions _loggingOptions = loggingOptions.Value;
@@ -120,30 +118,17 @@ public class SmartReverseProxyMiddleware(
                         }
                     }
 
-                    chatModelHandler.Configure(new ChatModelConnectionOptions(
-                        Platform: platform,
-                        Credential: selectResult.AccountToken.AccessToken,
-                        BaseUrl: selectResult.AccountToken.BaseUrl)
-                    {
-                        ShouldMimicOfficialClient = selectResult.AllowOfficialClientMimic,
-                        ExtraProperties = selectResult.AccountToken.ExtraProperties
-                    });
+                    var accountedHandler = chatModelHandlerFactory.CreateHandler(
+                        platform,
+                        selectResult.AccountToken.AccessToken,
+                        selectResult.AccountToken.BaseUrl,
+                        selectResult.AccountToken.ExtraProperties,
+                        selectResult.AllowOfficialClientMimic);
 
-                    // 设置降级级别（用于 Antigravity/Claude 签名重试）
-                    downContext.DegradationLevel = degradationLevel;
-                    // OAuth 账号：注入 metadata.user_id（基于指纹）
-                    if (platform == ProviderPlatform.CLAUDE_OAUTH)
-                    {
-                        await InjectMetadataUserIdAsync(
-                            selectResult.AccountToken.Id,
-                            selectResult.AccountToken.ExtraProperties,
-                            downContext,
-                            context.RequestAborted);
-                    }
-
-                    var transformedContext = await chatModelHandler.TransformProtocolAsync(downContext, context.RequestAborted);
-                    chatModelHandler.ApplyProxyEnhancements(downContext, transformedContext);
-                    var upContext = await chatModelHandler.BuildHttpRequestAsync(downContext, transformedContext, context.RequestAborted);
+                    var upContext = await accountedHandler.ProcessRequestContextAsync(
+                        downContext,
+                        degradationLevel,
+                        context.RequestAborted);
 
                     var startRecord = new UsageRecordStartItem(
                         UsageRecordId: activeRequestId,
@@ -170,15 +155,16 @@ public class SmartReverseProxyMiddleware(
                     );
                     if (_loggingOptions.IsBodyLoggingEnabled)
                     {
+                        var bodyContent = upContext.BodyJson != null ? upContext.BodyJson.ToString() : null;
                         startRecord.LoggingBody(
                             downContext.IsMultipart ?
                                 "[Multipart Data - Logging Skipped]" :
                                 downContext.GetBodyPreview(_loggingOptions.MaxBodyLength),
-                            string.IsNullOrEmpty(upContext.BodyContent) ?
+                            string.IsNullOrEmpty(bodyContent) ?
                                 string.Empty :
-                                upContext.BodyContent.Length > _loggingOptions.MaxBodyLength ?
-                                    upContext.BodyContent[.._loggingOptions.MaxBodyLength] + "...[Truncated]" :
-                                    upContext.BodyContent);
+                                bodyContent.Length > _loggingOptions.MaxBodyLength ?
+                                    bodyContent[.._loggingOptions.MaxBodyLength] + "...[Truncated]" :
+                                    bodyContent);
                     }
                     usageRecordHostedService.TryEnqueue(startRecord);
 
@@ -190,9 +176,8 @@ public class SmartReverseProxyMiddleware(
                     string? usageStatusDescription = null;
                     try
                     {
-                        // 4. 构建上游请求
                         // 5. 执行 HTTP 请求
-                        using var response = await chatModelHandler.ExecuteHttpRequestAsync(upContext, context.RequestAborted);
+                        using var response = await accountedHandler.ProxyRequestAsync(upContext, context.RequestAborted);
                         stopwatch.Stop();
                         httpStatusCode = (int)response.StatusCode;
                         // 6. 判断响应状态
@@ -208,11 +193,11 @@ public class SmartReverseProxyMiddleware(
 
                             WriteResponseHeaders(context, (int)response.StatusCode, ExtractHeaders(response));
 
-                            var options = new ForwardResponseOptions(_loggingOptions.IsBodyLoggingEnabled, _loggingOptions.MaxBodyLength, null);
+                            var options = new ForwardResponseOptions(_loggingOptions.IsBodyLoggingEnabled, _loggingOptions.MaxBodyLength, accountedHandler.GetSseLineCallback(upContext.SessionId));
                             forwardResult = await streamProcessor.ForwardResponseAsync(
                                 response,
                                 context.Response.Body,
-                                chatModelHandler,
+                                accountedHandler,
                                 downContext.IsStreaming,
                                 options,
                                 context.RequestAborted);
@@ -228,7 +213,7 @@ public class SmartReverseProxyMiddleware(
                             logger.LogWarning("账号请求失败，状态码: {StatusCode}，正在分析错误：{BodyContent}", httpStatusCode.Value, errorBody);
 
                             // 7. 错误分析
-                            var errorAnalysis = await chatModelHandler.AnalyzeErrorAsync(httpStatusCode.Value, responseHeaders, errorBody);
+                            var errorAnalysis = await accountedHandler.AnalyzeErrorAsync(httpStatusCode.Value, responseHeaders, errorBody);
 
                             // 8. 决策逻辑
                             const int MaxSameAccountRetries = 3;
@@ -359,78 +344,6 @@ public class SmartReverseProxyMiddleware(
         return (metadata.Platform, apiKeyId, apiKeyNameClaim.Value);
     }
 
-
-    /// <summary>
-    /// 注入 metadata.user_id（基于指纹）
-    /// 直接修改 DownRequestContext 的 JsonNode，避免重复解析
-    /// </summary>
-    private async Task InjectMetadataUserIdAsync(
-        Guid accountTokenId,
-        Dictionary<string, string> extraProperties,
-        DownRequestContext downContext,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            // 获取 JsonNode（懒加载）
-            var requestJson = downContext.BodyJsonNode as JsonObject;
-            if (requestJson == null)
-            {
-                return;
-            }
-
-            // 仅在 metadata.user_id 为空时注入
-            if (requestJson.TryGetPropertyValue("metadata", out var metadataNode) &&
-                metadataNode is JsonObject metadataObj &&
-                metadataObj.TryGetPropertyValue("user_id", out var userIdNode) &&
-                !string.IsNullOrWhiteSpace(userIdNode?.GetValue<string>()))
-            {
-                return; // 已有 user_id，不覆盖
-            }
-
-            // 获取或创建指纹
-            var fingerprint = await fingerprintAppService.GetOrCreateFingerprintAsync(
-                accountTokenId,
-                downContext.Headers,
-                cancellationToken);
-
-            // 构建 metadata.user_id（支持 Session ID Masking）
-            extraProperties.TryGetValue("account_uuid", out var accountUuid);
-
-            // 检查是否启用会话ID伪装
-            bool enableMasking = extraProperties.TryGetValue("session_id_masking_enabled", out var maskingValue)
-                && bool.TryParse(maskingValue, out var enabled) && enabled;
-
-            string sessionId = await fingerprintAppService.GenerateSessionUuidAsync(
-                accountTokenId,
-                downContext.SessionHash,
-                enableMasking,
-                cancellationToken);
-
-            // 格式：user_{ClientID}_account_{account_uuid}_session_{sessionID}
-            string userId = !string.IsNullOrWhiteSpace(accountUuid)
-                ? $"user_{fingerprint.ClientId}_account_{accountUuid.Trim()}_session_{sessionId}"
-                : $"user_{fingerprint.ClientId}_account__session_{sessionId}";
-
-            // 注入 metadata
-            if (!requestJson.ContainsKey("metadata"))
-            {
-                requestJson["metadata"] = new JsonObject();
-            }
-
-            if (requestJson["metadata"] is JsonObject metadata)
-            {
-                metadata["user_id"] = userId;
-            }
-
-            logger.LogDebug("为 OAuth 账户注入 metadata.user_id: {UserId}", userId);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "为 OAuth 账户注入 metadata.user_id 失败");
-            // 失败时不影响主流程
-        }
-    }
 
     private static bool IsHopByHopHeader(string headerName) => headerName.ToLowerInvariant() switch
     {

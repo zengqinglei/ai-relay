@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.Json.Nodes;
 
-namespace AiRelay.Domain.Shared.ExternalServices.ChatModel.Parsing;
+namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Parsing;
 
 /// <summary>
 /// Gemini 文本提取器

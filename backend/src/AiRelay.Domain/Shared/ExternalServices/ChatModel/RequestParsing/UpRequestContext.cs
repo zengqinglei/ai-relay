@@ -1,32 +1,31 @@
+using System.Text.Json.Nodes;
+
 namespace AiRelay.Domain.Shared.ExternalServices.ChatModel.RequestParsing;
 
 /// <summary>
 /// 上游请求上下文（网关 → 供应商）
-/// 封装纯技术信息，不包含业务属性
+/// 可变 class，Processor 链直接写入字段
 /// </summary>
-public record UpRequestContext
+public class UpRequestContext
 {
-    // HTTP Method
-    public required HttpMethod Method { get; init; }
+    public HttpMethod Method { get; set; } = HttpMethod.Post;
 
-    // 目标信息
-    public required string BaseUrl { get; init; }
-    public required string RelativePath { get; init; }
-    public string? QueryString { get; init; }
-
+    // ── Url（UrlProcessor 填充）
+    public string BaseUrl { get; set; } = string.Empty;
+    public string RelativePath { get; set; } = string.Empty;
+    public string? QueryString { get; set; }
     public string GetFullUrl() => $"{BaseUrl}{RelativePath}{QueryString}";
 
-    // 请求头（转换后）
-    public required Dictionary<string, string> Headers { get; init; }
+    // ── Headers（HeaderProcessor 填充）
+    public Dictionary<string, string> Headers { get; set; } = new();
 
-    // 请求体（转换后）
-    public string? BodyContent { get; set; }
-    public HttpContent? HttpContent { get; init; }
+    // ── Body（RequestBodyProcessor 填充）
+    public JsonObject? BodyJson { get; set; }
 
-    // 协议转换结果
-    public string? MappedModelId { get; init; }
-    public string? SessionId { get; init; }
+    // ── 元数据（ModelIdMappingProcessor 填充）
+    public string? MappedModelId { get; set; }
+    public string? SessionId { get; set; }
 
-    // 辅助方法
-    public string? GetUserAgent() => Headers.TryGetValue("user-agent", out var ua) ? ua : null;
+    public string? GetUserAgent() =>
+        Headers.TryGetValue("user-agent", out var ua) ? ua : null;
 }

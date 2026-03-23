@@ -1,18 +1,18 @@
+using AiRelay.Domain.ProviderAccounts.ValueObjects;
+using AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
+using AiRelay.Domain.Shared.ExternalServices.ChatModel.Handler;
+using AiRelay.Domain.Shared.ExternalServices.ChatModel.Processors;
+using AiRelay.Domain.Shared.ExternalServices.ChatModel.RequestParsing;
+using AiRelay.Domain.Shared.ExternalServices.ChatModel.ResponseParsing;
+using AiRelay.Domain.Shared.ExternalServices.ChatModel.SignatureCache;
+using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.StreamProcessor;
+using Microsoft.Extensions.Logging;
 using System.Globalization;
+using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
-using AiRelay.Domain.ProviderAccounts.ValueObjects;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.Handler;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.RequestParsing;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.ResponseParsing;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.SignatureCache;
-using AiRelay.Domain.UsageRecords.Options;
-using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.StreamProcessor;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Handler;
 
@@ -23,57 +23,133 @@ public abstract class BaseChatModelHandler : IChatModelHandler
     protected const int BackoffBaseSeconds = 5;
     protected const int BackoffMaxSeconds = 3600;
 
+    protected readonly ChatModelConnectionOptions _options;
     protected readonly IHttpClientFactory HttpClientFactory;
     protected readonly SseResponseStreamProcessor StreamProcessor;
     protected readonly ISignatureCache SignatureCache;
-    protected readonly UsageLoggingOptions LoggingOptions;
     protected readonly ILogger Logger;
 
-    protected ChatModelConnectionOptions ConnectionOptions = null!;
-
     protected BaseChatModelHandler(
+        ChatModelConnectionOptions options,
         IHttpClientFactory httpClientFactory,
         SseResponseStreamProcessor streamProcessor,
         ISignatureCache signatureCache,
-        IOptions<UsageLoggingOptions> loggingOptions,
         ILogger logger)
     {
+        _options = options;
         HttpClientFactory = httpClientFactory;
         StreamProcessor = streamProcessor;
         SignatureCache = signatureCache;
-        LoggingOptions = loggingOptions.Value;
         Logger = logger;
     }
 
     public abstract bool Supports(ProviderPlatform platform);
 
-    public virtual void Configure(ChatModelConnectionOptions options)
-    {
-        ConnectionOptions = options;
-    }
+    protected virtual string? GetFallbackBaseUrl(int statusCode) => null;
 
-    public virtual string GetBaseUrl()
+    // ── Processor 组合（子类实现，路由感知逻辑集中于此）
+
+    /// <summary>
+    /// 判断当前路径是否为聊天 API 路径。
+    /// 各平台显式声明自己的聊天端点，非聊天路径（管理 API 等）仅走 Header 认证链。
+    /// </summary>
+    protected abstract bool IsChatApiPath(string? path);
+
+    /// <summary>
+    /// 子类根据请求路由（down.RelativePath）和降级级别返回 Processor 列表
+    /// </summary>
+    protected abstract IReadOnlyList<IRequestProcessor> GetProcessors(
+        DownRequestContext down,
+        int degradationLevel);
+
+    // ── ProcessRequestContextAsync
+
+    public async Task<UpRequestContext> ProcessRequestContextAsync(
+        DownRequestContext down,
+        int degradationLevel = 0,
+        CancellationToken ct = default)
     {
-        if (ConnectionOptions == null || string.IsNullOrEmpty(ConnectionOptions.BaseUrl))
+        var up = new UpRequestContext { Method = down.Method, MappedModelId = down.ModelId };
+
+        foreach (var processor in GetProcessors(down, degradationLevel))
         {
-            return GetDefaultBaseUrl();
+            await processor.ProcessAsync(down, up, ct);
         }
-        return ConnectionOptions.BaseUrl;
+
+        return up;
     }
 
-    /// <summary>
-    /// 获取平台默认 API 地址
-    /// </summary>
-    public abstract string GetDefaultBaseUrl();
+    // ── ProxyRequestAsync（含 Fallback 重试）
 
-    public virtual string? GetFallbackBaseUrl(int statusCode)
+    public async Task<HttpResponseMessage> ProxyRequestAsync(
+        UpRequestContext up,
+        CancellationToken ct = default)
     {
-        return null;
+        var currentBaseUrl = up.BaseUrl;
+        var hasTriedFallback = false;
+
+        while (true)
+        {
+            try
+            {
+                var response = await ExecuteHttpAsync(up, currentBaseUrl, ct);
+
+                if (response.IsSuccessStatusCode)
+                    return response;
+
+                var fallbackUrl = GetFallbackBaseUrl((int)response.StatusCode);
+                if (fallbackUrl != null && !hasTriedFallback)
+                {
+                    Logger.LogWarning("端点异常 ({StatusCode})，切换备用端点", response.StatusCode);
+                    response.Dispose();
+                    hasTriedFallback = true;
+                    currentBaseUrl = fallbackUrl;
+                    continue;
+                }
+
+                return response;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "HTTP 请求失败");
+                throw;
+            }
+        }
     }
 
-    /// <summary>
-    /// 分析错误响应（默认实现）
-    /// </summary>
+    protected virtual async Task<HttpResponseMessage> ExecuteHttpAsync(
+        UpRequestContext up,
+        string baseUrl,
+        CancellationToken ct = default)
+    {
+        var httpClient = HttpClientFactory.CreateClient();
+
+        var normalizedBase = baseUrl.EndsWith('/') ? baseUrl : baseUrl + "/";
+        var relativeUrl = up.RelativePath.TrimStart('/') + (up.QueryString ?? "");
+
+        var request = new HttpRequestMessage(up.Method, normalizedBase + relativeUrl);
+
+        foreach (var header in up.Headers)
+        {
+            request.Headers.TryAddWithoutValidation(header.Key, header.Value);
+        }
+
+        if (up.BodyJson != null)
+        {
+            var bodyContent = up.BodyJson.ToJsonString();
+            request.Content = new ByteArrayContent(Encoding.UTF8.GetBytes(bodyContent));
+            request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+        }
+
+        return await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+    }
+
+    // ── SSE Line Callback
+
+    public virtual Action<string>? GetSseLineCallback(string? sessionId) => null;
+
+    // ── Error Analysis
+
     public virtual Task<ModelErrorAnalysisResult> AnalyzeErrorAsync(
         int statusCode,
         Dictionary<string, IEnumerable<string>>? headers,
@@ -117,9 +193,23 @@ public abstract class BaseChatModelHandler : IChatModelHandler
         return Task.FromResult(result);
     }
 
-    /// <summary>
-    /// 通用重试时间提取 (Headers + Body Regex)
-    /// </summary>
+    // ── IResponseParser (abstract)
+
+    public abstract ChatResponsePart? ParseChunk(string chunk);
+    public abstract ChatResponsePart ParseCompleteResponse(string responseBody);
+
+    // ── ExtractModelInfo + CreateDebugDownContext (abstract)
+
+    public abstract void ExtractModelInfo(DownRequestContext down, Guid apiKeyId);
+    public abstract DownRequestContext CreateDebugDownContext(string modelId, string message);
+
+    // ── Account management (abstract)
+
+    public abstract Task<ConnectionValidationResult> ValidateConnectionAsync(CancellationToken ct = default);
+    public abstract Task<AccountQuotaInfo?> FetchQuotaAsync(CancellationToken ct = default);
+
+    // ── Retry-After extraction
+
     protected TimeSpan? ExtractRetryAfterGeneric(
         Dictionary<string, IEnumerable<string>>? headers,
         string? body)
@@ -132,9 +222,8 @@ public abstract class BaseChatModelHandler : IChatModelHandler
             {
                 // 尝试解析秒数
                 if (double.TryParse(value, out var seconds))
-                {
                     return TimeSpan.FromSeconds(seconds);
-                }
+
                 // 尝试解析 HTTP Date
                 if (DateTime.TryParse(value, out var date))
                 {
@@ -146,7 +235,6 @@ public abstract class BaseChatModelHandler : IChatModelHandler
 
         if (string.IsNullOrEmpty(body)) return null;
 
-        // 2. 正则匹配 Body (兜底)
         var patterns = new[]
         {
             @"retryDelay[""]?\s*:\s*[""]?(\d+(?:\.\d+)?)[""]?s",    // retryDelay: "8085.070001278s"
@@ -188,11 +276,6 @@ public abstract class BaseChatModelHandler : IChatModelHandler
         return null;
     }
 
-    /// <summary>
-    /// 解析时长字符串为秒数，支持：
-    ///   格式1 - 纯秒数: "8085.070001278s"
-    ///   格式2 - 复合格式: "2h14m45.070001278s"
-    /// </summary>
     protected int? ParseDurationToSeconds(string? duration)
     {
         if (string.IsNullOrEmpty(duration))
@@ -226,134 +309,17 @@ public abstract class BaseChatModelHandler : IChatModelHandler
         return totalSeconds > 0 ? totalSeconds : null;
     }
 
-    public abstract Task<ConnectionValidationResult> ValidateConnectionAsync(CancellationToken cancellationToken = default);
-    public abstract Task<AccountQuotaInfo?> FetchQuotaAsync(CancellationToken cancellationToken = default);
+    // ── Session Hash Generation
 
-    /// <summary>
-    /// 创建调试用的标准请求上下文
-    /// </summary>
-    public abstract DownRequestContext CreateDebugDownContext(string modelId, string message);
-
-    // ==================== HTTP Forwarding & Debug Methods ====================
-
-    protected virtual async Task<HttpResponseMessage> ExecuteHttpAsync(
-        UpRequestContext upContext,
-        CancellationToken cancellationToken = default)
-    {
-        var httpClient = HttpClientFactory.CreateClient();
-
-        var baseUrl = upContext.BaseUrl.EndsWith('/') ? upContext.BaseUrl : upContext.BaseUrl + "/";
-        var relativeUrl = upContext.RelativePath.TrimStart('/') + (upContext.QueryString ?? "");
-
-        // 直接在构造函数中传入完整 URI，避免 Uri 解析问题
-        var request = new HttpRequestMessage(upContext.Method, baseUrl + relativeUrl);
-
-        foreach (var header in upContext.Headers)
-        {
-            request.Headers.TryAddWithoutValidation(header.Key, header.Value);
-        }
-
-        if (upContext.HttpContent != null)
-        {
-            request.Content = upContext.HttpContent;
-        }
-
-        return await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-    }
-
-    public virtual async Task<HttpResponseMessage> ExecuteHttpRequestAsync(
-        UpRequestContext upContext,
-        CancellationToken cancellationToken = default)
-    {
-        var currentDestination = GetBaseUrl();
-        var hasTriedFallback = false;
-
-        while (true)
-        {
-            try
-            {
-                var upContextWithDestination = upContext with { BaseUrl = currentDestination };
-                var response = await ExecuteHttpAsync(upContextWithDestination, cancellationToken);
-
-                if (response.IsSuccessStatusCode)
-                    return response;
-
-                var fallbackUrl = GetFallbackBaseUrl((int)response.StatusCode);
-                if (fallbackUrl != null && !hasTriedFallback)
-                {
-                    Logger.LogWarning("端点异常 ({StatusCode})，切换备用端点", response.StatusCode);
-                    response.Dispose();
-                    hasTriedFallback = true;
-                    currentDestination = fallbackUrl;
-                    continue;
-                }
-
-                return response;
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "HTTP 请求失败");
-                throw;
-            }
-        }
-    }
-
-
-
-    // ==================== IRequestTransformer Abstract Implementation ====================
-
-    public abstract void ExtractModelInfo(DownRequestContext downContext, Guid apiKeyId);
-
-    public abstract Task<TransformedRequestContext> TransformProtocolAsync(
-        DownRequestContext downContext,
-        CancellationToken cancellationToken = default);
-
-    public abstract Task<UpRequestContext> BuildHttpRequestAsync(
-        DownRequestContext downContext,
-        TransformedRequestContext transformedContext,
-        CancellationToken cancellationToken = default);
-
-    // ==================== IRequestEnricher Virtual Implementation ====================
-
-    /// <summary>
-    /// 代理专属增强（默认空实现）：各平台按需覆盖
-    /// 仅在 SmartReverseProxy 场景由中间件显式调用，DebugModel 场景不调用
-    /// </summary>
-    public virtual void ApplyProxyEnhancements(DownRequestContext downContext, TransformedRequestContext transformedContext)
-    {
-        return;
-    }
-
-    // ==================== IResponseParser Abstract Implementation ====================
-
-    public abstract ChatResponsePart? ParseChunk(string chunk);
-
-    public abstract ChatResponsePart ParseCompleteResponse(string responseBody);
-
-    // ==================== Signature Extraction (Optional Override) ====================
-
-    protected virtual Action<string>? GetSignatureExtractor(string? sessionId)
-    {
-        return null;
-    }
-
-    // ==================== Session Hash Generation (Migrated from SessionIdHelper) ====================
-
-    /// <summary>
-    /// 生成会话哈希（混入上下文，防止碰撞）
-    /// </summary>
     protected string GenerateSessionHashWithContext(
         string messageContent,
         DownRequestContext downContext,
         Guid apiKeyId)
     {
         if (string.IsNullOrEmpty(messageContent))
-        {
             return GenerateFallbackSessionId();
-        }
 
         var combined = new StringBuilder();
-        // 移除 ClientIp 以避免 IP 变化导致会话粘性丢失（移动网络、VPN切换等场景）
         combined.Append(downContext.GetUserAgent() ?? string.Empty);
         combined.Append(':');
         combined.Append(apiKeyId.ToString());
@@ -394,9 +360,10 @@ public abstract class BaseChatModelHandler : IChatModelHandler
                 {
                     if (partObj.TryGetPropertyValue("text", out var textNode) &&
                         textNode is JsonValue textValue &&
-                        textValue.TryGetValue<string>(out var text))
+                        textValue.TryGetValue<string>(out var text) &&
+                        !string.IsNullOrWhiteSpace(text))
                     {
-                        if (!string.IsNullOrWhiteSpace(text)) return text;
+                        return text;
                     }
                 }
             }
@@ -427,6 +394,7 @@ public abstract class BaseChatModelHandler : IChatModelHandler
                 }
             }
         }
+
         return null;
     }
 
@@ -436,30 +404,31 @@ public abstract class BaseChatModelHandler : IChatModelHandler
             !messageObj.TryGetPropertyValue("content", out var contentNode))
             return null;
 
-        var builder = new StringBuilder();
         if (contentNode is JsonValue contentValue &&
             contentValue.TryGetValue<string>(out var contentStr))
             return contentStr;
 
         if (contentNode is JsonArray contentArray)
         {
+            var builder = new StringBuilder();
             foreach (var part in contentArray)
             {
                 if (part is not JsonObject partObj) continue;
                 if (partObj.TryGetPropertyValue("type", out var typeNode) &&
                     typeNode is JsonValue typeValue &&
                     typeValue.TryGetValue<string>(out var type) &&
-                    type == "text")
+                    type == "text" &&
+                    partObj.TryGetPropertyValue("text", out var textNode) &&
+                    textNode is JsonValue textValue &&
+                    textValue.TryGetValue<string>(out var text) &&
+                    !string.IsNullOrWhiteSpace(text))
                 {
-                    if (partObj.TryGetPropertyValue("text", out var textNode) &&
-                        textNode is JsonValue textValue &&
-                        textValue.TryGetValue<string>(out var text))
-                    {
-                        if (!string.IsNullOrWhiteSpace(text)) builder.Append(text);
-                    }
+                    builder.Append(text);
                 }
             }
+            return builder.Length > 0 ? builder.ToString() : null;
         }
-        return builder.Length > 0 ? builder.ToString() : null;
+
+        return null;
     }
 }

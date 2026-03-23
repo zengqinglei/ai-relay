@@ -1,6 +1,6 @@
 using System.Text.Json.Nodes;
 
-namespace AiRelay.Domain.Shared.ExternalServices.ChatModel.Cleaning;
+namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Cleaning;
 
 /// <summary>
 /// Claude System Prompt 注入器

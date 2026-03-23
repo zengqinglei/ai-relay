@@ -3,7 +3,6 @@ using AiRelay.Domain.Auth.DomainServices;
 using AiRelay.Domain.ProviderAccounts.DomainServices;
 using AiRelay.Domain.ProviderGroups.DomainServices;
 using AiRelay.Domain.ProviderGroups.DomainServices.SchedulingStrategy.GroupStrategy;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.Cleaning;
 using AiRelay.Domain.UsageRecords.DomainServices;
 using AiRelay.Domain.UsageRecords.Providers;
 using AiRelay.Domain.Users.DomainServices;
@@ -54,18 +53,6 @@ public static class DependencyInjection
         services.AddTransient<WeightedRandomStrategy>();
         services.AddTransient<PriorityStrategy>();
         services.AddTransient<QuotaPriorityStrategy>();
-
-        // 请求清洗服务
-        services.AddTransient<GoogleJsonSchemaCleaner>();
-        services.AddTransient<ClaudeRequestCleaner>();
-        services.AddTransient<ClaudeThinkingCleaner>();
-        services.AddTransient<ClaudeCacheControlCleaner>();
-        services.AddTransient<ClaudeSystemPromptInjector>();
-        services.AddTransient<GoogleSignatureCleaner>();
-        services.AddTransient<AntigravityIdentityInjector>();
-        services.AddTransient<OpenAiCodexInjector>();
-        services.AddTransient<GeminiToolsCleaner>();
-        services.AddTransient<GeminiSystemPromptInjector>();
 
         return services;
 

@@ -1,7 +1,7 @@
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 
-namespace AiRelay.Domain.Shared.ExternalServices.ChatModel.Cleaning;
+namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Cleaning;
 
 /// <summary>
 /// OpenAI Codex 指令注入器

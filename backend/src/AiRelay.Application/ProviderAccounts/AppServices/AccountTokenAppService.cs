@@ -115,15 +115,14 @@ public class AccountTokenAppService(
             shouldMimicOfficialClient: true);
 
         var downContext = handler.CreateDebugDownContext(input.ModelId, input.Message);
-        var transformedContext = await handler.TransformProtocolAsync(downContext, cancellationToken);
-        var upContext = await handler.BuildHttpRequestAsync(downContext, transformedContext, cancellationToken);
+        var upContext = await handler.ProcessRequestContextAsync(downContext, 0, cancellationToken);
 
         var mappedModel = upContext.MappedModelId == downContext.ModelId
             ? input.ModelId
             : $"{input.ModelId} --> {upContext.MappedModelId}";
         yield return new ChatStreamEvent(SystemMessage: $"测试模型 {mappedModel}");
 
-        using var response = await handler.ExecuteHttpRequestAsync(upContext, cancellationToken);
+        using var response = await handler.ProxyRequestAsync(upContext, cancellationToken);
 
         if (!response.IsSuccessStatusCode)
         {

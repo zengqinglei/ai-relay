@@ -11,3 +11,4 @@ public interface IDownstreamRequestProcessor
         Guid apiKeyId,
         CancellationToken cancellationToken = default);
 }
+// Note: IChatModelHandler parameter retained for ExtractModelInfo routing.

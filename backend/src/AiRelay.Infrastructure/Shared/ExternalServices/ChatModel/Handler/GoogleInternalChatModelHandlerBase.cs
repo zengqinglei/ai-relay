@@ -1,12 +1,11 @@
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
+using AiRelay.Domain.Shared.ExternalServices.ChatModel.RequestParsing;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.SignatureCache;
-using AiRelay.Domain.UsageRecords.Options;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.StreamProcessor;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using System.Globalization;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
@@ -17,24 +16,13 @@ namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Handler;
 /// Google 内部聊天模型客户端基类
 /// </summary>
 public abstract class GoogleInternalChatModelHandlerBase(
+    ChatModelConnectionOptions options,
     IHttpClientFactory httpClientFactory,
     SseResponseStreamProcessor streamProcessor,
     ISignatureCache signatureCache,
-    IOptions<UsageLoggingOptions> loggingOptions,
     ILogger logger)
-    : BaseChatModelHandler(httpClientFactory, streamProcessor, signatureCache, loggingOptions, logger)
+    : BaseChatModelHandler(options, httpClientFactory, streamProcessor, signatureCache, logger)
 {
-
-    protected override Action<string>? GetSignatureExtractor(string? sessionId)
-    {
-        return string.IsNullOrEmpty(sessionId) ? null : line => TryExtractAndCacheSignature(line, sessionId);
-    }
-
-    public override string GetDefaultBaseUrl()
-    {
-        return "https://cloudcode-pa.googleapis.com";
-    }
-
     public override async Task<ModelErrorAnalysisResult> AnalyzeErrorAsync(
         int statusCode,
         Dictionary<string, IEnumerable<string>>? headers,
@@ -181,106 +169,106 @@ public abstract class GoogleInternalChatModelHandlerBase(
         return false;
     }
 
-    /// <summary>
-    /// 通过 LoadCodeAssist 接口获取 Project ID
-    /// </summary>
-    protected async Task<LoadCodeAssistResponse?> LoadCodeAssistAsync(string accessToken, CancellationToken cancellationToken = default)
-    {
-        var httpClient = HttpClientFactory.CreateClient();
-        var request = new HttpRequestMessage(HttpMethod.Post, $"{GetBaseUrl()}/v1internal:loadCodeAssist");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        request.Content = JsonContent.Create(new
-        {
-            metadata = new
-            {
-                ideType = "ANTIGRAVITY"
-            }
-        });
-
-        using var response = await httpClient.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
-
-        var result = await response.Content.ReadFromJsonAsync<LoadCodeAssistResponse>(
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true },
-            cancellationToken: cancellationToken);
-
-        return result;
-    }
-
-    /// <summary>
-    /// 获取账户配额信息（Google Code Assist API）
-    /// </summary>
-    protected async Task<AccountQuotaInfo?> FetchQuotaInternalAsync(string accessToken, string? projectId, CancellationToken cancellationToken = default)
+    public override async Task<ConnectionValidationResult> ValidateConnectionAsync(CancellationToken ct = default)
     {
         try
         {
-            var httpClient = HttpClientFactory.CreateClient();
-            var request = new HttpRequestMessage(HttpMethod.Post, $"{GetBaseUrl()}/v1internal:fetchAvailableModels");
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            var body = JsonSerializer.Serialize(new { metadata = new { ideType = "ANTIGRAVITY" } });
+            var down = new DownRequestContext
+            {
+                Method = HttpMethod.Post,
+                RelativePath = "/v1internal:loadCodeAssist",
+                BodyBytes = Encoding.UTF8.GetBytes(body).AsMemory()
+            };
+            var up = await ProcessRequestContextAsync(down, 0, ct);
+            using var response = await ProxyRequestAsync(up, ct);
+            response.EnsureSuccessStatusCode();
 
-            var requestBody = new { project = projectId ?? "" };
-            request.Content = JsonContent.Create(requestBody);
+            var result = await response.Content.ReadFromJsonAsync<LoadCodeAssistResponse>(
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }, ct);
 
-            using var response = await httpClient.SendAsync(request, cancellationToken);
+            if (result == null)
+                return new ConnectionValidationResult(false, "LoadCodeAssist 返回空响应");
+            if (!string.IsNullOrEmpty(result.CloudaicompanionProject))
+                return new ConnectionValidationResult(true, ProjectId: result.CloudaicompanionProject);
+            if (result.IneligibleTiers?.Count > 0)
+            {
+                var ineligible = result.IneligibleTiers[0];
+                return new ConnectionValidationResult(false,
+                    !string.IsNullOrEmpty(ineligible.ReasonMessage)
+                        ? ineligible.ReasonMessage
+                        : $"Account is not eligible for {ineligible.TierName ?? "Gemini Code Assist"}");
+            }
+            if (result.AllowedTiers?.Count > 0)
+                return new ConnectionValidationResult(false,
+                    $"Your account is registered for {result.AllowedTiers[0].Name ?? "Gemini Code Assist"}, but no project_id is configured.");
+
+            return new ConnectionValidationResult(false, "获取 Code Assist 项目失败：未返回 project_id");
+        }
+        catch (Exception ex)
+        {
+            return new ConnectionValidationResult(false, $"认证失败：{ex.Message}");
+        }
+    }
+
+    public override async Task<AccountQuotaInfo?> FetchQuotaAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            var projectId = _options.ExtraProperties.TryGetValue("project_id", out var pid) ? pid : "";
+            var body = JsonSerializer.Serialize(new { project = projectId });
+            var down = new DownRequestContext
+            {
+                Method = HttpMethod.Post,
+                RelativePath = "/v1internal:fetchAvailableModels",
+                BodyBytes = Encoding.UTF8.GetBytes(body).AsMemory()
+            };
+            var up = await ProcessRequestContextAsync(down, 0, ct);
+            using var response = await ProxyRequestAsync(up, ct);
             if (!response.IsSuccessStatusCode) return null;
 
-            var json = await response.Content.ReadAsStringAsync(cancellationToken);
+            var json = await response.Content.ReadAsStringAsync(ct);
             using var doc = JsonDocument.Parse(json);
-
-            // 从 models 中提取配额信息
             if (!doc.RootElement.TryGetProperty("models", out var models)) return null;
 
             double? remainingFraction = null;
             string? resetTime = null;
-
             foreach (var model in models.EnumerateObject())
             {
                 if (model.Value.TryGetProperty("quotaInfo", out var quotaInfo))
                 {
                     if (quotaInfo.TryGetProperty("remainingFraction", out var fraction))
                         remainingFraction = fraction.GetDouble();
-
                     if (quotaInfo.TryGetProperty("resetTime", out var reset))
                         resetTime = reset.GetString();
-
-                    break; // 取第一个模型的配额信息
+                    break;
                 }
             }
-
             return new AccountQuotaInfo
             {
                 RemainingQuota = remainingFraction.HasValue ? (int)(remainingFraction.Value * 100) : null,
                 QuotaResetTime = resetTime,
-                SubscriptionTier = null,
                 LastRefreshed = DateTime.UtcNow
             };
         }
-        catch
-        {
-            return null;
-        }
+        catch { return null; }
     }
 
-    protected class LoadCodeAssistResponse
+    private sealed class LoadCodeAssistResponse
     {
         public string? CloudaicompanionProject { get; set; }
         public List<TierInfo>? AllowedTiers { get; set; }
         public List<IneligibleTierInfo>? IneligibleTiers { get; set; }
     }
-
-    protected class TierInfo
+    private sealed class TierInfo { public string? Name { get; set; } }
+    private sealed class IneligibleTierInfo
     {
-        public string? Id { get; set; }
-        public string? Name { get; set; }
-    }
-
-    protected class IneligibleTierInfo
-    {
-        public string? ReasonCode { get; set; }
         public string? ReasonMessage { get; set; }
-        public string? TierId { get; set; }
         public string? TierName { get; set; }
     }
+
+    public override Action<string>? GetSseLineCallback(string? sessionId) =>
+        string.IsNullOrEmpty(sessionId) ? null : line => TryExtractAndCacheSignature(line, sessionId);
 
     protected void TryExtractAndCacheSignature(string line, string? sessionId)
     {

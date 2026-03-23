@@ -8,7 +8,27 @@ namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Handler;
 
 public class ChatModelHandlerFactory(IServiceProvider serviceProvider) : IChatModelHandlerFactory
 {
-    public IChatModelHandler CreateHandler(ProviderPlatform platform, string accessToken, string? baseUrl = null, Dictionary<string, string>? extraProperties = null, bool shouldMimicOfficialClient = true)
+    private static readonly Dictionary<ProviderPlatform, Type> HandlerTypes = new()
+    {
+        [ProviderPlatform.CLAUDE_OAUTH]  = typeof(ClaudeChatModelHandler),
+        [ProviderPlatform.CLAUDE_APIKEY] = typeof(ClaudeChatModelHandler),
+        [ProviderPlatform.OPENAI_OAUTH]  = typeof(OpenAiChatModelHandler),
+        [ProviderPlatform.OPENAI_APIKEY] = typeof(OpenAiChatModelHandler),
+        [ProviderPlatform.ANTIGRAVITY]   = typeof(AntigravityChatModelHandler),
+        [ProviderPlatform.GEMINI_OAUTH]  = typeof(GeminiAccountChatModelHandler),
+        [ProviderPlatform.GEMINI_APIKEY] = typeof(GeminiApiChatModelHandler),
+    };
+
+    /// <summary>
+    /// 创建携带凭证的 Handler（代理入口 / 测试入口共用）
+    /// options 通过构造函数注入，替代旧的 Configure()
+    /// </summary>
+    public IChatModelHandler CreateHandler(
+        ProviderPlatform platform,
+        string accessToken,
+        string? baseUrl = null,
+        Dictionary<string, string>? extraProperties = null,
+        bool shouldMimicOfficialClient = true)
     {
         var options = new ChatModelConnectionOptions(
             Platform: platform,
@@ -19,15 +39,23 @@ public class ChatModelHandlerFactory(IServiceProvider serviceProvider) : IChatMo
             ExtraProperties = extraProperties ?? new Dictionary<string, string>()
         };
 
-        var client = CreateHandler(platform);
-        client.Configure(options);
-        return client;
+        return CreateHandlerWithOptions(platform, options);
     }
 
+    /// <summary>
+    /// 仅用于 ExtractModelInfo 路由判断（无凭证）
+    /// </summary>
     public IChatModelHandler CreateHandler(ProviderPlatform platform)
     {
-        var clients = serviceProvider.GetServices<IChatModelHandler>();
-        return clients.FirstOrDefault(c => c.Supports(platform))
-            ?? throw new NotFoundException($"不支持的平台类型: {platform}");
+        var emptyOptions = new ChatModelConnectionOptions(platform, string.Empty);
+        return CreateHandlerWithOptions(platform, emptyOptions);
+    }
+
+    private IChatModelHandler CreateHandlerWithOptions(ProviderPlatform platform, ChatModelConnectionOptions options)
+    {
+        if (!HandlerTypes.TryGetValue(platform, out var handlerType))
+            throw new NotFoundException($"不支持的平台类型: {platform}");
+
+        return (IChatModelHandler)ActivatorUtilities.CreateInstance(serviceProvider, handlerType, options);
     }
 }
