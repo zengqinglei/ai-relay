@@ -7,7 +7,7 @@
 [![Container Image](https://img.shields.io/badge/ghcr.io-zengqinglei%2Fai--relay-181717?logo=github)](https://github.com/zengqinglei/ai-relay/pkgs/container/ai-relay)
 [![License](https://img.shields.io/github/license/zengqinglei/ai-relay)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/zengqinglei/ai-relay)](https://github.com/zengqinglei/ai-relay/stargazers)
-[![Docker](https://img.shields.io/badge/docker-ready-brightgreen.svg)](https://github.com/zengqinglei/ai-relay)
+[![Docker](https://img.shields.io/badge/docker-ready-brightgreen.svg)](https://hub.docker.com/r/zengql/ai-relay/tags)
 
 AI-Relay 通过 Angular 21 + .NET 10 + PostgreSQL + Redis 组合，实现 Claude/Gemini/OpenAI/Antigravity 兼容 API 代理、智能负载均衡、实时监控与自动化管理，帮助团队安全、可观测地管理多家 AI 服务商。
 

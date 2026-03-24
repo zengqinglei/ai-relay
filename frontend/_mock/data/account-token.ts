@@ -234,57 +234,69 @@ export const ACCOUNT_METRICS: AccountTokenMetricsOutputDto = {
 
 export const AVAILABLE_MODELS: Record<ProviderPlatform, ModelOptionOutputDto[]> = {
   [ProviderPlatform.GEMINI_OAUTH]: [
-    { label: 'Gemini 2.0 Flash', value: 'gemini-2.0-flash' },
+    { label: 'Gemini 3.1 Flash Preview', value: 'gemini-3.1-flash-preview' },
+    { label: 'Gemini 3.1 Pro Preview', value: 'gemini-3.1-pro-preview' },
+    { label: 'Gemini 3.0 Flash Preview', value: 'gemini-3-flash-preview' },
+    { label: 'Gemini 3.0 Pro Preview', value: 'gemini-3-pro-preview' },
     { label: 'Gemini 2.5 Flash', value: 'gemini-2.5-flash' },
     { label: 'Gemini 2.5 Pro', value: 'gemini-2.5-pro' },
-    { label: 'Gemini 3.0 Flash Preview', value: 'gemini-3-flash-preview' },
-    { label: 'Gemini 3.0 Pro Preview', value: 'gemini-3-pro-preview' }
+    { label: 'Gemini 2.0 Flash', value: 'gemini-2.0-flash' }
   ],
   [ProviderPlatform.GEMINI_APIKEY]: [
-    { label: 'Gemini 2.0 Flash', value: 'gemini-2.0-flash' },
+    { label: 'Gemini 3.1 Flash Preview', value: 'gemini-3.1-flash-preview' },
+    { label: 'Gemini 3.1 Pro Preview', value: 'gemini-3.1-pro-preview' },
+    { label: 'Gemini 3.0 Flash Preview', value: 'gemini-3-flash-preview' },
+    { label: 'Gemini 3.0 Pro Preview', value: 'gemini-3-pro-preview' },
     { label: 'Gemini 2.5 Flash', value: 'gemini-2.5-flash' },
     { label: 'Gemini 2.5 Pro', value: 'gemini-2.5-pro' },
-    { label: 'Gemini 3.0 Flash Preview', value: 'gemini-3-flash-preview' },
-    { label: 'Gemini 3.0 Pro Preview', value: 'gemini-3-pro-preview' }
+    { label: 'Gemini 2.0 Flash', value: 'gemini-2.0-flash' }
   ],
   [ProviderPlatform.CLAUDE_OAUTH]: [
-    { label: 'Claude Sonnet 4.5', value: 'claude-sonnet-4-5-20250929' },
+    { label: 'Claude Opus 4.6', value: 'claude-opus-4-6' },
+    { label: 'Claude Sonnet 4.6', value: 'claude-sonnet-4-6' },
     { label: 'Claude Opus 4.5', value: 'claude-opus-4-5-20251101' },
+    { label: 'Claude Sonnet 4.5', value: 'claude-sonnet-4-5-20250929' },
     { label: 'Claude Haiku 4.5', value: 'claude-haiku-4-5-20251001' }
   ],
   [ProviderPlatform.CLAUDE_APIKEY]: [
-    { label: 'Claude Sonnet 4.5', value: 'claude-sonnet-4-5-20250929' },
+    { label: 'Claude Opus 4.6', value: 'claude-opus-4-6' },
+    { label: 'Claude Sonnet 4.6', value: 'claude-sonnet-4-6' },
     { label: 'Claude Opus 4.5', value: 'claude-opus-4-5-20251101' },
+    { label: 'Claude Sonnet 4.5', value: 'claude-sonnet-4-5-20250929' },
     { label: 'Claude Haiku 4.5', value: 'claude-haiku-4-5-20251001' }
   ],
   [ProviderPlatform.OPENAI_OAUTH]: [
+    { label: 'GPT-5.4', value: 'gpt-5.4' },
+    { label: 'GPT-5.3', value: 'gpt-5.3' },
+    { label: 'GPT-5.3 Codex', value: 'gpt-5.3-codex' },
     { label: 'GPT-5.2', value: 'gpt-5.2' },
     { label: 'GPT-5.2 Codex', value: 'gpt-5.2-codex' },
+    { label: 'GPT-5.1', value: 'gpt-5.1' },
     { label: 'GPT-5.1 Codex Max', value: 'gpt-5.1-codex-max' },
     { label: 'GPT-5.1 Codex', value: 'gpt-5.1-codex' },
-    { label: 'GPT-5.1', value: 'gpt-5.1' },
     { label: 'GPT-5.1 Codex Mini', value: 'gpt-5.1-codex-mini' },
     { label: 'GPT-5', value: 'gpt-5' }
   ],
   [ProviderPlatform.OPENAI_APIKEY]: [
+    { label: 'GPT-5.4', value: 'gpt-5.4' },
+    { label: 'GPT-5.3', value: 'gpt-5.3' },
+    { label: 'GPT-5.3 Codex', value: 'gpt-5.3-codex' },
     { label: 'GPT-5.2', value: 'gpt-5.2' },
     { label: 'GPT-5.2 Codex', value: 'gpt-5.2-codex' },
+    { label: 'GPT-5.1', value: 'gpt-5.1' },
     { label: 'GPT-5.1 Codex Max', value: 'gpt-5.1-codex-max' },
     { label: 'GPT-5.1 Codex', value: 'gpt-5.1-codex' },
-    { label: 'GPT-5.1', value: 'gpt-5.1' },
     { label: 'GPT-5.1 Codex Mini', value: 'gpt-5.1-codex-mini' },
     { label: 'GPT-5', value: 'gpt-5' }
   ],
   [ProviderPlatform.ANTIGRAVITY]: [
+    { label: 'Gemini 3.1 Pro High', value: 'gemini-3.1-pro-high' },
+    { label: 'Gemini 3.1 Pro Low', value: 'gemini-3.1-pro-low' },
     { label: 'Gemini 3 Flash', value: 'gemini-3-flash' },
-    { label: 'Gemini 3 Pro High', value: 'gemini-3-pro-high' },
-    { label: 'Gemini 3 Pro Low', value: 'gemini-3-pro-low' },
     { label: 'Gemini 3 Pro (Image)', value: 'gemini-3-pro-image' },
-    { label: 'Gemini 2.5 Flash', value: 'gemini-2.5-flash' },
-    { label: 'Gemini 2.5 Flash (Thinking)', value: 'gemini-2.5-flash-thinking' },
-    { label: 'Claude 4.5 Sonnet', value: 'claude-sonnet-4-5' },
-    { label: 'Claude 4.5 Sonnet (Thinking)', value: 'claude-sonnet-4-5-thinking' },
-    { label: 'Claude 4.5 Opus (Thinking)', value: 'claude-opus-4-5-thinking' }
+    { label: 'Claude 4.6 Opus (Thinking)', value: 'claude-opus-4-6-thinking' },
+    { label: 'Claude 4.6 Sonnet', value: 'claude-sonnet-4-6' },
+    { label: 'Claude 4.6 Sonnet (Thinking)', value: 'claude-sonnet-4-6-thinking' }
   ]
 };
 
