@@ -193,9 +193,10 @@ public class AccountTokenAppService(
             var upstreamIds = upstreamModels.Select(m => m.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
             finalModels = baselineModels.Where(m => upstreamIds.Contains(m.Value)).ToList();
 
+            var filteredOut = upstreamModels.Where(m => !upstreamIds.Contains(m.Value)).Select(m => m.Value).ToList();
             logger.LogInformation(
-                "上游模型过滤完成: AccountId={AccountId}, Platform={Platform}, Upstream={UpstreamCount}, Filtered={FilteredCount}, Models=[{Models}]",
-                accountId, platform, upstreamModels.Count, finalModels.Count, string.Join(", ", finalModels.Select(m => m.Value)));
+                "上游模型过滤完成: AccountId={AccountId}, Platform={Platform}, Upstream={UpstreamCount}, Filtered={FilteredCount}, FilteredOut=[{FilteredOut}]",
+                accountId, platform, upstreamModels.Count, finalModels.Count, string.Join(", ", filteredOut));
         }
         else
         {
