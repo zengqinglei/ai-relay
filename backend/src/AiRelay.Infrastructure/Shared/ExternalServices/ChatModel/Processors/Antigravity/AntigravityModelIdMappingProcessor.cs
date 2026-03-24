@@ -8,8 +8,12 @@ public class AntigravityModelIdMappingProcessor(IModelProvider modelProvider) : 
 {
     public Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
     {
-        var modelId = string.IsNullOrEmpty(down.ModelId) ? "gemini-2.0-flash-exp" : down.ModelId;
-        up.MappedModelId = modelProvider.GetAntigravityMappedModel(modelId);
+        if (string.IsNullOrEmpty(down.ModelId))
+        {
+            return Task.CompletedTask;
+        }
+
+        up.MappedModelId = modelProvider.GetAntigravityMappedModel(down.ModelId);
         return Task.CompletedTask;
     }
 }

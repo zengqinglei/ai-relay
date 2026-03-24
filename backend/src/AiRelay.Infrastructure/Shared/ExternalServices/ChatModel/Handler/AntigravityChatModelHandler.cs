@@ -13,6 +13,7 @@ using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Antigr
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.Parsers;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.StreamProcessor;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Handler;
 
@@ -42,18 +43,16 @@ public sealed class AntigravityChatModelHandler(
         return null;
     }
 
-    protected override bool IsChatApiPath(string? path) => true;
-
     protected override IReadOnlyList<IRequestProcessor> GetProcessors(
         DownRequestContext down, int degradationLevel)
     {
         return
         [
             new AntigravityModelIdMappingProcessor(modelProvider),
-            new AntigravityUrlProcessor(_options),
-            new AntigravityHeaderProcessor(_options),
+            new AntigravityUrlProcessor(Options),
+            new AntigravityHeaderProcessor(Options),
             new AntigravityRequestBodyProcessor(
-                _options, antigravityIdentityInjector,
+                Options, antigravityIdentityInjector,
                 googleJsonSchemaCleaner, logger),
             new AntigravityDegradationProcessor(degradationLevel, googleSignatureCleaner, logger),
         ];
@@ -96,6 +95,81 @@ public sealed class AntigravityChatModelHandler(
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// 拉取可用模型配额信息
+    /// </summary>
+    public override async Task<IReadOnlyList<AccountQuotaInfo>?> FetchQuotaAsync(CancellationToken ct = default)
+    {
+        var projectId = Options.ExtraProperties.TryGetValue("project_id", out var pid) ? pid : "";
+        var body = JsonSerializer.Serialize(new { project = projectId });
+        var down = new DownRequestContext
+        {
+            Method = HttpMethod.Post,
+            RelativePath = "/v1internal:fetchAvailableModels",
+            BodyBytes = Encoding.UTF8.GetBytes(body).AsMemory()
+        };
+        var up = await ProcessRequestContextAsync(down, 0, ct);
+        using var response = await ProxyRequestAsync(up, ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            Logger.LogDebug("Antigravity 配额拉取失败: {StatusCode}", response.StatusCode);
+            return null;
+        }
+
+        var json = await response.Content.ReadAsStringAsync(ct);
+        using var doc = JsonDocument.Parse(json);
+
+        if (!doc.RootElement.TryGetProperty("models", out var models))
+            return null;
+
+        var quotaList = new List<AccountQuotaInfo>();
+
+        foreach (var model in models.EnumerateObject())
+        {
+            var modelId = model.Name;
+
+            double? remainingFraction = null;
+            string? resetTime = null;
+
+            if (model.Value.TryGetProperty("quotaInfo", out var quotaInfo))
+            {
+                if (quotaInfo.TryGetProperty("remainingFraction", out var fraction))
+                    remainingFraction = fraction.GetDouble();
+                if (quotaInfo.TryGetProperty("resetTime", out var reset))
+                    resetTime = reset.GetString();
+            }
+
+            quotaList.Add(new AccountQuotaInfo
+            {
+                ModelId = modelId,
+                RemainingQuota = remainingFraction.HasValue ? (int)(remainingFraction.Value * 100) : null,
+                QuotaResetTime = resetTime,
+                LastRefreshed = DateTime.UtcNow
+            });
+        }
+
+        return quotaList.Count > 0 ? quotaList : null;
+    }
+
+    public override async Task<IReadOnlyList<ModelOption>?> GetModelsAsync(CancellationToken ct = default)
+    {
+        var quotaList = await FetchQuotaAsync(ct);
+        if (quotaList == null || quotaList.Count == 0)
+            return null;
+
+        var upstreamModels = quotaList
+            .Select(q => q.ModelId)
+            .Where(m => !string.IsNullOrEmpty(m))
+            .Distinct()
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        Logger.LogInformation("Antigravity 上游拉取成功: {Count} 个模型", upstreamModels.Count);
+
+        // 返回上游模型列表（后续在 AppService 中与静态列表交集）
+        return upstreamModels.Select(m => new ModelOption(m!, m!)).ToList();
     }
 
     public override async Task<ModelErrorAnalysisResult> AnalyzeErrorAsync(

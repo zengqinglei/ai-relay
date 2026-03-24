@@ -4,7 +4,7 @@ using AiRelay.Domain.Shared.ExternalServices.ChatModel.RequestParsing;
 
 namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Claude;
 
-public class ClaudeUrlProcessor(bool isChatApi, ChatModelConnectionOptions options) : IRequestProcessor
+public class ClaudeUrlProcessor(ChatModelConnectionOptions options) : IRequestProcessor
 {
 
     public Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
@@ -19,21 +19,20 @@ public class ClaudeUrlProcessor(bool isChatApi, ChatModelConnectionOptions optio
         up.RelativePath = relativePath;
         up.QueryString = down.QueryString;
 
-        if (!isChatApi)
+        // 聊天接口特有处理
+        if (up.RelativePath.Contains("/v1/messages", StringComparison.OrdinalIgnoreCase))
         {
-            return Task.CompletedTask;
+            // 构建 QueryString（追加 beta=true）
+            if (string.IsNullOrEmpty(up.QueryString))
+            {
+                up.QueryString = "?beta=true";
+            }
+            else if (!up.QueryString.Contains("beta=", StringComparison.OrdinalIgnoreCase))
+            {
+                var separator = up.QueryString.Contains('?') ? "&" : "?";
+                up.QueryString = $"{up.QueryString}{separator}beta=true";
+            }
         }
-        // 构建 QueryString（追加 beta=true）
-        if (string.IsNullOrEmpty(up.QueryString))
-        {
-            up.QueryString = "?beta=true";
-        }
-        else if (!up.QueryString.Contains("beta=", StringComparison.OrdinalIgnoreCase))
-        {
-            var separator = up.QueryString.Contains('?') ? "&" : "?";
-            up.QueryString = $"{up.QueryString}{separator}beta=true";
-        }
-
         return Task.CompletedTask;
     }
 }

@@ -19,30 +19,31 @@ public class AntigravityRequestBodyProcessor(
 
     public Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
     {
-        if (down.BodyJsonNode is not JsonObject)
+        if (down.BodyJsonNode is not JsonObject || down.BodyJsonNode == null)
         {
-            up.BodyJson = null;
-            up.SessionId = down.SessionHash;
             return Task.CompletedTask;
         }
 
         var clonedBody = down.CloneBodyJson() ?? [];
-
-        // 协议必需：注入 Antigravity 特有字段
-        antigravityIdentityInjector.EnsureAntigravityIdentity(clonedBody);
-        FixGeminiCliTools(clonedBody);
-
-        // 清洗 JSON Schema
-        if (clonedBody["tools"] is JsonArray tools)
+        // 聊天接口特有处理
+        if (up.RelativePath.EndsWith(":streamGenerateContent") || up.RelativePath.EndsWith(":generateContent"))
         {
-            foreach (var tool in tools)
+            // 协议必需：注入 Antigravity 特有字段
+            antigravityIdentityInjector.EnsureAntigravityIdentity(clonedBody);
+            FixGeminiCliTools(clonedBody);
+
+            // 清洗 JSON Schema
+            if (clonedBody["tools"] is JsonArray tools)
             {
-                if (tool is not JsonObject toolObj) continue;
-                var func = toolObj["functionDeclarations"]?.AsArray().FirstOrDefault()
-                           ?? toolObj["function"];
-                if (func is JsonObject funcObj && funcObj["parameters"] is JsonObject paramsObj)
+                foreach (var tool in tools)
                 {
-                    googleJsonSchemaCleaner.Clean(paramsObj);
+                    if (tool is not JsonObject toolObj) continue;
+                    var func = toolObj["functionDeclarations"]?.AsArray().FirstOrDefault()
+                               ?? toolObj["function"];
+                    if (func is JsonObject funcObj && funcObj["parameters"] is JsonObject paramsObj)
+                    {
+                        googleJsonSchemaCleaner.Clean(paramsObj);
+                    }
                 }
             }
         }

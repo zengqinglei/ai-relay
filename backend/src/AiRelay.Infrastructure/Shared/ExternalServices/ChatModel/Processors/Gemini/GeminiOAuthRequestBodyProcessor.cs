@@ -27,89 +27,63 @@ public class GeminiOAuthRequestBodyProcessor(
 
     public Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
     {
-        if (down.BodyJsonNode is not JsonObject)
+        if (down.BodyJsonNode is not JsonObject || down.BodyJsonNode == null)
         {
-            up.BodyJson = null;
-            up.SessionId = down.SessionHash;
             return Task.CompletedTask;
         }
 
-        var clonedBody = down.CloneBodyJson() ?? new JsonObject();
-        bool wrapped = clonedBody.ContainsKey("request") && clonedBody.ContainsKey("project");
-
-        // 确定内层 payload（用于 Schema 清洗和 CLI 元数据注入）
-        var payload = wrapped
-            ? clonedBody["request"] as JsonObject
-            : clonedBody;
-
-        // 清洗 JSON Schema（从内层 payload 取 tools）
-        if (payload?["tools"] is JsonArray tools)
+        var clonedBody = down.CloneBodyJson() ?? [];
+        // 聊天接口特有处理
+        if (up.RelativePath.EndsWith(":streamGenerateContent") || up.RelativePath.EndsWith(":generateContent"))
         {
-            foreach (var tool in tools)
+            var projectId = options.ExtraProperties.TryGetValue("project_id", out var pid) ? pid : "";
+            if (!clonedBody.ContainsKey("request") || !clonedBody.ContainsKey("project"))
             {
-                if (tool is not JsonObject toolObj) continue;
-
-                var funcs = toolObj["function_declarations"]?.AsArray()
-                         ?? toolObj["functionDeclarations"]?.AsArray();
-
-                if (funcs != null)
+                // 未包装：构建 v1internal 包装
+                var modelId = up.MappedModelId ?? down.ModelId ?? "gemini-3.0-flash-preview";
+                clonedBody.Remove("model");
+                clonedBody = new JsonObject
                 {
-                    foreach (var func in funcs)
+                    ["model"] = modelId,
+                    ["project"] = projectId,
+                    ["request"] = clonedBody
+                };
+            }
+            // 确定内层 payload（用于 Schema 清洗和 CLI 元数据注入）
+            var payload = clonedBody["request"] as JsonObject;
+            // 清洗 JSON Schema（从内层 payload 取 tools）
+            if (payload?["tools"] is JsonArray tools)
+            {
+                foreach (var tool in tools)
+                {
+                    if (tool is not JsonObject toolObj) continue;
+
+                    var funcs = toolObj["function_declarations"]?.AsArray()
+                             ?? toolObj["functionDeclarations"]?.AsArray();
+
+                    if (funcs != null)
                     {
-                        if (func is JsonObject funcObj && funcObj["parameters"] is JsonObject paramsObj)
-                            googleJsonSchemaCleaner.Clean(paramsObj);
+                        foreach (var func in funcs)
+                        {
+                            if (func is JsonObject funcObj && funcObj["parameters"] is JsonObject paramsObj)
+                                googleJsonSchemaCleaner.Clean(paramsObj);
+                        }
                     }
                 }
             }
-        }
 
-        // CLI 伪装：未检测到真实 CLI 客户端时注入系统提示和元数据
-        bool shouldMimic = options.ShouldMimicOfficialClient;
-        bool isGeminiCli = shouldMimic && IsGeminiCliClient(down, clonedBody);
-
-        JsonObject finalBody;
-
-        var projectId = options.ExtraProperties.TryGetValue("project_id", out var pid) ? pid : "";
-        if (wrapped)
-        {
-            // 已包装：不重新包装，只更新 project 字段
-            if (!string.IsNullOrEmpty(projectId))
-                clonedBody["project"] = projectId;
-
+            // CLI 伪装：未检测到真实 CLI 客户端时注入系统提示和元数据
+            bool shouldMimic = options.ShouldMimicOfficialClient;
+            bool isGeminiCli = shouldMimic && IsGeminiCliClient(down, clonedBody);
             if (shouldMimic && !isGeminiCli)
             {
-                geminiSystemPromptInjector.InjectGeminiCliPrompt(clonedBody);
-                // user_prompt_id 注入到顶层 wrapper，session_id 注入到内层 payload
+                geminiSystemPromptInjector.InjectGeminiCliPrompt(payload);
+                // user_prompt_id 注入到顶层 wrapper，session_id 注入到内层 clonedBody
                 InjectGeminiCliMetadata(clonedBody, payload);
             }
-
-            finalBody = clonedBody;
-        }
-        else
-        {
-            // 未包装：构建 v1internal 包装
-            var modelId = up.MappedModelId ?? down.ModelId ?? "gemini-3.0-flash-preview";
-
-            clonedBody.Remove("model");
-
-            var wrapper = new JsonObject
-            {
-                ["model"] = modelId,
-                ["project"] = projectId,
-                ["request"] = clonedBody
-            };
-
-            if (shouldMimic && !isGeminiCli)
-            {
-                geminiSystemPromptInjector.InjectGeminiCliPrompt(wrapper);
-                // user_prompt_id 注入到顶层 wrapper，session_id 注入到内层 clonedBody
-                InjectGeminiCliMetadata(wrapper, clonedBody);
-            }
-
-            finalBody = wrapper;
         }
 
-        up.BodyJson = finalBody;
+        up.BodyJson = clonedBody;
         up.SessionId = down.SessionHash;
         return Task.CompletedTask;
     }

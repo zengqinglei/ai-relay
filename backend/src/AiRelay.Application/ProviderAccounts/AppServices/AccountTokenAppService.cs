@@ -1,11 +1,12 @@
-using System.Runtime.CompilerServices;
 using AiRelay.Application.ProviderAccounts.Dtos;
 using AiRelay.Domain.ProviderAccounts.DomainServices;
 using AiRelay.Domain.ProviderAccounts.Entities;
 using AiRelay.Domain.ProviderAccounts.Extensions;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
+using AiRelay.Domain.ProviderGroups.DomainServices.SchedulingStrategy.AccountConcurrencyStrategy;
 using AiRelay.Domain.ProviderGroups.Entities;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
+using AiRelay.Domain.Shared.ExternalServices.ChatModel.Handler;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Provider;
 using AiRelay.Domain.Shared.OAuth.Authorize;
 using AiRelay.Domain.UsageRecords.DomainServices;
@@ -15,10 +16,9 @@ using Leistd.Ddd.Application.Contracts.Dtos;
 using Leistd.Ddd.Domain.Repositories;
 using Leistd.Exception.Core;
 using Leistd.ObjectMapping.Core;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
-using AiRelay.Domain.ProviderGroups.DomainServices.SchedulingStrategy.AccountConcurrencyStrategy;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.Handler;
+using Microsoft.Extensions.Logging;
+using System.Runtime.CompilerServices;
 
 namespace AiRelay.Application.ProviderAccounts.AppServices;
 
@@ -136,14 +136,74 @@ public class AccountTokenAppService(
         }
     }
 
-    public Task<IReadOnlyList<ModelOptionOutputDto>> GetAvailableModelsAsync(
+    public async Task<IReadOnlyList<ModelOptionOutputDto>> GetAvailableModelsAsync(
         ProviderPlatform platform,
+        Guid? accountId = null,
         CancellationToken cancellationToken = default)
     {
-        var models = modelProvider.GetAvailableModels(platform);
-        var result = objectMapper.Map<IReadOnlyList<ModelOption>, IReadOnlyList<ModelOptionOutputDto>>(models);
+        // 1. 加载静态基准模型
+        var baselineModels = modelProvider.GetAvailableModels(platform);
 
-        return Task.FromResult(result);
+        AccountToken? accountToken = null;
+        if (accountId.HasValue)
+        {
+            accountToken = await accountTokenRepository.GetByIdAsync(accountId.Value, cancellationToken)
+                ?? throw new NotFoundException($"账户不存在: {accountId}");
+        }
+
+        IReadOnlyList<ModelOption>? upstreamModels = null;
+        if (accountToken != null)
+        {
+            try
+            {
+                await accountTokenDomainService.RefreshTokenIfNeededAsync(accountToken, cancellationToken);
+                // 2. 创建 Handler
+                var handler = chatModelHandlerFactory.CreateHandler(
+                    accountToken.Platform,
+                    accountToken.AccessToken!,
+                    accountToken.BaseUrl,
+                    accountToken.ExtraProperties,
+                    shouldMimicOfficialClient: true);
+
+                // 3. 拉取上游（10秒超时）
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                cts.CancelAfter(TimeSpan.FromSeconds(10));
+
+                upstreamModels = await handler.GetModelsAsync(cts.Token);
+
+                if (upstreamModels != null && upstreamModels.Count > 0)
+                {
+                    logger.LogInformation(
+                        "上游模型拉取成功: AccountId={AccountId}, Platform={Platform}, Count={Count}",
+                        accountId, platform, upstreamModels.Count);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex,
+                    "上游模型拉取失败，降级静态: AccountId={AccountId}, Platform={Platform}",
+                    accountId, platform);
+            }
+        }
+
+        // 4. 以基准模型过滤上游模型（保持基准顺序）
+        IReadOnlyList<ModelOption> finalModels;
+        if (upstreamModels != null && upstreamModels.Count > 0)
+        {
+            var upstreamIds = upstreamModels.Select(m => m.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            finalModels = baselineModels.Where(m => upstreamIds.Contains(m.Value)).ToList();
+
+            logger.LogInformation(
+                "上游模型过滤完成: AccountId={AccountId}, Platform={Platform}, Upstream={UpstreamCount}, Filtered={FilteredCount}, Models=[{Models}]",
+                accountId, platform, upstreamModels.Count, finalModels.Count, string.Join(", ", finalModels.Select(m => m.Value)));
+        }
+        else
+        {
+            // 5. 降级使用静态基准模型
+            finalModels = baselineModels;
+        }
+
+        return objectMapper.Map<IReadOnlyList<ModelOption>, IReadOnlyList<ModelOptionOutputDto>>(finalModels);
     }
 
     public async Task<PagedResultDto<AccountTokenOutputDto>> GetPagedListAsync(

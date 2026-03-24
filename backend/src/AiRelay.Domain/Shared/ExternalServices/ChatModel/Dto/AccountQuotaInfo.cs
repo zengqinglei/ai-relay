@@ -6,6 +6,11 @@ namespace AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
 public record AccountQuotaInfo
 {
     /// <summary>
+    /// 模型
+    /// </summary>
+    public string? ModelId { get; init; }
+
+    /// <summary>
     /// 剩余配额（如果支持）
     /// </summary>
     public int? RemainingQuota { get; init; }

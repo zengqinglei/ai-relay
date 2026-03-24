@@ -6,13 +6,13 @@ using AiRelay.Domain.Shared.ExternalServices.ChatModel.ResponseParsing;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.SignatureCache;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Cleaning;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Parsing;
-using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Claude;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Gemini;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.Parsers;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.StreamProcessor;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
@@ -43,26 +43,15 @@ public class GeminiAccountChatModelHandler(
         return null;
     }
 
-    protected override bool IsChatApiPath(string? path) =>
-        path != null && (
-            path.EndsWith(":streamGenerateContent", StringComparison.OrdinalIgnoreCase) ||
-            path.EndsWith(":generateContent", StringComparison.OrdinalIgnoreCase));
-
     protected override IReadOnlyList<IRequestProcessor> GetProcessors(
         DownRequestContext down, int degradationLevel)
     {
-        var isChatApi = IsChatApiPath(down.RelativePath);
-        var processors = new List<IRequestProcessor> {
-            new GeminiOAuthUrlProcessor(isChatApi, _options),
-            new GeminiHeaderProcessor(_options)
-        };
-        if (isChatApi)
-        {
-            processors.AddRange(
-                new GeminiOAuthRequestBodyProcessor(_options, googleJsonSchemaCleaner, geminiSystemPromptInjector),
-                new GeminiDegradationProcessor(degradationLevel, googleSignatureCleaner, logger));
-        }
-        return processors;
+        return [
+            new GeminiOAuthUrlProcessor(Options),
+            new GeminiHeaderProcessor(Options),
+            new GeminiOAuthRequestBodyProcessor(Options, googleJsonSchemaCleaner, geminiSystemPromptInjector),
+            new GeminiDegradationProcessor(degradationLevel, googleSignatureCleaner, logger)
+        ];
     }
 
     public override void ExtractModelInfo(DownRequestContext down, Guid apiKeyId)
@@ -142,6 +131,85 @@ public class GeminiAccountChatModelHandler(
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// 拉取用户配额信息（包含可用模型列表）
+    /// </summary>
+    public override async Task<IReadOnlyList<AccountQuotaInfo>?> FetchQuotaAsync(CancellationToken ct = default)
+    {
+        var projectId = Options.ExtraProperties.TryGetValue("project_id", out var pid) ? pid : "";
+        var body = JsonSerializer.Serialize(new { project = projectId });
+        var down = new DownRequestContext
+        {
+            Method = HttpMethod.Post,
+            RelativePath = "/v1internal:retrieveUserQuota",
+            BodyBytes = Encoding.UTF8.GetBytes(body).AsMemory()
+        };
+        var up = await ProcessRequestContextAsync(down, 0, ct);
+        using var response = await ProxyRequestAsync(up, ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            Logger.LogDebug("Gemini OAuth 配额拉取失败: {StatusCode}", response.StatusCode);
+            return null;
+        }
+
+        var json = await response.Content.ReadAsStringAsync(ct);
+        using var doc = JsonDocument.Parse(json);
+
+        if (!doc.RootElement.TryGetProperty("buckets", out var buckets))
+            return null;
+
+        var quotaBuckets = new List<AccountQuotaInfo>();
+
+        foreach (var bucket in buckets.EnumerateArray())
+        {
+            var modelId = bucket.TryGetProperty("modelId", out var modelIdProp)
+                ? modelIdProp.GetString()
+                : null;
+
+            var resetTime = bucket.TryGetProperty("resetTime", out var resetProp)
+                ? resetProp.GetString()
+                : null;
+
+            var tokenType = bucket.TryGetProperty("tokenType", out var tokenTypeProp)
+                ? tokenTypeProp.GetString()
+                : null;
+
+            var remainingFraction = bucket.TryGetProperty("remainingFraction", out var fractionProp)
+                ? fractionProp.GetDecimal()
+                : 0m;
+
+            if (!string.IsNullOrEmpty(modelId))
+            {
+                quotaBuckets.Add(new AccountQuotaInfo
+                {
+                    ModelId = modelId,
+                    QuotaResetTime = resetTime ?? string.Empty
+                });
+            }
+        }
+
+        return quotaBuckets;
+    }
+
+    public override async Task<IReadOnlyList<ModelOption>?> GetModelsAsync(CancellationToken ct = default)
+    {
+        var buckets = await FetchQuotaAsync(ct);
+        if (buckets == null || buckets.Count == 0)
+            return null;
+
+        var upstreamModels = buckets
+            .Select(b => b.ModelId)
+            .Where(m => !string.IsNullOrEmpty(m))
+            .Distinct()
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        Logger.LogInformation("Gemini OAuth 上游拉取成功: {Count} 个模型", upstreamModels.Count);
+
+        // 返回上游模型列表（后续在 AppService 中与静态列表交集）
+        return upstreamModels.Select(m => new ModelOption(m, m)).ToList();
     }
 
     public override async Task<ModelErrorAnalysisResult> AnalyzeErrorAsync(

@@ -4,7 +4,7 @@ using AiRelay.Domain.Shared.ExternalServices.ChatModel.RequestParsing;
 
 namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Gemini;
 
-public class GeminiOAuthUrlProcessor(bool isChatApi, ChatModelConnectionOptions options) : IRequestProcessor
+public class GeminiOAuthUrlProcessor(ChatModelConnectionOptions options) : IRequestProcessor
 {
 
     public Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
@@ -19,14 +19,21 @@ public class GeminiOAuthUrlProcessor(bool isChatApi, ChatModelConnectionOptions 
         up.RelativePath = relativePath;
         up.QueryString = down.QueryString;
 
-        if (!isChatApi)
-        {
-            return Task.CompletedTask;
-        }
-        // 强制转为 /v1internal:streamGenerateContent
+        // 强制转为 /v1internal:xxx
         if (!relativePath.StartsWith("/v1internal", StringComparison.OrdinalIgnoreCase))
         {
-            up.RelativePath = $"/v1internal:streamGenerateContent";
+            if (relativePath.Contains(':'))
+            {
+                var parts = relativePath.Split(':');
+                if (parts.Length > 1)
+                {
+                    var potentialOp = parts[1].Split('?')[0];
+                    if (!string.IsNullOrEmpty(potentialOp))
+                    {
+                        up.RelativePath = $"/v1internal:{potentialOp}";
+                    }
+                }
+            }
         }
         if (!up.RelativePath.EndsWith(":streamGenerateContent"))
         {

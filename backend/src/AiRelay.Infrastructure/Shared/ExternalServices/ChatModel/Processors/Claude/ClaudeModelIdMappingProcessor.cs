@@ -9,8 +9,12 @@ public class ClaudeModelIdMappingProcessor(IModelProvider modelProvider) : IRequ
 
     public Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
     {
-        var modelId = down.ModelId ?? string.Empty;
-        up.MappedModelId = modelProvider.GetClaudeMappedModel(modelId);
+        if (string.IsNullOrEmpty(down.ModelId))
+        {
+            return Task.CompletedTask;
+        }
+
+        up.MappedModelId = modelProvider.GetClaudeMappedModel(down.ModelId);
         return Task.CompletedTask;
     }
 }

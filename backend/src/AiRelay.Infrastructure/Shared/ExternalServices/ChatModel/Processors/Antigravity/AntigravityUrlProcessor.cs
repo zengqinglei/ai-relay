@@ -19,10 +19,21 @@ public class AntigravityUrlProcessor(ChatModelConnectionOptions options) : IRequ
         up.RelativePath = relativePath;
         up.QueryString = down.QueryString;
 
-        // 强制转为 /v1internal:streamGenerateContent
+        // 强制转为 /v1internal:xxx
         if (!relativePath.StartsWith("/v1internal", StringComparison.OrdinalIgnoreCase))
         {
-            up.RelativePath = $"/v1internal:streamGenerateContent";
+            if (relativePath.Contains(':'))
+            {
+                var parts = relativePath.Split(':');
+                if (parts.Length > 1)
+                {
+                    var potentialOp = parts[1].Split('?')[0];
+                    if (!string.IsNullOrEmpty(potentialOp))
+                    {
+                        up.RelativePath = $"/v1internal:{potentialOp}";
+                    }
+                }
+            }
         }
         if (!up.RelativePath.EndsWith(":streamGenerateContent"))
         {

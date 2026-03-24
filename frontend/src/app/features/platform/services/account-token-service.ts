@@ -85,8 +85,10 @@ export class AccountTokenService {
 
   // Debug Methods
 
-  getAvailableModels(platform: ProviderPlatform): Observable<ModelOptionOutputDto[]> {
-    return this.http.get<ModelOptionOutputDto[]>(`${this.baseUrl}/platform/${platform}/models`);
+  getAvailableModels(platform: ProviderPlatform, accountId?: string): Observable<ModelOptionOutputDto[]> {
+    return this.http.get<ModelOptionOutputDto[]>(`${this.baseUrl}/platform/${platform}/models`, {
+      ...(accountId && { params: { accountId } })
+    });
   }
 
   debugModel(id: string, input: ChatMessageInputDto): Observable<ChatStreamEvent> {

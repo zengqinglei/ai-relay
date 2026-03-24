@@ -16,39 +16,40 @@ public class GeminiApiKeyRequestBodyProcessor(
 
     public Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
     {
-        if (down.BodyJsonNode is not JsonObject)
+        if (down.BodyJsonNode is not JsonObject || down.BodyJsonNode == null)
         {
-            up.BodyJson = null;
-            up.SessionId = down.SessionHash;
             return Task.CompletedTask;
         }
 
-        var clonedBody = down.CloneBodyJson() ?? new JsonObject();
-
-        // 清洗 JSON Schema
-        if (clonedBody["tools"] is JsonArray tools)
+        var clonedBody = down.CloneBodyJson() ?? [];
+        // 聊天接口特有处理
+        if (up.RelativePath.EndsWith(":streamGenerateContent") || up.RelativePath.EndsWith(":generateContent"))
         {
-            foreach (var tool in tools)
+            // 清洗 JSON Schema
+            if (clonedBody["tools"] is JsonArray tools)
             {
-                if (tool is not JsonObject toolObj) continue;
-
-                var funcs = toolObj["function_declarations"]?.AsArray()
-                         ?? toolObj["functionDeclarations"]?.AsArray();
-
-                if (funcs != null)
+                foreach (var tool in tools)
                 {
-                    foreach (var func in funcs)
+                    if (tool is not JsonObject toolObj) continue;
+
+                    var funcs = toolObj["function_declarations"]?.AsArray()
+                             ?? toolObj["functionDeclarations"]?.AsArray();
+
+                    if (funcs != null)
                     {
-                        if (func is JsonObject funcObj && funcObj["parameters"] is JsonObject paramsObj)
-                            googleJsonSchemaCleaner.Clean(paramsObj);
+                        foreach (var func in funcs)
+                        {
+                            if (func is JsonObject funcObj && funcObj["parameters"] is JsonObject paramsObj)
+                                googleJsonSchemaCleaner.Clean(paramsObj);
+                        }
                     }
                 }
             }
-        }
 
-        // 伪装逻辑：未检测到真实 CLI 客户端时注入系统提示
-        if (shouldMimic && !IsGeminiCliClient(down, clonedBody))
-            geminiSystemPromptInjector.InjectGeminiCliPrompt(clonedBody);
+            // 伪装逻辑：未检测到真实 CLI 客户端时注入系统提示
+            if (shouldMimic && !IsGeminiCliClient(down, clonedBody))
+                geminiSystemPromptInjector.InjectGeminiCliPrompt(clonedBody);
+        }
 
         up.BodyJson = clonedBody;
         up.SessionId = down.SessionHash;

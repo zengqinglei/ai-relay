@@ -211,49 +211,6 @@ public abstract class GoogleInternalChatModelHandlerBase(
         }
     }
 
-    public override async Task<AccountQuotaInfo?> FetchQuotaAsync(CancellationToken ct = default)
-    {
-        try
-        {
-            var projectId = _options.ExtraProperties.TryGetValue("project_id", out var pid) ? pid : "";
-            var body = JsonSerializer.Serialize(new { project = projectId });
-            var down = new DownRequestContext
-            {
-                Method = HttpMethod.Post,
-                RelativePath = "/v1internal:fetchAvailableModels",
-                BodyBytes = Encoding.UTF8.GetBytes(body).AsMemory()
-            };
-            var up = await ProcessRequestContextAsync(down, 0, ct);
-            using var response = await ProxyRequestAsync(up, ct);
-            if (!response.IsSuccessStatusCode) return null;
-
-            var json = await response.Content.ReadAsStringAsync(ct);
-            using var doc = JsonDocument.Parse(json);
-            if (!doc.RootElement.TryGetProperty("models", out var models)) return null;
-
-            double? remainingFraction = null;
-            string? resetTime = null;
-            foreach (var model in models.EnumerateObject())
-            {
-                if (model.Value.TryGetProperty("quotaInfo", out var quotaInfo))
-                {
-                    if (quotaInfo.TryGetProperty("remainingFraction", out var fraction))
-                        remainingFraction = fraction.GetDouble();
-                    if (quotaInfo.TryGetProperty("resetTime", out var reset))
-                        resetTime = reset.GetString();
-                    break;
-                }
-            }
-            return new AccountQuotaInfo
-            {
-                RemainingQuota = remainingFraction.HasValue ? (int)(remainingFraction.Value * 100) : null,
-                QuotaResetTime = resetTime,
-                LastRefreshed = DateTime.UtcNow
-            };
-        }
-        catch { return null; }
-    }
-
     private sealed class LoadCodeAssistResponse
     {
         public string? CloudaicompanionProject { get; set; }

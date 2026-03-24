@@ -14,6 +14,7 @@ using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Gemini
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.Parsers;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.StreamProcessor;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Handler;
 
@@ -21,6 +22,7 @@ public class GeminiApiChatModelHandler(
     ChatModelConnectionOptions options,
     IHttpClientFactory httpClientFactory,
     GoogleJsonSchemaCleaner googleJsonSchemaCleaner,
+    GoogleSignatureCleaner googleSignatureCleaner,
     GeminiSystemPromptInjector geminiSystemPromptInjector,
     SseResponseStreamProcessor streamProcessor,
     ISignatureCache signatureCache,
@@ -33,30 +35,20 @@ public class GeminiApiChatModelHandler(
     public override bool Supports(ProviderPlatform platform) =>
         platform == ProviderPlatform.GEMINI_APIKEY;
 
-    protected override bool IsChatApiPath(string? path) =>
-        path != null && (
-            path.EndsWith(":streamGenerateContent", StringComparison.OrdinalIgnoreCase) ||
-            path.EndsWith(":generateContent", StringComparison.OrdinalIgnoreCase));
-
     protected override string? GetFallbackBaseUrl(int statusCode) => null;
 
     protected override IReadOnlyList<IRequestProcessor> GetProcessors(
         DownRequestContext down, int degradationLevel)
     {
-        var isChatApi = IsChatApiPath(down.RelativePath);
-        var processors = new List<IRequestProcessor> {
-            new GeminiApiKeyUrlProcessor(isChatApi, _options),
-            new GeminiHeaderProcessor(_options)
-        };
-        if (isChatApi)
-        {
-            processors.AddRange(
-                new GeminiApiKeyRequestBodyProcessor(
-                    googleJsonSchemaCleaner,
-                    geminiSystemPromptInjector,
-                    _options.ShouldMimicOfficialClient));
-        }
-        return processors;
+        return [
+            new GeminiApiKeyUrlProcessor(Options),
+            new GeminiHeaderProcessor(Options),
+            new GeminiApiKeyRequestBodyProcessor(
+                googleJsonSchemaCleaner,
+                geminiSystemPromptInjector,
+                Options.ShouldMimicOfficialClient),
+            new GeminiDegradationProcessor(degradationLevel, googleSignatureCleaner, logger)
+        ];
     }
 
     public override void ExtractModelInfo(DownRequestContext down, Guid apiKeyId)
@@ -132,11 +124,72 @@ public class GeminiApiChatModelHandler(
         }
     }
 
-    public override Task<ConnectionValidationResult> ValidateConnectionAsync(CancellationToken ct = default) =>
-        Task.FromResult(new ConnectionValidationResult(true));
+    public override async Task<IReadOnlyList<ModelOption>?> GetModelsAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            // Gemini API Key 通过 URL 参数传递，Processor 会自动处理
+            var down = new DownRequestContext
+            {
+                Method = HttpMethod.Get,
+                RelativePath = "/v1beta/models",
+                Headers = []
+            };
 
-    public override Task<AccountQuotaInfo?> FetchQuotaAsync(CancellationToken ct = default) =>
-        Task.FromResult<AccountQuotaInfo?>(null);
+            var up = await ProcessRequestContextAsync(down, 0, ct);
+            using var response = await ProxyRequestAsync(up, ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                Logger.LogWarning("Gemini 上游模型拉取失败: {StatusCode}", response.StatusCode);
+                return null;
+            }
+
+            var json = await response.Content.ReadAsStringAsync(ct);
+            using var doc = JsonDocument.Parse(json);
+            var models = new List<ModelOption>();
+
+            if (doc.RootElement.TryGetProperty("models", out var modelsArray))
+            {
+                foreach (var item in modelsArray.EnumerateArray())
+                {
+                    if (item.TryGetProperty("name", out var nameProp))
+                    {
+                        var fullName = nameProp.GetString(); // "models/gemini-2.5-pro"
+                        if (!string.IsNullOrEmpty(fullName) && fullName.StartsWith("models/"))
+                        {
+                            var modelId = fullName.Substring(7);
+
+                            // 过滤：仅保留 generateContent 支持的模型
+                            if (item.TryGetProperty("supportedGenerationMethods", out var methodsArray))
+                            {
+                                var methods = methodsArray.EnumerateArray()
+                                    .Select(m => m.GetString())
+                                    .Where(m => m != null)
+                                    .ToList();
+
+                                if (methods.Contains("generateContent"))
+                                {
+                                    var displayName = item.TryGetProperty("displayName", out var dispProp)
+                                        ? dispProp.GetString() ?? modelId
+                                        : modelId;
+                                    models.Add(new ModelOption(displayName, modelId));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            logger.LogInformation("Gemini 上游拉取成功: {Count} 个模型", models.Count);
+            return models.Count > 0 ? models : null;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Gemini 上游模型拉取异常");
+            return null;
+        }
+    }
 
     public override DownRequestContext CreateDebugDownContext(string modelId, string message)
     {

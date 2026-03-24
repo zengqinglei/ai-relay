@@ -1,8 +1,9 @@
-using System.Text.Json.Nodes;
 using AiRelay.Domain.ProviderAccounts.DomainServices;
+using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Processors;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.RequestParsing;
+using System.Text.Json.Nodes;
 
 namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Claude;
 
@@ -17,7 +18,14 @@ public class ClaudeMetadataInjectProcessor(
 
     public async Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
     {
-        if (up.BodyJson == null) return;
+        // Claude OAuth 专属：fingerprint user_id 注入（异步，需要 AppService）
+        // 仅 OAuth 且非 batches 路由
+        if (options.Platform != ProviderPlatform.CLAUDE_OAUTH
+            || down.RelativePath.Contains("/batches", StringComparison.OrdinalIgnoreCase)
+            || up.BodyJson == null)
+        {
+            return;
+        }
 
         // 仅在 metadata.user_id 为空时注入
         if (up.BodyJson.TryGetPropertyValue("metadata", out var metadataNode) &&

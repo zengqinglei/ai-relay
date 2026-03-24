@@ -28,21 +28,6 @@ public class OpenAiChatModelHandler(
     public override bool Supports(ProviderPlatform platform) =>
         platform is ProviderPlatform.OPENAI_OAUTH or ProviderPlatform.OPENAI_APIKEY;
 
-    protected override bool IsChatApiPath(string? path)
-    {
-        if (path == null) return false;
-        return _options.Platform == ProviderPlatform.OPENAI_OAUTH
-            ? path.Contains("/backend-api/codex/responses", StringComparison.OrdinalIgnoreCase)
-            : path.Contains("/v1/chat/completions", StringComparison.OrdinalIgnoreCase) ||
-              path.Contains("/v1/responses", StringComparison.OrdinalIgnoreCase);
-    }
-
-    public override Task<ConnectionValidationResult> ValidateConnectionAsync(CancellationToken ct = default) =>
-        Task.FromResult(new ConnectionValidationResult(true));
-
-    public override Task<AccountQuotaInfo?> FetchQuotaAsync(CancellationToken ct = default) =>
-        Task.FromResult<AccountQuotaInfo?>(null);
-
     public override DownRequestContext CreateDebugDownContext(string modelId, string message)
     {
         var json = new JsonObject
@@ -67,10 +52,10 @@ public class OpenAiChatModelHandler(
             ["instructions"] = "You are a helpful AI assistant."
         };
 
-        if (_options.Platform == ProviderPlatform.OPENAI_OAUTH)
+        if (Options.Platform == ProviderPlatform.OPENAI_OAUTH)
             json["store"] = false;
 
-        string path = _options.Platform == ProviderPlatform.OPENAI_OAUTH
+        string path = Options.Platform == ProviderPlatform.OPENAI_OAUTH
             ? "/backend-api/codex/responses"
             : "/v1/responses";
 
@@ -86,25 +71,13 @@ public class OpenAiChatModelHandler(
     protected override IReadOnlyList<IRequestProcessor> GetProcessors(
         DownRequestContext down, int degradationLevel)
     {
-        var isChatApi = IsChatApiPath(down.RelativePath);
-        var processors = new List<IRequestProcessor>
-        {
-            new OpenAiUrlProcessor(_options),
-            new OpenAiHeaderProcessor(_options)
-        };
-        if (isChatApi)
-        {
-            processors.Add(new OpenAiModelIdMappingProcessor(modelProvider));
-            if (_options.Platform == ProviderPlatform.OPENAI_OAUTH)
-            {
-                processors.Add(new OpenAiOAuthRequestBodyProcessor(openAiCodexInjector));
-            }
-            else
-            {
-                processors.Add(new OpenAiApiKeyRequestBodyProcessor());
-            }
-        }
-        return processors;
+        return
+        [
+            new OpenAiUrlProcessor(Options),
+            new OpenAiHeaderProcessor(Options),
+            new OpenAiModelIdMappingProcessor(modelProvider),
+            new OpenAiRequestBodyProcessor(Options, openAiCodexInjector)
+        ];
     }
 
     public override void ExtractModelInfo(DownRequestContext down, Guid apiKeyId)

@@ -9,8 +9,12 @@ public class OpenAiModelIdMappingProcessor(IModelProvider modelProvider) : IRequ
 
     public Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
     {
-        var modelId = string.IsNullOrEmpty(down.ModelId) ? "gpt-4o" : down.ModelId;
-        up.MappedModelId = modelProvider.GetOpenAIMappedModel(modelId);
+        if (string.IsNullOrEmpty(down.ModelId))
+        {
+            return Task.CompletedTask;
+        }
+
+        up.MappedModelId = modelProvider.GetOpenAIMappedModel(down.ModelId);
         return Task.CompletedTask;
     }
 }

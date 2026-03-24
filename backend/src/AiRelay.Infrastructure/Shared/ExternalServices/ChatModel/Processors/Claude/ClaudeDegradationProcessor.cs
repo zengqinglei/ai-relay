@@ -18,7 +18,10 @@ public class ClaudeDegradationProcessor(
 
     public Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
     {
-        if (up.BodyJson == null) return Task.CompletedTask;
+        if (up.BodyJson == null || degradationLevel == 0)
+        {
+            return Task.CompletedTask;
+        }
 
         if (degradationLevel == 1)
         {

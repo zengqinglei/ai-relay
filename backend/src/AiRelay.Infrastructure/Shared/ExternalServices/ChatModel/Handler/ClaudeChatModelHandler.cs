@@ -13,6 +13,7 @@ using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Claude
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.Parsers;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.StreamProcessor;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Handler;
 
@@ -34,14 +35,65 @@ public class ClaudeChatModelHandler(
     public override bool Supports(ProviderPlatform platform) =>
         platform is ProviderPlatform.CLAUDE_OAUTH or ProviderPlatform.CLAUDE_APIKEY;
 
-    protected override bool IsChatApiPath(string? path) =>
-        path != null && path.Contains("/v1/messages", StringComparison.OrdinalIgnoreCase);
+    public override async Task<IReadOnlyList<ModelOption>?> GetModelsAsync(CancellationToken ct = default)
+    {
+        // 仅 ApiKey 支持
+        if (Options.Platform != ProviderPlatform.CLAUDE_APIKEY)
+            return null;
 
-    public override Task<ConnectionValidationResult> ValidateConnectionAsync(CancellationToken ct = default) =>
-        Task.FromResult(new ConnectionValidationResult(true));
+        try
+        {
+            // 1. 构造 DownRequestContext（GET /v1/models）
+            var down = new DownRequestContext
+            {
+                Method = HttpMethod.Get,
+                RelativePath = "/v1/models",
+                Headers = new Dictionary<string, string>()
+            };
 
-    public override Task<AccountQuotaInfo?> FetchQuotaAsync(CancellationToken ct = default) =>
-        Task.FromResult<AccountQuotaInfo?>(null);
+            // 2. 通过 Processor 链处理（复用 Header 处理逻辑）
+            var up = await ProcessRequestContextAsync(down, 0, ct);
+
+            // 3. 发送请求
+            using var response = await ProxyRequestAsync(up, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                Logger.LogWarning("Claude 上游模型拉取失败: {StatusCode}", response.StatusCode);
+                return null;
+            }
+
+            // 4. 解析响应
+            var json = await response.Content.ReadAsStringAsync(ct);
+            using var doc = JsonDocument.Parse(json);
+            var models = new List<ModelOption>();
+
+            if (doc.RootElement.TryGetProperty("data", out var dataArray))
+            {
+                foreach (var item in dataArray.EnumerateArray())
+                {
+                    if (item.TryGetProperty("id", out var idProp))
+                    {
+                        var id = idProp.GetString();
+                        if (!string.IsNullOrEmpty(id) && id.StartsWith("claude-"))
+                        {
+                            var displayName = item.TryGetProperty("display_name", out var nameProp)
+                                ? nameProp.GetString() ?? id
+                                : id;
+                            models.Add(new ModelOption(displayName, id));
+                        }
+                    }
+                }
+            }
+
+            Logger.LogInformation("Claude 上游拉取成功: {Count} 个模型", models.Count);
+            return models.Count > 0 ? models : null;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Claude 上游模型拉取异常");
+            return null;
+        }
+    }
 
     public override DownRequestContext CreateDebugDownContext(string modelId, string message)
     {
@@ -73,38 +125,20 @@ public class ClaudeChatModelHandler(
     protected override IReadOnlyList<IRequestProcessor> GetProcessors(
         DownRequestContext down, int degradationLevel)
     {
-        // 非聊天路径：仅 Header 认证
-        var isChatApi = IsChatApiPath(down.RelativePath);
-        var processors = new List<IRequestProcessor> { new ClaudeUrlProcessor(isChatApi, _options) };
-        if (!isChatApi)
-        {
-            processors.Add(new ClaudeHeaderProcessor(_options, clientDetector));
-        }
-        else
-        {
-            processors.AddRange(
-                new ClaudeModelIdMappingProcessor(modelProvider),
-                new ClaudeHeaderProcessor(_options, clientDetector), // 必须放在ModelMapping之后，以便正确识别是否官方客户端和Haiku模型
-                new ClaudeRequestBodyProcessor(
-                    _options, claudeRequestCleaner, claudeCacheControlCleaner,
-                    claudeSystemPromptInjector, clientDetector));
-
-            // Claude OAuth 专属：fingerprint user_id 注入（异步，需要 AppService）
-            // 仅 OAuth 且非 batches 路由
-            if (_options.Platform == ProviderPlatform.CLAUDE_OAUTH
-                && !down.RelativePath.Contains("/batches", StringComparison.OrdinalIgnoreCase))
-            {
-                processors.Add(new ClaudeMetadataInjectProcessor(_options, fingerprintDomainService));
-            }
-
-            // 降级 Processor 仅在需要时加入
-            if (degradationLevel > 0)
-                processors.Add(new ClaudeDegradationProcessor(degradationLevel, claudeThinkingCleaner, logger));
-        }
-        return processors;
+        return [
+            new ClaudeModelIdMappingProcessor(modelProvider),
+            new ClaudeUrlProcessor(Options),
+            new ClaudeHeaderProcessor(Options, clientDetector),
+            new ClaudeRequestBodyProcessor(
+                Options,
+                claudeRequestCleaner,
+                claudeCacheControlCleaner,
+                claudeSystemPromptInjector,
+                clientDetector),
+            new ClaudeMetadataInjectProcessor(Options, fingerprintDomainService),
+            new ClaudeDegradationProcessor(degradationLevel, claudeThinkingCleaner, logger)
+        ];
     }
-
-    // ── ExtractModelInfo
 
     public override void ExtractModelInfo(DownRequestContext down, Guid apiKeyId)
     {

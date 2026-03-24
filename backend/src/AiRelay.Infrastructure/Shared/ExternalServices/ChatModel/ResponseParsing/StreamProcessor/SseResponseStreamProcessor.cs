@@ -26,13 +26,13 @@ public class SseResponseStreamProcessor(
         if (contentType != null && !contentType.Contains("text/event-stream") && !contentType.Contains("application/json"))
         {
             var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
-            logger.LogError("上游返回了非预期的 Content-Type: {ContentType}, StatusCode: {response.StatusCode} \n{Content}",
+            logger.LogError("上游返回了非预期的 Content-Type: {ContentType}, StatusCode: {response.StatusCode}, Content: {Content}",
                 contentType,
                 response.StatusCode,
                 errorContent.Length > 500 ? errorContent[..500] + "..." : errorContent);
             var showErrorContent = errorContent.Length > 100 ? errorContent[..100] + "..." : errorContent;
 
-            yield return new ChatStreamEvent(Error: $"上游返回了非预期的响应：Content-Type: {contentType}, StatusCode: {response.StatusCode} \n{showErrorContent}");
+            yield return new ChatStreamEvent(Error: $"上游返回了非预期的响应：Content-Type: {contentType}, StatusCode: {response.StatusCode}, Content: {showErrorContent}");
             yield break;
         }
 

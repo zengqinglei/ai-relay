@@ -54,7 +54,7 @@
           </p-select>
         </div>
 
-        <p-button label="开始测试" icon="pi pi-play" (onClick)="startTest()" [loading]="testing()" severity="primary"> </p-button>
+        <p-button label="开始测试" icon="pi pi-play" (onClick)="startTest()" [loading]="testing()" [disabled]="loading() || testing()" severity="primary"> </p-button>
       </div>
 
       <!-- Bottom Row: System Prompt -->

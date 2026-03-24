@@ -23,7 +23,7 @@ public abstract class BaseChatModelHandler : IChatModelHandler
     protected const int BackoffBaseSeconds = 5;
     protected const int BackoffMaxSeconds = 3600;
 
-    protected readonly ChatModelConnectionOptions _options;
+    protected readonly ChatModelConnectionOptions Options;
     protected readonly IHttpClientFactory HttpClientFactory;
     protected readonly SseResponseStreamProcessor StreamProcessor;
     protected readonly ISignatureCache SignatureCache;
@@ -36,7 +36,7 @@ public abstract class BaseChatModelHandler : IChatModelHandler
         ISignatureCache signatureCache,
         ILogger logger)
     {
-        _options = options;
+        Options = options;
         HttpClientFactory = httpClientFactory;
         StreamProcessor = streamProcessor;
         SignatureCache = signatureCache;
@@ -46,14 +46,6 @@ public abstract class BaseChatModelHandler : IChatModelHandler
     public abstract bool Supports(ProviderPlatform platform);
 
     protected virtual string? GetFallbackBaseUrl(int statusCode) => null;
-
-    // ── Processor 组合（子类实现，路由感知逻辑集中于此）
-
-    /// <summary>
-    /// 判断当前路径是否为聊天 API 路径。
-    /// 各平台显式声明自己的聊天端点，非聊天路径（管理 API 等）仅走 Header 认证链。
-    /// </summary>
-    protected abstract bool IsChatApiPath(string? path);
 
     /// <summary>
     /// 子类根据请求路由（down.RelativePath）和降级级别返回 Processor 列表
@@ -193,26 +185,24 @@ public abstract class BaseChatModelHandler : IChatModelHandler
         return Task.FromResult(result);
     }
 
-    // ── IResponseParser (abstract)
-
     public abstract ChatResponsePart? ParseChunk(string chunk);
     public abstract ChatResponsePart ParseCompleteResponse(string responseBody);
-
-    // ── ExtractModelInfo + CreateDebugDownContext (abstract)
-
     public abstract void ExtractModelInfo(DownRequestContext down, Guid apiKeyId);
     public abstract DownRequestContext CreateDebugDownContext(string modelId, string message);
+    public virtual Task<ConnectionValidationResult> ValidateConnectionAsync(CancellationToken ct = default) =>
+        Task.FromResult(new ConnectionValidationResult(true));
+    public virtual Task<IReadOnlyList<AccountQuotaInfo>?> FetchQuotaAsync(CancellationToken ct = default) =>
+        null;
 
-    // ── Account management (abstract)
+    /// <summary>
+    /// 从上游 API 拉取可用模型列表（默认不支持，返回 null）
+    /// </summary>
+    public virtual Task<IReadOnlyList<ModelOption>?> GetModelsAsync(CancellationToken ct = default)
+    {
+        return Task.FromResult<IReadOnlyList<ModelOption>?>(null);
+    }
 
-    public abstract Task<ConnectionValidationResult> ValidateConnectionAsync(CancellationToken ct = default);
-    public abstract Task<AccountQuotaInfo?> FetchQuotaAsync(CancellationToken ct = default);
-
-    // ── Retry-After extraction
-
-    protected TimeSpan? ExtractRetryAfterGeneric(
-        Dictionary<string, IEnumerable<string>>? headers,
-        string? body)
+    protected TimeSpan? ExtractRetryAfterGeneric(Dictionary<string, IEnumerable<string>>? headers, string? body)
     {
         // 1. 检查 Standard Retry-After Header
         if (headers != null && headers.TryGetValue("Retry-After", out var values))

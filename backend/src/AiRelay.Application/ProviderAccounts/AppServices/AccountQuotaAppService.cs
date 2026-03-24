@@ -37,34 +37,33 @@ public class AccountQuotaAppService(
             try
             {
                 var client = clientFactory.CreateHandler(accountToken.Platform, accountToken.AccessToken!, accountToken.BaseUrl, accountToken.ExtraProperties);
-                var quotaInfo = await client.FetchQuotaAsync(cancellationToken);
+                var quotaInfos = await client.FetchQuotaAsync(cancellationToken);
 
-                if (quotaInfo != null)
+                if (quotaInfos == null)
                 {
-                    var cacheKey = $"account:quota:{accountToken.Id}";
+                    continue;
+                }
+                foreach (var quotaInfo in quotaInfos)
+                {
+                    var cacheKey = $"account:quota:{accountToken.Id}:{quotaInfo.ModelId}";
                     await cache.SetStringAsync(
                         cacheKey,
-                        JsonSerializer.Serialize(quotaInfo),
+                        JsonSerializer.Serialize(quotaInfos),
                         new DistributedCacheEntryOptions
                         {
                             AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(CACHE_EXPIRATION_MINUTES)
                         },
                         cancellationToken);
-
                     logger.LogDebug(
-                        "账户 {AccountName} ({Platform}) 配额已刷新: Remaining={Remaining}, Tier={Tier}",
+                        "账户 {AccountName} ({Platform}) 配额详情: Model={Model}, Remaining={Remaining}, Tier={Tier}",
                         accountToken.Name,
                         accountToken.Platform,
+                        quotaInfo.ModelId,
                         quotaInfo.RemainingQuota,
                         quotaInfo.SubscriptionTier);
+                }
 
-                    successCount++;
-                }
-                else
-                {
-                    logger.LogWarning("账户 {AccountName} ({Platform}) 配额获取失败: API 返回 null", accountToken.Name, accountToken.Platform);
-                    failureCount++;
-                }
+                successCount++;
             }
             catch (Exception ex)
             {

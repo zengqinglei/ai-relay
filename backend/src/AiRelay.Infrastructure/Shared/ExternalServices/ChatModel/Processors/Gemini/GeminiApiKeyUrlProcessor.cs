@@ -4,7 +4,7 @@ using AiRelay.Domain.Shared.ExternalServices.ChatModel.RequestParsing;
 
 namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Gemini;
 
-public class GeminiApiKeyUrlProcessor(bool isChatApi, ChatModelConnectionOptions options) : IRequestProcessor
+public class GeminiApiKeyUrlProcessor(ChatModelConnectionOptions options) : IRequestProcessor
 {
 
     public Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
@@ -19,10 +19,6 @@ public class GeminiApiKeyUrlProcessor(bool isChatApi, ChatModelConnectionOptions
         up.RelativePath = relativePath;
         up.QueryString = down.QueryString;
 
-        if (!isChatApi)
-        {
-            return Task.CompletedTask;
-        }
         if (!up.RelativePath.EndsWith(":streamGenerateContent"))
         {
             return Task.CompletedTask;

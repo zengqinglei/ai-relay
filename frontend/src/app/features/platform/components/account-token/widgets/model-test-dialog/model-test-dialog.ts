@@ -90,10 +90,10 @@ export class ModelTestDialog {
     this.systemPrompt.set('你好，当前使用的是什么模型？');
     this.visible.set(true);
 
-    // Load models from backend API
+    // Load models from backend API (with accountId for upstream fetch)
     this.loading.set(true);
     this.service
-      .getAvailableModels(account.platform as ProviderPlatform)
+      .getAvailableModels(account.platform as ProviderPlatform, account.id)
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
         next: models => {

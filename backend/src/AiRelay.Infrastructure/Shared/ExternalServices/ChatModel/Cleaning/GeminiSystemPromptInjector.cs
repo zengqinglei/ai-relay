@@ -13,17 +13,11 @@ public class GeminiSystemPromptInjector
     /// <summary>
     /// 在 systemInstruction 开头注入 Gemini CLI 提示词（仅 OAuth 账号需要）
     /// </summary>
-    public bool InjectGeminiCliPrompt(JsonObject requestJson)
+    public bool InjectGeminiCliPrompt(JsonObject? payload)
     {
+        if (payload == null) return false;
         try
         {
-            // 获取内层 payload（已封装结构）
-            var payload = requestJson.ContainsKey("request")
-                ? requestJson["request"] as JsonObject
-                : requestJson;
-
-            if (payload == null) return false;
-
             // 检查 systemInstruction 中是否已有 Gemini CLI 提示词
             if (payload.TryGetPropertyValue("systemInstruction", out var systemNode))
             {

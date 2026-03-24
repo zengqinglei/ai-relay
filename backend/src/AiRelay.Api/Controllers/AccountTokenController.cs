@@ -57,13 +57,16 @@ public class AccountTokenController(IAccountTokenAppService accountTokenAppServi
     /// <summary>
     /// 获取指定平台的可用模型列表
     /// </summary>
+    /// <param name="platform">平台类型</param>
+    /// <param name="accountId">可选：账户ID（提供时尝试上游拉取）</param>
     [HttpGet("platform/{platform}/models")]
     [AllowAnonymous]
     public async Task<IActionResult> GetAvailableModels(
         ProviderPlatform platform,
+        Guid? accountId,
         CancellationToken cancellationToken)
     {
-        var models = await accountTokenAppService.GetAvailableModelsAsync(platform, cancellationToken);
+        var models = await accountTokenAppService.GetAvailableModelsAsync(platform, accountId, cancellationToken);
         return Ok(models);
     }
 

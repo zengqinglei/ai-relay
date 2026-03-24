@@ -191,15 +191,6 @@ function resetStatus(req: MockRequest) {
   return { success: true };
 }
 
-function getAvailableModels(req: MockRequest) {
-  const platform = req.params['platform'] as ProviderPlatform;
-  const models = AVAILABLE_MODELS[platform];
-  if (!models) {
-    throw new MockException(404, 'Platform not found or models not available');
-  }
-  return models;
-}
-
 function getOAuthUrl(req: MockRequest) {
   const { platform } = req.queryParams;
   console.log('[Mock] Generate Auth URL for:', platform);
@@ -315,11 +306,45 @@ SSE_MOCK_REGISTRY.register('POST', /\/api\/v1\/account-tokens\/[^/]+\/model-test
   return MOCK_CHAT_STREAM_CHUNKS;
 });
 
+function getAvailableModelsForPlatform(req: MockRequest) {
+  const platform = req.params['platform'] as ProviderPlatform;
+  const accountId = req.params['accountId'] as string | undefined;
+
+  // 无 accountId → 返回静态列表
+  if (!accountId) {
+    return AVAILABLE_MODELS[platform] ?? [];
+  }
+
+  // 有 accountId → 模拟上游拉取
+  const account = accounts.find(a => a.id === accountId);
+  if (!account) {
+    throw new MockException(404, 'Account not found');
+  }
+
+  // 模拟上游拉取：ApiKey 类账户返回扩展列表，OAuth 类返回静态
+  if (platform === ProviderPlatform.CLAUDE_APIKEY) {
+    return [
+      ...(AVAILABLE_MODELS[platform] ?? []),
+      { label: 'Claude Opus 4.7 (Upstream)', value: 'claude-opus-4-7-preview' }
+    ];
+  }
+
+  if (platform === ProviderPlatform.GEMINI_APIKEY) {
+    return [
+      ...(AVAILABLE_MODELS[platform] ?? []),
+      { label: 'Gemini 3.2 Flash (Upstream)', value: 'gemini-3.2-flash-preview' }
+    ];
+  }
+
+  // OAuth 类降级静态
+  return AVAILABLE_MODELS[platform] ?? [];
+}
+
 export const ACCOUNT_TOKEN_API = {
   'GET /api/v1/account-tokens': (req: MockRequest) => getAccounts(req),
   'GET /api/v1/account-tokens/oauth-url': (req: MockRequest) => getOAuthUrl(req),
   'GET /api/v1/account-tokens/:id': (req: MockRequest) => getAccount(req),
-  'GET /api/v1/account-tokens/platform/:platform/models': (req: MockRequest) => getAvailableModels(req),
+  'GET /api/v1/account-tokens/platform/:platform/models': (req: MockRequest) => getAvailableModelsForPlatform(req),
   'POST /api/v1/account-tokens': (req: MockRequest) => createAccount(req),
   'PUT /api/v1/account-tokens/:id': (req: MockRequest) => updateAccount(req),
   'DELETE /api/v1/account-tokens/:id': (req: MockRequest) => deleteAccount(req),
