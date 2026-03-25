@@ -3,6 +3,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
+import { ImageModule } from 'primeng/image';
 import { MessageModule } from 'primeng/message';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { SelectModule } from 'primeng/select';
@@ -17,6 +18,8 @@ import { ChatMessageInputDto } from '../../../../models/chat-message-input.dto';
 import { ModelOptionOutputDto } from '../../../../models/model-option.dto';
 import { AccountTokenService } from '../../../../services/account-token-service';
 
+export type ContentBlock = { type: 'text'; text: string } | { type: 'image'; mimeType: string; data: string };
+
 @Component({
   selector: 'app-model-test-dialog',
   standalone: true,
@@ -29,6 +32,7 @@ import { AccountTokenService } from '../../../../services/account-token-service'
     MessageModule,
     ProgressSpinnerModule,
     TextareaModule,
+    ImageModule,
     PlatformIcon
   ],
   templateUrl: './model-test-dialog.html',
@@ -68,9 +72,9 @@ export class ModelTestDialog {
   // Test State
   selectedModel = signal('');
   systemPrompt = signal('你好，当前使用的是什么模型？');
-  responseContent = signal('');
   errorMessage = signal('');
   systemMessages = signal<string[]>([]);
+  contentBlocks = signal<ContentBlock[]>([]);
 
   // Model loading error (separate from test error)
   modelLoadError = signal('');
@@ -80,7 +84,7 @@ export class ModelTestDialog {
 
   open(account: AccountTokenOutputDto) {
     this.account.set(account);
-    this.responseContent.set('');
+    this.contentBlocks.set([]);
     this.errorMessage.set('');
     this.modelLoadError.set('');
     this.systemMessages.set([]);
@@ -114,7 +118,7 @@ export class ModelTestDialog {
     if (this.testing() || !this.account()) return;
 
     this.testing.set(true);
-    this.responseContent.set('');
+    this.contentBlocks.set([]);
     this.errorMessage.set('');
     this.modelLoadError.set('');
     this.systemMessages.set([]);
@@ -138,7 +142,15 @@ export class ModelTestDialog {
           } else if (event.error) {
             this.errorMessage.set(event.error);
           } else if (event.content) {
-            this.responseContent.update(c => c + event.content);
+            this.contentBlocks.update(blocks => {
+              const last = blocks[blocks.length - 1];
+              if (last?.type === 'text') {
+                return [...blocks.slice(0, -1), { type: 'text' as const, text: last.text + event.content! }];
+              }
+              return [...blocks, { type: 'text' as const, text: event.content! }];
+            });
+          } else if (event.inlineData) {
+            this.contentBlocks.update(blocks => [...blocks, { type: 'image', mimeType: event.inlineData!.mimeType, data: event.inlineData!.data }]);
           }
         },
         error: (err: any) => {

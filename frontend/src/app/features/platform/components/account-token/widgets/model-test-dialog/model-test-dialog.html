@@ -81,7 +81,7 @@
       class="relative min-h-[200px] max-h-[400px] bg-surface-900 text-surface-0 rounded-lg p-4 font-mono text-sm overflow-y-auto border border-surface-700 shadow-inner"
     >
       <!-- Loading Indicator Overlay -->
-      @if (testing() && !responseContent()) {
+      @if (testing() && contentBlocks().length === 0) {
         <div class="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
           <p-progressSpinner styleClass="w-8 h-8" strokeWidth="4"></p-progressSpinner>
         </div>
@@ -113,8 +113,22 @@
       <!-- Stream Content -->
       <div class="terminal-output leading-relaxed text-surface-50">
         <span class="text-purple-400 font-bold mr-2">AI:</span>
-        <span>{{ responseContent() }}</span
-        ><span class="cursor" [class.hidden]="!testing()"></span>
+        @for (block of contentBlocks(); track $index) {
+          @if (block.type === 'text') {
+            <span class="block">{{ block.text }}</span>
+          } @else if (block.type === 'image') {
+            <div class="block my-2">
+              <p-image
+                [src]="'data:' + block.mimeType + ';base64,' + block.data"
+                alt="Generated image"
+                width="200"
+                [preview]="true"
+                imageClass="rounded-lg border border-surface-600"
+              />
+            </div>
+          }
+        }
+        <span class="cursor" [class.hidden]="!testing()"></span>
       </div>
     </div>
   </div>

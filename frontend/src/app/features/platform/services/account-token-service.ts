@@ -152,6 +152,21 @@ export class AccountTokenService {
                 }
               }
             }
+
+            // 处理流结束后 buffer 中残留的最后一行（无 \n 结尾的情况）
+            const remaining = buffer.trim();
+            if (remaining.startsWith('data: ')) {
+              const dataStr = remaining.slice(6);
+              if (dataStr !== '[DONE]') {
+                try {
+                  const event = JSON.parse(dataStr) as ChatStreamEvent;
+                  observer.next(event);
+                } catch (e) {
+                  console.error('Failed to parse final SSE data', e);
+                }
+              }
+            }
+
             observer.complete();
           } catch (err: any) {
             if (err.name === 'AbortError') {

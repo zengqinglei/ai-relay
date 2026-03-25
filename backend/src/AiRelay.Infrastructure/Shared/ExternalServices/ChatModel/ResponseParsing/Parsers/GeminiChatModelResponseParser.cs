@@ -49,6 +49,7 @@ public class GeminiChatModelResponseParser : IChatModelResponseParser, IResponse
             }
 
             string? content = null;
+            InlineDataPart? inlineData = null;
             ResponseUsage? usage = null;
 
             if (root.TryGetProperty("candidates", out var candidates) && candidates.GetArrayLength() > 0)
@@ -58,7 +59,7 @@ public class GeminiChatModelResponseParser : IChatModelResponseParser, IResponse
                     c.TryGetProperty("parts", out var parts) &&
                     parts.GetArrayLength() > 0)
                 {
-                    // 遍历所有 parts，提取所有 text 字段
+                    // 遍历所有 parts，提取 text 和 inlineData
                     var sb = new System.Text.StringBuilder();
                     foreach (var part in parts.EnumerateArray())
                     {
@@ -70,7 +71,19 @@ public class GeminiChatModelResponseParser : IChatModelResponseParser, IResponse
                                 sb.Append(textValue);
                             }
                         }
-                        // 跳过 thoughtSignature 等非文本字段
+                        else if (part.TryGetProperty("inlineData", out var inline))
+                        {
+                            if (inline.TryGetProperty("mimeType", out var mime) &&
+                                inline.TryGetProperty("data", out var data))
+                            {
+                                var mimeType = mime.GetString();
+                                var dataValue = data.GetString();
+                                if (!string.IsNullOrEmpty(mimeType) && !string.IsNullOrEmpty(dataValue))
+                                {
+                                    inlineData = new InlineDataPart(mimeType, dataValue);
+                                }
+                            }
+                        }
                     }
                     if (sb.Length > 0)
                     {
@@ -93,7 +106,8 @@ public class GeminiChatModelResponseParser : IChatModelResponseParser, IResponse
             return new ChatResponsePart(
                 Content: content,
                 Usage: usage,
-                IsComplete: false
+                IsComplete: false,
+                InlineData: inlineData
             );
         }
         catch
@@ -137,6 +151,7 @@ public class GeminiChatModelResponseParser : IChatModelResponseParser, IResponse
             }
 
             string? content = null;
+            InlineDataPart? inlineData = null;
             ResponseUsage? usage = null;
 
             if (root.TryGetProperty("candidates", out var candidates) && candidates.GetArrayLength() > 0)
@@ -146,7 +161,7 @@ public class GeminiChatModelResponseParser : IChatModelResponseParser, IResponse
                     c.TryGetProperty("parts", out var parts) &&
                     parts.GetArrayLength() > 0)
                 {
-                    // 遍历所有 parts，提取所有 text 字段
+                    // 遍历所有 parts，提取 text 和 inlineData
                     var sb = new System.Text.StringBuilder();
                     foreach (var part in parts.EnumerateArray())
                     {
@@ -158,7 +173,19 @@ public class GeminiChatModelResponseParser : IChatModelResponseParser, IResponse
                                 sb.Append(textValue);
                             }
                         }
-                        // 跳过 thoughtSignature 等非文本字段
+                        else if (part.TryGetProperty("inlineData", out var inline))
+                        {
+                            if (inline.TryGetProperty("mimeType", out var mime) &&
+                                inline.TryGetProperty("data", out var data))
+                            {
+                                var mimeType = mime.GetString();
+                                var dataValue = data.GetString();
+                                if (!string.IsNullOrEmpty(mimeType) && !string.IsNullOrEmpty(dataValue))
+                                {
+                                    inlineData = new InlineDataPart(mimeType, dataValue);
+                                }
+                            }
+                        }
                     }
                     if (sb.Length > 0)
                     {
@@ -181,7 +208,8 @@ public class GeminiChatModelResponseParser : IChatModelResponseParser, IResponse
             return new ChatResponsePart(
                 Content: content,
                 Usage: usage,
-                IsComplete: true
+                IsComplete: true,
+                InlineData: inlineData
             );
         }
         catch
