@@ -44,10 +44,6 @@ AI-Relay 通过 Angular 21 + .NET 10 + PostgreSQL + Redis 组合，实现 Claude
 
 ## 🎯 项目概述
 
-**在线演示 Demo**: https://ai-demo.zengql.dpdns.org （需 FQ 访问）
-- 账号：`admin`
-- 密码：`Admin@123456`
-
 AI-Relay 是一个现代化的主流 AI 大模型代理服务。它能提供多种智能代理能力，旨在帮助您在各种应用中更有效地使用大模型，目前已经支持的主流模型厂商如下：
 
 - **Claude**（官方：OAuth、Api Key 模式：支持接入各种中转站）
