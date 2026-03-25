@@ -2,27 +2,27 @@
 <div class="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 mb-6">
   <div class="flex flex-col sm:flex-row flex-1 gap-3 items-stretch sm:items-center">
     <!-- Filters -->
-    <p-select [options]="platformOptions" [(ngModel)]="selectedPlatform" optionLabel="label"
+    <p-select [options]="platformOptions" [ngModel]="selectedPlatform()" (ngModelChange)="selectedPlatform.set($event)" (onChange)="onSelectChange()" optionLabel="label"
       optionValue="value" placeholder="全部平台" [showClear]="true" appendTo="body" styleClass="w-full sm:w-48" />
 
-    <p-select [options]="statusOptions" [(ngModel)]="selectedStatus" optionLabel="label"
+    <p-select [options]="statusOptions" [ngModel]="selectedStatus()" (ngModelChange)="selectedStatus.set($event)" (onChange)="onSelectChange()" optionLabel="label"
       optionValue="value" placeholder="全部状态" [showClear]="true" appendTo="body" styleClass="w-full sm:w-48" />
 
     <!-- Search -->
     <p-iconfield class="w-full sm:flex-1 sm:max-w-xs">
       <p-inputicon class="pi pi-search" />
-      <input pInputText type="text" placeholder="搜索账户名称、上游地址..." [(ngModel)]="searchQuery"
-        class="w-full" />
+      <input pInputText type="text" placeholder="搜索账户名称、上游地址..." [ngModel]="searchQuery()"
+        (ngModelChange)="onSearchQueryChange($event)" class="w-full" />
     </p-iconfield>
   </div>
 
   <div class="flex gap-3 items-center justify-end shrink-0">
     <p-button
-      icon="pi pi-search"
-      label="查询"
+      icon="pi pi-refresh"
+      label="刷新"
       (onClick)="onFilter()"
       styleClass="w-full sm:w-auto"
-      pTooltip="查询"
+      pTooltip="刷新"
       tooltipPosition="top"
     >
     </p-button>
@@ -39,27 +39,25 @@
     [loading]="loading()" [first]="first" [rows]="rows" [paginator]="true" [rowHover]="true"
     [rowsPerPageOptions]="[10, 20, 50, 100]" [showCurrentPageReport]="true"
     currentPageReportTemplate="共 {totalRecords} 条" [showJumpToPageInput]="true" styleClass="w-full"
-    responsiveLayout="scroll" [breakpoint]="'960px'">
+    responsiveLayout="scroll" [breakpoint]="'960px'"
+    [sortField]="sortField()" [sortOrder]="sortOrder()">
     <ng-template pTemplate="header">
       <tr class="bg-surface-50 dark:bg-surface-800 text-muted-color text-xs uppercase font-medium backdrop-blur-sm">
-        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3">
-          账户标识</th>
-        <th
-          class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden md:table-cell">
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3" pSortableColumn="name">
+          <div class="flex items-center gap-1">账户标识 <p-sortIcon field="name"></p-sortIcon></div>
+        </th>
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden md:table-cell">
           鉴权信息</th>
-        <th
-          class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden lg:table-cell">
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden lg:table-cell">
           调度状态</th>
-        <th
-          class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden xl:table-cell">
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden xl:table-cell">
           统计 & 健康度</th>
         <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3">
           启用/禁用</th>
-        <th
-          class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden 2xl:table-cell">
-          创建时间</th>
-        <th
-          class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 text-right">
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden 2xl:table-cell" pSortableColumn="creationTime">
+          <div class="flex items-center gap-1">创建时间 <p-sortIcon field="creationTime"></p-sortIcon></div>
+        </th>
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 text-right">
           操作</th>
       </tr>
     </ng-template>

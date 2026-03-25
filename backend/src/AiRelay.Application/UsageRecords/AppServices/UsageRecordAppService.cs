@@ -81,9 +81,14 @@ public class UsageRecordAppService(
         // 获取总数
         var totalCount = await asyncExecuter.CountAsync(query, cancellationToken);
 
-        // 使用动态排序
+        // 使用动态排序，null 值按 0 处理
         var sorting = input.Sorting ?? $"{nameof(UsageRecord.CreationTime)} desc";
-        // REMOVED: Sorting replacement logic as per requirement
+        // 对可能为 null 的数值字段做 null-safe 处理，避免 null 排到最前
+        sorting = System.Text.RegularExpressions.Regex.Replace(
+            sorting,
+            @"\b(finalCost|inputTokens|outputTokens|durationMs)\b",
+            m => $"({m.Value} ?? 0)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
         var sortedQuery = query.OrderBy(sorting);
 

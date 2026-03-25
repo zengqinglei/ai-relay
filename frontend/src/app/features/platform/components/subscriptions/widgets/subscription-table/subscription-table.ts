@@ -17,6 +17,7 @@ import { ApiKeyOutputDto, ApiKeyBindingOutputDto } from '../../../../models/subs
 export interface SubscriptionTableFilterEvent {
   offset: number;
   limit: number;
+  sorting?: string;
 }
 
 @Component({
@@ -69,13 +70,20 @@ export class SubscriptionTable {
   // Pagination state
   first = 0;
   rows = 10;
+  sortField = signal<string>('creationTime');
+  sortOrder = signal<number>(-1);
 
   onPage(event: TableLazyLoadEvent) {
     this.first = event.first ?? 0;
     this.rows = event.rows ?? 10;
+    if (event.sortField) {
+      this.sortField.set(Array.isArray(event.sortField) ? event.sortField[0] : event.sortField);
+      this.sortOrder.set(event.sortOrder ?? -1);
+    }
     this.filterChange.emit({
       offset: this.first,
-      limit: this.rows
+      limit: this.rows,
+      sorting: `${this.sortField()} ${this.sortOrder() === 1 ? 'asc' : 'desc'}`
     });
   }
 
@@ -84,9 +92,27 @@ export class SubscriptionTable {
     return bindings.map(b => `${b.providerGroupName} (${b.platform})`).join('\n');
   }
 
+  private writeToClipboard(text: string): Promise<void> {
+    if (navigator.clipboard?.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    // Fallback for non-secure contexts
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return Promise.resolve();
+  }
+
   copyKey(key: string) {
-    navigator.clipboard.writeText(key);
-    this.messageService.add({ severity: 'success', summary: '成功', detail: '已复制' });
+    this.writeToClipboard(key).then(() => {
+      this.messageService.add({ severity: 'success', summary: '成功', detail: '已复制' });
+    });
   }
 
   toggleSecretVisibility(itemId: string) {
@@ -106,14 +132,13 @@ export class SubscriptionTable {
   }
 
   copySecret(item: ApiKeyOutputDto) {
-    navigator.clipboard.writeText(item.secret);
-    this.messageService.add({ severity: 'success', summary: '成功', detail: '已复制密钥', life: 2000 });
-
-    // Show green checkmark temporarily
-    this.copySuccess.update(state => ({ ...state, [item.id]: true }));
-    setTimeout(() => {
-      this.copySuccess.update(state => ({ ...state, [item.id]: false }));
-    }, 2000);
+    this.writeToClipboard(item.secret).then(() => {
+      this.messageService.add({ severity: 'success', summary: '成功', detail: '已复制密钥', life: 2000 });
+      this.copySuccess.update(state => ({ ...state, [item.id]: true }));
+      setTimeout(() => {
+        this.copySuccess.update(state => ({ ...state, [item.id]: false }));
+      }, 2000);
+    });
   }
 
   getExpiryState(item: ApiKeyOutputDto): 'expired' | 'warning' | 'ok' | 'forever' {

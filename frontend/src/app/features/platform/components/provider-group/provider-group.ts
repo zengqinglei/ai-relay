@@ -77,7 +77,8 @@ export class ProviderGroupPage implements OnInit {
       offset: event.offset,
       limit: event.limit,
       keyword: event.q,
-      platform: event.platform ? (event.platform as ProviderPlatform) : undefined
+      platform: event.platform ? (event.platform as ProviderPlatform) : undefined,
+      sorting: event.sorting
     };
     this.currentFilter.set(filter);
     this.loadData();

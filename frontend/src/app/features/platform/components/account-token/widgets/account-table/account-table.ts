@@ -1,6 +1,9 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, EventEmitter, input, Output, signal, inject, ViewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, EventEmitter, inject, input, OnInit, Output, signal, ViewChild } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { Subject } from 'rxjs';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { ConfirmationService, MenuItem } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { ConfirmPopupModule } from 'primeng/confirmpopup';
@@ -64,6 +67,8 @@ export class AccountTable {
   @ViewChild(ModelTestDialog) modelTestDialog!: ModelTestDialog;
 
   private confirmationService = inject(ConfirmationService);
+  private destroyRef = inject(DestroyRef);
+  private searchSubject = new Subject<string>();
 
   // Filter states
   searchQuery = signal('');
@@ -87,6 +92,25 @@ export class AccountTable {
   // Pagination state
   first = 0;
   rows = 10;
+  sortField = signal<string>('creationTime');
+  sortOrder = signal<number>(-1);
+
+  constructor() {
+    this.searchSubject.pipe(
+      debounceTime(300),
+      distinctUntilChanged(),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(() => this.onFilter());
+  }
+
+  onSearchQueryChange(value: string) {
+    this.searchQuery.set(value);
+    this.searchSubject.next(value);
+  }
+
+  onSelectChange() {
+    this.onFilter();
+  }
 
   onFilter() {
     this.first = 0;
@@ -96,6 +120,10 @@ export class AccountTable {
   onPage(event: TableLazyLoadEvent) {
     this.first = event.first ?? 0;
     this.rows = event.rows ?? 10;
+    if (event.sortField) {
+      this.sortField.set(Array.isArray(event.sortField) ? event.sortField[0] : event.sortField);
+      this.sortOrder.set(event.sortOrder ?? -1);
+    }
     this.emitFilterChange();
   }
 
@@ -149,7 +177,8 @@ export class AccountTable {
       limit: this.rows,
       keyword: this.searchQuery() || undefined,
       platform: this.selectedPlatform() || undefined,
-      isActive: isActive
+      isActive: isActive,
+      sorting: `${this.sortField()} ${this.sortOrder() === 1 ? 'asc' : 'desc'}`
     };
     this.filterChange.emit(filter);
   }

@@ -2,6 +2,8 @@ import { CommonModule } from '@angular/common';
 import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { Subject } from 'rxjs';
+import { debounceTime, distinctUntilChanged, finalize } from 'rxjs/operators';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
@@ -9,7 +11,6 @@ import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
-import { finalize } from 'rxjs/operators';
 
 import { ApiKeyOutputDto, SubscriptionMetricsOutputDto } from '../../models/subscription.dto';
 import { SubscriptionMetricService } from '../../services/subscription-metric-service'; // Import
@@ -71,11 +72,22 @@ export class SubscriptionsPage implements OnInit {
   // Pagination
   offset = signal(0);
   limit = signal(10);
+  sorting = signal<string>('creationTime desc');
 
   statusOptions = [
     { label: '启用', value: 'active' },
     { label: '禁用', value: 'inactive' }
   ];
+
+  private searchSubject = new Subject<string>();
+
+  constructor() {
+    this.searchSubject.pipe(
+      debounceTime(300),
+      distinctUntilChanged(),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(() => this.onFilter());
+  }
 
   ngOnInit() {
     this.layoutService.title.set('订阅管理');
@@ -95,6 +107,7 @@ export class SubscriptionsPage implements OnInit {
   }
 
   reloadList() {
+    this.loading.set(true);
     let isActive: boolean | undefined = undefined;
     if (this.selectedStatus() === 'active') isActive = true;
     if (this.selectedStatus() === 'inactive') isActive = false;
@@ -104,7 +117,8 @@ export class SubscriptionsPage implements OnInit {
         keyword: this.searchQuery(),
         isActive: isActive,
         offset: this.offset(),
-        limit: this.limit()
+        limit: this.limit(),
+        sorting: this.sorting()
       })
       .pipe(
         takeUntilDestroyed(this.destroyRef),
@@ -116,14 +130,24 @@ export class SubscriptionsPage implements OnInit {
       });
   }
 
+  onSearchQueryChange(value: string) {
+    this.searchQuery.set(value);
+    this.searchSubject.next(value);
+  }
+
+  onStatusChange() {
+    this.onFilter();
+  }
+
   onFilter() {
     this.offset.set(0); // Reset to first page
     this.reloadList();
   }
 
-  onPageChange(event: { offset: number; limit: number }) {
+  onPageChange(event: { offset: number; limit: number; sorting?: string }) {
     this.offset.set(event.offset);
     this.limit.set(event.limit);
+    if (event.sorting) this.sorting.set(event.sorting);
     this.reloadList();
   }
 

@@ -14,7 +14,7 @@ public record GetProviderGroupPagedInputDto : PagedRequestDto
     /// </summary>
     [Display(Name = "分组名称")]
     [MaxLength(256, ErrorMessage = "{0}长度不能超过 {1} 个字符")]
-    public string? Name { get; init; }
+    public string? Keyword { get; init; }
 
     /// <summary>
     /// 平台类型

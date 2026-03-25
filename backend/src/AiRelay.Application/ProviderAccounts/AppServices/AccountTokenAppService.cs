@@ -1,3 +1,4 @@
+using System.Linq.Dynamic.Core;
 using AiRelay.Application.ProviderAccounts.Dtos;
 using AiRelay.Domain.ProviderAccounts.DomainServices;
 using AiRelay.Domain.ProviderAccounts.Entities;
@@ -224,8 +225,9 @@ public class AccountTokenAppService(
         if (input.IsActive.HasValue)
             accountQuery = accountQuery.Where(a => a.IsActive == input.IsActive.Value);
 
-        // 默认按创建时间倒序
-        accountQuery = accountQuery.OrderByDescending(a => a.CreationTime);
+        // 动态排序
+        var sorting = input.Sorting ?? $"{nameof(AccountToken.CreationTime)} desc";
+        accountQuery = accountQuery.OrderBy(sorting);
 
         var totalCount = await asyncExecuter.CountAsync(accountQuery, cancellationToken);
         var accounts = await asyncExecuter.ToListAsync(accountQuery

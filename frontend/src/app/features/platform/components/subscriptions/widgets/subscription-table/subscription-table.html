@@ -4,27 +4,25 @@
     [loading]="loading()" [first]="first" [rows]="rows" [paginator]="true" [rowHover]="true"
     [rowsPerPageOptions]="[10, 20, 50, 100]" [showCurrentPageReport]="true"
     currentPageReportTemplate="共 {totalRecords} 条" [showJumpToPageInput]="true" paginatorDropdownAppendTo="body"
-    styleClass="w-full" responsiveLayout="scroll" [breakpoint]="'960px'">
+    styleClass="w-full" responsiveLayout="scroll" [breakpoint]="'960px'"
+    [sortField]="sortField()" [sortOrder]="sortOrder()">
     <ng-template pTemplate="header">
       <tr class="bg-surface-50 dark:bg-surface-800 text-muted-color text-xs uppercase font-medium backdrop-blur-sm">
-        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3">名称
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3" pSortableColumn="name">
+          <div class="flex items-center gap-1">名称 <p-sortIcon field="name"></p-sortIcon></div>
         </th>
-        <th
-          class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden md:table-cell">
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden md:table-cell">
           密钥掩码</th>
-        <th
-          class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden lg:table-cell">
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden lg:table-cell">
           关联分组</th>
-        <th
-          class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden xl:table-cell">
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden xl:table-cell">
           使用统计</th>
         <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3">状态
           & 有效期</th>
-        <th
-          class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden 2xl:table-cell">
-          创建时间</th>
-        <th
-          class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 text-right">
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden 2xl:table-cell" pSortableColumn="creationTime">
+          <div class="flex items-center gap-1">创建时间 <p-sortIcon field="creationTime"></p-sortIcon></div>
+        </th>
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 text-right">
           操作</th>
       </tr>
     </ng-template>

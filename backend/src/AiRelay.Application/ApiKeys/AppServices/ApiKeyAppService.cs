@@ -119,6 +119,7 @@ public class ApiKeyAppService(
             input.IsActive,
             input.Offset,
             input.Limit,
+            input.Sorting,
             cancellationToken);
 
         if (apiKeys.Count == 0)

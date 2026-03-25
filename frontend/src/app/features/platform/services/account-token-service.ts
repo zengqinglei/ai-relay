@@ -32,6 +32,7 @@ export class AccountTokenService {
     if (params?.isActive !== undefined) httpParams = httpParams.set('isActive', params.isActive.toString());
     if (params?.offset !== undefined) httpParams = httpParams.set('offset', params.offset.toString());
     if (params?.limit !== undefined) httpParams = httpParams.set('limit', params.limit.toString());
+    if (params?.sorting) httpParams = httpParams.set('sorting', params.sorting);
 
     return this.http.get<PagedResultDto<AccountTokenOutputDto>>(this.baseUrl, { params: httpParams });
   }

@@ -1,3 +1,4 @@
+using System.Linq.Dynamic.Core;
 using AiRelay.Domain.ApiKeys.Entities;
 using AiRelay.Domain.ApiKeys.Repositories;
 using Leistd.Ddd.Infrastructure.Persistence.Repositories;
@@ -26,6 +27,7 @@ public class ApiKeyRepository(
         bool? isActive,
         int offset,
         int limit,
+        string? sorting = null,
         CancellationToken cancellationToken = default)
     {
         var dbSet = await GetDbSetAsync(cancellationToken);
@@ -46,8 +48,12 @@ public class ApiKeyRepository(
 
         var totalCount = await query.LongCountAsync(cancellationToken);
 
+        var sortExpression = string.IsNullOrWhiteSpace(sorting)
+            ? $"{nameof(ApiKey.CreationTime)} desc"
+            : sorting;
+
         var items = await query
-            .OrderByDescending(k => k.CreationTime)
+            .OrderBy(sortExpression)
             .Skip(offset)
             .Take(limit)
             .ToListAsync(cancellationToken);

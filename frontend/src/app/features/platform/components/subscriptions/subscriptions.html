@@ -9,7 +9,9 @@
       <div class="flex flex-col sm:flex-row flex-1 gap-3 items-stretch sm:items-center">
         <p-select
           [options]="statusOptions"
-          [(ngModel)]="selectedStatus"
+          [ngModel]="selectedStatus()"
+          (ngModelChange)="selectedStatus.set($event)"
+          (onChange)="onStatusChange()"
           optionLabel="label"
           optionValue="value"
           placeholder="全部状态"
@@ -20,17 +22,17 @@
 
         <p-iconfield class="w-full sm:flex-1 sm:max-w-xs">
           <p-inputicon class="pi pi-search" />
-          <input pInputText type="text" placeholder="搜索名称..." [(ngModel)]="searchQuery" class="w-full" />
+          <input pInputText type="text" placeholder="搜索名称..." [ngModel]="searchQuery()" (ngModelChange)="onSearchQueryChange($event)" class="w-full" />
         </p-iconfield>
       </div>
 
       <div class="flex gap-3 items-center justify-end shrink-0">
         <p-button
-          icon="pi pi-search"
-          label="查询"
+          icon="pi pi-refresh"
+          label="刷新"
           (onClick)="onFilter()"
           styleClass="w-full sm:w-auto"
-          pTooltip="查询"
+          pTooltip="刷新"
           tooltipPosition="top"
         >
         </p-button>

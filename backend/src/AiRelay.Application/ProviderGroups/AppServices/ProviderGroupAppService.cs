@@ -1,3 +1,4 @@
+using System.Linq.Dynamic.Core;
 using AiRelay.Application.ProviderGroups.Dtos;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.ProviderGroups.DomainServices;
@@ -108,15 +109,16 @@ public class ProviderGroupAppService(
         var query = await providerGroupRepository.GetQueryableAsync(cancellationToken);
 
         // 名称模糊搜索
-        if (!string.IsNullOrWhiteSpace(input.Name))
-            query = query.Where(g => g.Name.Contains(input.Name));
+        if (!string.IsNullOrWhiteSpace(input.Keyword))
+            query = query.Where(g => g.Name.Contains(input.Keyword));
 
         // 平台筛选
         if (input.Platform.HasValue)
             query = query.Where(g => g.Platform == input.Platform.Value);
 
-        // 默认按创建时间倒序
-        query = query.OrderByDescending(g => g.CreationTime);
+        // 动态排序
+        var sorting = input.Sorting ?? $"{nameof(ProviderGroup.CreationTime)} desc";
+        query = query.OrderBy(sorting);
 
         var totalCount = await asyncExecuter.CountAsync(query, cancellationToken);
         var providerGroups = await asyncExecuter.ToListAsync(query

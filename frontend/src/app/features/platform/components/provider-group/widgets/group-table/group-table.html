@@ -4,7 +4,9 @@
     <!-- Filters -->
     <p-select
       [options]="platformOptions"
-      [(ngModel)]="selectedPlatform"
+      [ngModel]="selectedPlatform()"
+      (ngModelChange)="selectedPlatform.set($event)"
+      (onChange)="onSelectChange()"
       optionLabel="label"
       optionValue="value"
       placeholder="全部平台"
@@ -16,17 +18,17 @@
     <!-- Search -->
     <p-iconfield class="w-full sm:flex-1 sm:max-w-xs">
       <p-inputicon class="pi pi-search" />
-      <input pInputText type="text" placeholder="搜索分组名称..." [(ngModel)]="searchQuery" class="w-full" />
+      <input pInputText type="text" placeholder="搜索分组名称..." [ngModel]="searchQuery()" (ngModelChange)="onSearchQueryChange($event)" class="w-full" />
     </p-iconfield>
   </div>
 
   <div class="flex gap-3 items-center justify-end shrink-0">
     <p-button
-      icon="pi pi-search"
-      label="查询"
+      icon="pi pi-refresh"
+      label="刷新"
       (onClick)="onFilter()"
       styleClass="w-full sm:w-auto"
-      pTooltip="查询"
+      pTooltip="刷新"
       tooltipPosition="top"
     >
     </p-button>
@@ -57,29 +59,27 @@
     styleClass="w-full"
     responsiveLayout="scroll"
     [breakpoint]="'960px'"
+    [sortField]="sortField()"
+    [sortOrder]="sortOrder()"
   >
     <ng-template pTemplate="header">
       <tr class="bg-surface-50 dark:bg-surface-800 text-muted-color text-xs uppercase font-medium backdrop-blur-sm">
         <th style="width: 3rem" class="!bg-transparent !border-b !border-surface-200 dark:!border-surface-700"></th>
-        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3">分组信息</th>
-        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden md:table-cell"
-          >平台类型</th
-        >
-        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden lg:table-cell"
-          >费率倍数</th
-        >
-        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden xl:table-cell"
-          >调度策略</th
-        >
-        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden xl:table-cell"
-          >账号数</th
-        >
-        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden 2xl:table-cell"
-          >粘性会话</th
-        >
-        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden 2xl:table-cell"
-          >创建时间</th
-        >
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3" pSortableColumn="name">
+          <div class="flex items-center gap-1">分组信息 <p-sortIcon field="name"></p-sortIcon></div>
+        </th>
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden md:table-cell" pSortableColumn="platform">
+          <div class="flex items-center gap-1">平台类型 <p-sortIcon field="platform"></p-sortIcon></div>
+        </th>
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden lg:table-cell" pSortableColumn="rateMultiplier">
+          <div class="flex items-center gap-1">费率倍数 <p-sortIcon field="rateMultiplier"></p-sortIcon></div>
+        </th>
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden xl:table-cell">调度策略</th>
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden xl:table-cell">账号数</th>
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden 2xl:table-cell">粘性会话</th>
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden 2xl:table-cell" pSortableColumn="creationTime">
+          <div class="flex items-center gap-1">创建时间 <p-sortIcon field="creationTime"></p-sortIcon></div>
+        </th>
         <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 text-right">操作</th>
       </tr>
     </ng-template>

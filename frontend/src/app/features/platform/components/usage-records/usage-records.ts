@@ -1,6 +1,9 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { Subject } from 'rxjs';
+import { debounceTime, finalize } from 'rxjs/operators';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
 import { IconFieldModule } from 'primeng/iconfield';
@@ -11,8 +14,6 @@ import { SelectModule } from 'primeng/select';
 import { TableLazyLoadEvent, TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
-import { finalize } from 'rxjs/operators';
-
 import { UsageRecordDetailDialog } from './usage-record-detail-dialog';
 import { LayoutService } from '../../../../layout/services/layout-service';
 import { PROVIDER_PLATFORM_LABELS } from '../../../../shared/constants/provider-platform.constants';
@@ -52,6 +53,8 @@ export class UsageRecords implements OnInit {
   private readonly usageRecordService = inject(UsageRecordService);
   private readonly providerGroupService = inject(ProviderGroupService);
   private readonly layoutService = inject(LayoutService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly textFilterSubject = new Subject<void>();
 
   // Data Signals
   records = signal<UsageRecordOutputDto[]>([]);
@@ -88,6 +91,22 @@ export class UsageRecords implements OnInit {
   ngOnInit() {
     this.layoutService.title.set('使用记录');
     this.loadFilterOptions();
+    this.textFilterSubject.pipe(
+      debounceTime(300),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(() => {
+      this.first.set(0);
+      this.loadData();
+    });
+  }
+
+  onTextFilterChange() {
+    this.textFilterSubject.next();
+  }
+
+  onSelectFilterChange() {
+    this.first.set(0);
+    this.loadData();
   }
 
   loadFilterOptions() {
