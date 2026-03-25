@@ -6,6 +6,7 @@ import { DialogModule } from 'primeng/dialog';
 import { DividerModule } from 'primeng/divider';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
@@ -39,6 +40,7 @@ import { AccountTokenService } from '../../../../services/account-token-service'
     InputNumberModule,
     TextareaModule,
     SelectModule,
+    MultiSelectModule,
     ToggleSwitchModule,
     TableModule,
     DividerModule,
@@ -52,6 +54,7 @@ export class GroupEditDialogComponent {
   @Input() visible = false;
   @Input() loading = false; // Loading for fetching group details
   @Input() saving = false; // Loading for saving operation
+  @Input() readonly = false; // Permission: read-only mode disables all controls
   @Input() set group(value: ProviderGroupOutputDto | null) {
     if (value) {
       this.isEditMode.set(true);
@@ -73,7 +76,12 @@ export class GroupEditDialogComponent {
 
   // Available accounts for selection (filtered by platform)
   availableAccounts = signal<AccountTokenOutputDto[]>([]);
-  selectedAccountToAdd = '';
+  selectedAccountsToAdd: string[] = [];
+
+  // Accounts not yet added to the group (excludes already-added ones)
+  unaddedAccounts = computed(() =>
+    this.availableAccounts().filter(a => !this.isAccountAdded(a.id))
+  );
 
   platformOptions = PROVIDER_PLATFORM_OPTIONS;
 
@@ -147,13 +155,14 @@ export class GroupEditDialogComponent {
     // the setter won't trigger a reset.
     this.formModel.set(this.createEmptyGroup());
     this.isEditMode.set(false);
-    this.selectedAccountToAdd = '';
+    this.selectedAccountsToAdd = [];
     this.availableAccounts.set([]);
   }
 
   onPlatformChange() {
-    // Platform changed, clear accounts and reload available
+    // Platform changed, clear accounts and multiselect selection
     this.formModel.update(m => ({ ...m, accounts: [] }));
+    this.selectedAccountsToAdd = [];
 
     // 如果当前策略是 QuotaPriority，但新平台不支持，则重置为默认策略
     const currentStrategy = this.formModel().schedulingStrategy;
@@ -188,24 +197,22 @@ export class GroupEditDialogComponent {
   }
 
   addAccount() {
-    if (!this.selectedAccountToAdd) return;
+    if (!this.selectedAccountsToAdd.length) return;
 
-    const acc = this.availableAccounts().find(a => a.id === this.selectedAccountToAdd);
-    if (acc) {
-      this.formModel.update(m => ({
-        ...m,
-        accounts: [
-          ...m.accounts,
-          {
-            accountTokenId: acc.id,
-            accountTokenName: acc.name, // For display
-            weight: 1,
-            priority: 0
-          }
-        ]
+    const newAccounts = this.selectedAccountsToAdd
+      .map(id => this.availableAccounts().find(a => a.id === id))
+      .filter((acc): acc is AccountTokenOutputDto => !!acc && !this.isAccountAdded(acc.id))
+      .map(acc => ({
+        accountTokenId: acc.id,
+        accountTokenName: acc.name,
+        weight: 1,
+        priority: 0
       }));
-      this.selectedAccountToAdd = '';
+
+    if (newAccounts.length) {
+      this.formModel.update(m => ({ ...m, accounts: [...m.accounts, ...newAccounts] }));
     }
+    this.selectedAccountsToAdd = [];
   }
 
   removeAccount(index: number) {

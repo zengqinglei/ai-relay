@@ -26,7 +26,7 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="flex flex-col gap-2">
           <label class="font-bold">分组名称</label>
-          <input pInputText [(ngModel)]="formModel().name" placeholder="请输入分组名称" />
+          <input pInputText [(ngModel)]="formModel().name" placeholder="请输入分组名称" [disabled]="readonly" />
         </div>
 
         <div class="flex flex-col gap-2">
@@ -36,7 +36,7 @@
             [(ngModel)]="formModel().platform"
             optionLabel="label"
             optionValue="value"
-            [disabled]="isEditMode()"
+            [disabled]="isEditMode() || readonly"
             (onChange)="onPlatformChange()"
             placeholder="选择平台"
             appendTo="body"
@@ -58,6 +58,7 @@
             buttonLayout="horizontal"
             inputStyleClass="text-center font-mono"
             suffix=" x"
+            [disabled]="readonly"
           >
             <ng-template pTemplate="incrementbuttonicon">
               <span class="pi pi-plus"></span>
@@ -87,6 +88,7 @@
             optionValue="value"
             appendTo="body"
             [fluid]="true"
+            [disabled]="readonly"
           >
             <!-- 自定义选项模板，每个选项也有提示 -->
             <ng-template pTemplate="item" let-option>
@@ -109,7 +111,7 @@
           <label class="font-bold">粘性会话</label>
           <div class="flex items-center gap-4 h-10 flex-wrap">
             <div class="flex items-center gap-2 whitespace-nowrap">
-              <p-toggleswitch [(ngModel)]="formModel().enableStickySession" />
+              <p-toggleswitch [(ngModel)]="formModel().enableStickySession" [disabled]="readonly" />
               <span class="text-sm text-gray-500">{{ formModel().enableStickySession ? '已开启' : '已关闭' }}</span>
             </div>
 
@@ -124,6 +126,7 @@
                   buttonLayout="horizontal"
                   inputStyleClass="w-16 text-center !py-1"
                   class="h-8"
+                  [disabled]="readonly"
                 >
                   <ng-template pTemplate="incrementbuttonicon">
                     <span class="pi pi-plus text-xs"></span>
@@ -149,7 +152,7 @@
               ></i>
             </label>
             <div class="flex items-center gap-4 h-10 flex-wrap">
-              <p-toggleswitch [(ngModel)]="formModel().allowOfficialClientMimic" />
+              <p-toggleswitch [(ngModel)]="formModel().allowOfficialClientMimic" [disabled]="readonly" />
               <span class="text-sm text-gray-500">{{ formModel().allowOfficialClientMimic ? '已开启' : '已关闭' }}</span>
             </div>
           </div>
@@ -157,7 +160,7 @@
 
         <div class="flex flex-col gap-2 md:col-span-2">
           <label class="font-bold">描述</label>
-          <textarea pTextarea [(ngModel)]="formModel().description" rows="2" class="w-full"></textarea>
+          <textarea pTextarea [(ngModel)]="formModel().description" rows="2" class="w-full" [disabled]="readonly"></textarea>
         </div>
       </div>
 
@@ -172,42 +175,32 @@
             当前关联账号: <span class="font-bold text-blue-600">{{ formModel().accounts.length }}</span>
           </span>
 
-          <div class="flex gap-2">
-            <p-select
-              [options]="availableAccounts()"
-              [(ngModel)]="selectedAccountToAdd"
-              optionLabel="name"
-              optionValue="id"
-              placeholder="选择要添加的账号"
-              class="w-60"
-              [filter]="true"
-              filterBy="name"
-              [disabled]="!formModel().platform"
-              appendTo="body"
-            >
-              <ng-template pTemplate="selectedItem" let-selectedOption>
-                @if (selectedOption) {
-                  <div class="flex items-center gap-2">
-                    <div>{{ selectedOption.name }}</div>
-                  </div>
-                }
-              </ng-template>
-              <ng-template let-account pTemplate="item">
-                <div class="flex items-center gap-2">
-                  <div>{{ account.name }}</div>
-                  @if (isAccountAdded(account.id)) {
-                    <span class="text-xs text-gray-400 ml-auto">已添加</span>
-                  }
-                </div>
-              </ng-template>
-            </p-select>
-            <p-button
-              label="添加"
-              icon="pi pi-plus"
-              [disabled]="!selectedAccountToAdd || isAccountAdded(selectedAccountToAdd)"
-              (onClick)="addAccount()"
-            />
-          </div>
+          @if (!readonly) {
+            <div class="flex gap-2 items-center">
+              <p-multiselect
+                [options]="unaddedAccounts()"
+                [(ngModel)]="selectedAccountsToAdd"
+                optionLabel="name"
+                optionValue="id"
+                placeholder="选择要添加的账号"
+                display="chip"
+                [filter]="true"
+                filterBy="name"
+                [disabled]="!formModel().platform"
+                appendTo="body"
+                [panelStyle]="{'width': '18rem'}"
+                [maxSelectedLabels]="3"
+                selectedItemsLabel="{0} 个账号已选"
+                class="w-72"
+              />
+              <p-button
+                label="添加"
+                icon="pi pi-plus"
+                [disabled]="!selectedAccountsToAdd.length"
+                (onClick)="addAccount()"
+              />
+            </div>
+          }
         </div>
 
         <p-table [value]="formModel().accounts" styleClass="p-datatable-sm" [scrollable]="true" scrollHeight="300px">
@@ -240,6 +233,7 @@
                     [step]="1"
                     inputStyleClass="w-16 text-center"
                     class="w-full"
+                    [disabled]="readonly"
                   >
                     <ng-template pTemplate="incrementbuttonicon">
                       <span class="pi pi-plus"></span>
@@ -257,6 +251,7 @@
                     buttonLayout="horizontal"
                     inputStyleClass="w-16 text-center"
                     class="w-full"
+                    [disabled]="readonly"
                   >
                     <ng-template pTemplate="incrementbuttonicon">
                       <span class="pi pi-plus"></span>
@@ -270,7 +265,7 @@
                 }
               </td>
               <td class="text-center">
-                <p-button icon="pi pi-trash" [text]="true" severity="danger" (onClick)="removeAccount(i)" />
+                <p-button icon="pi pi-trash" [text]="true" severity="danger" (onClick)="removeAccount(i)" [disabled]="readonly" />
               </td>
             </tr>
           </ng-template>
@@ -286,6 +281,8 @@
 
   <ng-template pTemplate="footer">
     <p-button label="取消" [text]="true" severity="secondary" (onClick)="visible = false" [disabled]="saving" />
-    <p-button label="保存" icon="pi pi-check" (onClick)="save()" [disabled]="!isValid() || saving" [loading]="saving" />
+    @if (!readonly) {
+      <p-button label="保存" icon="pi pi-check" (onClick)="save()" [disabled]="!isValid() || saving" [loading]="saving" />
+    }
   </ng-template>
 </p-dialog>
