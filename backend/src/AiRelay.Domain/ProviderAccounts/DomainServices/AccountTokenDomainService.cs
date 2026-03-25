@@ -23,6 +23,7 @@ public class AccountTokenDomainService(
     IRepository<AccountToken, Guid> accountTokenRepository,
     ILock distributedLock,
     IDistributedCache cache,
+    IModelProvider modelProvider,
     ILogger<AccountTokenDomainService> logger)
 {
     private static readonly TimeSpan RefreshLockTimeout = TimeSpan.FromSeconds(30);
@@ -170,16 +171,49 @@ public class AccountTokenDomainService(
 
     /// <summary>
     /// 判断账户是否支持指定模型（选号热路径）
-    /// 仅校验白名单，无白名单则不校验
+    /// 有白名单则校验白名单；无白名单则用上游模型列表（带缓存）与 baseline 取交集后校验
     /// </summary>
-    public bool IsModelSupported(AccountToken account, string requestedModel)
+    public async Task<bool> IsModelSupportedAsync(AccountToken account, string requestedModel, CancellationToken ct = default)
     {
         var whitelist = account.ModelWhites;
-        if (whitelist == null || whitelist.Count == 0) return true;
+        if (whitelist != null && whitelist.Count > 0)
+        {
+            if (whitelist.Contains(requestedModel, StringComparer.OrdinalIgnoreCase)) return true;
+            return whitelist.Where(k => k.EndsWith('*'))
+                .Any(k => requestedModel.StartsWith(k[..^1], StringComparison.OrdinalIgnoreCase));
+        }
 
-        if (whitelist.Contains(requestedModel, StringComparer.OrdinalIgnoreCase)) return true;
-        return whitelist.Where(k => k.EndsWith('*'))
-            .Any(k => requestedModel.StartsWith(k[..^1], StringComparison.OrdinalIgnoreCase));
+        // 无白名单：用上游模型列表（带缓存）与 baseline 取交集后校验
+        var baselineModels = modelProvider.GetAvailableModels(account.Platform);
+        if (baselineModels == null || baselineModels.Count == 0) return true;
+
+        IReadOnlyList<string>? upstreamModelIds = null;
+        try
+        {
+            upstreamModelIds = await FetchAndCacheUpstreamModelsAsync(account, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "IsModelSupportedAsync 上游模型拉取失败，降级用 baseline: AccountId={AccountId}", account.Id);
+        }
+
+        IEnumerable<string> effectiveModels;
+        if (upstreamModelIds != null && upstreamModelIds.Count > 0)
+        {
+            var upstreamSet = upstreamModelIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            effectiveModels = baselineModels.Where(m => !m.Value.Contains('*') && upstreamSet.Contains(m.Value)).Select(m => m.Value);
+        }
+        else
+        {
+            effectiveModels = baselineModels.Where(m => !m.Value.Contains('*')).Select(m => m.Value);
+        }
+
+        var effectiveList = effectiveModels.ToList();
+        if (effectiveList.Count == 0) return true;
+
+        if (effectiveList.Any(v => v.Equals(requestedModel, StringComparison.OrdinalIgnoreCase))) return true;
+        return baselineModels.Where(m => m.Value.EndsWith('*'))
+            .Any(m => requestedModel.StartsWith(m.Value[..^1], StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

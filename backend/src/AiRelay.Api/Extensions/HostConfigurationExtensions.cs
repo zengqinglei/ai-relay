@@ -1,5 +1,4 @@
 using Leistd.Tracing.AspNetCore;
-using Leistd.Tracing.HttpClient;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Serilog;

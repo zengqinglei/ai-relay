@@ -38,20 +38,23 @@
       <!-- Top Row: Model Select + Button -->
       <div class="flex items-end gap-3">
         <div class="flex-1">
-          <label class="block text-xs font-medium text-muted-color mb-1.5">选择模型</label>
+          <label class="block text-xs font-medium text-muted-color mb-1.5">
+            选择模型
+            <span class="text-[10px] opacity-60 ml-1 font-normal">可下拉选择或直接输入</span>
+          </label>
           <p-select
             [options]="modelOptions()"
             [ngModel]="selectedModel()"
             (ngModelChange)="selectedModel.set($event)"
             optionLabel="label"
             optionValue="value"
+            [editable]="true"
             [fluid]="true"
             [loading]="loading()"
             [disabled]="loading()"
             appendTo="body"
-            [placeholder]="loading() ? '正在加载模型列表...' : '请选择一个模型'"
-          >
-          </p-select>
+            [placeholder]="loading() ? '正在加载模型列表...' : '选择或输入模型名称'"
+          />
         </div>
 
         <p-button label="开始测试" icon="pi pi-play" (onClick)="startTest()" [loading]="testing()" [disabled]="loading() || testing()" severity="primary"> </p-button>

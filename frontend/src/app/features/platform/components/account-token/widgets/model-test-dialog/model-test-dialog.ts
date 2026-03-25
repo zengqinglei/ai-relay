@@ -70,7 +70,7 @@ export class ModelTestDialog {
   dialogConfig = DIALOG_CONFIGS.MEDIUM;
 
   // Test State
-  selectedModel = signal('');
+  selectedModel = signal<string | null>(null);
   systemPrompt = signal('你好，当前使用的是什么模型？');
   errorMessage = signal('');
   systemMessages = signal<string[]>([]);
@@ -89,7 +89,7 @@ export class ModelTestDialog {
     this.modelLoadError.set('');
     this.systemMessages.set([]);
     this.testing.set(false);
-    this.selectedModel.set(''); // 🆕 清空选中的模型
+    this.selectedModel.set(null); // 清空选中的模型
     this.modelOptions.set([]); // 🆕 清空模型列表
     this.systemPrompt.set('你好，当前使用的是什么模型？');
     this.visible.set(true);
@@ -124,7 +124,7 @@ export class ModelTestDialog {
     this.systemMessages.set([]);
 
     const input: ChatMessageInputDto = {
-      modelId: this.selectedModel(),
+      modelId: this.selectedModel() ?? '',
       message: this.systemPrompt()
     };
 

@@ -10,7 +10,6 @@ using AiRelay.Domain.ProviderGroups.DomainServices.SchedulingStrategy.AccountCon
 using AiRelay.Domain.ProviderGroups.ValueObjects;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Handler;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.RequestParsing;
 using AiRelay.Domain.UsageRecords.Options;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.StreamProcessor;
 using Leistd.Exception.Core;

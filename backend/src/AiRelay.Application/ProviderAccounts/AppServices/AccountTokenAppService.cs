@@ -159,14 +159,16 @@ public class AccountTokenAppService(
             var whitelist = accountToken.ModelWhites;
             if (whitelist != null && whitelist.Count > 0)
             {
-                // 白名单模式：直接返回白名单项，用基准模型补齐显示名称
+                // 白名单模式：过滤通配符项，用基准模型补齐显示名称
                 var baselineDict = baselineModels.ToDictionary(m => m.Value, StringComparer.OrdinalIgnoreCase);
-                var result = whitelist.Select(modelId =>
-                {
-                    if (baselineDict.TryGetValue(modelId, out var baseline))
-                        return baseline;
-                    return new ModelOption(modelId, modelId);
-                }).ToList();
+                var result = whitelist
+                    .Where(modelId => !modelId.Contains('*'))
+                    .Select(modelId =>
+                    {
+                        if (baselineDict.TryGetValue(modelId, out var baseline))
+                            return baseline;
+                        return new ModelOption(modelId, modelId);
+                    }).ToList();
                 return objectMapper.Map<IReadOnlyList<ModelOption>, IReadOnlyList<ModelOptionOutputDto>>(result);
             }
         }
@@ -187,17 +189,17 @@ public class AccountTokenAppService(
             }
         }
 
-        // 4. 以基准模型过滤上游模型（保持基准顺序）
+        // 4. 以基准模型过滤上游模型（保持基准顺序），排除通配符项
         IReadOnlyList<ModelOption> finalModels;
         if (upstreamModelIds != null && upstreamModelIds.Count > 0)
         {
             var upstreamIds = upstreamModelIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
-            finalModels = baselineModels.Where(m => upstreamIds.Contains(m.Value)).ToList();
+            finalModels = baselineModels.Where(m => !m.Value.Contains('*') && upstreamIds.Contains(m.Value)).ToList();
         }
         else
         {
-            // 5. 降级使用静态基准模型
-            finalModels = baselineModels;
+            // 5. 降级使用静态基准模型，排除通配符项
+            finalModels = baselineModels.Where(m => !m.Value.Contains('*')).ToList();
         }
 
         return objectMapper.Map<IReadOnlyList<ModelOption>, IReadOnlyList<ModelOptionOutputDto>>(finalModels);

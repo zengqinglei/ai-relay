@@ -275,7 +275,7 @@ public class ProviderGroupDomainService(
         var rateLimitedIds = rateLimitTask.Result;
 
         // 5. 一次性过滤：排除列表 + 可用性 + 限流 + 并发控制
-        var excludedIdSet = excludedIds?.ToHashSet() ?? new HashSet<Guid>();
+        var excludedIdSet = excludedIds?.ToHashSet() ?? [];
         var availableRelations = new List<ProviderGroupAccountRelation>();
 
         foreach (var relation in relations)
@@ -309,7 +309,7 @@ public class ProviderGroupDomainService(
             // 过滤5：模型支持检查
             if (!string.IsNullOrEmpty(requestedModel))
             {
-                var isSupported = accountTokenDomainService.IsModelSupported(account, requestedModel);
+                var isSupported = await accountTokenDomainService.IsModelSupportedAsync(account, requestedModel);
                 if (!isSupported)
                 {
                     logger.LogDebug("账号 {AccountId} 不支持模型 {Model}，跳过", relation.AccountTokenId, requestedModel);

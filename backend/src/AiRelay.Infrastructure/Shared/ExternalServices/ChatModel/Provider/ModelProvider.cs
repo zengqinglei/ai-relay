@@ -145,7 +145,7 @@ public sealed class ModelProvider(ILogger<ModelProvider> logger) : IModelProvide
         ["gemini-3-pro"] = "gemini-3-pro-high",
         ["gemini-3-flash-preview"] = "gemini-3-flash",
         ["gemini-3-pro-preview"] = "gemini-3-pro-high",
-        ["gemini-3-pro-image"] = "gemini-3.1-flash-image", // 迁移到 3.1
+        ["gemini-3-pro-image"] = "gemini-3.1-flash-image",
         ["gemini-3-pro-image-preview"] = "gemini-3.1-flash-image",
 
         // Gemini 2.5 系列

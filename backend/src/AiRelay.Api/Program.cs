@@ -214,6 +214,7 @@ try
     // 添加静态文件支持，用于托管前端应用
     app.UseDefaultFiles();
     app.UseStaticFiles();
+    app.UseSerilogRequestLogging();
 
     app.MapControllers();
 
