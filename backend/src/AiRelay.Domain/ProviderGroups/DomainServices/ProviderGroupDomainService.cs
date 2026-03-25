@@ -24,6 +24,7 @@ public class ProviderGroupDomainService(
     IRepository<AccountToken, Guid> accountTokenRepository,
     IRepository<ApiKeyProviderGroupBinding, Guid> apiKeyProviderGroupBindingRepository,
     AccountUsageCacheDomainService usageCacheDomainService,
+    AccountTokenDomainService accountTokenDomainService,
     GroupSchedulingStrategyFactory groupSchedulingStrategyFactory,
     AccountRateLimitDomainService accountRateLimitDomainService,
     IConcurrencyStrategy concurrencyStrategy,
@@ -207,7 +208,8 @@ public class ProviderGroupDomainService(
         string? apiKeyName,
         ProviderPlatform platform,
         string? sessionHash = null,
-        IEnumerable<Guid>? excludedIds = null)
+        IEnumerable<Guid>? excludedIds = null,
+        string? requestedModel = null)
     {
         // 1. 获取分组信息
         var group = await providerGroupRepository.GetByIdAsync(groupId);
@@ -302,6 +304,17 @@ public class ProviderGroupDomainService(
                 logger.LogDebug("账号 {AccountId} 已满载 ({Current}/{Max})，跳过",
                     relation.AccountTokenId, currentConcurrency, account.MaxConcurrency);
                 continue;
+            }
+
+            // 过滤5：模型支持检查
+            if (!string.IsNullOrEmpty(requestedModel))
+            {
+                var isSupported = accountTokenDomainService.IsModelSupported(account, requestedModel);
+                if (!isSupported)
+                {
+                    logger.LogDebug("账号 {AccountId} 不支持模型 {Model}，跳过", relation.AccountTokenId, requestedModel);
+                    continue;
+                }
             }
 
             availableRelations.Add(relation);

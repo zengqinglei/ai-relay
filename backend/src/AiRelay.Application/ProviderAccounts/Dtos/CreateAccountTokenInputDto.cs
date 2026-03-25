@@ -68,4 +68,14 @@ public class CreateAccountTokenInputDto
     [Display(Name = "最大并发数")]
     [Range(0, 1000, ErrorMessage = "{0}必须在 {1}-{2} 之间")]
     public int MaxConcurrency { get; init; } = 10;
+
+    /// <summary>
+    /// 模型白名单
+    /// </summary>
+    public List<string>? ModelWhites { get; init; }
+
+    /// <summary>
+    /// 模型映射规则
+    /// </summary>
+    public Dictionary<string, string>? ModelMapping { get; init; }
 }

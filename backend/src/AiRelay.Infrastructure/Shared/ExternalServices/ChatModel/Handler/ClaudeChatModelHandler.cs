@@ -48,7 +48,7 @@ public class ClaudeChatModelHandler(
             {
                 Method = HttpMethod.Get,
                 RelativePath = "/v1/models",
-                Headers = new Dictionary<string, string>()
+                Headers = []
             };
 
             // 2. 通过 Processor 链处理（复用 Header 处理逻辑）
@@ -126,7 +126,7 @@ public class ClaudeChatModelHandler(
         DownRequestContext down, int degradationLevel)
     {
         return [
-            new ClaudeModelIdMappingProcessor(modelProvider),
+            new ClaudeModelIdMappingProcessor(modelProvider, Options),
             new ClaudeUrlProcessor(Options),
             new ClaudeHeaderProcessor(Options, clientDetector),
             new ClaudeRequestBodyProcessor(
@@ -136,7 +136,7 @@ public class ClaudeChatModelHandler(
                 claudeSystemPromptInjector,
                 clientDetector),
             new ClaudeMetadataInjectProcessor(Options, fingerprintDomainService),
-            new ClaudeDegradationProcessor(degradationLevel, claudeThinkingCleaner, logger)
+            new ClaudeDegradationProcessor(degradationLevel, claudeThinkingCleaner, Logger)
         ];
     }
 
@@ -251,7 +251,7 @@ public class ClaudeChatModelHandler(
     {
         if (statusCode == 400 && ClaudeThinkingCleaner.IsThinkingBlockSignatureError(responseBody))
         {
-            logger.LogWarning("检测到 Claude thinking 签名错误，建议降级重试");
+            Logger.LogWarning("检测到 Claude thinking 签名错误，建议降级重试");
             return Task.FromResult(new ModelErrorAnalysisResult
             {
                 ErrorType = ModelErrorType.SignatureError,

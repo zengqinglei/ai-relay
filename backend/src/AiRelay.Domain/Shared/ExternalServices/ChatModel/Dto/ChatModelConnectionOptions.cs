@@ -22,4 +22,14 @@ public record ChatModelConnectionOptions(
     /// 额外属性（存储平台特定元数据，如 chatgpt_account_id, project_id）
     /// </summary>
     public Dictionary<string, string> ExtraProperties { get; init; } = new();
+
+    /// <summary>
+    /// 模型白名单（限制可接受的模型）
+    /// </summary>
+    public List<string>? ModelWhites { get; init; }
+
+    /// <summary>
+    /// 模型映射规则（转换模型名称，支持通配符）
+    /// </summary>
+    public Dictionary<string, string>? ModelMapping { get; init; }
 }

@@ -48,6 +48,16 @@ public class AccountToken : DeletionAuditedEntity<Guid>
     /// </summary>
     public Dictionary<string, string> ExtraProperties { get; private set; } = new();
 
+    /// <summary>
+    /// 模型白名单（限制可接受的模型，为空时支持全部）
+    /// </summary>
+    public List<string>? ModelWhites { get; private set; }
+
+    /// <summary>
+    /// 模型映射规则（转换模型名称，支持通配符）
+    /// </summary>
+    public Dictionary<string, string>? ModelMapping { get; private set; }
+
     public AccountToken(
         ProviderPlatform platform,
         string name,
@@ -57,7 +67,9 @@ public class AccountToken : DeletionAuditedEntity<Guid>
         long? expiresIn = null,
         string? baseUrl = null,
         string? description = null,
-        Dictionary<string, string>? extraProperties = null)
+        Dictionary<string, string>? extraProperties = null,
+        List<string>? modelWhites = null,
+        Dictionary<string, string>? modelMapping = null)
     {
         Id = Guid.CreateVersion7();
         Platform = platform;
@@ -71,6 +83,8 @@ public class AccountToken : DeletionAuditedEntity<Guid>
         {
             ExtraProperties = extraProperties;
         }
+        ModelWhites = modelWhites;
+        ModelMapping = modelMapping;
 
         if (expiresIn.HasValue)
         {
@@ -87,7 +101,8 @@ public class AccountToken : DeletionAuditedEntity<Guid>
 
     public void Enable() => IsActive = true;
 
-    public void Update(string? name, string? baseUrl, string? description, int? maxConcurrency, Dictionary<string, string>? extraProperties = null)
+    public void Update(string? name, string? baseUrl, string? description, int? maxConcurrency, Dictionary<string, string>? extraProperties = null,
+        List<string>? modelWhites = null, Dictionary<string, string>? modelMapping = null, bool clearModelWhites = false, bool clearModelMapping = false)
     {
         if (!string.IsNullOrWhiteSpace(name))
         {
@@ -113,6 +128,16 @@ public class AccountToken : DeletionAuditedEntity<Guid>
         {
             ExtraProperties = extraProperties;
         }
+
+        if (clearModelWhites)
+            ModelWhites = null;
+        else if (modelWhites != null)
+            ModelWhites = modelWhites;
+
+        if (clearModelMapping)
+            ModelMapping = null;
+        else if (modelMapping != null)
+            ModelMapping = modelMapping;
     }
 
     public void UpdateTokens(string accessToken, string? refreshToken, long? expiresIn)

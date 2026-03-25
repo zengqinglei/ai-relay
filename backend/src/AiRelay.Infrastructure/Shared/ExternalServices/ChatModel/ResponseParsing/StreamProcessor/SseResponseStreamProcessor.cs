@@ -49,8 +49,9 @@ public class SseResponseStreamProcessor(
 
             if (!string.IsNullOrEmpty(part.Error))
             {
-                logger.LogWarning("解析错误: {Error}", part.Error);
-                continue;
+                logger.LogWarning("上游返回错误: {Error}", part.Error);
+                yield return new ChatStreamEvent(Error: part.Error);
+                yield break;
             }
 
             if (!string.IsNullOrEmpty(part.Content))

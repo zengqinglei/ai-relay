@@ -65,7 +65,8 @@ public class SmartReverseProxyMiddleware(
                             ApiKeyId = apiKeyId,
                             ApiKeyName = apiKeyName,
                             SessionHash = downContext.SessionHash,
-                            ExcludedAccountIds = excludedAccountIds
+                            ExcludedAccountIds = excludedAccountIds,
+                            ModelId = downContext.ModelId
                         },
                         context.RequestAborted);
 
@@ -123,7 +124,9 @@ public class SmartReverseProxyMiddleware(
                         selectResult.AccountToken.AccessToken,
                         selectResult.AccountToken.BaseUrl,
                         selectResult.AccountToken.ExtraProperties,
-                        selectResult.AllowOfficialClientMimic);
+                        selectResult.AllowOfficialClientMimic,
+                        selectResult.AccountToken.ModelWhites,
+                        selectResult.AccountToken.ModelMapping);
 
                     var upContext = await accountedHandler.ProcessRequestContextAsync(
                         downContext,

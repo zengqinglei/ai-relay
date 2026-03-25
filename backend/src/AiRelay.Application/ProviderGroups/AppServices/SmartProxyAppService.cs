@@ -46,7 +46,8 @@ public class SmartProxyAppService(
             input.ApiKeyName,
             input.Platform,
             input.SessionHash,
-            input.ExcludedAccountIds);
+            input.ExcludedAccountIds,
+            input.ModelId);
 
         if (result == null || result.Value.AccountToken == null)
         {

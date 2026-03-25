@@ -12,4 +12,6 @@ public record AvailableAccountTokenOutputDto
     public string? BaseUrl { get; init; }
     public int MaxConcurrency { get; init; }
     public int CurrentConcurrency { get; init; }
+    public List<string>? ModelWhites { get; init; }
+    public Dictionary<string, string>? ModelMapping { get; init; }
 }

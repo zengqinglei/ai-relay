@@ -2,12 +2,15 @@ using AiRelay.Domain.ProviderAccounts.Entities;
 using AiRelay.Domain.ProviderAccounts.Extensions;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Handler;
+using AiRelay.Domain.Shared.ExternalServices.ChatModel.Provider;
 using AiRelay.Domain.Shared.OAuth.Authorize;
 using Leistd.Ddd.Domain.Repositories;
 using Leistd.Exception.Core;
 using Leistd.Lock.Core;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace AiRelay.Domain.ProviderAccounts.DomainServices;
 
@@ -19,6 +22,7 @@ public class AccountTokenDomainService(
     IChatModelHandlerFactory chatModelHandlerFactory,
     IRepository<AccountToken, Guid> accountTokenRepository,
     ILock distributedLock,
+    IDistributedCache cache,
     ILogger<AccountTokenDomainService> logger)
 {
     private static readonly TimeSpan RefreshLockTimeout = TimeSpan.FromSeconds(30);
@@ -37,6 +41,8 @@ public class AccountTokenDomainService(
         string? baseUrl = null,
         string? description = null,
         int? maxConcurrency = null,
+        List<string>? modelWhites = null,
+        Dictionary<string, string>? modelMapping = null,
         CancellationToken cancellationToken = default)
     {
         var accountToken = new AccountToken(
@@ -48,7 +54,9 @@ public class AccountTokenDomainService(
             expiresIn,
             baseUrl,
             description,
-            extraProperties);
+            extraProperties,
+            modelWhites,
+            modelMapping);
 
         // 1. 刷新 Token (针对 Account 类型)
         if (!accountToken.Platform.IsApiKeyPlatform())
@@ -159,4 +167,128 @@ public class AccountTokenDomainService(
             logger.LogInformation("刷新 Token 成功: {Name}", accountToken.Name);
         }
     }
+
+    /// <summary>
+    /// 判断账户是否支持指定模型（选号热路径）
+    /// 仅校验白名单，无白名单则不校验
+    /// </summary>
+    public bool IsModelSupported(AccountToken account, string requestedModel)
+    {
+        var whitelist = account.ModelWhites;
+        if (whitelist == null || whitelist.Count == 0) return true;
+
+        if (whitelist.Contains(requestedModel, StringComparer.OrdinalIgnoreCase)) return true;
+        return whitelist.Where(k => k.EndsWith('*'))
+            .Any(k => requestedModel.StartsWith(k[..^1], StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// 解析模型映射规则（供 Processor 共用）
+    /// 支持通配符：claude-* 或 claude-*-{version}
+    /// </summary>
+    public static string? ResolveMapping(string model, Dictionary<string, string> mapping)
+    {
+        // 1. 精确匹配
+        if (mapping.TryGetValue(model, out var exact)) return exact;
+
+        // 2. 通配符匹配（最长模式优先）
+        var match = mapping
+            .Where(kv => kv.Key.Contains('*') && IsWildcardMatch(model, kv.Key))
+            .OrderByDescending(kv => kv.Key.Length)
+            .FirstOrDefault();
+
+        if (match.Key == null) return null;
+
+        // 3. value 也以 * 结尾 → 前缀替换
+        if (match.Value.EndsWith('*'))
+        {
+            var suffix = model[(match.Key.Length - 1)..];
+            return match.Value[..^1] + suffix;
+        }
+
+        return match.Value;
+    }
+
+    private static bool IsWildcardMatch(string text, string pattern)
+    {
+        var parts = pattern.Split('*');
+        var pos = 0;
+
+        for (int i = 0; i < parts.Length; i++)
+        {
+            var part = parts[i];
+            if (string.IsNullOrEmpty(part)) continue;
+
+            var idx = text.IndexOf(part, pos, StringComparison.OrdinalIgnoreCase);
+            if (idx < 0) return false;
+
+            // 第一个部分必须从开头匹配
+            if (i == 0 && idx != 0) return false;
+
+            pos = idx + part.Length;
+        }
+
+        // 最后一个部分必须到结尾
+        if (!string.IsNullOrEmpty(parts[^1]) && pos != text.Length) return false;
+
+        return true;
+    }
+
+    private static readonly TimeSpan MinTtl = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan MaxTtl = TimeSpan.FromMinutes(60);
+
+    /// <summary>
+    /// 获取上游模型ID集合（仅读缓存，不触发网络请求）
+    /// </summary>
+    public async Task<HashSet<string>?> GetCachedModelIdsAsync(Guid accountId, CancellationToken ct = default)
+    {
+        var cached = await cache.GetStringAsync(CacheKey(accountId), ct);
+        if (string.IsNullOrEmpty(cached)) return null;
+        var models = JsonSerializer.Deserialize<List<string>>(cached);
+        return models?.ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// 拉取上游模型列表并写入缓存（供 UI 展示调用，允许 IO）
+    /// </summary>
+    public async Task<IReadOnlyList<string>?> FetchAndCacheUpstreamModelsAsync(AccountToken account, CancellationToken ct = default)
+    {
+        try
+        {
+            var handler = chatModelHandlerFactory.CreateHandler(
+                account.Platform,
+                account.AccessToken!,
+                account.BaseUrl,
+                account.ExtraProperties,
+                shouldMimicOfficialClient: true,
+                modelWhites: account.ModelWhites,
+                modelMapping: account.ModelMapping);
+
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(10));
+
+            var upstreamModels = await handler.GetModelsAsync(cts.Token);
+            if (upstreamModels == null || upstreamModels.Count == 0) return null;
+
+            var ids = upstreamModels.Select(m => m.Value).ToList();
+
+            var ttl = MinTtl + TimeSpan.FromMinutes(Random.Shared.NextDouble() * (MaxTtl - MinTtl).TotalMinutes);
+            await cache.SetStringAsync(
+                CacheKey(account.Id),
+                JsonSerializer.Serialize(ids),
+                new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = ttl },
+                ct);
+
+            logger.LogInformation("上游模型缓存写入: AccountId={AccountId}, Count={Count}, TTL={TTL}min",
+                account.Id, ids.Count, (int)ttl.TotalMinutes);
+            return ids;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "上游模型拉取失败: AccountId={AccountId}", account.Id);
+            return null;
+        }
+    }
+
+    private static string CacheKey(Guid accountId) => $"account:upstream-models:{accountId}";
 }

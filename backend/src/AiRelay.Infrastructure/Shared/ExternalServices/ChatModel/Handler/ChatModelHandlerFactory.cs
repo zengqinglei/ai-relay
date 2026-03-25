@@ -28,7 +28,9 @@ public class ChatModelHandlerFactory(IServiceProvider serviceProvider) : IChatMo
         string accessToken,
         string? baseUrl = null,
         Dictionary<string, string>? extraProperties = null,
-        bool shouldMimicOfficialClient = true)
+        bool shouldMimicOfficialClient = true,
+        List<string>? modelWhites = null,
+        Dictionary<string, string>? modelMapping = null)
     {
         var options = new ChatModelConnectionOptions(
             Platform: platform,
@@ -36,7 +38,9 @@ public class ChatModelHandlerFactory(IServiceProvider serviceProvider) : IChatMo
             BaseUrl: baseUrl)
         {
             ShouldMimicOfficialClient = shouldMimicOfficialClient,
-            ExtraProperties = extraProperties ?? new Dictionary<string, string>()
+            ExtraProperties = extraProperties ?? new Dictionary<string, string>(),
+            ModelWhites = modelWhites,
+            ModelMapping = modelMapping
         };
 
         return CreateHandlerWithOptions(platform, options);

@@ -112,7 +112,9 @@ public class AccountTokenAppService(
             accountToken.AccessToken!,
             accountToken.BaseUrl,
             accountToken.ExtraProperties,
-            shouldMimicOfficialClient: true);
+            shouldMimicOfficialClient: true,
+            modelWhites: accountToken.ModelWhites,
+            modelMapping: accountToken.ModelMapping);
 
         var downContext = handler.CreateDebugDownContext(input.ModelId, input.Message);
         var upContext = await handler.ProcessRequestContextAsync(downContext, 0, cancellationToken);
@@ -151,52 +153,46 @@ public class AccountTokenAppService(
                 ?? throw new NotFoundException($"账户不存在: {accountId}");
         }
 
-        IReadOnlyList<ModelOption>? upstreamModels = null;
+        // 2. 检查白名单配置（优先级最高）
+        if (accountToken != null)
+        {
+            var whitelist = accountToken.ModelWhites;
+            if (whitelist != null && whitelist.Count > 0)
+            {
+                // 白名单模式：直接返回白名单项，用基准模型补齐显示名称
+                var baselineDict = baselineModels.ToDictionary(m => m.Value, StringComparer.OrdinalIgnoreCase);
+                var result = whitelist.Select(modelId =>
+                {
+                    if (baselineDict.TryGetValue(modelId, out var baseline))
+                        return baseline;
+                    return new ModelOption(modelId, modelId);
+                }).ToList();
+                return objectMapper.Map<IReadOnlyList<ModelOption>, IReadOnlyList<ModelOptionOutputDto>>(result);
+            }
+        }
+
+        // 3. 无白名单：尝试拉取上游模型（带缓存）
+        IReadOnlyList<string>? upstreamModelIds = null;
         if (accountToken != null)
         {
             try
             {
                 await accountTokenDomainService.RefreshTokenIfNeededAsync(accountToken, cancellationToken);
-                // 2. 创建 Handler
-                var handler = chatModelHandlerFactory.CreateHandler(
-                    accountToken.Platform,
-                    accountToken.AccessToken!,
-                    accountToken.BaseUrl,
-                    accountToken.ExtraProperties,
-                    shouldMimicOfficialClient: true);
-
-                // 3. 拉取上游（10秒超时）
-                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                cts.CancelAfter(TimeSpan.FromSeconds(10));
-
-                upstreamModels = await handler.GetModelsAsync(cts.Token);
-
-                if (upstreamModels != null && upstreamModels.Count > 0)
-                {
-                    logger.LogInformation(
-                        "上游模型拉取成功: AccountId={AccountId}, Platform={Platform}, Count={Count}",
-                        accountId, platform, upstreamModels.Count);
-                }
+                upstreamModelIds = await accountTokenDomainService.FetchAndCacheUpstreamModelsAsync(accountToken, cancellationToken);
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex,
-                    "上游模型拉取失败，降级静态: AccountId={AccountId}, Platform={Platform}",
+                logger.LogWarning(ex, "上游模型拉取失败，降级静态: AccountId={AccountId}, Platform={Platform}",
                     accountId, platform);
             }
         }
 
         // 4. 以基准模型过滤上游模型（保持基准顺序）
         IReadOnlyList<ModelOption> finalModels;
-        if (upstreamModels != null && upstreamModels.Count > 0)
+        if (upstreamModelIds != null && upstreamModelIds.Count > 0)
         {
-            var upstreamIds = upstreamModels.Select(m => m.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var upstreamIds = upstreamModelIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
             finalModels = baselineModels.Where(m => upstreamIds.Contains(m.Value)).ToList();
-
-            var filteredOut = upstreamModels.Where(m => !upstreamIds.Contains(m.Value)).Select(m => m.Value).ToList();
-            logger.LogInformation(
-                "上游模型过滤完成: AccountId={AccountId}, Platform={Platform}, Upstream={UpstreamCount}, Filtered={FilteredCount}, FilteredOut=[{FilteredOut}]",
-                accountId, platform, upstreamModels.Count, finalModels.Count, string.Join(", ", filteredOut));
         }
         else
         {
@@ -386,6 +382,8 @@ public class AccountTokenAppService(
             input.BaseUrl,
             input.Description,
             input.MaxConcurrency,
+            input.ModelWhites,
+            input.ModelMapping,
             cancellationToken);
 
         logger.LogInformation("创建账户成功: {Name}", accountToken.Name);
@@ -412,7 +410,11 @@ public class AccountTokenAppService(
             ?? throw new NotFoundException($"账户不存在: {id}");
 
         // 更新基本信息
-        accountToken.Update(input.Name, input.BaseUrl, input.Description, input.MaxConcurrency, input.ExtraProperties);
+        accountToken.Update(input.Name, input.BaseUrl, input.Description, input.MaxConcurrency, input.ExtraProperties,
+            modelWhites: input.ModelWhites,
+            modelMapping: input.ModelMapping,
+            clearModelWhites: input.ModelWhites != null && input.ModelWhites.Count == 0,
+            clearModelMapping: input.ModelMapping != null && input.ModelMapping.Count == 0);
 
         // 更新凭证
         if (!string.IsNullOrWhiteSpace(input.Credential))

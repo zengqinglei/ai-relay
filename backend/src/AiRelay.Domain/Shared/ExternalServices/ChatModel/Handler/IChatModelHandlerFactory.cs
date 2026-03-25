@@ -16,7 +16,7 @@ public interface IChatModelHandlerFactory
     /// <param name="extraProperties">额外属性</param>
     /// <param name="shouldMimicOfficialClient">是否伪装为官方客户端（默认 true）</param>
     /// <returns>已配置的客户端</returns>
-    IChatModelHandler CreateHandler(ProviderPlatform platform, string accessToken, string? baseUrl = null, Dictionary<string, string>? extraProperties = null, bool shouldMimicOfficialClient = true);
+    IChatModelHandler CreateHandler(ProviderPlatform platform, string accessToken, string? baseUrl = null, Dictionary<string, string>? extraProperties = null, bool shouldMimicOfficialClient = true, List<string>? modelWhites = null, Dictionary<string, string>? modelMapping = null);
 
     /// <summary>
     /// 根据平台类型获取客户端 (未配置)

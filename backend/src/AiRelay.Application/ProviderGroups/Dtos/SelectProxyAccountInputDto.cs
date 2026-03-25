@@ -16,5 +16,7 @@ public record SelectProxyAccountInputDto
     public string? SessionHash { get; init; }
 
     public IEnumerable<Guid>? ExcludedAccountIds { get; init; }
+
+    public string? ModelId { get; init; }
 }
 

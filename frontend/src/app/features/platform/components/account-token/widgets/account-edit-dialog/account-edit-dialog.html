@@ -6,7 +6,9 @@
   [contentStyle]="dialogConfig.contentStyle"
   [draggable]="dialogConfig.draggable"
   [resizable]="dialogConfig.resizable"
-  [closable]="!saving"
+  [closable]="true"
+  [dismissableMask]="!saving"
+  [closeOnEscape]="!saving"
   [header]="isEditMode() ? '编辑账户' : '添加账户'"
   (onHide)="onHide()"
   styleClass="overflow-hidden"
@@ -139,6 +141,56 @@
           </div>
         </div>
       }
+
+      <!-- Model Configuration -->
+      <div class="col-span-2">
+        <p-panel header="模型配置" [toggleable]="true" [collapsed]="true">
+          <div class="flex flex-col gap-4">
+            <!-- Model Whitelist -->
+            <div class="flex flex-col gap-2">
+              <label class="text-sm font-medium text-color">模型白名单</label>
+              <p-autoComplete
+                [(ngModel)]="modelWhites"
+                [ngModelOptions]="{standalone: true}"
+                [suggestions]="filteredModels"
+                (completeMethod)="filterModels($event)"
+                [multiple]="true"
+                [dropdown]="true"
+                placeholder="输入或选择模型名称"
+                styleClass="w-full"
+              />
+              <small class="text-muted-color">白名单为空时，默认支持全部模型</small>
+            </div>
+
+            <!-- Model Mapping -->
+            <div class="flex flex-col gap-2">
+              <div class="flex items-center justify-between">
+                <label class="text-sm font-medium text-color">模型映射</label>
+                <p-button icon="pi pi-plus" [text]="true" [rounded]="true" size="small" (onClick)="addMappingRow()" />
+              </div>
+              <div class="flex flex-col gap-2">
+                @for (mapping of modelMappings; track trackByIndex($index); let i = $index) {
+                  <div class="flex items-center gap-2">
+                    <input pInputText [(ngModel)]="mapping.from" [ngModelOptions]="{standalone: true}" placeholder="源模型（支持 * 通配）" class="flex-1" />
+                    <i class="pi pi-arrow-right text-muted-color shrink-0"></i>
+                    <input pInputText [(ngModel)]="mapping.to" [ngModelOptions]="{standalone: true}" placeholder="目标模型" class="flex-1" />
+                    <p-button icon="pi pi-trash" [text]="true" severity="danger" size="small" (onClick)="removeMappingRow(i)" />
+                  </div>
+                }
+              </div>
+              @if (hasMappingError) {
+                <small class="text-red-500">
+                  @if (modelMappings.length <= 1) {
+                    源模型和目标模型必须同时填写或同时为空
+                  } @else {
+                    存在未填写的映射行：多行模式下每行必须完整填写
+                  }
+                </small>
+              }
+            </div>
+          </div>
+        </p-panel>
+      </div>
 
       <!-- Max Concurrency -->
       <div class="col-span-2 flex flex-col gap-2">

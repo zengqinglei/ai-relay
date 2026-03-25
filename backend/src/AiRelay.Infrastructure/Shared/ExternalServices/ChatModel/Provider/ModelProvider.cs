@@ -309,8 +309,7 @@ public sealed class ModelProvider(ILogger<ModelProvider> logger) : IModelProvide
         if (lower.Contains("codex")) return "gpt-5.1-codex";
         if (lower.Contains("gpt-5") || lower.Contains("gpt 5")) return "gpt-5.1";
 
-        logger.LogDebug("OpenAI 模型使用默认：{RequestedModel} -> gpt-5.1", requestedModel);
-        return "gpt-5.1";
+        return requestedModel;
     }
 
     public string GetClaudeMappedModel(string requestedModel)

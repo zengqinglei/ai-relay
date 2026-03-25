@@ -23,7 +23,9 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     fullToken: '1//0gMo...Z890',
     successRate: 99.8,
     maxConcurrency: 10,
-    currentConcurrency: 3
+    currentConcurrency: 3,
+    modelWhites: ['gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash'],
+    modelMapping: { 'gpt-4o': 'gemini-1.5-pro', 'claude-*': 'gemini-2.0-flash-exp' }
   },
   {
     id: '2',
@@ -81,7 +83,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     fullToken: 'sk-mock...3456',
     successRate: 100,
     maxConcurrency: 0,
-    currentConcurrency: 12
+    currentConcurrency: 12,
+    modelMapping: { 'claude-opus-*': 'claude-3-5-sonnet-20241022' }
   },
   {
     id: '5',

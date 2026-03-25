@@ -61,6 +61,28 @@ public class OpenAiChatModelResponseParser : IChatModelResponseParser, IResponse
                         }
                         break;
 
+                    case "response.failed":
+                        // 响应失败事件
+                        string? errorMsg = null;
+                        if (root.TryGetProperty("response", out var failedResponse) &&
+                            failedResponse.TryGetProperty("error", out var error))
+                        {
+                            if (error.TryGetProperty("message", out var msg))
+                            {
+                                errorMsg = msg.GetString();
+                            }
+
+                            // 如果有 code，也附加上
+                            if (error.TryGetProperty("code", out var code))
+                            {
+                                var codeStr = code.GetString();
+                                errorMsg = string.IsNullOrEmpty(errorMsg)
+                                    ? $"Error code: {codeStr}"
+                                    : $"{errorMsg} (code: {codeStr})";
+                            }
+                        }
+                        return new ChatResponsePart(Error: errorMsg ?? "Unknown error from upstream");
+
                     default:
                         // 其他事件类型（如 response.created, response.in_progress 等）忽略
                         return null;

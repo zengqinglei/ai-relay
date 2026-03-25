@@ -7,7 +7,9 @@
   [contentStyle]="dialogConfig.contentStyle"
   [draggable]="dialogConfig.draggable"
   [resizable]="dialogConfig.resizable"
-  [closable]="!saving"
+  [closable]="true"
+  [dismissableMask]="!saving"
+  [closeOnEscape]="!saving"
   (onHide)="onHide()"
 >
   <!-- Loading Spinner -->
@@ -44,7 +46,7 @@
 
         <div class="flex flex-col gap-2">
           <label class="font-bold">费率倍数</label>
-          <p-inputnumber
+          <p-inputNumber
             [(ngModel)]="formModel().rateMultiplier"
             mode="decimal"
             [minFractionDigits]="1"
@@ -63,7 +65,7 @@
             <ng-template pTemplate="decrementbuttonicon">
               <span class="pi pi-minus"></span>
             </ng-template>
-          </p-inputnumber>
+          </p-inputNumber>
           <small class="text-muted-color">范围: 0.01 - 100.00 倍</small>
         </div>
 
@@ -185,13 +187,13 @@
             >
               <ng-template pTemplate="selectedItem" let-selectedOption>
                 @if (selectedOption) {
-                  <div class="flex align-items-center gap-2">
+                  <div class="flex items-center gap-2">
                     <div>{{ selectedOption.name }}</div>
                   </div>
                 }
               </ng-template>
               <ng-template let-account pTemplate="item">
-                <div class="flex align-items-center gap-2">
+                <div class="flex items-center gap-2">
                   <div>{{ account.name }}</div>
                   @if (isAccountAdded(account.id)) {
                     <span class="text-xs text-gray-400 ml-auto">已添加</span>

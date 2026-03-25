@@ -19,6 +19,8 @@ import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { TextareaModule } from 'primeng/textarea';
 import { TooltipModule } from 'primeng/tooltip';
+import { AutoCompleteModule } from 'primeng/autocomplete';
+import { PanelModule } from 'primeng/panel';
 import { finalize } from 'rxjs/operators';
 
 import { DIALOG_CONFIGS } from '../../../../../../shared/constants/dialog-config.constants';
@@ -40,7 +42,9 @@ import { AccountTokenService } from '../../../../services/account-token-service'
     TextareaModule,
     SelectModule,
     TooltipModule,
-    InputNumberModule
+    InputNumberModule,
+    AutoCompleteModule,
+    PanelModule
   ],
   templateUrl: './account-edit-dialog.html',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -67,6 +71,12 @@ export class AccountEditDialogComponent implements OnChanges {
   generatingUrl = false;
   authCodeTouched = false;
 
+  // Model Configuration
+  modelWhites: string[] = [];
+  filteredModels: string[] = [];
+  availableModels: string[] = [];
+  modelMappings: Array<{ from: string; to: string }> = [];
+
   platformOptions = PROVIDER_PLATFORM_OPTIONS;
 
   // 使用小型 Dialog 配置
@@ -87,6 +97,9 @@ export class AccountEditDialogComponent implements OnChanges {
       if (val) {
         this.platformType.set(val);
         this.updateValidators(val);
+        if (!this.isEditMode()) {
+          this.loadAvailableModels(val as ProviderPlatform);
+        }
       }
       // Clear OAuth state when platform changes
       this.authCodeInput = '';
@@ -96,16 +109,22 @@ export class AccountEditDialogComponent implements OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
+    let shouldInit = false;
+
     if (changes['account'] && this.visible) {
-      this.initForm();
+      shouldInit = true;
     }
     if (changes['visible'] && this.visible) {
-      this.initForm();
+      shouldInit = true;
       // Reset OAuth state on open
       this.authCodeInput = '';
       this.generatedAuthUrl = '';
       this.sessionId = '';
       this.authCodeTouched = false;
+    }
+
+    if (shouldInit) {
+      this.initForm();
     }
   }
 
@@ -122,24 +141,39 @@ export class AccountEditDialogComponent implements OnChanges {
         credential: '', // Don't fill credential
         description: this.account.description,
         maxConcurrency: this.account.maxConcurrency
-      });
+      }, { emitEvent: false });
       this.platformType.set(this.account.platform);
-      this.form.get('name')?.disable();
-      this.form.get('platform')?.disable();
+      this.form.get('name')?.disable({ emitEvent: false });
+      this.form.get('platform')?.disable({ emitEvent: false });
+
+      // Load model configuration
+      this.modelWhites = this.account.modelWhites ? [...this.account.modelWhites] : [];
+      this.filteredModels = [];
+      this.modelMappings =
+        this.account.modelMapping && Object.keys(this.account.modelMapping).length > 0
+          ? Object.entries(this.account.modelMapping).map(([from, to]) => ({ from, to }))
+          : [{ from: '', to: '' }];
 
       this.updateValidators(this.account.platform);
+      this.loadAvailableModels(this.account.platform as ProviderPlatform, this.account.id);
     } else {
       this.isEditMode.set(false);
       this.form.reset({
         platform: ProviderPlatform.GEMINI_OAUTH,
         credential: '',
         maxConcurrency: 10
-      });
+      }, { emitEvent: false });
       this.platformType.set(ProviderPlatform.GEMINI_OAUTH);
-      this.form.get('name')?.enable();
-      this.form.get('platform')?.enable();
+      this.form.get('name')?.enable({ emitEvent: false });
+      this.form.get('platform')?.enable({ emitEvent: false });
+
+      // Reset model configuration
+      this.modelWhites = [];
+      this.filteredModels = [];
+      this.modelMappings = [{ from: '', to: '' }];
 
       this.updateValidators(ProviderPlatform.GEMINI_OAUTH);
+      this.loadAvailableModels(ProviderPlatform.GEMINI_OAUTH);
     }
   }
 
@@ -186,6 +220,11 @@ export class AccountEditDialogComponent implements OnChanges {
     }
 
     if (this.form.valid) {
+      if (this.hasMappingError) {
+        this.cdr.markForCheck();
+        return;
+      }
+
       const formValue = this.form.getRawValue();
 
       // Construct extraProperties
@@ -207,7 +246,9 @@ export class AccountEditDialogComponent implements OnChanges {
         extraProperties: Object.keys(extraProperties).length > 0 ? extraProperties : undefined,
         baseUrl: formValue.baseUrl,
         description: formValue.description,
-        maxConcurrency: formValue.maxConcurrency
+        maxConcurrency: formValue.maxConcurrency,
+        modelWhites: this.modelWhites,
+        modelMapping: this.buildModelMapping()
       };
 
       if (this.showOAuthFlow) {
@@ -227,7 +268,9 @@ export class AccountEditDialogComponent implements OnChanges {
           extraProperties: createDto.extraProperties,
           baseUrl: createDto.baseUrl,
           description: createDto.description,
-          maxConcurrency: createDto.maxConcurrency
+          maxConcurrency: createDto.maxConcurrency,
+          modelWhites: createDto.modelWhites,
+          modelMapping: createDto.modelMapping
         };
 
         // Only send credential if provided
@@ -323,5 +366,83 @@ export class AccountEditDialogComponent implements OnChanges {
         }
       }
     }
+  }
+
+  // ===== Model Configuration Methods =====
+
+  loadAvailableModels(platform: ProviderPlatform, accountId?: string) {
+    this.availableModels = [];
+    this.accountService.getAvailableModels(platform, accountId).subscribe({
+      next: models => {
+        this.availableModels = models.map(m => m.value);
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.availableModels = [];
+      }
+    });
+  }
+
+  filterModels(event: { query: string }) {
+    const q = event.query.toLowerCase().trim();
+    const existing = new Set(this.modelWhites);
+    const matched = this.availableModels.filter(
+      m => !existing.has(m) && (q === '' || m.toLowerCase().includes(q))
+    );
+    this.filteredModels =
+      q && !this.availableModels.some(m => m.toLowerCase() === q)
+        ? [q, ...matched]
+        : matched;
+  }
+
+  onWhitelistSelect(event: { value: string }) {
+    const val = event.value?.trim();
+    if (val && !this.modelWhites.includes(val)) {
+      this.modelWhites = [...this.modelWhites, val];
+    }
+  }
+
+  onWhitelistUnselect(event: { value: string }) {
+    this.modelWhites = this.modelWhites.filter(m => m !== event.value);
+  }
+
+  addMappingRow() {
+    this.modelMappings = [...this.modelMappings, { from: '', to: '' }];
+  }
+
+  removeMappingRow(index: number) {
+    if (this.modelMappings.length > 1) {
+      this.modelMappings = this.modelMappings.filter((_, i) => i !== index);
+    } else {
+      // 只剩一行时清空内容
+      this.modelMappings = [{ from: '', to: '' }];
+    }
+  }
+
+  /**
+   * 校验映射行：
+   * - 只有 1 行：允许两边都为空；不允许只填一边
+   * - 多于 1 行：不允许出现任何空内容（必须每行都填满）
+   */
+  get hasMappingError(): boolean {
+    if (this.modelMappings.length <= 1) {
+      const m = this.modelMappings[0] ?? { from: '', to: '' };
+      const hasFrom = m.from.trim() !== '';
+      const hasTo = m.to.trim() !== '';
+      return hasFrom !== hasTo;
+    }
+
+    return this.modelMappings.some(m => m.from.trim() === '' || m.to.trim() === '');
+  }
+
+  private buildModelMapping(): Record<string, string> | undefined {
+    const entries = this.modelMappings.filter(m => m.from.trim() && m.to.trim());
+    return entries.length > 0
+      ? Object.fromEntries(entries.map(m => [m.from.trim(), m.to.trim()]))
+      : undefined;
+  }
+
+  trackByIndex(index: number) {
+    return index;
   }
 }

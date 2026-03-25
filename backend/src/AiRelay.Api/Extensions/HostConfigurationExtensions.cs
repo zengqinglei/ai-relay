@@ -54,7 +54,7 @@ public static class HostConfigurationExtensions
         // HttpClient Defaults
         builder.Services.ConfigureHttpClientDefaults(httpBuilder =>
         {
-            httpBuilder.AddCorrelationIdForwarding();
+            // httpBuilder.AddCorrelationIdForwarding(); 避免转发给上游的请求携带
             httpBuilder.ConfigureHttpClient(client =>
             {
                 // 1. SSE 流式响应使用 Infinite 超时，实际生命周期由 CancellationToken 严格控制

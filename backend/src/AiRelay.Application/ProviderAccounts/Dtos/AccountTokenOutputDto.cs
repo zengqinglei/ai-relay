@@ -106,4 +106,14 @@ public class AccountTokenOutputDto
     /// 成功率 (0-100)
     /// </summary>
     public decimal SuccessRate { get; set; } // Mutable
+
+    /// <summary>
+    /// 模型白名单（限制可接受的模型）
+    /// </summary>
+    public List<string>? ModelWhites { get; set; }
+
+    /// <summary>
+    /// 模型映射规则（转换模型名称）
+    /// </summary>
+    public Dictionary<string, string>? ModelMapping { get; set; }
 }

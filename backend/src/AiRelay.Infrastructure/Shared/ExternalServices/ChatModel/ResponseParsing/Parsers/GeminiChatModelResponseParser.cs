@@ -26,6 +26,28 @@ public class GeminiChatModelResponseParser : IChatModelResponseParser, IResponse
                 root = responseObj;
             }
 
+            // 检查是否有错误
+            if (root.TryGetProperty("error", out var error))
+            {
+                string? errorMsg = null;
+                if (error.TryGetProperty("message", out var msg))
+                {
+                    errorMsg = msg.GetString();
+                }
+
+                if (error.TryGetProperty("code", out var code))
+                {
+                    var codeValue = code.ValueKind == JsonValueKind.Number
+                        ? code.GetInt32().ToString()
+                        : code.GetString();
+                    errorMsg = string.IsNullOrEmpty(errorMsg)
+                        ? $"Error code: {codeValue}"
+                        : $"{errorMsg} (code: {codeValue})";
+                }
+
+                return new ChatResponsePart(Error: errorMsg ?? "Unknown error from upstream");
+            }
+
             string? content = null;
             ResponseUsage? usage = null;
 
@@ -90,6 +112,28 @@ public class GeminiChatModelResponseParser : IChatModelResponseParser, IResponse
             if (root.TryGetProperty("response", out var responseObj))
             {
                 root = responseObj;
+            }
+
+            // 检查是否有错误
+            if (root.TryGetProperty("error", out var error))
+            {
+                string? errorMsg = null;
+                if (error.TryGetProperty("message", out var msg))
+                {
+                    errorMsg = msg.GetString();
+                }
+
+                if (error.TryGetProperty("code", out var code))
+                {
+                    var codeValue = code.ValueKind == JsonValueKind.Number
+                        ? code.GetInt32().ToString()
+                        : code.GetString();
+                    errorMsg = string.IsNullOrEmpty(errorMsg)
+                        ? $"Error code: {codeValue}"
+                        : $"{errorMsg} (code: {codeValue})";
+                }
+
+                return new ChatResponsePart(Error: errorMsg ?? "Unknown error from upstream", IsComplete: true);
             }
 
             string? content = null;

@@ -68,6 +68,26 @@ public class ClaudeChatModelResponseParser : IChatModelResponseParser, IResponse
                 case "message_stop":
                     isComplete = true;
                     break;
+
+                case "error":
+                    // Claude 错误事件
+                    string? errorMsg = null;
+                    if (root.TryGetProperty("error", out var error))
+                    {
+                        if (error.TryGetProperty("message", out var errMsg))
+                        {
+                            errorMsg = errMsg.GetString();
+                        }
+
+                        if (error.TryGetProperty("type", out var errType))
+                        {
+                            var typeStr = errType.GetString();
+                            errorMsg = string.IsNullOrEmpty(errorMsg)
+                                ? $"Error type: {typeStr}"
+                                : $"{errorMsg} (type: {typeStr})";
+                        }
+                    }
+                    return new ChatResponsePart(Error: errorMsg ?? "Unknown error from upstream");
             }
 
             if (content == null && usage == null && !isComplete && model == null) return null;

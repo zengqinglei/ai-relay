@@ -48,13 +48,13 @@ public sealed class AntigravityChatModelHandler(
     {
         return
         [
-            new AntigravityModelIdMappingProcessor(modelProvider),
+            new AntigravityModelIdMappingProcessor(modelProvider, Options),
             new AntigravityUrlProcessor(Options),
             new AntigravityHeaderProcessor(Options),
             new AntigravityRequestBodyProcessor(
                 Options, antigravityIdentityInjector,
-                googleJsonSchemaCleaner, logger),
-            new AntigravityDegradationProcessor(degradationLevel, googleSignatureCleaner, logger),
+                googleJsonSchemaCleaner, Logger),
+            new AntigravityDegradationProcessor(degradationLevel, googleSignatureCleaner, Logger),
         ];
     }
 

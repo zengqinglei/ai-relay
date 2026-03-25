@@ -8,7 +8,7 @@ namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Cleaning;
 /// </summary>
 public class ClaudeSystemPromptInjector
 {
-    private const string BillingHeader = "x-anthropic-billing-header: cc_version=2.1.74.ee0; cc_entrypoint=cli; cch=00000;";
+    private const string BillingHeader = "x-anthropic-billing-header: cc_version=2.1.81.df2; cc_entrypoint=cli; cch=00000;";
     public const string ClaudeCodeSystemPrompt = "You are Claude Code, Anthropic's official CLI for Claude.";
 
     /// <summary>

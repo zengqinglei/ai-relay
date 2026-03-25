@@ -41,6 +41,26 @@ internal static class ProviderEntityConfiguration
                     c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
                     c => c.ToDictionary(e => e.Key, e => e.Value)));
 
+            b.Property(e => e.ModelWhites)
+                .HasMaxLength(4096)
+                .HasConversion(
+                    v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                    v => v == null ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
+                .Metadata.SetValueComparer(new ValueComparer<List<string>?>(
+                    (c1, c2) => c1 == c2 || (c1 != null && c2 != null && c1.SequenceEqual(c2)),
+                    c => c == null ? 0 : c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
+                    c => c == null ? null : c.ToList()));
+
+            b.Property(e => e.ModelMapping)
+                .HasMaxLength(4096)
+                .HasConversion(
+                    v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                    v => v == null ? null : JsonSerializer.Deserialize<Dictionary<string, string>>(v, (JsonSerializerOptions?)null))
+                .Metadata.SetValueComparer(new ValueComparer<Dictionary<string, string>?>(
+                    (c1, c2) => c1 == c2 || (c1 != null && c2 != null && c1.SequenceEqual(c2)),
+                    c => c == null ? 0 : c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
+                    c => c == null ? null : c.ToDictionary(e => e.Key, e => e.Value)));
+
             b.HasIndex(e => new { e.Platform, e.IsActive, e.Status });
         });
     }

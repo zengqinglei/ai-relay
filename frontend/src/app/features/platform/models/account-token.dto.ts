@@ -35,6 +35,8 @@ export interface AccountTokenOutputDto {
   usageToday: number;
   usageTotal: number;
   successRate: number; // 0-100
+  modelWhites?: string[];
+  modelMapping?: Record<string, string>;
 }
 
 export interface CreateAccountTokenInputDto {
@@ -47,6 +49,8 @@ export interface CreateAccountTokenInputDto {
   authCode?: string; // OAuth 授权码
   sessionId?: string; // OAuth 会话 ID
   maxConcurrency: number;
+  modelWhites?: string[];
+  modelMapping?: Record<string, string>;
 }
 
 export interface UpdateAccountTokenInputDto {
@@ -56,6 +60,8 @@ export interface UpdateAccountTokenInputDto {
   description?: string;
   credential?: string; // 可选更新
   maxConcurrency?: number;
+  modelWhites?: string[];
+  modelMapping?: Record<string, string>;
 }
 
 export interface GetAuthUrlInputDto {
