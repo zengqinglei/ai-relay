@@ -97,7 +97,7 @@ public class OpenAiChatModelHandler(
             var sessionId = sessionIdHeader.Trim();
             if (!string.IsNullOrWhiteSpace(sessionId))
             {
-                down.SessionHash = sessionId;
+                down.SessionId = sessionId;
                 return;
             }
         }
@@ -108,7 +108,7 @@ public class OpenAiChatModelHandler(
             var conversationId = conversationIdHeader.Trim();
             if (!string.IsNullOrWhiteSpace(conversationId))
             {
-                down.SessionHash = conversationId;
+                down.SessionId = conversationId;
                 return;
             }
         }
@@ -121,7 +121,7 @@ public class OpenAiChatModelHandler(
             cacheKeyValue.TryGetValue<string>(out var key) &&
             !string.IsNullOrWhiteSpace(key))
         {
-            down.SessionHash = key;
+            down.SessionId = key;
             return;
         }
 
@@ -131,7 +131,7 @@ public class OpenAiChatModelHandler(
             convIdValue.TryGetValue<string>(out var id) &&
             !string.IsNullOrWhiteSpace(id))
         {
-            down.SessionHash = id;
+            down.SessionId = id;
             return;
         }
 
@@ -144,7 +144,7 @@ public class OpenAiChatModelHandler(
                 var text = ExtractTextFromMessage(messageNode);
                 if (!string.IsNullOrWhiteSpace(text))
                 {
-                    down.SessionHash = GenerateSessionHashWithContext(text, down, apiKeyId);
+                    down.SessionId = GenerateSessionHashWithContext(text, down, apiKeyId);
                     return;
                 }
             }

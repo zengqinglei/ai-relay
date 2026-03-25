@@ -34,8 +34,8 @@ public class AntigravityDegradationProcessor(
         if (degradationLevel == 0)
         {
             // 正常级别：注入签名（如果 SessionHash 存在）
-            if (!string.IsNullOrEmpty(down.SessionHash))
-                googleSignatureCleaner.InjectCachedSignature(payload, down.SessionHash);
+            if (!string.IsNullOrEmpty(down.SessionId))
+                googleSignatureCleaner.InjectCachedSignature(payload, down.SessionId);
         }
         else if (degradationLevel == 1)
         {

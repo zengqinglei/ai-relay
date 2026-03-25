@@ -166,11 +166,11 @@ public class ClaudeChatModelHandler(
                 var sessionId = userIdStr.Substring("session_".Length);
                 if (!string.IsNullOrWhiteSpace(sessionId))
                 {
-                    down.SessionHash = sessionId;
+                    down.SessionId = sessionId;
                     return;
                 }
             }
-            down.SessionHash = userIdStr;
+            down.SessionId = userIdStr;
             return;
         }
 
@@ -180,7 +180,7 @@ public class ClaudeChatModelHandler(
             convIdValue.TryGetValue<string>(out var id) &&
             !string.IsNullOrWhiteSpace(id))
         {
-            down.SessionHash = id;
+            down.SessionId = id;
             return;
         }
 
@@ -188,7 +188,7 @@ public class ClaudeChatModelHandler(
         var cacheableContent = ExtractCacheableContent(root);
         if (!string.IsNullOrWhiteSpace(cacheableContent))
         {
-            down.SessionHash = GenerateSessionHashWithContext(cacheableContent, down, apiKeyId);
+            down.SessionId = GenerateSessionHashWithContext(cacheableContent, down, apiKeyId);
             return;
         }
 
@@ -201,7 +201,7 @@ public class ClaudeChatModelHandler(
                 var text = ExtractTextFromContent(messageNode);
                 if (!string.IsNullOrWhiteSpace(text))
                 {
-                    down.SessionHash = GenerateSessionHashWithContext(text, down, apiKeyId);
+                    down.SessionId = GenerateSessionHashWithContext(text, down, apiKeyId);
                     return;
                 }
             }

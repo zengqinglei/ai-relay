@@ -65,7 +65,7 @@ public class SmartReverseProxyMiddleware(
                             Platform = platform,
                             ApiKeyId = apiKeyId,
                             ApiKeyName = apiKeyName,
-                            SessionHash = downContext.SessionHash,
+                            SessionHash = downContext.SessionId,
                             ExcludedAccountIds = excludedAccountIds,
                             ModelId = downContext.ModelId
                         },
@@ -78,7 +78,7 @@ public class SmartReverseProxyMiddleware(
                     // 生成稳定的 Sticky Session ID 和 指纹 ClientID
                     downContext.StickySessionId = await fingerprintAppService.GenerateSessionUuidAsync(
                         selectResult.AccountToken.Id,
-                        downContext.SessionHash,
+                        downContext.SessionId,
                         selectResult.AccountToken.ExtraProperties.TryGetValue("session_id_masking_enabled", out var maskingValue) && bool.TryParse(maskingValue, out var enabled) && enabled,
                         context.RequestAborted);
 

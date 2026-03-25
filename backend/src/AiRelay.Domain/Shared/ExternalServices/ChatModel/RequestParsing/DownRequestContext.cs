@@ -127,7 +127,7 @@ public class DownRequestContext
 
     // ============ 提取的信息（由 ExtractModelInfo 填充） ============
     public string? ModelId { get; set; }
-    public string? SessionHash { get; set; }
+    public string? SessionId { get; set; }
 
     // 模拟指纹信息
     public int? PromptIndex { get; set; }

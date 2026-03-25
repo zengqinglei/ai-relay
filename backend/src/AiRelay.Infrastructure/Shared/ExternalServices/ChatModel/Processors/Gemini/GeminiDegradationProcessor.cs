@@ -30,8 +30,8 @@ public class GeminiDegradationProcessor(
 
         if (degradationLevel == 0)
         {
-            if (!string.IsNullOrEmpty(down.SessionHash))
-                googleSignatureCleaner.InjectCachedSignature(payload, down.SessionHash);
+            if (!string.IsNullOrEmpty(down.SessionId))
+                googleSignatureCleaner.InjectCachedSignature(payload, down.SessionId);
         }
         else if (degradationLevel == 1)
         {

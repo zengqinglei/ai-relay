@@ -107,11 +107,11 @@ public class GeminiAccountChatModelHandler(
             {
                 var combined = $"{sessionId.Trim()}:{tmpDirHash}";
                 var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(combined));
-                down.SessionHash = Convert.ToHexString(hashBytes).ToLowerInvariant();
+                down.SessionId = Convert.ToHexString(hashBytes).ToLowerInvariant();
             }
             else
             {
-                down.SessionHash = tmpDirHash;
+                down.SessionId = tmpDirHash;
             }
             return;
         }
@@ -127,7 +127,7 @@ public class GeminiAccountChatModelHandler(
                     var text = GeminiTextExtractor.ExtractTextFromParts(contentNode);
                     if (!string.IsNullOrWhiteSpace(text))
                     {
-                        down.SessionHash = GenerateSessionHashWithContext(text, down, apiKeyId);
+                        down.SessionId = GenerateSessionHashWithContext(text, down, apiKeyId);
                         return;
                     }
                 }

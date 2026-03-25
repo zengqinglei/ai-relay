@@ -46,27 +46,27 @@ public class AntigravityRequestBodyProcessor(
                     }
                 }
             }
+
+            // 构建 v1internal 包装
+            clonedBody.Remove("model");
+            var requestType = DetermineRequestType(up.MappedModelId ?? string.Empty, clonedBody);
+            var projectId = options.ExtraProperties.TryGetValue("project_id", out var pid) ? pid : "";
+
+            clonedBody = new JsonObject
+            {
+                ["project"] = projectId,
+                ["requestId"] = $"agent-{down.StickySessionId ?? Guid.NewGuid().ToString("D")}",
+                ["userAgent"] = "antigravity",
+                ["requestType"] = requestType,
+                ["model"] = up.MappedModelId,
+                ["request"] = clonedBody
+            };
+
+            logger.LogDebug("已构建 Antigravity 请求: Model={Model}, Type={Type}", up.MappedModelId, requestType);
         }
 
-        // 构建 v1internal 包装
-        clonedBody.Remove("model");
-        var requestType = DetermineRequestType(up.MappedModelId ?? string.Empty, clonedBody);
-        var projectId = options.ExtraProperties.TryGetValue("project_id", out var pid) ? pid : "";
-
-        var wrapper = new JsonObject
-        {
-            ["project"] = projectId,
-            ["requestId"] = $"agent-{down.StickySessionId ?? Guid.NewGuid().ToString("D")}",
-            ["userAgent"] = "antigravity",
-            ["requestType"] = requestType,
-            ["model"] = up.MappedModelId,
-            ["request"] = clonedBody
-        };
-
-        logger.LogDebug("已构建 Antigravity 请求: Model={Model}, Type={Type}", up.MappedModelId, requestType);
-
-        up.BodyJson = wrapper;
-        up.SessionId = down.SessionHash;
+        up.BodyJson = clonedBody;
+        up.SessionId = down.SessionId;
         return Task.CompletedTask;
     }
 

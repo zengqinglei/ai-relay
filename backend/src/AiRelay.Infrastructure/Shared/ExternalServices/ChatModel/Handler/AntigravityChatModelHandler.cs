@@ -77,7 +77,7 @@ public sealed class AntigravityChatModelHandler(
             convIdValue.TryGetValue<string>(out var id) &&
             !string.IsNullOrWhiteSpace(id))
         {
-            down.SessionHash = id;
+            down.SessionId = id;
             return;
         }
 
@@ -90,7 +90,7 @@ public sealed class AntigravityChatModelHandler(
                 var text = GeminiTextExtractor.ExtractTextFromParts(contentNode);
                 if (!string.IsNullOrWhiteSpace(text))
                 {
-                    down.SessionHash = GenerateSessionHashWithContext(text, down, apiKeyId);
+                    down.SessionId = GenerateSessionHashWithContext(text, down, apiKeyId);
                     return;
                 }
             }

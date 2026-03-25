@@ -52,7 +52,7 @@ public class GeminiApiKeyRequestBodyProcessor(
         }
 
         up.BodyJson = clonedBody;
-        up.SessionId = down.SessionHash;
+        up.SessionId = down.SessionId;
         return Task.CompletedTask;
     }
 
