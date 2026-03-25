@@ -56,7 +56,7 @@ public class AntigravityRequestBodyProcessor(
         var wrapper = new JsonObject
         {
             ["project"] = projectId,
-            ["requestId"] = $"agent-{Guid.NewGuid()}",
+            ["requestId"] = $"agent-{down.StickySessionId ?? Guid.NewGuid().ToString("D")}",
             ["userAgent"] = "antigravity",
             ["requestType"] = requestType,
             ["model"] = up.MappedModelId,

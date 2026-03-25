@@ -31,6 +31,7 @@ public class SmartReverseProxyMiddleware(
     IOptions<UsageLoggingOptions> loggingOptions,
     IConcurrencyStrategy concurrencyStrategy,
     ICorrelationIdProvider correlationIdProvider,
+    AccountFingerprintAppService fingerprintAppService,
     ILogger<SmartReverseProxyMiddleware> logger)
 {
     private readonly UsageLoggingOptions _loggingOptions = loggingOptions.Value;
@@ -69,6 +70,24 @@ public class SmartReverseProxyMiddleware(
                             ModelId = downContext.ModelId
                         },
                         context.RequestAborted);
+
+                var requiresFingerprint = selectResult.AllowOfficialClientMimic;
+
+                if (requiresFingerprint)
+                {
+                    // 生成稳定的 Sticky Session ID 和 指纹 ClientID
+                    downContext.StickySessionId = await fingerprintAppService.GenerateSessionUuidAsync(
+                        selectResult.AccountToken.Id,
+                        downContext.SessionHash,
+                        selectResult.AccountToken.ExtraProperties.TryGetValue("session_id_masking_enabled", out var maskingValue) && bool.TryParse(maskingValue, out var enabled) && enabled,
+                        context.RequestAborted);
+
+                    var fingerprint = await fingerprintAppService.GetOrCreateFingerprintAsync(
+                        selectResult.AccountToken.Id,
+                        downContext.Headers,
+                        context.RequestAborted);
+                    downContext.FingerprintClientId = fingerprint.ClientId;
+                }
 
                 var currentAccountRetryCount = 0;
                 var shouldSwitchAccount = false;
@@ -425,4 +444,5 @@ public class SmartReverseProxyMiddleware(
 
         return string.Join("\n", filtered);
     }
+
 }

@@ -56,6 +56,8 @@ public class GeminiAccountChatModelHandler(
 
     public override void ExtractModelInfo(DownRequestContext down, Guid apiKeyId)
     {
+        down.PromptIndex = ExtractPromptIndex(down.BodyJsonNode);
+
         // 1. 提取 ModelId — 优先从 URL 路径提取
         if (!string.IsNullOrEmpty(down.RelativePath) && down.RelativePath.Contains("/models/"))
         {
@@ -209,7 +211,7 @@ public class GeminiAccountChatModelHandler(
         Logger.LogInformation("Gemini OAuth 上游拉取成功: {Count} 个模型", upstreamModels.Count);
 
         // 返回上游模型列表（后续在 AppService 中与静态列表交集）
-        return upstreamModels.Select(m => new ModelOption(m, m)).ToList();
+        return upstreamModels.Select(m => new ModelOption(m!, m!)).ToList();
     }
 
     public override async Task<ModelErrorAnalysisResult> AnalyzeErrorAsync(

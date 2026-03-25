@@ -192,7 +192,7 @@ public abstract class BaseChatModelHandler : IChatModelHandler
     public virtual Task<ConnectionValidationResult> ValidateConnectionAsync(CancellationToken ct = default) =>
         Task.FromResult(new ConnectionValidationResult(true));
     public virtual Task<IReadOnlyList<AccountQuotaInfo>?> FetchQuotaAsync(CancellationToken ct = default) =>
-        null;
+        Task.FromResult<IReadOnlyList<AccountQuotaInfo>?>(null);
 
     /// <summary>
     /// 从上游 API 拉取可用模型列表（默认不支持，返回 null）
@@ -326,6 +326,41 @@ public abstract class BaseChatModelHandler : IChatModelHandler
     protected static string GenerateFallbackSessionId()
     {
         return $"sid-{Guid.NewGuid():N}"[..FallbackSessionIdLength];
+    }
+
+    /// <summary>
+    /// 统计 payload（通常为 contents 或 messages）中 user 角色的数量，作为递增提问索引
+    /// </summary>
+    protected static int ExtractPromptIndex(JsonNode? body)
+    {
+        if (body is not JsonObject jsonObj) return 0;
+
+        var index = 0;
+
+        // 兼容 Gemini 格式
+        if (jsonObj.TryGetPropertyValue("contents", out var contentsNode) && contentsNode is JsonArray contents)
+        {
+            foreach (var item in contents)
+            {
+                if (item is JsonObject obj && obj.TryGetPropertyValue("role", out var roleNode) && roleNode is JsonValue roleVal && roleVal.TryGetValue<string>(out var role) && role == "user")
+                {
+                    index++;
+                }
+            }
+        }
+        // 兼容 OpenAI / Claude 等 messages 格式
+        else if (jsonObj.TryGetPropertyValue("messages", out var messagesNode) && messagesNode is JsonArray messages)
+        {
+            foreach (var item in messages)
+            {
+                if (item is JsonObject obj && obj.TryGetPropertyValue("role", out var roleNode) && roleNode is JsonValue roleVal && roleVal.TryGetValue<string>(out var role) && role == "user")
+                {
+                    index++;
+                }
+            }
+        }
+
+        return index > 0 ? index - 1 : 0;
     }
 
     /// <summary>

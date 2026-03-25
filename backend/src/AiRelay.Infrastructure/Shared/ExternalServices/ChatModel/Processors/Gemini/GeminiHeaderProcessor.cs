@@ -43,7 +43,7 @@ public class GeminiHeaderProcessor(ChatModelConnectionOptions options) : IReques
         if (options.ShouldMimicOfficialClient)
         {
             bool isOfficialClient = IsGeminiCliClient(down);
-            CoverCliHeaders(up, up.MappedModelId, isOfficialClient);
+            CoverCliHeaders(up, up.MappedModelId, isOfficialClient, down);
         }
 
         return Task.CompletedTask;
@@ -58,7 +58,7 @@ public class GeminiHeaderProcessor(ChatModelConnectionOptions options) : IReques
                !string.IsNullOrEmpty(down.Headers.GetValueOrDefault("x-gemini-api-privileged-user-id"));
     }
 
-    private void CoverCliHeaders(UpRequestContext up, string? modelId, bool isOfficialClient)
+    private void CoverCliHeaders(UpRequestContext up, string? modelId, bool isOfficialClient, DownRequestContext down)
     {
         if (isOfficialClient)
             return; // 官方客户端：身份标识透传，不补充默认值
@@ -77,13 +77,10 @@ public class GeminiHeaderProcessor(ChatModelConnectionOptions options) : IReques
             }
         }
         if (!up.Headers.ContainsKey("x-gemini-api-privileged-user-id") && options.Platform == ProviderPlatform.GEMINI_APIKEY)
-            up.Headers["x-gemini-api-privileged-user-id"] = Guid.NewGuid().ToString();
+            up.Headers["x-gemini-api-privileged-user-id"] = down.StickySessionId ?? Guid.NewGuid().ToString("D");
         if (!up.Headers.ContainsKey("accept-language"))
             up.Headers["accept-language"] = "*";
         if (!up.Headers.ContainsKey("sec-fetch-mode"))
-            up.Headers["sec-fetch-mode"] = "cors";
-
-
         // 以下必须覆盖
         if (!isOfficialClient)
         {

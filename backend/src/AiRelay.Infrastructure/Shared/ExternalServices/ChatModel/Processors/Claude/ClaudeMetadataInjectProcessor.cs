@@ -12,19 +12,18 @@ namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Cl
 /// 原 Middleware.InjectMetadataUserIdAsync 迁移至此，操作 up.BodyJson（CloneBodyJson 后的副本）
 /// </summary>
 public class ClaudeMetadataInjectProcessor(
-    ChatModelConnectionOptions options,
-    AccountFingerprintDomainService fingerprintDomainService) : IRequestProcessor
+    ChatModelConnectionOptions options) : IRequestProcessor
 {
 
-    public async Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
+    public Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
     {
-        // Claude OAuth 专属：fingerprint user_id 注入（异步，需要 AppService）
+        // Claude OAuth 专属：fingerprint user_id 注入
         // 仅 OAuth 且非 batches 路由
         if (options.Platform != ProviderPlatform.CLAUDE_OAUTH
             || down.RelativePath.Contains("/batches", StringComparison.OrdinalIgnoreCase)
             || up.BodyJson == null)
         {
-            return;
+            return Task.CompletedTask;
         }
 
         // 仅在 metadata.user_id 为空时注入
@@ -35,31 +34,23 @@ public class ClaudeMetadataInjectProcessor(
             userIdVal.TryGetValue<string>(out var existingUserId) &&
             !string.IsNullOrWhiteSpace(existingUserId))
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        var accountTokenId = Guid.Parse(
-            options.ExtraProperties.GetValueOrDefault("account_token_id", Guid.Empty.ToString())!);
-
-        var fingerprint = await fingerprintDomainService.GetOrCreateFingerprintAsync(
-            accountTokenId, down.Headers, ct);
-
+        var clientId = down.FingerprintClientId ?? "unknown";
+        var sessionId = down.StickySessionId ?? Guid.NewGuid().ToString("D");
         options.ExtraProperties.TryGetValue("account_uuid", out var accountUuid);
 
-        bool enableMasking = options.ExtraProperties.TryGetValue("session_id_masking_enabled",
-            out var maskingValue) && bool.TryParse(maskingValue, out var enabled) && enabled;
-
-        var sessionId = await fingerprintDomainService.GenerateSessionUuidAsync(
-            accountTokenId, down.SessionHash, enableMasking, ct);
-
         var userId = !string.IsNullOrWhiteSpace(accountUuid)
-            ? $"user_{fingerprint.ClientId}_account_{accountUuid.Trim()}_session_{sessionId}"
-            : $"user_{fingerprint.ClientId}_account__session_{sessionId}";
+            ? $"user_{clientId}_account_{accountUuid.Trim()}_session_{sessionId}"
+            : $"user_{clientId}_account__session_{sessionId}";
 
         if (!up.BodyJson.ContainsKey("metadata"))
             up.BodyJson["metadata"] = new JsonObject();
 
         if (up.BodyJson["metadata"] is JsonObject metadata)
             metadata["user_id"] = userId;
+
+        return Task.CompletedTask;
     }
 }

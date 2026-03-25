@@ -69,7 +69,7 @@ public class OpenAiHeaderProcessor(ChatModelConnectionOptions options) : IReques
             headers["accept"] = "application/json";
         if (!headers.ContainsKey("accept"))
             headers["accept"] = "text/event-stream";
-        var sessionId = Guid.NewGuid().ToString();
+        var sessionId = down.StickySessionId ?? Guid.NewGuid().ToString("D");
         if (!headers.ContainsKey("conversation_id"))
             headers["conversation_id"] = sessionId;
         if (!headers.ContainsKey("session_id"))

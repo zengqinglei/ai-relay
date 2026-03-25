@@ -24,7 +24,6 @@ public class ClaudeChatModelHandler(
     ClaudeCacheControlCleaner claudeCacheControlCleaner,
     ClaudeSystemPromptInjector claudeSystemPromptInjector,
     IModelProvider modelProvider,
-    AccountFingerprintDomainService fingerprintDomainService,
     IClaudeCodeClientDetector clientDetector,
     IHttpClientFactory httpClientFactory,
     SseResponseStreamProcessor streamProcessor,
@@ -135,7 +134,7 @@ public class ClaudeChatModelHandler(
                 claudeCacheControlCleaner,
                 claudeSystemPromptInjector,
                 clientDetector),
-            new ClaudeMetadataInjectProcessor(Options, fingerprintDomainService),
+            new ClaudeMetadataInjectProcessor(Options),
             new ClaudeDegradationProcessor(degradationLevel, claudeThinkingCleaner, Logger)
         ];
     }

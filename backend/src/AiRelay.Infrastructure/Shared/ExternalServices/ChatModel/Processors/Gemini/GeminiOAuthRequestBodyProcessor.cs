@@ -79,7 +79,7 @@ public class GeminiOAuthRequestBodyProcessor(
             {
                 geminiSystemPromptInjector.InjectGeminiCliPrompt(payload);
                 // user_prompt_id 注入到顶层 wrapper，session_id 注入到内层 clonedBody
-                InjectGeminiCliMetadata(clonedBody, payload);
+                InjectGeminiCliMetadata(clonedBody, payload, options, down);
             }
         }
 
@@ -139,17 +139,18 @@ public class GeminiOAuthRequestBodyProcessor(
 
     /// <param name="wrapper">顶层包装对象（user_prompt_id 注入此处）</param>
     /// <param name="payload">内层请求对象（session_id 注入此处）</param>
-    private static void InjectGeminiCliMetadata(JsonObject wrapper, JsonObject? payload)
+    private static void InjectGeminiCliMetadata(JsonObject wrapper, JsonObject? payload, ChatModelConnectionOptions options, DownRequestContext down)
     {
+        var sessionId = down.StickySessionId ?? Guid.NewGuid().ToString("D");
+
         // 注入 session_id 到内层 payload
         if (payload != null && !payload.ContainsKey("session_id"))
-            payload["session_id"] = Guid.NewGuid().ToString("D");
+            payload["session_id"] = sessionId;
 
-        // 注入 user_prompt_id 到顶层 wrapper: UUID + "########" + 随机数字
+        // 注入 user_prompt_id 到顶层 wrapper: UUID + "########" + 递增数字
         if (!wrapper.ContainsKey("user_prompt_id"))
         {
-            var randomDigit = Random.Shared.Next(0, 10);
-            wrapper["user_prompt_id"] = $"{Guid.NewGuid():D}########{randomDigit}";
+            wrapper["user_prompt_id"] = $"{sessionId}########{down.PromptIndex}";
         }
     }
 }

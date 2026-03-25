@@ -16,7 +16,7 @@ public class DownRequestContext
     public HttpMethod Method { get; init; } = HttpMethod.Post;
     public string RelativePath { get; init; } = string.Empty;
     public string? QueryString { get; init; }
-    public Dictionary<string, string> Headers { get; init; } = new();
+    public Dictionary<string, string> Headers { get; init; } = [];
 
     // ============ 原始数据 ============
     /// <summary>
@@ -128,6 +128,11 @@ public class DownRequestContext
     // ============ 提取的信息（由 ExtractModelInfo 填充） ============
     public string? ModelId { get; set; }
     public string? SessionHash { get; set; }
+
+    // 模拟指纹信息
+    public int? PromptIndex { get; set; }
+    public string? StickySessionId { get; set; }
+    public string? FingerprintClientId { get; set; }
 
     // ============ 辅助方法 ============
     public string? GetUserAgent() => Headers.TryGetValue("user-agent", out var ua) ? ua : null;
