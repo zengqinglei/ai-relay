@@ -20,14 +20,23 @@
     <div class="flex flex-col gap-6">
       <!-- Basic Info -->
       <div class="flex flex-col gap-4">
-        <div class="flex flex-col gap-2">
-          <label class="font-bold">名称</label>
-          <input pInputText [(ngModel)]="formModel().name" placeholder="请输入订阅名称" [disabled]="isEditMode()" />
-        </div>
-
-        <div class="flex flex-col gap-2">
-          <label class="font-bold">描述</label>
-          <textarea pTextarea [(ngModel)]="formModel().description" rows="2" class="w-full" placeholder="可选描述"></textarea>
+        <div class="flex gap-4">
+          <div class="flex flex-col gap-2 flex-1">
+            <label class="font-bold">名称</label>
+            <input pInputText [(ngModel)]="formModel().name" placeholder="请输入订阅名称" [disabled]="isEditMode()" />
+          </div>
+          <div class="flex flex-col gap-2 w-44">
+            <label class="font-bold">过期时间</label>
+            <p-datepicker
+              [(ngModel)]="expiryDate"
+              dateFormat="yy-mm-dd"
+              [showIcon]="true"
+              [showTime]="false"
+              appendTo="body"
+              placeholder="永不过期"
+              [showButtonBar]="true"
+            ></p-datepicker>
+          </div>
         </div>
 
         @if (!isEditMode()) {
@@ -55,16 +64,8 @@
         }
 
         <div class="flex flex-col gap-2">
-          <label class="font-bold">过期时间</label>
-          <p-datepicker
-            [(ngModel)]="expiryDate"
-            dateFormat="yy-mm-dd"
-            [showIcon]="true"
-            [showTime]="false"
-            appendTo="body"
-            placeholder="留空表示永不过期"
-            [showButtonBar]="true"
-          ></p-datepicker>
+          <label class="font-bold">描述</label>
+          <textarea pTextarea [(ngModel)]="formModel().description" rows="2" class="w-full" placeholder="可选描述"></textarea>
         </div>
       </div>
 

@@ -29,7 +29,7 @@ export class LayoutService {
    * true: 折叠（仅显示图标）
    * false: 展开（显示完整内容）
    */
-  sidebarCollapsed = signal<boolean>(false);
+  sidebarCollapsed = signal<boolean>(true);
 
   /**
    * 页面标题

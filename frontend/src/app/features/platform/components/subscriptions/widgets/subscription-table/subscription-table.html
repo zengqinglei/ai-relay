@@ -12,19 +12,26 @@
           <div class="flex items-center gap-1">名称 <p-sortIcon field="name"></p-sortIcon></div>
         </th>
         <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden md:table-cell">
-          密钥掩码</th>
-        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden lg:table-cell">
-          关联分组</th>
-        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden xl:table-cell" pSortableColumn="costToday">
-          <div class="flex items-center gap-1">使用统计 <p-sortIcon field="costToday"></p-sortIcon></div>
+          密钥掩码
         </th>
-        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3">状态
-          & 有效期</th>
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden lg:table-cell">
+          关联分组
+        </th>
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden xl:table-cell" pSortableColumn="usageToday">
+          <div class="flex items-center gap-1">调用 <p-sortIcon field="usageToday"></p-sortIcon></div>
+        </th>
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden xl:table-cell" pSortableColumn="costToday">
+          <div class="flex items-center gap-1">消费 <p-sortIcon field="costToday"></p-sortIcon></div>
+        </th>
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 whitespace-nowrap">
+          状态 &amp; 有效期
+        </th>
         <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden 2xl:table-cell" pSortableColumn="creationTime">
           <div class="flex items-center gap-1">创建时间 <p-sortIcon field="creationTime"></p-sortIcon></div>
         </th>
         <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 text-right">
-          操作</th>
+          操作
+        </th>
       </tr>
     </ng-template>
 
@@ -33,13 +40,7 @@
         class="transition-colors group border-b border-transparent hover:bg-surface-50 dark:hover:bg-surface-800/50 text-sm text-color-secondary">
         <!-- Name -->
         <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4">
-          <span class="font-semibold text-color text-sm group-hover:text-primary transition-colors">{{ item.name
-            }}</span>
-          @if (item.description) {
-          <div class="text-[11px] text-muted-color mt-0.5 truncate max-w-[200px]" [pTooltip]="item.description">{{
-            item.description
-            }}</div>
-          }
+          <span class="font-semibold text-color text-sm group-hover:text-primary transition-colors whitespace-nowrap">{{ item.name }}</span>
         </td>
 
         <!-- Secret -->
@@ -66,83 +67,80 @@
 
         <!-- Bindings -->
         <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden lg:table-cell">
-          <div class="flex items-center gap-1 flex-wrap">
+          <div class="flex items-center gap-1 flex-nowrap overflow-hidden">
             @if (item.bindings && item.bindings.length > 0) {
-            @for (bind of item.bindings.slice(0, 3); track bind.providerGroupId) {
+            @for (bind of item.bindings.slice(0, 2); track bind.providerGroupId) {
             <div
-              class="flex items-center gap-1 px-2 py-1 rounded bg-surface-100 dark:bg-surface-800 border border-surface-200 dark:border-surface-700"
+              class="flex items-center gap-1 px-2 py-1 rounded bg-surface-100 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 shrink-0"
               pTooltip="{{ bind.platform | platformLabel }}" tooltipPosition="top">
-              <i class="pi pi-circle-fill text-[6px]" [ngClass]="{
+              <i class="pi pi-circle-fill text-[6px] shrink-0" [ngClass]="{
                       'text-blue-500': bind.platform.includes('GEMINI'),
                       'text-orange-500': bind.platform.includes('CLAUDE'),
                       'text-surface-900 dark:text-surface-0': bind.platform.includes('OPENAI')
                     }"></i>
-              <span class="text-[11px] font-medium text-color max-w-[100px] truncate">{{ bind.providerGroupName ||
-                '未知分组' }}</span>
+              <span class="text-[11px] font-medium text-color max-w-[80px] truncate">{{ bind.providerGroupName || '未知分组' }}</span>
             </div>
             }
-            @if (item.bindings.length > 3) {
-            <p-tag [value]="'+' + (item.bindings.length - 3)" severity="secondary" styleClass="text-[10px] cursor-pointer"
-              (mouseenter)="hoveredBindings.set(item.bindings.slice(3)); bindingsPopover.show($event)"
+            @if (item.bindings.length > 2) {
+            <p-tag [value]="'+' + (item.bindings.length - 2)" severity="secondary" styleClass="text-[10px] cursor-pointer shrink-0"
+              (mouseenter)="hoveredBindings.set(item.bindings.slice(2)); bindingsPopover.show($event)"
               (mouseleave)="bindingsPopover.hide()">
             </p-tag>
             }
             } @else {
-            <span class="text-xs text-muted-color italic">未绑定</span>
+            <span class="text-xs text-muted-color italic whitespace-nowrap">未绑定</span>
             }
           </div>
         </td>
 
-        <!-- Stats -->
+        <!-- Calls -->
         <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden xl:table-cell">
-          <div class="flex flex-col gap-1.5 items-start">
-            <!-- 今日 -->
-            <div class="flex items-center gap-0 bg-surface-50 dark:bg-surface-800/50 rounded border border-surface-200 dark:border-surface-700/50 overflow-hidden">
-              <span class="text-[10px] text-muted-color uppercase tracking-tight px-1.5 py-0.5 border-r border-surface-200 dark:border-surface-700/50">今日</span>
-              <span class="text-xs font-mono font-medium text-color px-1.5 py-0.5 border-r border-surface-200 dark:border-surface-700/50">{{ item.costToday | number: '1.2-4' }}$</span>
-              <span class="text-[10px] font-mono text-muted-color px-1.5 py-0.5 border-r border-surface-200 dark:border-surface-700/50">{{ formatTokenCount(item.tokensToday) }}</span>
-              <span class="text-[10px] font-mono text-muted-color px-1.5 py-0.5">{{ item.usageToday | number }}次</span>
-            </div>
-            <!-- 累计 -->
-            <div class="flex items-center gap-0 bg-surface-50 dark:bg-surface-800/50 rounded border border-surface-200 dark:border-surface-700/50 overflow-hidden">
-              <span class="text-[10px] text-muted-color uppercase tracking-tight px-1.5 py-0.5 border-r border-surface-200 dark:border-surface-700/50">累计</span>
-              <span class="text-[11px] font-mono text-color-secondary px-1.5 py-0.5 border-r border-surface-200 dark:border-surface-700/50">{{ item.costTotal | number: '1.2-2' }}$</span>
-              <span class="text-[10px] font-mono text-muted-color px-1.5 py-0.5 border-r border-surface-200 dark:border-surface-700/50">{{ formatTokenCount(item.tokensTotal) }}</span>
-              <span class="text-[10px] font-mono text-muted-color px-1.5 py-0.5">{{ item.usageTotal | number }}次</span>
-            </div>
+          <div class="flex items-center gap-1.5 whitespace-nowrap">
+            <span class="font-mono text-xs text-muted-color bg-surface-100 dark:bg-surface-800 px-1.5 py-0.5 rounded border border-surface-200 dark:border-surface-700">
+              今日 <span class="text-color font-medium">{{ item.usageToday | number }}次</span>
+            </span>
+            <span class="font-mono text-xs text-muted-color bg-surface-100 dark:bg-surface-800 px-1.5 py-0.5 rounded border border-surface-200 dark:border-surface-700">
+              累计 <span class="text-color-secondary">{{ item.usageTotal | number }}次</span>
+            </span>
           </div>
         </td>
 
-        <!-- Status & Expiry -->
+        <!-- Cost -->
+        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden xl:table-cell">
+          <div class="flex items-center gap-1.5 whitespace-nowrap">
+            <span class="font-mono text-xs text-muted-color bg-surface-100 dark:bg-surface-800 px-1.5 py-0.5 rounded border border-surface-200 dark:border-surface-700">
+              今日 <span class="text-color font-medium">{{ item.costToday | number: '1.2-4' }}$</span> | <span class="text-muted-color">{{ formatTokenCount(item.tokensToday) }}</span>
+            </span>
+            <span class="font-mono text-xs text-muted-color bg-surface-100 dark:bg-surface-800 px-1.5 py-0.5 rounded border border-surface-200 dark:border-surface-700">
+              累计 <span class="text-color-secondary">{{ item.costTotal | number: '1.2-2' }}$</span> | <span class="text-muted-color">{{ formatTokenCount(item.tokensTotal) }}</span>
+            </span>
+          </div>
+        </td>
+
+        <!-- Status & Expiry (one line) -->
         <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4">
-          <div class="flex flex-col gap-1 items-start">
-            <div class="flex items-center gap-1.5">
-              <span class="text-[10px] text-muted-color uppercase">状态:</span>
-              <div (click)="confirmStatusToggle($event, item)" class="inline-flex cursor-pointer">
-                <p-toggleswitch [ngModel]="isEffectiveActive(item)" styleClass="pointer-events-none" size="small" />
-              </div>
+          <div class="flex items-center gap-2 whitespace-nowrap">
+            <div (click)="confirmStatusToggle($event, item)" class="inline-flex cursor-pointer shrink-0">
+              <p-toggleswitch [ngModel]="isEffectiveActive(item)" styleClass="pointer-events-none" size="small" />
             </div>
-            <div class="flex items-center gap-1.5">
-              <span class="text-[10px] text-muted-color uppercase">有效期:</span>
-              @switch (getExpiryState(item)) {
-              @case ('expired') {
-              <span class="flex items-center text-[10px] text-red-500 font-medium whitespace-nowrap"><i
-                  class="pi pi-exclamation-circle mr-1"></i> 已过期</span>
-              }
-              @case ('warning') {
-              <span class="flex items-center text-[10px] text-orange-500 font-medium animate-pulse whitespace-nowrap"><i
-                  class="pi pi-clock mr-1"></i> {{ item.expiresAt | date: 'MM-dd' }} 过期</span>
-              }
-              @case ('ok') {
-              <span class="flex items-center text-[10px] text-muted-color whitespace-nowrap"><i
-                  class="pi pi-history mr-1"></i> {{ item.expiresAt | date: 'yyyy-MM-dd' }}</span>
-              }
-              @case ('forever') {
-              <span class="flex items-center text-[10px] text-muted-color whitespace-nowrap"><i
-                  class="pi pi-infinity mr-1"></i> 永久</span>
-              }
-              }
-            </div>
+            @switch (getExpiryState(item)) {
+            @case ('expired') {
+            <span class="flex items-center text-[10px] text-red-500 font-medium"><i
+                class="pi pi-exclamation-circle mr-1"></i> 已过期</span>
+            }
+            @case ('warning') {
+            <span class="flex items-center text-[10px] text-orange-500 font-medium animate-pulse"><i
+                class="pi pi-clock mr-1"></i> {{ item.expiresAt | date: 'MM-dd' }}</span>
+            }
+            @case ('ok') {
+            <span class="flex items-center text-[10px] text-muted-color"><i
+                class="pi pi-history mr-1"></i> {{ item.expiresAt | date: 'yyyy-MM-dd' }}</span>
+            }
+            @case ('forever') {
+            <span class="flex items-center text-[10px] text-muted-color"><i
+                class="pi pi-infinity mr-1"></i> 永久</span>
+            }
+            }
           </div>
         </td>
 
@@ -165,7 +163,7 @@
 
     <ng-template pTemplate="emptymessage">
       <tr class="hover:!bg-transparent">
-        <td colspan="7" class="!p-0 !border-0">
+        <td colspan="8" class="!p-0 !border-0">
           <div class="flex flex-col items-center justify-center h-64 text-muted-color">
             <i class="pi pi-inbox text-5xl opacity-30 mb-3"></i>
             <p class="text-base font-medium m-0">暂无订阅数据</p>
