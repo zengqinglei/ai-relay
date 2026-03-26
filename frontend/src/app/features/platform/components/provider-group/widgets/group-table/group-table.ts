@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, EventEmitter, inject, input, Output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, EventEmitter, inject, input, OnInit, Output, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Subject } from 'rxjs';
@@ -19,6 +19,7 @@ import { PROVIDER_PLATFORM_OPTIONS } from '../../../../../../shared/constants/pr
 import { PlatformLabelPipe } from '../../../../../../shared/pipes/platform-label-pipe';
 import { SchedulingStrategyLabelPipe } from '../../../../../../shared/pipes/scheduling-strategy-label-pipe';
 import { SchedulingStrategySeverityPipe } from '../../../../../../shared/pipes/scheduling-strategy-severity-pipe';
+import { FilterStateService } from '../../../../../../shared/services/filter-state.service';
 import {
   ProviderGroupOutputDto,
   GroupSchedulingStrategy,
@@ -57,7 +58,7 @@ export interface GroupTableFilterEvent {
   templateUrl: './group-table.html',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class GroupTable {
+export class GroupTable implements OnInit {
   groups = input.required<ProviderGroupOutputDto[]>();
   totalRecords = input.required<number>();
   loading = input<boolean>(false);
@@ -83,7 +84,10 @@ export class GroupTable {
   sortOrder = signal<number>(-1);
 
   private destroyRef = inject(DestroyRef);
+  private filterStateService = inject(FilterStateService);
   private searchSubject = new Subject<string>();
+
+  private readonly FILTER_KEY = 'provider-group';
 
   constructor() {
     this.searchSubject.pipe(
@@ -91,6 +95,12 @@ export class GroupTable {
       distinctUntilChanged(),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe(() => this.onFilter());
+  }
+
+  ngOnInit() {
+    const saved = this.filterStateService.load<{ keyword: string; platform: string | null }>(this.FILTER_KEY);
+    if (saved.keyword) this.searchQuery.set(saved.keyword);
+    if (saved.platform !== undefined) this.selectedPlatform.set(saved.platform ?? null);
   }
 
   onSearchQueryChange(value: string) {
@@ -118,6 +128,10 @@ export class GroupTable {
   }
 
   private emitFilterChange() {
+    this.filterStateService.save(this.FILTER_KEY, {
+      keyword: this.searchQuery(),
+      platform: this.selectedPlatform()
+    });
     this.filterChange.emit({
       offset: this.first,
       limit: this.rows,

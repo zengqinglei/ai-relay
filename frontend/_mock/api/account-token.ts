@@ -121,7 +121,8 @@ function createAccount(req: MockRequest) {
     successRate: 0,
     status: AccountStatus.Normal,
     currentConcurrency: 0,
-    expiresIn: expiresIn
+    expiresIn: expiresIn,
+    allowOfficialClientMimic: body.allowOfficialClientMimic ?? false
   };
   accounts.unshift(newAccount);
   return newAccount;

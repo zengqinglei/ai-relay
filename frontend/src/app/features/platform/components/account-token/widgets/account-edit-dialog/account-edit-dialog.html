@@ -192,9 +192,17 @@
         </p-panel>
       </div>
 
-      <!-- Max Concurrency -->
-      <div class="col-span-2 flex flex-col gap-2">
-        <label class="block text-sm font-medium text-color">最大并发数 *</label>
+      <!-- 最大并发数 + 官方伪装 同行 -->
+      <div class="flex flex-col gap-2">
+        <label class="block text-sm font-medium text-color flex items-center gap-2">
+          最大并发数 *
+          <i
+            class="pi pi-info-circle text-muted-color cursor-help text-sm hover:text-primary transition-colors"
+            pTooltip="设置为 0 表示不限制并发"
+            tooltipPosition="top"
+            tooltipStyleClass="max-w-xs"
+          ></i>
+        </label>
         <p-inputNumber
           formControlName="maxConcurrency"
           [min]="0"
@@ -210,11 +218,23 @@
           [inputStyle]="{ width: '100%' }"
         >
         </p-inputNumber>
-        <small class="text-muted-color">设置为 0 表示不限制并发</small>
       </div>
 
-      <!-- Spacer for alignment when maxConcurrency is in left column -->
-      <div></div>
+      <div class="flex flex-col gap-2">
+        <label class="block text-sm font-medium text-color flex items-center gap-2">
+          开启官方伪装
+          <i
+            class="pi pi-info-circle text-muted-color cursor-help text-sm hover:text-primary transition-colors"
+            pTooltip="开启后将模拟官方客户端请求特征，提高请求成功率"
+            tooltipPosition="top"
+            tooltipStyleClass="max-w-xs"
+          ></i>
+        </label>
+        <div class="flex items-center gap-3 h-10">
+          <p-toggleswitch formControlName="allowOfficialClientMimic" />
+          <span class="text-sm text-muted-color">{{ form.get('allowOfficialClientMimic')?.value ? '已开启' : '已关闭' }}</span>
+        </div>
+      </div>
 
       <!-- Description - Full Width -->
       <div class="col-span-2 flex flex-col gap-2">

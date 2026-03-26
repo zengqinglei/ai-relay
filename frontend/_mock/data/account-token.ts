@@ -24,6 +24,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     successRate: 99.8,
     maxConcurrency: 10,
     currentConcurrency: 3,
+    allowOfficialClientMimic: true,
     modelWhites: ['gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash'],
     modelMapping: { 'gpt-4o': 'gemini-1.5-pro', 'claude-*': 'gemini-2.0-flash-exp' }
   },
@@ -43,7 +44,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     fullToken: '1//0gMo...4321',
     successRate: 98.5,
     maxConcurrency: 5,
-    currentConcurrency: 1
+    currentConcurrency: 1,
+    allowOfficialClientMimic: true
   },
   {
     id: '3',
@@ -65,7 +67,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     fullToken: 'AIzaSyM...GHIJ',
     successRate: 0,
     maxConcurrency: 2,
-    currentConcurrency: 0
+    currentConcurrency: 0,
+    allowOfficialClientMimic: false
   },
   {
     id: '4',
@@ -84,6 +87,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     successRate: 100,
     maxConcurrency: 0,
     currentConcurrency: 12,
+    allowOfficialClientMimic: false,
     modelMapping: { 'claude-opus-*': 'claude-3-5-sonnet-20241022' }
   },
   {
@@ -102,7 +106,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     fullToken: 'sk-mock...4321',
     successRate: 99.1,
     maxConcurrency: 20,
-    currentConcurrency: 5
+    currentConcurrency: 5,
+    allowOfficialClientMimic: false
   },
   {
     id: '6',
@@ -121,7 +126,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     fullToken: 'sk-proj...0q',
     successRate: 99.9,
     maxConcurrency: 50,
-    currentConcurrency: 45
+    currentConcurrency: 45,
+    allowOfficialClientMimic: true
   },
   {
     id: '7',
@@ -139,7 +145,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     fullToken: 'sk-dev-...e123',
     successRate: 95.0,
     maxConcurrency: 3,
-    currentConcurrency: 0
+    currentConcurrency: 0,
+    allowOfficialClientMimic: false
   },
   {
     id: '8',
@@ -158,7 +165,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     fullToken: '1//0gAn...WXYZ',
     successRate: 99.2,
     maxConcurrency: 100,
-    currentConcurrency: 15
+    currentConcurrency: 15,
+    allowOfficialClientMimic: true
   },
   {
     id: '9',
@@ -177,7 +185,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     fullToken: '1//0gBa...DCBA',
     successRate: 98.7,
     maxConcurrency: 100,
-    currentConcurrency: 8
+    currentConcurrency: 8,
+    allowOfficialClientMimic: true
   },
   {
     id: '10',
@@ -196,7 +205,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     fullToken: '1//0gTh...7890',
     successRate: 99.5,
     maxConcurrency: 10,
-    currentConcurrency: 10
+    currentConcurrency: 10,
+    allowOfficialClientMimic: true
   },
   {
     id: '11',
@@ -216,7 +226,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     fullToken: '1//0gDe...MPLE',
     successRate: 0,
     maxConcurrency: 5,
-    currentConcurrency: 0
+    currentConcurrency: 0,
+    allowOfficialClientMimic: true
   }
 ];
 

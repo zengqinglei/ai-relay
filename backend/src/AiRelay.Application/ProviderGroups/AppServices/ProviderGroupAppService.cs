@@ -47,7 +47,6 @@ public class ProviderGroupAppService(
             input.EnableStickySession,
             input.StickySessionExpirationHours,
             input.RateMultiplier,
-            input.AllowOfficialClientMimic,
             accounts,
             cancellationToken);
 
@@ -78,7 +77,6 @@ public class ProviderGroupAppService(
             input.EnableStickySession,
             input.StickySessionExpirationHours,
             input.RateMultiplier,
-            input.AllowOfficialClientMimic,
             accounts,
             cancellationToken);
 

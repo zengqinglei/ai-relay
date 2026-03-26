@@ -21,6 +21,7 @@ import { TextareaModule } from 'primeng/textarea';
 import { TooltipModule } from 'primeng/tooltip';
 import { AutoCompleteModule } from 'primeng/autocomplete';
 import { PanelModule } from 'primeng/panel';
+import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { finalize } from 'rxjs/operators';
 
 import { DIALOG_CONFIGS } from '../../../../../../shared/constants/dialog-config.constants';
@@ -44,7 +45,8 @@ import { AccountTokenService } from '../../../../services/account-token-service'
     TooltipModule,
     InputNumberModule,
     AutoCompleteModule,
-    PanelModule
+    PanelModule,
+    ToggleSwitchModule
   ],
   templateUrl: './account-edit-dialog.html',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -90,7 +92,8 @@ export class AccountEditDialogComponent implements OnChanges {
       baseUrl: ['', [Validators.maxLength(512), Validators.pattern(/^https?:\/\/.+/)]],
       credential: ['', [Validators.required, Validators.maxLength(2048)]],
       description: ['', Validators.maxLength(1000)],
-      maxConcurrency: [10, [Validators.required, Validators.min(0), Validators.max(1000)]]
+      maxConcurrency: [10, [Validators.required, Validators.min(0), Validators.max(1000)]],
+      allowOfficialClientMimic: [false]
     });
 
     this.form.get('platform')?.valueChanges.subscribe(val => {
@@ -99,6 +102,15 @@ export class AccountEditDialogComponent implements OnChanges {
         this.updateValidators(val);
         if (!this.isEditMode()) {
           this.loadAvailableModels(val as ProviderPlatform);
+          // 新建模式：OAuth 平台默认开启伪装
+          this.form.get('allowOfficialClientMimic')?.setValue(this.isOAuthPlatform(val), { emitEvent: false });
+        }
+        // Antigravity 平台：伪装强制开启且禁止编辑
+        if (val === ProviderPlatform.ANTIGRAVITY) {
+          this.form.get('allowOfficialClientMimic')?.setValue(true, { emitEvent: false });
+          this.form.get('allowOfficialClientMimic')?.disable({ emitEvent: false });
+        } else {
+          this.form.get('allowOfficialClientMimic')?.enable({ emitEvent: false });
         }
       }
       // Clear OAuth state when platform changes
@@ -140,7 +152,8 @@ export class AccountEditDialogComponent implements OnChanges {
         baseUrl: this.account.baseUrl,
         credential: '', // Don't fill credential
         description: this.account.description,
-        maxConcurrency: this.account.maxConcurrency
+        maxConcurrency: this.account.maxConcurrency,
+        allowOfficialClientMimic: this.account.allowOfficialClientMimic ?? false
       }, { emitEvent: false });
       this.platformType.set(this.account.platform);
       this.form.get('name')?.disable({ emitEvent: false });
@@ -156,12 +169,21 @@ export class AccountEditDialogComponent implements OnChanges {
 
       this.updateValidators(this.account.platform);
       this.loadAvailableModels(this.account.platform as ProviderPlatform, this.account.id);
+
+      // Antigravity 平台：伪装强制开启且禁止编辑
+      if (this.account.platform === ProviderPlatform.ANTIGRAVITY) {
+        this.form.get('allowOfficialClientMimic')?.setValue(true, { emitEvent: false });
+        this.form.get('allowOfficialClientMimic')?.disable({ emitEvent: false });
+      } else {
+        this.form.get('allowOfficialClientMimic')?.enable({ emitEvent: false });
+      }
     } else {
       this.isEditMode.set(false);
       this.form.reset({
         platform: ProviderPlatform.GEMINI_OAUTH,
         credential: '',
-        maxConcurrency: 10
+        maxConcurrency: 10,
+        allowOfficialClientMimic: true // GEMINI_OAUTH 是 OAuth 平台，默认开启
       }, { emitEvent: false });
       this.platformType.set(ProviderPlatform.GEMINI_OAUTH);
       this.form.get('name')?.enable({ emitEvent: false });
@@ -248,7 +270,8 @@ export class AccountEditDialogComponent implements OnChanges {
         description: formValue.description,
         maxConcurrency: formValue.maxConcurrency,
         modelWhites: this.modelWhites,
-        modelMapping: this.buildModelMapping()
+        modelMapping: this.buildModelMapping(),
+        allowOfficialClientMimic: formValue.allowOfficialClientMimic ?? false
       };
 
       if (this.showOAuthFlow) {
@@ -270,7 +293,8 @@ export class AccountEditDialogComponent implements OnChanges {
           description: createDto.description,
           maxConcurrency: createDto.maxConcurrency,
           modelWhites: createDto.modelWhites,
-          modelMapping: createDto.modelMapping
+          modelMapping: createDto.modelMapping,
+          allowOfficialClientMimic: createDto.allowOfficialClientMimic
         };
 
         // Only send credential if provided
@@ -297,6 +321,10 @@ export class AccountEditDialogComponent implements OnChanges {
 
   get showOAuthFlow(): boolean {
     return this.isOAuthPlatform(this.platformType());
+  }
+
+  get showOfficialMimic(): boolean {
+    return true;
   }
 
   get showProjectId(): boolean {

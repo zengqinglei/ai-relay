@@ -140,24 +140,6 @@
           </div>
         </div>
 
-        @if (showMimicOfficialClient) {
-          <div class="flex flex-col gap-2">
-            <label class="font-bold flex items-center gap-2">
-              伪装为官方客户端
-              <i
-                class="pi pi-info-circle text-muted-color cursor-help text-sm hover:text-primary transition-colors"
-                pTooltip="开启后将模拟官方客户端请求特征，提高请求成功率"
-                tooltipPosition="top"
-                tooltipStyleClass="max-w-xs"
-              ></i>
-            </label>
-            <div class="flex items-center gap-4 h-10 flex-wrap">
-              <p-toggleswitch [(ngModel)]="formModel().allowOfficialClientMimic" [disabled]="readonly" />
-              <span class="text-sm text-gray-500">{{ formModel().allowOfficialClientMimic ? '已开启' : '已关闭' }}</span>
-            </div>
-          </div>
-        }
-
         <div class="flex flex-col gap-2 md:col-span-2">
           <label class="font-bold">描述</label>
           <textarea pTextarea [(ngModel)]="formModel().description" rows="2" class="w-full" [disabled]="readonly"></textarea>

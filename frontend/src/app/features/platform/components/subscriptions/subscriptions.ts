@@ -19,6 +19,7 @@ import { SubscriptionEditDialogComponent } from './widgets/subscription-edit-dia
 import { SubscriptionMetricsCards } from './widgets/subscription-metrics-cards/subscription-metrics-cards';
 import { SubscriptionTable } from './widgets/subscription-table/subscription-table';
 import { LayoutService } from '../../../../layout/services/layout-service';
+import { FilterStateService } from '../../../../shared/services/filter-state.service';
 
 @Component({
   selector: 'app-subscriptions',
@@ -46,6 +47,9 @@ export class SubscriptionsPage implements OnInit {
   private confirmationService = inject(ConfirmationService);
   private messageService = inject(MessageService);
   private layoutService = inject(LayoutService);
+  private filterStateService = inject(FilterStateService);
+
+  private readonly FILTER_KEY = 'subscriptions';
 
   subscriptions = signal<ApiKeyOutputDto[]>([]);
   totalRecords = signal(0);
@@ -91,6 +95,11 @@ export class SubscriptionsPage implements OnInit {
 
   ngOnInit() {
     this.layoutService.title.set('订阅管理');
+
+    const saved = this.filterStateService.load<{ searchQuery: string; selectedStatus: 'active' | 'inactive' | null }>(this.FILTER_KEY);
+    if (saved.searchQuery) this.searchQuery.set(saved.searchQuery);
+    if (saved.selectedStatus !== undefined) this.selectedStatus.set(saved.selectedStatus ?? null);
+
     // 只加载 metrics，列表由表格 lazy loading 触发
     this.metricService
       .getMetrics()
@@ -141,6 +150,10 @@ export class SubscriptionsPage implements OnInit {
 
   onFilter() {
     this.offset.set(0); // Reset to first page
+    this.filterStateService.save(this.FILTER_KEY, {
+      searchQuery: this.searchQuery(),
+      selectedStatus: this.selectedStatus()
+    });
     this.reloadList();
   }
 

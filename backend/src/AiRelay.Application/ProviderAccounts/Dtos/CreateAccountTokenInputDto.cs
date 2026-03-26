@@ -78,4 +78,9 @@ public class CreateAccountTokenInputDto
     /// 模型映射规则
     /// </summary>
     public Dictionary<string, string>? ModelMapping { get; init; }
+
+    /// <summary>
+    /// 是否允许伪装为官方客户端
+    /// </summary>
+    public bool AllowOfficialClientMimic { get; init; } = false;
 }

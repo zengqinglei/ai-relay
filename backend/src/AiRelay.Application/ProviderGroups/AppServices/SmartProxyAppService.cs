@@ -92,8 +92,7 @@ public class SmartProxyAppService(
             ProviderGroupName = providerGroup.Name,
             GroupRateMultiplier = providerGroup.RateMultiplier,
             WaitPlan = waitPlan,
-            AvailableAccountCount = availableCount,
-            AllowOfficialClientMimic = providerGroup.AllowOfficialClientMimic
+            AvailableAccountCount = availableCount
         };
     }
 

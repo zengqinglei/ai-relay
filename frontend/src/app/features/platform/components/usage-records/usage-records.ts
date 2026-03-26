@@ -26,6 +26,7 @@ import { ProviderGroupOutputDto } from '../../models/provider-group.dto';
 import { UsageRecordOutputDto, UsageRecordPagedInputDto } from '../../models/usage.dto';
 import { ProviderGroupService } from '../../services/provider-group-service';
 import { UsageRecordService } from '../../services/usage-record-service';
+import { FilterStateService } from '../../../../shared/services/filter-state.service';
 
 @Component({
   selector: 'app-usage-records',
@@ -54,7 +55,10 @@ export class UsageRecords implements OnInit {
   private readonly providerGroupService = inject(ProviderGroupService);
   private readonly layoutService = inject(LayoutService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly filterStateService = inject(FilterStateService);
   private readonly textFilterSubject = new Subject<void>();
+
+  private readonly FILTER_KEY = 'usage-records';
 
   // Data Signals
   records = signal<UsageRecordOutputDto[]>([]);
@@ -91,6 +95,11 @@ export class UsageRecords implements OnInit {
   ngOnInit() {
     this.layoutService.title.set('使用记录');
     this.loadFilterOptions();
+
+    const saved = this.filterStateService.load<{ platform: ProviderPlatform | null; providerGroupId: string | null }>(this.FILTER_KEY);
+    if (saved.platform !== undefined) this.filterPlatform.set(saved.platform ?? null);
+    if (saved.providerGroupId !== undefined) this.filterProviderGroupId.set(saved.providerGroupId ?? null);
+
     this.textFilterSubject.pipe(
       debounceTime(300),
       takeUntilDestroyed(this.destroyRef)
@@ -105,6 +114,10 @@ export class UsageRecords implements OnInit {
   }
 
   onSelectFilterChange() {
+    this.filterStateService.save(this.FILTER_KEY, {
+      platform: this.filterPlatform(),
+      providerGroupId: this.filterProviderGroupId()
+    });
     this.first.set(0);
     this.loadData();
   }

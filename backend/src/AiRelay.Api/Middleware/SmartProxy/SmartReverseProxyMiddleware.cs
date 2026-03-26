@@ -70,7 +70,7 @@ public class SmartReverseProxyMiddleware(
                         },
                         context.RequestAborted);
 
-                var requiresFingerprint = selectResult.AllowOfficialClientMimic;
+                var requiresFingerprint = selectResult.AccountToken.AllowOfficialClientMimic;
 
                 if (requiresFingerprint)
                 {
@@ -142,7 +142,7 @@ public class SmartReverseProxyMiddleware(
                         selectResult.AccountToken.AccessToken,
                         selectResult.AccountToken.BaseUrl,
                         selectResult.AccountToken.ExtraProperties,
-                        selectResult.AllowOfficialClientMimic,
+                        selectResult.AccountToken.AllowOfficialClientMimic,
                         selectResult.AccountToken.ModelWhites,
                         selectResult.AccountToken.ModelMapping);
 

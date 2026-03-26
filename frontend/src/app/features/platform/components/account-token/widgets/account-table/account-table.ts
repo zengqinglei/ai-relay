@@ -22,6 +22,7 @@ import { PlatformIcon } from '../../../../../../shared/components/platform-icon/
 import { PROVIDER_PLATFORM_OPTIONS } from '../../../../../../shared/constants/provider-platform.constants';
 import { ProviderPlatform } from '../../../../../../shared/models/provider-platform.enum';
 import { PlatformLabelPipe } from '../../../../../../shared/pipes/platform-label-pipe';
+import { FilterStateService } from '../../../../../../shared/services/filter-state.service';
 import { GetAccountTokenPagedInputDto, AccountTokenOutputDto, AccountStatus } from '../../../../models/account-token.dto';
 import { ModelTestDialog } from '../model-test-dialog/model-test-dialog';
 
@@ -51,7 +52,7 @@ import { ModelTestDialog } from '../model-test-dialog/model-test-dialog';
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [ConfirmationService]
 })
-export class AccountTable {
+export class AccountTable implements OnInit {
   accounts = input.required<AccountTokenOutputDto[]>();
   totalRecords = input.required<number>();
   loading = input<boolean>(false);
@@ -68,7 +69,10 @@ export class AccountTable {
 
   private confirmationService = inject(ConfirmationService);
   private destroyRef = inject(DestroyRef);
+  private filterStateService = inject(FilterStateService);
   private searchSubject = new Subject<string>();
+
+  private readonly FILTER_KEY = 'account-token';
 
   // Filter states
   searchQuery = signal('');
@@ -101,6 +105,13 @@ export class AccountTable {
       distinctUntilChanged(),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe(() => this.onFilter());
+  }
+
+  ngOnInit() {
+    const saved = this.filterStateService.load<{ keyword: string; platform: ProviderPlatform | null; status: 'active' | 'inactive' | null }>(this.FILTER_KEY);
+    if (saved.keyword) this.searchQuery.set(saved.keyword);
+    if (saved.platform) this.selectedPlatform.set(saved.platform);
+    if (saved.status !== undefined) this.selectedStatus.set(saved.status ?? null);
   }
 
   onSearchQueryChange(value: string) {
@@ -171,6 +182,12 @@ export class AccountTable {
     let isActive: boolean | undefined = undefined;
     if (this.selectedStatus() === 'active') isActive = true;
     if (this.selectedStatus() === 'inactive') isActive = false;
+
+    this.filterStateService.save(this.FILTER_KEY, {
+      keyword: this.searchQuery(),
+      platform: this.selectedPlatform(),
+      status: this.selectedStatus()
+    });
 
     const filter: GetAccountTokenPagedInputDto = {
       offset: this.first,

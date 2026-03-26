@@ -57,38 +57,25 @@
           </div>
         </div>
 
-        <!-- Access Token (OAuth Only) -->
-        @if (isOAuthPlatform(account.platform)) {
-          <div class="flex flex-col gap-2">
-            <label class="block text-sm font-medium text-color">Access Token</label>
-            <div
-              class="w-full text-sm font-mono text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 break-all"
-            >
-              {{ account.accessToken || '' | slice: 0 : 10 }}...
-            </div>
+        <!-- 密钥 + 最大并发数 同行 -->
+        <div class="flex flex-col gap-2">
+          <label class="block text-sm font-medium text-color">密钥</label>
+          <div
+            class="w-full text-sm font-mono text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 break-all select-all"
+          >
+            {{ account.fullToken }}
           </div>
+        </div>
 
-          <div class="flex flex-col gap-2">
-            <label class="block text-sm font-medium text-color">Refresh Token</label>
-            <div
-              class="w-full text-sm font-mono text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 break-all"
-            >
-              {{ account.refreshToken || account.fullToken || '' | slice: 0 : 10 }}...
-            </div>
+        <!-- Concurrency -->
+        <div class="flex flex-col gap-2">
+          <label class="block text-sm font-medium text-color">最大并发数</label>
+          <div
+            class="w-full text-sm font-mono text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 truncate"
+          >
+            {{ account.maxConcurrency === 0 ? '不限制' : account.maxConcurrency }}
           </div>
-        }
-
-        <!-- API Key (API Key Only) -->
-        @if (!isOAuthPlatform(account.platform)) {
-          <div class="col-span-2 flex flex-col gap-2">
-            <label class="block text-sm font-medium text-color">API Key</label>
-            <div
-              class="w-full text-sm font-mono text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 break-all select-all"
-            >
-              {{ account.fullToken | slice: 0 : 10 }}...
-            </div>
-          </div>
-        }
+        </div>
 
         <!-- 上游地址 (API Key Only) -->
         @if (!isOAuthPlatform(account.platform)) {
@@ -102,13 +89,13 @@
           </div>
         }
 
-        <!-- Concurrency -->
+        <!-- 伪装为官方客户端 + 创建时间 同行 -->
         <div class="flex flex-col gap-2">
-          <label class="block text-sm font-medium text-color">最大并发数</label>
+          <label class="block text-sm font-medium text-color">伪装为官方客户端</label>
           <div
-            class="w-full text-sm font-mono text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 truncate"
+            class="w-full text-sm text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 truncate"
           >
-            {{ account.maxConcurrency === 0 ? '不限制' : account.maxConcurrency }}
+            {{ account.allowOfficialClientMimic ? '已开启' : '已关闭' }}
           </div>
         </div>
 

@@ -50,7 +50,6 @@ export interface ProviderGroupOutputDto {
   enableStickySession: boolean;
   stickySessionExpirationHours: number;
   rateMultiplier: number;
-  allowOfficialClientMimic: boolean;
   creationTime: string;
   accounts: ProviderGroupAccountRelationDto[];
 }
@@ -63,7 +62,6 @@ export interface CreateProviderGroupInputDto {
   enableStickySession: boolean;
   stickySessionExpirationHours: number;
   rateMultiplier: number;
-  allowOfficialClientMimic: boolean;
   accounts: ProviderGroupAccountRelationDto[];
 }
 
@@ -75,7 +73,6 @@ export interface UpdateProviderGroupInputDto {
   enableStickySession: boolean;
   stickySessionExpirationHours: number;
   rateMultiplier: number;
-  allowOfficialClientMimic: boolean;
   accounts: ProviderGroupAccountRelationDto[];
 }
 

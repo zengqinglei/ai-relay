@@ -44,6 +44,7 @@ public class AccountTokenDomainService(
         int? maxConcurrency = null,
         List<string>? modelWhites = null,
         Dictionary<string, string>? modelMapping = null,
+        bool allowOfficialClientMimic = false,
         CancellationToken cancellationToken = default)
     {
         var accountToken = new AccountToken(
@@ -57,7 +58,8 @@ public class AccountTokenDomainService(
             description,
             extraProperties,
             modelWhites,
-            modelMapping);
+            modelMapping,
+            allowOfficialClientMimic);
 
         // 1. 刷新 Token (针对 Account 类型)
         if (!accountToken.Platform.IsApiKeyPlatform())

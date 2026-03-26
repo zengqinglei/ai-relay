@@ -11,7 +11,6 @@ export const PROVIDER_GROUPS: ProviderGroupOutputDto[] = [
     enableStickySession: false,
     stickySessionExpirationHours: 1,
     rateMultiplier: 1.0,
-    allowOfficialClientMimic: true,
     creationTime: new Date().toISOString(),
     accounts: [
       {
@@ -49,7 +48,6 @@ export const PROVIDER_GROUPS: ProviderGroupOutputDto[] = [
     enableStickySession: true,
     stickySessionExpirationHours: 72,
     rateMultiplier: 1.5,
-    allowOfficialClientMimic: true,
     creationTime: new Date(Date.now() - 86400000).toISOString(),
     accounts: [
       {

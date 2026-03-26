@@ -37,6 +37,7 @@ export interface AccountTokenOutputDto {
   successRate: number; // 0-100
   modelWhites?: string[];
   modelMapping?: Record<string, string>;
+  allowOfficialClientMimic: boolean;
 }
 
 export interface CreateAccountTokenInputDto {
@@ -51,6 +52,7 @@ export interface CreateAccountTokenInputDto {
   maxConcurrency: number;
   modelWhites?: string[];
   modelMapping?: Record<string, string>;
+  allowOfficialClientMimic?: boolean;
 }
 
 export interface UpdateAccountTokenInputDto {
@@ -62,6 +64,7 @@ export interface UpdateAccountTokenInputDto {
   maxConcurrency?: number;
   modelWhites?: string[];
   modelMapping?: Record<string, string>;
+  allowOfficialClientMimic?: boolean;
 }
 
 export interface GetAuthUrlInputDto {

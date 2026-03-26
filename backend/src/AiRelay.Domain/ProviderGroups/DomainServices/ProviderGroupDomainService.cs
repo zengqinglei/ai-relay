@@ -44,7 +44,6 @@ public class ProviderGroupDomainService(
         bool enableStickySession,
         int stickySessionExpirationHours,
         decimal rateMultiplier,
-        bool allowOfficialClientMimic,
         List<(Guid AccountId, int Priority, int Weight)> accounts,
         CancellationToken cancellationToken = default)
     {
@@ -62,8 +61,7 @@ public class ProviderGroupDomainService(
             schedulingStrategy,
             enableStickySession,
             stickySessionExpirationHours,
-            rateMultiplier,
-            allowOfficialClientMimic);
+            rateMultiplier);
 
         await providerGroupRepository.InsertAsync(group, cancellationToken);
 
@@ -87,7 +85,6 @@ public class ProviderGroupDomainService(
         bool enableStickySession,
         int stickySessionExpirationHours,
         decimal rateMultiplier,
-        bool allowOfficialClientMimic,
         List<(Guid AccountId, int Priority, int Weight)> accounts,
         CancellationToken cancellationToken = default)
     {
@@ -104,7 +101,7 @@ public class ProviderGroupDomainService(
         }
 
         // 2. 更新分组
-        group.Update(name, description, schedulingStrategy, rateMultiplier, allowOfficialClientMimic);
+        group.Update(name, description, schedulingStrategy, rateMultiplier);
         group.UpdateStickySession(enableStickySession, stickySessionExpirationHours);
         await providerGroupRepository.UpdateAsync(group, cancellationToken);
 

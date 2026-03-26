@@ -113,7 +113,7 @@ public class AccountTokenAppService(
             accountToken.AccessToken!,
             accountToken.BaseUrl,
             accountToken.ExtraProperties,
-            shouldMimicOfficialClient: true,
+            shouldMimicOfficialClient: accountToken.AllowOfficialClientMimic,
             modelWhites: accountToken.ModelWhites,
             modelMapping: accountToken.ModelMapping);
 
@@ -388,6 +388,7 @@ public class AccountTokenAppService(
             input.MaxConcurrency,
             input.ModelWhites,
             input.ModelMapping,
+            input.AllowOfficialClientMimic,
             cancellationToken);
 
         logger.LogInformation("创建账户成功: {Name}", accountToken.Name);
@@ -418,7 +419,8 @@ public class AccountTokenAppService(
             modelWhites: input.ModelWhites,
             modelMapping: input.ModelMapping,
             clearModelWhites: input.ModelWhites != null && input.ModelWhites.Count == 0,
-            clearModelMapping: input.ModelMapping != null && input.ModelMapping.Count == 0);
+            clearModelMapping: input.ModelMapping != null && input.ModelMapping.Count == 0,
+            allowOfficialClientMimic: input.AllowOfficialClientMimic);
 
         // 更新凭证
         if (!string.IsNullOrWhiteSpace(input.Credential))

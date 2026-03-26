@@ -36,9 +36,4 @@ public record SelectAccountResultDto
     /// 可用账号总数（用于判断是否还有其他账号可切换）
     /// </summary>
     public int AvailableAccountCount { get; init; }
-
-    /// <summary>
-    /// 是否允许伪装为官方客户端（仅 API Key 账户有效，OAuth 账户强制伪装）
-    /// </summary>
-    public bool AllowOfficialClientMimic { get; init; }
 }

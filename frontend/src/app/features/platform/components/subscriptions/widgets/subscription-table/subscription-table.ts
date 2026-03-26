@@ -6,6 +6,7 @@ import { ButtonModule } from 'primeng/button';
 import { ConfirmPopupModule } from 'primeng/confirmpopup';
 import { DatePickerModule } from 'primeng/datepicker';
 import { DialogModule } from 'primeng/dialog';
+import { PopoverModule } from 'primeng/popover';
 import { TableLazyLoadEvent, TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
@@ -34,6 +35,7 @@ export interface SubscriptionTableFilterEvent {
     ConfirmPopupModule,
     DialogModule,
     DatePickerModule,
+    PopoverModule,
     PlatformLabelPipe
   ],
   templateUrl: './subscription-table.html',
@@ -87,10 +89,8 @@ export class SubscriptionTable {
     });
   }
 
-  getBindingsTooltip(bindings: ApiKeyBindingOutputDto[]): string {
-    if (!bindings || bindings.length === 0) return '';
-    return bindings.map(b => `${b.providerGroupName} (${b.platform})`).join('\n');
-  }
+  // Popover state for bindings overflow
+  hoveredBindings = signal<ApiKeyBindingOutputDto[]>([]);
 
   private writeToClipboard(text: string): Promise<void> {
     if (navigator.clipboard?.writeText) {

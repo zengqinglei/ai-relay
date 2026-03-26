@@ -11,7 +11,6 @@ import { LandingFooter } from '../../widgets/footer/footer';
 import { LandingHeader } from '../../widgets/header/header';
 import { LandingHero } from '../../widgets/hero/hero';
 import { LandingHighlights } from '../../widgets/highlights/highlights';
-import { LandingPricing } from '../../widgets/pricing/pricing';
 
 @Component({
   selector: 'app-landing',
@@ -26,7 +25,6 @@ import { LandingPricing } from '../../widgets/pricing/pricing';
     LandingHero,
     LandingFeatures,
     LandingHighlights,
-    LandingPricing,
     LandingFooter
   ],
   templateUrl: './landing.html'

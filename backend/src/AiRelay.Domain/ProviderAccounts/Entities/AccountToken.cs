@@ -58,6 +58,11 @@ public class AccountToken : DeletionAuditedEntity<Guid>
     /// </summary>
     public Dictionary<string, string>? ModelMapping { get; private set; }
 
+    /// <summary>
+    /// 是否允许伪装为官方客户端
+    /// </summary>
+    public bool AllowOfficialClientMimic { get; private set; }
+
     public AccountToken(
         ProviderPlatform platform,
         string name,
@@ -69,7 +74,8 @@ public class AccountToken : DeletionAuditedEntity<Guid>
         string? description = null,
         Dictionary<string, string>? extraProperties = null,
         List<string>? modelWhites = null,
-        Dictionary<string, string>? modelMapping = null)
+        Dictionary<string, string>? modelMapping = null,
+        bool allowOfficialClientMimic = false)
     {
         Id = Guid.CreateVersion7();
         Platform = platform;
@@ -85,6 +91,7 @@ public class AccountToken : DeletionAuditedEntity<Guid>
         }
         ModelWhites = modelWhites;
         ModelMapping = modelMapping;
+        AllowOfficialClientMimic = allowOfficialClientMimic;
 
         if (expiresIn.HasValue)
         {
@@ -102,7 +109,8 @@ public class AccountToken : DeletionAuditedEntity<Guid>
     public void Enable() => IsActive = true;
 
     public void Update(string? name, string? baseUrl, string? description, int? maxConcurrency, Dictionary<string, string>? extraProperties = null,
-        List<string>? modelWhites = null, Dictionary<string, string>? modelMapping = null, bool clearModelWhites = false, bool clearModelMapping = false)
+        List<string>? modelWhites = null, Dictionary<string, string>? modelMapping = null, bool clearModelWhites = false, bool clearModelMapping = false,
+        bool? allowOfficialClientMimic = null)
     {
         if (!string.IsNullOrWhiteSpace(name))
         {
@@ -138,6 +146,11 @@ public class AccountToken : DeletionAuditedEntity<Guid>
             ModelMapping = null;
         else if (modelMapping != null)
             ModelMapping = modelMapping;
+
+        if (allowOfficialClientMimic.HasValue)
+        {
+            AllowOfficialClientMimic = allowOfficialClientMimic.Value;
+        }
     }
 
     public void UpdateTokens(string accessToken, string? refreshToken, long? expiresIn)

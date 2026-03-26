@@ -116,4 +116,9 @@ public class AccountTokenOutputDto
     /// 模型映射规则（转换模型名称）
     /// </summary>
     public Dictionary<string, string>? ModelMapping { get; set; }
+
+    /// <summary>
+    /// 是否允许伪装为官方客户端
+    /// </summary>
+    public bool AllowOfficialClientMimic { get; init; }
 }

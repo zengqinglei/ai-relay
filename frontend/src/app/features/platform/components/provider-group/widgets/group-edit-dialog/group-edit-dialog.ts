@@ -122,16 +122,6 @@ export class GroupEditDialogComponent {
     return this.formModel().schedulingStrategy === GroupSchedulingStrategy.Priority;
   }
 
-  get showMimicOfficialClient(): boolean {
-    const platform = this.formModel().platform;
-    if (!platform) return false;
-
-    // OAuth 平台（含 ANTIGRAVITY）不展示
-    const oauthPlatforms = [ProviderPlatform.CLAUDE_OAUTH, ProviderPlatform.GEMINI_OAUTH, ProviderPlatform.ANTIGRAVITY];
-
-    return !oauthPlatforms.includes(platform);
-  }
-
   createEmptyGroup(): any {
     return {
       name: '',
@@ -141,7 +131,6 @@ export class GroupEditDialogComponent {
       rateMultiplier: 1.0,
       enableStickySession: true,
       stickySessionExpirationHours: 1,
-      allowOfficialClientMimic: true,
       accounts: []
     };
   }

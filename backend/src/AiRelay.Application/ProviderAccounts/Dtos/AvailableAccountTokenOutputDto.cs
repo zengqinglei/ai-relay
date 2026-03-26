@@ -14,4 +14,5 @@ public record AvailableAccountTokenOutputDto
     public int CurrentConcurrency { get; init; }
     public List<string>? ModelWhites { get; init; }
     public Dictionary<string, string>? ModelMapping { get; init; }
+    public bool AllowOfficialClientMimic { get; init; }
 }

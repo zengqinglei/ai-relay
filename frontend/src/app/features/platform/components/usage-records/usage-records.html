@@ -197,6 +197,7 @@
             <!-- Column 4: Request Info -->
             <th
               class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden xl:table-cell"
+              style="width: 22rem; max-width: 22rem;"
               pSortableColumn="durationMs"
             >
               <div class="flex items-center gap-1"> 下游请求信息 <p-sortIcon field="durationMs"></p-sortIcon> </div>
@@ -205,6 +206,7 @@
             <!-- Column 5: Client Info -->
             <th
               class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden 2xl:table-cell"
+              style="width: 14rem; max-width: 14rem;"
             >
               客户端来源
             </th>
@@ -307,12 +309,12 @@
             </td>
 
             <!-- Column 4: Request Info -->
-            <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-2 hidden xl:table-cell">
+            <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-2 hidden xl:table-cell overflow-hidden" style="width: 22rem; max-width: 22rem;">
               <div class="flex flex-col gap-1.5">
-                <div class="flex items-center gap-1.5">
-                  <span class="text-sm font-bold text-surface-500">{{ record.downRequestMethod }}</span>
+                <div class="flex items-center gap-1.5 min-w-0">
+                  <span class="text-sm font-bold text-surface-500 shrink-0">{{ record.downRequestMethod }}</span>
                   <span
-                    class="text-sm text-color font-mono truncate"
+                    class="text-sm text-color font-mono truncate min-w-0"
                     [pTooltip]="record.downRequestUrl"
                     tooltipPosition="top"
                     tooltipStyleClass="max-w-md"
@@ -340,15 +342,15 @@
             </td>
 
             <!-- Column 5: Client Info -->
-            <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-2 hidden 2xl:table-cell">
+            <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-2 hidden 2xl:table-cell overflow-hidden" style="width: 14rem; max-width: 14rem;">
               <div class="flex flex-col gap-1.5">
                 <div class="flex items-center gap-1.5">
-                  <i class="pi pi-globe text-sm text-muted-color"></i>
-                  <span class="text-sm text-color font-mono">{{ record.downClientIp }}</span>
+                  <i class="pi pi-globe text-sm text-muted-color shrink-0"></i>
+                  <span class="text-sm text-color font-mono truncate min-w-0">{{ record.downClientIp }}</span>
                 </div>
-                <div class="flex items-center gap-1.5">
+                <div class="flex items-center gap-1.5 min-w-0">
                   <span
-                    class="text-[10px] text-muted-color truncate cursor-help"
+                    class="text-[10px] text-muted-color truncate min-w-0 cursor-help"
                     [pTooltip]="record.downUserAgent"
                     tooltipPosition="top"
                     tooltipStyleClass="max-w-md"

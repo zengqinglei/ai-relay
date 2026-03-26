@@ -23,11 +23,6 @@ public class ProviderGroup : FullAuditedEntity<Guid>
 
     public decimal RateMultiplier { get; private set; } = 1.0m;
 
-    /// <summary>
-    /// 是否允许伪装为官方客户端（仅 API Key 账户有效，OAuth 账户强制伪装）
-    /// </summary>
-    public bool AllowOfficialClientMimic { get; private set; } = true;
-
     private ProviderGroup() => Name = null!;
 
     public ProviderGroup(
@@ -37,8 +32,7 @@ public class ProviderGroup : FullAuditedEntity<Guid>
         GroupSchedulingStrategy schedulingStrategy,
         bool enableStickySession = false,
         int stickySessionExpirationHours = 1,
-        decimal rateMultiplier = 1.0m,
-        bool allowOfficialClientMimic = true)
+        decimal rateMultiplier = 1.0m)
     {
         Id = Guid.CreateVersion7();
         Name = name;
@@ -48,16 +42,14 @@ public class ProviderGroup : FullAuditedEntity<Guid>
         EnableStickySession = enableStickySession;
         StickySessionExpirationHours = stickySessionExpirationHours;
         RateMultiplier = rateMultiplier;
-        AllowOfficialClientMimic = allowOfficialClientMimic;
     }
 
-    public void Update(string name, string? description, GroupSchedulingStrategy schedulingStrategy, decimal rateMultiplier, bool allowOfficialClientMimic)
+    public void Update(string name, string? description, GroupSchedulingStrategy schedulingStrategy, decimal rateMultiplier)
     {
         Name = name;
         Description = description;
         SchedulingStrategy = schedulingStrategy;
         RateMultiplier = rateMultiplier;
-        AllowOfficialClientMimic = allowOfficialClientMimic;
     }
 
     public void UpdateStickySession(bool enable, int expirationHours = 1)

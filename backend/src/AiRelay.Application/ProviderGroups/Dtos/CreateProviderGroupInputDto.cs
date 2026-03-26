@@ -63,10 +63,4 @@ public record CreateProviderGroupInputDto
     /// </summary>
     [Display(Name = "关联账户")]
     public List<AddGroupAccountInputDto> Accounts { get; init; } = new();
-
-    /// <summary>
-    /// 是否允许伪装为官方客户端
-    /// </summary>
-    [Display(Name = "允许伪装为官方客户端")]
-    public bool AllowOfficialClientMimic { get; init; } = true;
 }

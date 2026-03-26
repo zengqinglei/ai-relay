@@ -1,12 +1,10 @@
 import { Component, inject } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
 
-import { LogoComponent } from '../../../../shared/components/logo/logo';
-
 @Component({
   selector: 'app-landing-footer',
   standalone: true,
-  imports: [RouterModule, LogoComponent],
+  imports: [RouterModule],
   templateUrl: './footer.html'
 })
 export class LandingFooter {

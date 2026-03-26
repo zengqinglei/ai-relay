@@ -16,7 +16,6 @@ public record ProviderGroupOutputDto
     public bool EnableStickySession { get; init; }
     public int StickySessionExpirationHours { get; init; }
     public decimal RateMultiplier { get; init; }
-    public bool AllowOfficialClientMimic { get; init; }
     public DateTime CreationTime { get; init; }
     public DateTime? LastModificationTime { get; init; }
     public List<GroupAccountRelationOutputDto> Accounts { get; set; } = new();
