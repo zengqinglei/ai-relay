@@ -1,7 +1,16 @@
-<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mr-3 drop-shadow-[0_0_3px_rgba(var(--p-primary-400),0.3)] text-surface-900 dark:text-surface-0 transition-colors">
-  <!-- Left Swoosh -->
-  <path d="M50 15L20 85H35L50 45L65 85H80L50 15Z" fill="var(--p-primary-500)" stroke="currentColor" stroke-width="2" />
-  <!-- Orbit Ring -->
-  <ellipse cx="50" cy="65" rx="30" ry="8" stroke="var(--p-primary-400)" stroke-width="2" transform="rotate(-15 50 65)" />
-  <circle cx="28" cy="58" r="3" fill="currentColor" />
-</svg>
+<div [ngClass]="{
+    'h-10 w-10 border shadow-[0_0_15px_rgba(var(--p-primary-500),0.2)] rounded-lg': size() === 'normal',
+    'h-14 w-14 border shadow-[0_0_20px_rgba(var(--p-primary-500),0.2)] rounded-xl': size() === 'large'
+  }"
+  class="flex items-center justify-center bg-gradient-to-tr from-primary-900/40 to-primary-800/40 backdrop-blur-md border-primary-400/30 group-hover:scale-105 transition-transform duration-300">
+  <svg [ngClass]="{
+      'w-7 h-7': size() === 'normal',
+      'w-10 h-10': size() === 'large'
+    }" 
+    class="text-primary-300 drop-shadow-[0_0_8px_rgba(var(--p-primary-400),0.8)]" 
+    viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M50 15L20 85H35L50 45L65 85H80L50 15Z" fill="var(--p-primary-500)" stroke="white" stroke-width="2" />
+    <ellipse cx="50" cy="65" rx="30" ry="8" stroke="var(--p-primary-400)" stroke-width="2" transform="rotate(-15 50 65)" />
+    <circle cx="28" cy="58" r="3" fill="white" />
+  </svg>
+</div>

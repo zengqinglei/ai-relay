@@ -1,8 +1,8 @@
-<header class="py-6 px-6 mx-0 md:mx-12 lg:mx-20 lg:px-20 flex items-center justify-between relative lg:static">
+<header class="py-4 px-6 md:px-12 w-full flex items-center justify-between sticky top-0 z-50 backdrop-blur-xl bg-surface-0/80 dark:bg-surface-900/80 border-b border-surface-200/50 dark:border-surface-800/50 transition-all duration-300">
   <!-- Logo -->
-  <a class="flex items-center" href="#">
-    <app-logo></app-logo>
-    <span class="text-color-emphasis font-bold text-2xl leading-normal mr-20 tracking-wide whitespace-nowrap text-transparent bg-clip-text bg-gradient-to-r from-primary-500 to-primary-700 dark:from-primary-300 dark:to-primary-100 drop-shadow-sm">AI Relay</span>
+  <a class="flex items-center gap-3 group" href="#">
+    <app-logo size="normal" />
+    <span class="font-bold text-2xl tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-primary-400 dark:from-primary-400 dark:to-primary-200 whitespace-nowrap">AI Relay</span>
   </a>
 
   <!-- Mobile Menu Toggle -->
@@ -12,11 +12,11 @@
 
   <!-- Navigation Menu -->
   <div
-    class="items-center bg-surface grow justify-end absolute lg:static w-full left-0 top-full px-4 lg:px-0 z-20 transition-all duration-300 ease-in-out mobile-menu lg:mobile-menu-none"
-    [class]="isMobileMenuOpen() ? 'flex flex-col lg:flex-row py-4 lg:py-0' : 'hidden lg:flex'"
+    class="items-center bg-surface-0/95 dark:bg-surface-900/95 backdrop-blur-xl grow justify-end absolute lg:static w-full left-0 top-full px-6 lg:px-0 z-20 transition-all duration-300 ease-in-out mobile-menu lg:mobile-menu-none shadow-lg lg:shadow-none border-b lg:border-none border-surface-200 dark:border-surface-800"
+    [class]="isMobileMenuOpen() ? 'flex flex-col lg:flex-row py-6 lg:py-0' : 'hidden lg:flex'"
   >
     <!-- Action Buttons -->
-    <div class="flex flex-col lg:flex-row items-center border-t lg:border-t-0 border-surface py-4 lg:py-0 mt-4 lg:mt-0 gap-4 w-full lg:w-auto">
+    <div class="flex flex-col lg:flex-row items-center gap-4 w-full lg:w-auto">
       <!-- Theme Toggles -->
       <div class="flex items-center gap-2">
         <p-button
@@ -24,7 +24,7 @@
           [text]="true"
           [rounded]="true"
           severity="secondary"
-          styleClass="w-10 h-10 border border-surface shadow-sm bg-surface-0 dark:bg-surface-900"
+          styleClass="w-10 h-10 bg-surface-100 hover:bg-surface-200 dark:bg-surface-800 dark:hover:bg-surface-700 transition-colors"
           (onClick)="layoutService.toggleDarkMode()"
         >
         </p-button>
@@ -35,7 +35,7 @@
             [text]="true"
             [rounded]="true"
             severity="secondary"
-            styleClass="w-10 h-10 border border-surface shadow-sm bg-surface-0 dark:bg-surface-900"
+            styleClass="w-10 h-10 bg-surface-100 hover:bg-surface-200 dark:bg-surface-800 dark:hover:bg-surface-700 transition-colors"
             pStyleClass="@next"
             enterFromClass="hidden"
             enterActiveClass="animate-scalein"
@@ -50,9 +50,10 @@
       
       <p-button
         label="登录"
+        icon="pi pi-user"
         routerLink="/auth/login"
         [rounded]="true"
-        styleClass="w-full lg:w-auto px-6"
+        styleClass="w-full lg:w-auto px-6 font-medium shadow-md shadow-primary-500/20"
         (onClick)="isMobileMenuOpen.set(false)"
       ></p-button>
     </div>

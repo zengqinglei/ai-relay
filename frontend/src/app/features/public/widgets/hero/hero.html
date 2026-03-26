@@ -1,19 +1,16 @@
-<section id="hero"
-  class="relative flex flex-col pt-12 pb-20 px-6 lg:px-20 overflow-hidden bg-surface-50 dark:bg-surface-950 transition-colors duration-300">
+<section id="hero" class="relative flex flex-col pt-24 pb-32 px-6 lg:px-20 w-full overflow-hidden border-b border-surface-200/50 dark:border-surface-800/50">
   <!-- ADVANCED TECH BACKGROUND LAYERS -->
-
-  <!-- 1. Deep Base Gradient -->
-  <div
-    class="absolute inset-0 z-0 bg-gradient-to-br from-primary-50 via-surface-0 to-surface-100 dark:from-surface-950 dark:via-surface-900 dark:to-primary-900 opacity-80">
-  </div>
+  
+  <!-- 1. Deep Base Gradient (Adapts to primary color) -->
+  <div class="absolute inset-0 z-0 bg-gradient-to-br from-surface-50 via-surface-100 to-primary-100/50 dark:from-[#020617] dark:via-surface-950 dark:to-primary-950 transition-colors duration-500"></div>
 
   <!-- 2. Speed Lines Background -->
-  <div class="absolute inset-0 z-0 opacity-10 dark:opacity-20 pointer-events-none">
+  <div class="absolute inset-0 z-0 opacity-20 pointer-events-none">
     <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="speed-grad-hero" x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" style="stop-color: transparent; stop-opacity: 0" />
-          <stop offset="50%" style="stop-color: var(--p-primary-500); stop-opacity: 1" />
+          <stop offset="50%" class="stop-color-primary" style="stop-color: var(--p-primary-500); stop-opacity: 1" />
           <stop offset="100%" style="stop-color: transparent; stop-opacity: 0" />
         </linearGradient>
       </defs>
@@ -35,76 +32,113 @@
   </div>
 
   <!-- 3. Network Connection Overlay -->
-  <svg class="absolute inset-0 z-0 opacity-10 dark:opacity-20 pointer-events-none" xmlns="http://www.w3.org/2000/svg">
+  <svg class="absolute inset-0 z-0 opacity-[0.05] dark:opacity-20 pointer-events-none" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <pattern id="hexagons-hero" width="50" height="43.4" patternUnits="userSpaceOnUse" patternTransform="scale(2)">
-        <path
-          d="M24.8,22 L24.8,0.2 L8.75,9.5 L8.75,29.8 Z M25.2,22 L41.25,29.8 L41.25,9.5 L25.2,0.2 Z M8.25,30 L8.25,10 L-8,0.5 L-8,21 Z"
-          fill="none" stroke="var(--p-primary-500)" stroke-width="1" />
+        <path d="M24.8,22 L24.8,0.2 L8.75,9.5 L8.75,29.8 Z M25.2,22 L41.25,29.8 L41.25,9.5 L25.2,0.2 Z M8.25,30 L8.25,10 L-8,0.5 L-8,21 Z" fill="none" stroke="currentColor" class="text-primary-800" stroke-width="1" />
       </pattern>
     </defs>
     <rect width="100%" height="100%" fill="url(#hexagons-hero)" />
   </svg>
 
   <!-- 4. Glowing Burst Effect -->
-  <div
-    class="absolute top-[30%] right-[20%] w-[600px] h-[400px] bg-primary-500/10 rounded-full blur-[80px] z-0 mix-blend-screen animate-pulse pointer-events-none"
-    style="animation-duration: 4s"></div>
-
+  <div class="absolute top-[30%] right-[20%] w-[600px] h-[400px] bg-primary-500/10 rounded-full blur-[100px] z-0 mix-blend-screen animate-pulse pointer-events-none" style="animation-duration: 4s"></div>
+  
+  <!-- 5. Bottom Edge Gradient for Blending -->
+  <div class="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-surface-ground to-transparent z-10 pointer-events-none"></div>
 
   <!-- Content Wrapper -->
-  <div class="relative z-10 flex flex-col md:flex-row items-center gap-10 mt-12 mx-auto max-w-7xl w-full">
+  <div class="relative z-10 flex flex-col lg:flex-row items-center gap-16 mt-8 w-full max-w-7xl mx-auto">
     <!-- Hero Text (Left Box) -->
-    <div class="flex-1 text-center md:text-left">
-      <h1 class="text-5xl md:text-7xl font-bold text-color leading-tight tracking-tight drop-shadow-sm mb-4">
-        AI Relay
+    <div class="flex-1 text-center lg:text-left">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary-500/10 border border-primary-500/30 text-primary-600 dark:text-primary-300 text-sm font-medium mb-6 backdrop-blur-sm">
+        <span class="relative flex h-2 w-2">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-primary-500"></span>
+        </span>
+        AI-Relay v1.0 is properly live
+      </div>
+      <h1 class="text-5xl md:text-7xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-surface-900 via-primary-700 to-primary-500 dark:from-primary-50 dark:via-primary-300 dark:to-primary-500 leading-tight tracking-tight drop-shadow-sm dark:drop-shadow-lg mb-6 transition-colors duration-500">
+        强大的大模型<br/>聚合与转接平台
       </h1>
-      <p class="font-normal text-2xl md:text-3xl leading-normal text-surface-600 dark:text-surface-400">
-        强大的大模型聚合与转接平台
+      <p class="text-base md:text-lg text-surface-600 dark:text-surface-400 mt-4 leading-relaxed max-w-xl mx-auto lg:mx-0">
+        无缝对接 <span class="text-surface-800 dark:text-surface-200 font-semibold">ChatGPT、Claude、Gemini</span> 等订阅模型；<br />
+        支持接入 <span class="text-surface-800 dark:text-surface-200 font-semibold">第三方中转站</span>；<br />
+        支持原生标准的 API 模型接入，如 <span class="text-surface-800 dark:text-surface-200 font-semibold">Qwen、MiniMax、GLM</span> 等。
       </p>
-      <p class="text-base md:text-lg text-surface-500 dark:text-surface-500 mt-4 leading-relaxed max-w-xl mx-auto md:mx-0">
-        无缝对接 <strong>ChatGPT、Claude、Gemini</strong> 等订阅模型；支持接入 <strong>魔塔社区</strong> 等第三方中转站，以及原生兼容 <strong>OpenAI / Claude</strong> 接口标准的 API 模型，如 Qwen、MiniMax、GLM 等。
-      </p>
-      <p-button [rounded]="true" label="立即开始" icon="pi pi-arrow-right" iconPos="right"
-        routerLink="/auth/login"
-        styleClass="text-lg mt-8 px-8 py-3 shadow-lg shadow-primary-500/30"></p-button>
+      
+      <div class="mt-10 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
+        <p-button [rounded]="true" label="立即开始" icon="pi pi-arrow-right" iconPos="right"
+          routerLink="/auth/login"
+          styleClass="text-lg px-8 py-3 shadow-lg shadow-primary-500/30 border-none bg-primary hover:bg-primary-emphasis text-primary-contrast transition-all hover:scale-105">
+        </p-button>
+        <p-button [rounded]="true" [outlined]="true" label="查看文档" icon="pi pi-book"
+          styleClass="text-lg px-8 py-3 text-primary-600 dark:text-primary-300 border-primary-500/30 hover:bg-primary-500/10 transition-colors">
+        </p-button>
+      </div>
+      
+      <!-- Mini Trust Indicators -->
+      <div class="mt-10 flex items-center justify-center lg:justify-start gap-6 text-surface-500 dark:text-surface-400 text-sm">
+        <div class="flex items-center gap-2"><i class="pi pi-check-circle text-primary-500"></i> 多节点支持</div>
+        <div class="flex items-center gap-2"><i class="pi pi-check-circle text-primary-500"></i> 秒级响应</div>
+        <div class="flex items-center gap-2"><i class="pi pi-check-circle text-primary-500"></i> 无感切换</div>
+      </div>
     </div>
 
-    <!-- Hero Terminal Illustration (Right Box) -->
-    <div class="flex-1 flex justify-center w-full max-w-lg md:max-w-xl">
-      <div
-        class="w-full bg-[#0f172a] rounded-xl border border-slate-700/50 shadow-2xl overflow-hidden backdrop-blur-sm transform transition-all hover:scale-105 duration-300">
-        <!-- MacOS Style Window Header -->
-        <div class="bg-slate-800/80 px-4 py-3 flex items-center border-b border-slate-700/50">
-          <div class="flex gap-2 relative z-10">
-            <div class="w-3 h-3 rounded-full bg-red-500/80 shadow-[0_0_5px_rgba(239,68,68,0.5)]"></div>
-            <div class="w-3 h-3 rounded-full bg-yellow-500/80 shadow-[0_0_5px_rgba(234,179,8,0.5)]"></div>
-            <div class="w-3 h-3 rounded-full bg-green-500/80 shadow-[0_0_5px_rgba(34,197,94,0.5)]"></div>
-          </div>
-          <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <span class="text-slate-400 text-xs font-mono select-none">terminal</span>
-          </div>
+    <!-- Hero Tech Illustration (Right Box) -->
+    <div class="flex-1 flex justify-center w-full max-w-lg lg:max-w-xl relative hidden md:flex">
+      
+      <!-- Central Hub -->
+      <div class="relative z-20 flex flex-col items-center">
+        <div class="w-48 h-48 bg-surface-0/80 dark:bg-surface-900/80 rounded-full border border-primary-500/40 shadow-[0_0_60px_var(--p-primary-500)] flex items-center justify-center relative overflow-hidden backdrop-blur-md">
+          <!-- Inner Pulse -->
+          <div class="absolute inset-0 bg-primary-500/20 animate-pulse"></div>
+          <!-- Core Icon -->
+          <i class="pi pi-bolt text-7xl text-primary-500 z-10 drop-shadow-[0_0_15px_var(--p-primary-500)]"></i>
+          <!-- Speed Lines overlay -->
+          <div class="absolute inset-0 bg-gradient-to-b from-transparent via-primary-400/20 to-transparent h-[200%] w-full animate-[scan_2s_linear_infinite] -translate-y-1/2"></div>
         </div>
-        <!-- Terminal Content -->
-        <div class="p-6 font-mono text-sm md:text-base">
-          <div class="mb-4">
-            <span class="text-green-400 mr-2">$</span>
-            <span class="text-cyan-400">curl</span>
-            <span class="text-slate-300"> -X POST </span>
-            <span class="text-blue-300">/v1/messages</span>
-          </div>
-          <div class="text-slate-500 mb-2 italic"># Routing to upstream...</div>
-          <div class="mb-4 flex items-center gap-3">
-            <span class="bg-green-500/20 text-green-400 px-2 py-0.5 rounded text-xs border border-green-500/30">200
-              OK</span>
-            <span class="text-yellow-200">{{ '{"content": "Hello!"}' }}</span>
-          </div>
-          <div class="animate-pulse">
-            <span class="text-green-400 mr-2">$</span>
-            <span class="w-2 h-4 bg-green-400 inline-block align-middle"></span>
+      </div>
+
+      <!-- Orbit Rings -->
+      <div class="absolute inset-0 flex items-center justify-center z-10">
+        <div class="w-[110%] aspect-square border-2 border-primary-500/20 rounded-full absolute"></div>
+        <div class="w-[140%] aspect-square border border-dashed border-primary-400/30 rounded-full absolute animate-[spin_20s_linear_infinite]"></div>
+      </div>
+
+      <!-- Floating Metrics Cards -->
+      <!-- Latency Card -->
+      <div class="absolute top-10 -right-4 lg:-right-12 p-4 bg-surface-0/60 dark:bg-surface-900/60 backdrop-blur-xl border border-surface-200/50 dark:border-surface-700/50 border-l-4 border-l-primary-400 rounded-xl shadow-2xl animate-[bounce_4s_infinite] z-30">
+        <div class="flex flex-col">
+          <span class="text-xs text-primary-600 dark:text-primary-300 uppercase tracking-wider font-bold mb-1">Global Latency</span>
+          <div class="flex items-baseline gap-2">
+            <span class="text-3xl font-mono font-bold text-surface-900 dark:text-white leading-none">12</span>
+            <span class="text-sm text-primary-500 font-mono">ms</span>
+            <i class="pi pi-chart-line text-green-500 text-sm ml-2"></i>
           </div>
         </div>
       </div>
+
+      <!-- Uptime Card -->
+      <div class="absolute bottom-10 -left-4 lg:-left-12 p-4 bg-surface-0/60 dark:bg-surface-900/60 backdrop-blur-xl border border-surface-200/50 dark:border-surface-700/50 border-r-4 border-r-primary-500 rounded-xl shadow-2xl animate-[bounce_5s_infinite] z-30" style="animation-delay: 1s">
+        <div class="flex flex-col items-end">
+          <span class="text-xs text-primary-600 dark:text-primary-300 uppercase tracking-wider font-bold mb-1">System Uptime</span>
+          <div class="flex items-baseline gap-2">
+            <i class="pi pi-check-circle text-primary-500 text-sm mr-2"></i>
+            <span class="text-3xl font-mono font-bold text-surface-900 dark:text-white leading-none">99.99</span>
+            <span class="text-sm text-primary-500 font-mono">%</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Connectors/Nodes -->
+      <div class="absolute top-1/4 left-0 w-12 h-12 bg-surface-100 dark:bg-surface-800 rounded-full border border-primary-400/50 flex items-center justify-center shadow-lg shadow-primary-500/20 z-30 animate-pulse" style="animation-delay: 0.5s">
+        <span class="text-primary-600 dark:text-primary-300 font-serif font-bold">C</span>
+      </div>
+      <div class="absolute bottom-1/4 right-0 w-12 h-12 bg-surface-100 dark:bg-surface-800 rounded-full border border-primary-500/50 flex items-center justify-center shadow-lg shadow-primary-500/20 z-30 animate-pulse" style="animation-delay: 1.5s">
+        <span class="text-primary-600 dark:text-primary-300 font-bold">G</span>
+      </div>
+
     </div>
   </div>
 </section>

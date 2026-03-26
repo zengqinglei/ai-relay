@@ -13,6 +13,7 @@ import { lastValueFrom } from 'rxjs';
 
 import { AuthService } from '../../../../core/services/auth-service';
 import { LayoutService } from '../../../../layout/services/layout-service';
+import { LogoComponent } from '../../../../shared/components/logo/logo';
 import { ThemeConfigurator } from '../../../../shared/components/theme-configurator/theme-configurator';
 import { AccountService } from '../../services/account-service';
 
@@ -28,7 +29,8 @@ import { AccountService } from '../../services/account-service';
     ButtonModule,
     CheckboxModule,
     StyleClassModule,
-    ThemeConfigurator
+    ThemeConfigurator,
+    LogoComponent
   ],
   templateUrl: './login.html',
   changeDetection: ChangeDetectionStrategy.OnPush

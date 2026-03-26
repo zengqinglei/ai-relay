@@ -1,45 +1,59 @@
-<section id="highlights" class="py-12 px-6 lg:px-20 mx-0 mt-8 mb-20 lg:mx-20">
+<section id="highlights" class="py-16 px-6 lg:px-20 mx-0 lg:mx-20 relative z-10">
   <!-- Section Header -->
-  <div class="text-center mb-12">
-    <h2 class="text-surface-900 dark:text-surface-0 font-bold mb-3 text-3xl md:text-4xl"> 已支持的 AI 模型 </h2>
-    <p class="text-surface-500 dark:text-surface-400 text-lg md:text-xl"> 一个 API，多种选择 </p>
+  <div class="text-center mb-16">
+    <h2 class="text-surface-900 dark:text-surface-0 font-bold mb-4 text-3xl md:text-4xl tracking-tight"> 极广的模型覆盖 </h2>
+    <p class="text-surface-500 dark:text-surface-400 text-lg"> 通过统一接口，连接业界最顶尖的 LLM 服务 </p>
   </div>
 
   <!-- Models Grid -->
-  <div class="max-w-6xl mx-auto flex flex-wrap justify-center gap-4 md:gap-6">
+  <div class="max-w-6xl mx-auto flex flex-wrap justify-center gap-6">
     <!-- Claude -->
-    <div class="flex items-center gap-3 bg-surface-0 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 px-6 py-4 rounded-xl shadow-sm hover:shadow-md transition-shadow min-w-[180px]">
-      <div class="w-8 h-8 rounded bg-[#d97757] text-white flex items-center justify-center font-bold font-serif text-lg">C</div>
-      <span class="font-medium text-surface-800 dark:text-surface-100 flex-1">Claude</span>
-      <span class="text-xs bg-primary-50 dark:bg-primary-900/40 text-primary-600 dark:text-primary-300 px-2 py-1 rounded-md mt-0.5">已支持</span>
+    <div class="group relative flex items-center gap-4 bg-surface-0/60 dark:bg-surface-900/40 backdrop-blur-md border border-surface-200/60 dark:border-surface-700/60 px-6 py-5 rounded-2xl shadow-sm hover:shadow-[0_8px_30px_rgba(217,119,87,0.15)] hover:border-[#d97757]/40 transition-all duration-300 min-w-[220px]">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-[#d97757] to-[#b35e43] text-white flex items-center justify-center font-bold font-serif text-xl shadow-[0_0_15px_rgba(217,119,87,0.4)]">C</div>
+      <div class="flex flex-col">
+        <span class="font-bold text-surface-800 dark:text-surface-100">Claude</span>
+        <span class="text-[10px] text-surface-500 uppercase tracking-widest mt-0.5">Anthropic</span>
+      </div>
+      <span class="ml-auto text-xs bg-[#d97757]/10 text-[#d97757] dark:bg-[#d97757]/20 border border-[#d97757]/20 px-2 py-1 rounded-md">已支持</span>
     </div>
 
     <!-- GPT -->
-    <div class="flex items-center gap-3 bg-surface-0 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 px-6 py-4 rounded-xl shadow-sm hover:shadow-md transition-shadow min-w-[180px]">
-      <div class="w-8 h-8 rounded bg-[#10a37f] text-white flex items-center justify-center font-bold text-lg">G</div>
-      <span class="font-medium text-surface-800 dark:text-surface-100 flex-1">GPT</span>
-      <span class="text-xs bg-primary-50 dark:bg-primary-900/40 text-primary-600 dark:text-primary-300 px-2 py-1 rounded-md mt-0.5">已支持</span>
+    <div class="group relative flex items-center gap-4 bg-surface-0/60 dark:bg-surface-900/40 backdrop-blur-md border border-surface-200/60 dark:border-surface-700/60 px-6 py-5 rounded-2xl shadow-sm hover:shadow-[0_8px_30px_rgba(16,163,127,0.15)] hover:border-[#10a37f]/40 transition-all duration-300 min-w-[220px]">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-[#10a37f] to-[#0a7b5f] text-white flex items-center justify-center font-bold text-xl shadow-[0_0_15px_rgba(16,163,127,0.4)]">G</div>
+      <div class="flex flex-col">
+        <span class="font-bold text-surface-800 dark:text-surface-100">GPT</span>
+        <span class="text-[10px] text-surface-500 uppercase tracking-widest mt-0.5">OpenAI</span>
+      </div>
+      <span class="ml-auto text-xs bg-[#10a37f]/10 text-[#10a37f] dark:bg-[#10a37f]/20 border border-[#10a37f]/20 px-2 py-1 rounded-md">已支持</span>
     </div>
 
     <!-- Gemini -->
-    <div class="flex items-center gap-3 bg-surface-0 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 px-6 py-4 rounded-xl shadow-sm hover:shadow-md transition-shadow min-w-[180px]">
-      <div class="w-8 h-8 rounded bg-[#4285f4] text-white flex items-center justify-center font-bold text-lg">G</div>
-      <span class="font-medium text-surface-800 dark:text-surface-100 flex-1">Gemini</span>
-      <span class="text-xs bg-primary-50 dark:bg-primary-900/40 text-primary-600 dark:text-primary-300 px-2 py-1 rounded-md mt-0.5">已支持</span>
+    <div class="group relative flex items-center gap-4 bg-surface-0/60 dark:bg-surface-900/40 backdrop-blur-md border border-surface-200/60 dark:border-surface-700/60 px-6 py-5 rounded-2xl shadow-sm hover:shadow-[0_8px_30px_rgba(66,133,244,0.15)] hover:border-[#4285f4]/40 transition-all duration-300 min-w-[220px]">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-[#4285f4] to-[#2b65c2] text-white flex items-center justify-center font-bold text-xl shadow-[0_0_15px_rgba(66,133,244,0.4)]">G</div>
+      <div class="flex flex-col">
+        <span class="font-bold text-surface-800 dark:text-surface-100">Gemini</span>
+        <span class="text-[10px] text-surface-500 uppercase tracking-widest mt-0.5">Google</span>
+      </div>
+      <span class="ml-auto text-xs bg-[#4285f4]/10 text-[#4285f4] dark:bg-[#4285f4]/20 border border-[#4285f4]/20 px-2 py-1 rounded-md">已支持</span>
     </div>
 
     <!-- Antigravity -->
-    <div class="flex items-center gap-3 bg-surface-0 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 px-6 py-4 rounded-xl shadow-sm hover:shadow-md transition-shadow min-w-[180px]">
-      <div class="w-8 h-8 rounded bg-[#e11d48] text-white flex items-center justify-center font-bold text-lg">A</div>
-      <span class="font-medium text-surface-800 dark:text-surface-100 flex-1">Antigravity</span>
-      <span class="text-xs bg-primary-50 dark:bg-primary-900/40 text-primary-600 dark:text-primary-300 px-2 py-1 rounded-md mt-0.5">已支持</span>
+    <div class="group relative flex items-center gap-4 bg-surface-0/60 dark:bg-surface-900/40 backdrop-blur-md border border-surface-200/60 dark:border-surface-700/60 px-6 py-5 rounded-2xl shadow-sm hover:shadow-[0_8px_30px_rgba(225,29,72,0.15)] hover:border-[#e11d48]/40 transition-all duration-300 min-w-[220px]">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-[#e11d48] to-[#be123c] text-white flex items-center justify-center font-bold text-xl shadow-[0_0_15px_rgba(225,29,72,0.4)]">A</div>
+      <div class="flex flex-col">
+        <span class="font-bold text-surface-800 dark:text-surface-100">Antigravity</span>
+        <span class="text-[10px] text-surface-500 uppercase tracking-widest mt-0.5">Google Deepmind</span>
+      </div>
+      <span class="ml-auto text-xs bg-[#e11d48]/10 text-[#e11d48] dark:bg-[#e11d48]/20 border border-[#e11d48]/20 px-2 py-1 rounded-md">已支持</span>
     </div>
 
     <!-- More -->
-    <div class="flex items-center gap-3 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 border-dashed px-6 py-4 rounded-xl min-w-[180px] opacity-70">
-      <div class="w-8 h-8 rounded bg-surface-400 dark:bg-surface-600 text-white flex items-center justify-center font-bold text-lg">+</div>
-      <span class="font-medium text-surface-600 dark:text-surface-300 flex-1">更多</span>
-      <span class="text-xs bg-surface-200 dark:bg-surface-700 text-surface-600 dark:text-surface-400 px-2 py-1 rounded-md mt-0.5">即将推出</span>
+    <div class="group relative flex items-center gap-4 bg-surface-50/50 dark:bg-surface-800/30 backdrop-blur-md border border-surface-200 dark:border-surface-700 border-dashed px-6 py-5 rounded-2xl min-w-[220px] opacity-70 hover:opacity-100 transition-opacity duration-300">
+      <div class="w-10 h-10 rounded-xl bg-surface-300 dark:bg-surface-600 text-white flex items-center justify-center font-bold text-xl">+</div>
+      <div class="flex flex-col">
+        <span class="font-bold text-surface-600 dark:text-surface-300">更多模型</span>
+        <span class="text-[10px] text-surface-500 uppercase tracking-widest mt-0.5">Coming Soon</span>
+      </div>
     </div>
   </div>
 </section>

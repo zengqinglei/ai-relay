@@ -1,33 +1,29 @@
-<section id="features" class="py-12 px-6 lg:px-20 mx-0 lg:mx-20 relative z-10 -mt-8">
+<section id="features" class="py-16 px-6 lg:px-20 mx-0 lg:mx-20 relative z-10">
   <div class="max-w-7xl mx-auto">
-    <!-- Top Toggle Buttons (Visual Mockup based on design) -->
-    <div class="flex flex-wrap justify-center gap-4 mb-12">
-      <div class="flex bg-surface-0 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-full p-1 shadow-sm">
-        <button class="px-6 py-2 rounded-full font-medium text-primary bg-primary-50 dark:bg-primary-900/40 transition-colors flex items-center gap-2">
-          <i class="pi pi-sync"></i> 订阅转 API
-        </button>
-        <button class="px-6 py-2 rounded-full font-medium text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-100 transition-colors flex items-center gap-2">
-          <i class="pi pi-shield"></i> 会话保持
-        </button>
-        <button class="px-6 py-2 rounded-full font-medium text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-100 transition-colors flex items-center gap-2">
-          <i class="pi pi-chart-bar"></i> 按量计费
-        </button>
-      </div>
+    <!-- Section Title -->
+    <div class="text-center mb-16">
+      <h2 class="text-surface-900 dark:text-surface-0 font-bold mb-4 text-3xl md:text-4xl tracking-tight"> 核心业务能力 </h2>
+      <p class="text-surface-500 dark:text-surface-400 text-lg"> 针对大模型中继专门优化的稳定体系 </p>
     </div>
 
     <!-- Feature Cards Grid -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
       @for (feature of features; track feature) {
-        <div class="bg-surface-0 dark:bg-surface-900 p-8 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm hover:shadow-md transition-shadow">
+        <div class="group relative bg-surface-0/60 dark:bg-surface-900/40 backdrop-blur-xl p-8 rounded-2xl border border-surface-200/60 dark:border-surface-700/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.2)] hover:border-primary-500/40 dark:hover:border-primary-400/40 transition-all duration-500 overflow-hidden">
+          
+          <!-- Hover Gradient Overlay -->
+          <div class="absolute inset-0 bg-gradient-to-br from-primary-500/0 via-transparent to-primary-500/0 group-hover:from-primary-500/5 group-hover:to-transparent transition-colors duration-500"></div>
+
           <!-- Icon -->
-          <div class="flex items-center justify-center mb-6 w-14 h-14 rounded-xl" [class]="feature.bgColor">
-            <i class="text-2xl" [class]="'pi ' + feature.icon + ' ' + feature.iconColor"></i>
+          <div class="relative flex items-center justify-center mb-8 w-16 h-16 rounded-2xl transition-transform duration-500 group-hover:scale-110 group-hover:shadow-[0_0_20px_rgba(var(--p-primary-500),0.3)]" [class]="feature.bgColor">
+            <i class="text-3xl" [class]="'pi ' + feature.icon + ' ' + feature.iconColor"></i>
           </div>
+
           <!-- Content -->
-          <h3 class="text-xl font-bold text-surface-900 dark:text-surface-0 mb-3">
+          <h3 class="relative text-xl font-bold text-surface-900 dark:text-surface-0 mb-4 transition-colors group-hover:text-primary-600 dark:group-hover:text-primary-300">
             {{ feature.title }}
           </h3>
-          <p class="text-surface-600 dark:text-surface-400 leading-relaxed">
+          <p class="relative text-surface-600 dark:text-surface-400 leading-relaxed group-hover:text-surface-700 dark:group-hover:text-surface-300 transition-colors">
             {{ feature.description }}
           </p>
         </div>
