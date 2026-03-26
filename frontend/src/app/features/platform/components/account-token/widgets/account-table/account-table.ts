@@ -25,6 +25,7 @@ import { PlatformLabelPipe } from '../../../../../../shared/pipes/platform-label
 import { FilterStateService } from '../../../../../../shared/services/filter-state.service';
 import { GetAccountTokenPagedInputDto, AccountTokenOutputDto, AccountStatus } from '../../../../models/account-token.dto';
 import { ModelTestDialog } from '../model-test-dialog/model-test-dialog';
+import { formatTokenCount } from '../../../../../../shared/utils/format.utils';
 
 @Component({
   selector: 'app-account-table',
@@ -348,4 +349,6 @@ export class AccountTable implements OnInit {
         return 'text-muted-color';
     }
   }
+
+  formatTokenCount = formatTokenCount;
 }

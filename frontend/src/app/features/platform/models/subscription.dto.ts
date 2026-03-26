@@ -62,8 +62,12 @@ export interface ApiKeyOutputDto {
   isActive: boolean;
   expiresAt?: string;
   lastUsedAt?: string;
-  usageToday: number; // Mock data
+  usageToday: number;
   usageTotal: number;
+  costToday: number;
+  costTotal: number;
+  tokensToday: number;
+  tokensTotal: number;
   creationTime: string;
   bindings: ApiKeyBindingOutputDto[];
 }

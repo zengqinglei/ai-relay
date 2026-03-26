@@ -49,6 +49,10 @@ function createSubscription(req: MockRequest) {
     creationTime: new Date().toISOString(),
     usageToday: 0,
     usageTotal: 0,
+    costToday: 0,
+    costTotal: 0,
+    tokensToday: 0,
+    tokensTotal: 0,
     bindings: body.bindings || []
   };
   subscriptions.unshift(newSub);

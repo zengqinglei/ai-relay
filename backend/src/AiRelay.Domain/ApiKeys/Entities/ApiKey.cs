@@ -45,6 +45,64 @@ public class ApiKey : DeletionAuditedEntity<Guid>
 
     public virtual ICollection<ApiKeyProviderGroupBinding> Bindings { get; private set; } = new List<ApiKeyProviderGroupBinding>();
 
+    // ── 计费统计字段 ──────────────────────────────────────────────────────────
+
+    /// <summary>今日调用次数（UTC 自然日，跨日自动重置）</summary>
+    public long UsageToday { get; private set; }
+
+    /// <summary>累计调用次数</summary>
+    public long UsageTotal { get; private set; }
+
+    /// <summary>今日消耗额度（USD）</summary>
+    public decimal CostToday { get; private set; }
+
+    /// <summary>累计消耗额度（USD）</summary>
+    public decimal CostTotal { get; private set; }
+
+    /// <summary>今日消耗 Token 数</summary>
+    public long TokensToday { get; private set; }
+
+    /// <summary>累计消耗 Token 数</summary>
+    public long TokensTotal { get; private set; }
+
+    /// <summary>今日成功次数</summary>
+    public long SuccessToday { get; private set; }
+
+    /// <summary>累计成功次数</summary>
+    public long SuccessTotal { get; private set; }
+
+    /// <summary>今日统计基准日期（UTC），用于跨日自动重置</summary>
+    public DateTime? StatsDate { get; private set; }
+
+    /// <summary>
+    /// 累加统计数据，跨日自动重置今日字段
+    /// </summary>
+    public void AccumulateStats(long tokens, decimal cost, bool isSuccess)
+    {
+        var today = DateTime.UtcNow.Date;
+
+        UsageTotal++;
+        TokensTotal += tokens;
+        CostTotal += cost;
+        if (isSuccess) SuccessTotal++;
+
+        if (StatsDate?.Date != today)
+        {
+            UsageToday = 1;
+            TokensToday = tokens;
+            CostToday = cost;
+            SuccessToday = isSuccess ? 1 : 0;
+            StatsDate = today;
+        }
+        else
+        {
+            UsageToday++;
+            TokensToday += tokens;
+            CostToday += cost;
+            if (isSuccess) SuccessToday++;
+        }
+    }
+
     public bool IsExpired()
     {
         return ExpiresAt.HasValue && ExpiresAt.Value < DateTime.UtcNow;

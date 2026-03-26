@@ -29,7 +29,6 @@ namespace AiRelay.Application.ProviderAccounts.AppServices;
 public class AccountTokenAppService(
     IRepository<AccountToken, Guid> accountTokenRepository,
     IRepository<ProviderGroupAccountRelation, Guid> relationRepository,
-    AccountUsageStatisticsDomainService statisticsDomainService,
     AccountTokenDomainService accountTokenDomainService,
     IChatModelHandlerFactory chatModelHandlerFactory,
     AccountRateLimitDomainService accountRateLimitDomainService,
@@ -241,17 +240,12 @@ public class AccountTokenAppService(
         {
             var accountIds = accounts.Select(x => x.Id).ToList();
 
-            // 批量获取并发数据和统计数据
-            var statsTask = statisticsDomainService.GetListStatisticsAsync(accountIds, cancellationToken);
-            var concurrencyTask = concurrencyStrategy.GetConcurrencyCountsAsync(accountIds, cancellationToken);
+            // 批量获取并发数据
+            var concurrencyCounts = await concurrencyStrategy.GetConcurrencyCountsAsync(accountIds, cancellationToken);
 
-            await Task.WhenAll(statsTask, concurrencyTask);
-
-            // 传递上下文数据进行映射
             var contextItems = new Dictionary<string, object>
             {
-                ["ConcurrencyCounts"] = concurrencyTask.Result,
-                ["AccountStats"] = statsTask.Result
+                ["ConcurrencyCounts"] = concurrencyCounts
             };
             results = objectMapper.Map<List<AccountToken>, List<AccountTokenOutputDto>>(accounts, contextItems);
         }
@@ -278,15 +272,6 @@ public class AccountTokenAppService(
 
         // 1. 基础映射 (传递并发数据)
         var result = objectMapper.Map<AccountToken, AccountTokenOutputDto>(account, contextItems);
-
-        // 2. 填充统计数据
-        var stats = await statisticsDomainService.GetListStatisticsAsync([id], cancellationToken);
-        if (stats.TryGetValue(id, out var stat))
-        {
-            result.UsageToday = stat.UsageToday;
-            result.UsageTotal = stat.UsageTotal;
-            result.SuccessRate = stat.SuccessRate;
-        }
 
         return result;
     }
@@ -393,11 +378,10 @@ public class AccountTokenAppService(
 
         logger.LogInformation("创建账户成功: {Name}", accountToken.Name);
 
-        // ✅ 传递空的上下文以保持统一（新创建的账户暂无并发和统计数据）
+        // ✅ 传递空的上下文以保持统一（新创建的账户暂无并发数据）
         var contextItems = new Dictionary<string, object>
         {
-            ["ConcurrencyCounts"] = new Dictionary<Guid, int>(),
-            ["AccountStats"] = new Dictionary<Guid, (long UsageToday, long UsageTotal, decimal CostToday, decimal CostTotal)>()
+            ["ConcurrencyCounts"] = new Dictionary<Guid, int>()
         };
 
         var result = objectMapper.Map<AccountToken, AccountTokenOutputDto>(accountToken, contextItems);

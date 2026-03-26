@@ -23,6 +23,9 @@ internal static class ApiKeyEntityConfiguration
             b.Property(e => e.EncryptedSecret).IsRequired().HasMaxLength(512);
             b.Property(e => e.SecretHash).IsRequired().HasMaxLength(64);
 
+            b.Property(e => e.CostToday).HasPrecision(18, 8);
+            b.Property(e => e.CostTotal).HasPrecision(18, 8);
+
             b.HasIndex(e => e.SecretHash).IsUnique();
         });
     }

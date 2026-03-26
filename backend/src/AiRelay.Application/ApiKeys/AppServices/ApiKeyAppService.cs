@@ -13,7 +13,6 @@ namespace AiRelay.Application.ApiKeys.AppServices;
 
 public class ApiKeyAppService(
     ApiKeyDomainService apiKeyDomainService,
-    ApiKeyUsageStatisticsDomainService statisticsDomainService,
     IApiKeyRepository apiKeyRepository,
     ILogger<ApiKeyAppService> logger,
     IObjectMapper objectMapper) : BaseAppService, IApiKeyAppService
@@ -35,10 +34,7 @@ public class ApiKeyAppService(
             cancellationToken);
 
         // ✅ 统一传递上下文（即使当前统计为空）
-        var contextItems = new Dictionary<string, object>
-        {
-            ["ApiKeyStats"] = new Dictionary<Guid, (long UsageToday, long UsageTotal)>()
-        };
+        var contextItems = new Dictionary<string, object>();
 
         var result = objectMapper.Map<ApiKey, ApiKeyOutputDto>(apiKey, contextItems);
 
@@ -102,11 +98,7 @@ public class ApiKeyAppService(
         }
 
         // 预取统计数据 (避免 Resolver 中的 Sync-over-Async)
-        var stats = await statisticsDomainService.GetListStatisticsAsync([id], cancellationToken);
-        var contextItems = new Dictionary<string, object>
-        {
-            ["ApiKeyStats"] = stats
-        };
+        var contextItems = new Dictionary<string, object>();
 
         // 映射 (传递统计数据)
         return objectMapper.Map<ApiKey, ApiKeyOutputDto>(apiKey, contextItems);
@@ -127,16 +119,8 @@ public class ApiKeyAppService(
             return new PagedResultDto<ApiKeyOutputDto>(totalCount, []);
         }
 
-        // 1. 批量预取统计数据
-        var ids = apiKeys.Select(x => x.Id).ToList();
-        var stats = await statisticsDomainService.GetListStatisticsAsync(ids, cancellationToken);
-        var contextItems = new Dictionary<string, object>
-        {
-            ["ApiKeyStats"] = stats
-        };
-
-        // 2. 映射 (传递统计数据，AutoMapper 自动填充)
-        var results = objectMapper.Map<List<ApiKey>, List<ApiKeyOutputDto>>(apiKeys, contextItems);
+        // 映射
+        var results = objectMapper.Map<List<ApiKey>, List<ApiKeyOutputDto>>(apiKeys);
 
         return new PagedResultDto<ApiKeyOutputDto>(totalCount, results);
     }

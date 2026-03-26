@@ -15,8 +15,9 @@
           密钥掩码</th>
         <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden lg:table-cell">
           关联分组</th>
-        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden xl:table-cell">
-          使用统计</th>
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden xl:table-cell" pSortableColumn="costToday">
+          <div class="flex items-center gap-1">使用统计 <p-sortIcon field="costToday"></p-sortIcon></div>
+        </th>
         <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3">状态
           & 有效期</th>
         <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden 2xl:table-cell" pSortableColumn="creationTime">
@@ -94,21 +95,20 @@
 
         <!-- Stats -->
         <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden xl:table-cell">
-          <div class="flex flex-col gap-1 items-start">
-            <div class="flex items-center gap-1.5">
-              <span class="text-[10px] text-muted-color uppercase">今日调用:</span>
-              <span class="text-xs font-mono font-medium text-color">{{ item.usageToday | number }}</span>
+          <div class="flex flex-col gap-1.5 items-start">
+            <!-- 今日 -->
+            <div class="flex items-center gap-0 bg-surface-50 dark:bg-surface-800/50 rounded border border-surface-200 dark:border-surface-700/50 overflow-hidden">
+              <span class="text-[10px] text-muted-color uppercase tracking-tight px-1.5 py-0.5 border-r border-surface-200 dark:border-surface-700/50">今日</span>
+              <span class="text-xs font-mono font-medium text-color px-1.5 py-0.5 border-r border-surface-200 dark:border-surface-700/50">{{ item.costToday | number: '1.2-4' }}$</span>
+              <span class="text-[10px] font-mono text-muted-color px-1.5 py-0.5 border-r border-surface-200 dark:border-surface-700/50">{{ formatTokenCount(item.tokensToday) }}</span>
+              <span class="text-[10px] font-mono text-muted-color px-1.5 py-0.5">{{ item.usageToday | number }}次</span>
             </div>
-            <div class="flex items-center gap-1.5">
-              <span class="text-[10px] text-muted-color uppercase">最后访问:</span>
-              @if (item.lastUsedAt) {
-              <span class="text-[11px] text-muted-color"
-                [pTooltip]="(item.lastUsedAt | date: 'yyyy-MM-dd HH:mm:ss') || ''">{{
-                item.lastUsedAt | date: 'MM-dd HH:mm'
-                }}</span>
-              } @else {
-              <span class="text-[11px] text-muted-color">-</span>
-              }
+            <!-- 累计 -->
+            <div class="flex items-center gap-0 bg-surface-50 dark:bg-surface-800/50 rounded border border-surface-200 dark:border-surface-700/50 overflow-hidden">
+              <span class="text-[10px] text-muted-color uppercase tracking-tight px-1.5 py-0.5 border-r border-surface-200 dark:border-surface-700/50">累计</span>
+              <span class="text-[11px] font-mono text-color-secondary px-1.5 py-0.5 border-r border-surface-200 dark:border-surface-700/50">{{ item.costTotal | number: '1.2-2' }}$</span>
+              <span class="text-[10px] font-mono text-muted-color px-1.5 py-0.5 border-r border-surface-200 dark:border-surface-700/50">{{ formatTokenCount(item.tokensTotal) }}</span>
+              <span class="text-[10px] font-mono text-muted-color px-1.5 py-0.5">{{ item.usageTotal | number }}次</span>
             </div>
           </div>
         </td>

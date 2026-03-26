@@ -12,56 +12,6 @@ public class AccountUsageStatisticsDomainService(
     IRepository<UsageRecord, Guid> usageRecordRepository)
 {
     /// <summary>
-    /// 获取账户列表统计数据（优化：使用单次分组查询）
-    /// </summary>
-    public async Task<Dictionary<Guid, (long UsageToday, long UsageTotal, decimal SuccessRate)>> GetListStatisticsAsync(
-        List<Guid> accountIds,
-        CancellationToken cancellationToken = default)
-    {
-        var result = new Dictionary<Guid, (long UsageToday, long UsageTotal, decimal SuccessRate)>();
-
-        if (accountIds == null || !accountIds.Any())
-        {
-            return result;
-        }
-
-        var today = DateTime.UtcNow.Date;
-
-        // 获取所有相关记录（使用索引：AccountTokenId + CreationTime）
-        var records = await usageRecordRepository.GetListAsync(
-            u => accountIds.Contains(u.AccountTokenId),
-            cancellationToken: cancellationToken);
-
-        // 内存分组统计（记录数量通常不大，分页场景下每个账户平均几百到几千条）
-        var grouped = records.GroupBy(r => r.AccountTokenId);
-
-        foreach (var group in grouped)
-        {
-            var accountId = group.Key;
-            var allRecords = group.ToList();
-
-            var total = allRecords.Count;
-            var todayCount = allRecords.Count(r => r.CreationTime >= today);
-            var successCount = allRecords.Count(r => r.UpStatusCode >= 200 && r.UpStatusCode < 300);
-
-            decimal rate = total > 0 ? Math.Round((decimal)successCount / total * 100, 2) : 0m;
-
-            result[accountId] = (todayCount, total, rate);
-        }
-
-        // 补充没有记录的账户
-        foreach (var id in accountIds)
-        {
-            if (!result.ContainsKey(id))
-            {
-                result[id] = (0, 0, 0m);
-            }
-        }
-
-        return result;
-    }
-
-    /// <summary>
     /// 获取全局聚合指标
     /// </summary>
     public async Task<(

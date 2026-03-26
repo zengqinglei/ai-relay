@@ -51,9 +51,29 @@ public record ApiKeyOutputDto
     public long UsageToday { get; set; }
 
     /// <summary>
-    /// 总调用次数
+    /// 累计调用次数
     /// </summary>
     public long UsageTotal { get; set; }
+
+    /// <summary>
+    /// 今日消耗额度（USD）
+    /// </summary>
+    public decimal CostToday { get; set; }
+
+    /// <summary>
+    /// 累计消耗额度（USD）
+    /// </summary>
+    public decimal CostTotal { get; set; }
+
+    /// <summary>
+    /// 今日消耗 Token 数
+    /// </summary>
+    public long TokensToday { get; set; }
+
+    /// <summary>
+    /// 累计消耗 Token 数
+    /// </summary>
+    public long TokensTotal { get; set; }
 
     /// <summary>
     /// 绑定分组列表

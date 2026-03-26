@@ -34,7 +34,6 @@ public static class DependencyInjection
 
         // Register AutoMapper Resolvers
         services.AddTransient<AccountTokenConcurrencyResolver>();
-        services.AddTransient<AccountTokenStatsMappingAction>();
         services.AddTransient<ApiKeySecretResolver>();
         services.AddTransient<ApiKeyStatsMappingAction>();
         services.AddTransient<GroupRelationConcurrencyResolver>();
@@ -43,13 +42,13 @@ public static class DependencyInjection
         services.AddTransient<ISystemInitializer, SystemInitializer>();
         services.AddTransient<IAccountTokenAppService, AccountTokenAppService>();
         services.AddTransient<IApiKeyAppService, ApiKeyAppService>();
-        services.AddTransient<IApiKeyMetricAppService, ApiKeyMetricAppService>();  // ✅ 注册 Metric 服务
+        services.AddTransient<IApiKeyMetricAppService, ApiKeyMetricAppService>();
 
         // Smart Proxy AppService
         services.AddScoped<ISmartProxyAppService, SmartProxyAppService>();
 
         // Provider Groups
-        services.AddScoped<IProviderGroupAppService, ProviderGroupAppService>();  // ✅ 注册分组服务
+        services.AddScoped<IProviderGroupAppService, ProviderGroupAppService>();
 
         // Identity & Authorization Services
         services.AddScoped<IAuthAppService, AuthAppService>();
@@ -71,8 +70,8 @@ public static class DependencyInjection
 
         // 提供商账户应用服务
         services.AddScoped<AccountFingerprintAppService>();
-        services.AddScoped<IAccountQuotaAppService, AccountQuotaAppService>();  // ✅ 注册配额服务
-        services.AddScoped<IAccountTokenMetricAppService, AccountTokenMetricAppService>();  // ✅ 注册 Metric 服务
+        services.AddScoped<IAccountQuotaAppService, AccountQuotaAppService>();
+        services.AddScoped<IAccountTokenMetricAppService, AccountTokenMetricAppService>();
 
         // Usage & Traffic
         services.AddTransient<IUsageLifecycleAppService, UsageLifecycleAppService>();

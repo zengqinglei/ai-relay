@@ -17,7 +17,10 @@ public class AccountTokenProfile : Profile
                 MaskToken(src.Platform.IsApiKeyPlatform() ? src.AccessToken : src.RefreshToken)))
             .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.GetEffectiveStatus()))
             .ForMember(dest => dest.CurrentConcurrency, opt => opt.MapFrom<AccountTokenConcurrencyResolver>())
-            .AfterMap<AccountTokenStatsMappingAction>();
+            .ForMember(dest => dest.SuccessRateToday, opt => opt.MapFrom(src =>
+                src.UsageToday > 0 ? Math.Round(src.SuccessToday * 100m / src.UsageToday, 1) : 0m))
+            .ForMember(dest => dest.SuccessRateTotal, opt => opt.MapFrom(src =>
+                src.UsageTotal > 0 ? Math.Round(src.SuccessTotal * 100m / src.UsageTotal, 1) : 0m));
     }
 
     private static string MaskToken(string? token)

@@ -14,6 +14,7 @@ import { TooltipModule } from 'primeng/tooltip';
 
 import { PlatformLabelPipe } from '../../../../../../shared/pipes/platform-label-pipe';
 import { ApiKeyOutputDto, ApiKeyBindingOutputDto } from '../../../../models/subscription.dto';
+import { formatTokenCount } from '../../../../../../shared/utils/format.utils';
 
 export interface SubscriptionTableFilterEvent {
   offset: number;
@@ -199,4 +200,6 @@ export class SubscriptionTable {
       this.expiryDialogVisible.set(false);
     }
   }
+
+  formatTokenCount = formatTokenCount;
 }

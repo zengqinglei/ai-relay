@@ -61,6 +61,9 @@ internal static class ProviderEntityConfiguration
                     c => c == null ? 0 : c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
                     c => c == null ? null : c.ToDictionary(e => e.Key, e => e.Value)));
 
+            b.Property(e => e.CostToday).HasPrecision(18, 8);
+            b.Property(e => e.CostTotal).HasPrecision(18, 8);
+
             b.HasIndex(e => new { e.Platform, e.IsActive, e.Status });
         });
     }

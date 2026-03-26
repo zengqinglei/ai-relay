@@ -11,6 +11,10 @@ export const SUBSCRIPTIONS: SubscriptionOutputDto[] = [
     creationTime: '2025-01-01T10:00:00Z',
     usageToday: 150,
     usageTotal: 5000,
+    costToday: 0.18,
+    costTotal: 6.00,
+    tokensToday: 15000,
+    tokensTotal: 500000,
     bindings: [
       {
         platform: ProviderPlatform.OPENAI_APIKEY,
@@ -31,6 +35,10 @@ export const SUBSCRIPTIONS: SubscriptionOutputDto[] = [
     creationTime: '2025-06-15T14:30:00Z',
     usageToday: 8900,
     usageTotal: 250000,
+    costToday: 13.35,
+    costTotal: 375.00,
+    tokensToday: 890000,
+    tokensTotal: 25000000,
     bindings: [
       {
         platform: ProviderPlatform.OPENAI_APIKEY,
@@ -56,6 +64,10 @@ export const SUBSCRIPTIONS: SubscriptionOutputDto[] = [
     creationTime: '2025-01-01T10:00:00Z',
     usageToday: 0,
     usageTotal: 120,
+    costToday: 0,
+    costTotal: 0.18,
+    tokensToday: 0,
+    tokensTotal: 12000,
     bindings: []
   }
 ];

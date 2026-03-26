@@ -31,10 +31,15 @@ export interface AccountTokenOutputDto {
   tokenObtainedTime?: string;
   expiresIn?: number | null; // 秒
 
-  // 统计数据 (通常列表接口会返回简要统计)
+  // 统计数据
   usageToday: number;
   usageTotal: number;
-  successRate: number; // 0-100
+  costToday: number;
+  costTotal: number;
+  tokensToday: number;
+  tokensTotal: number;
+  successRateToday: number; // 0-100
+  successRateTotal: number; // 0-100
   modelWhites?: string[];
   modelMapping?: Record<string, string>;
   allowOfficialClientMimic: boolean;
