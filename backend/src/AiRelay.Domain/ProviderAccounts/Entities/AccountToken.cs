@@ -93,31 +93,42 @@ public class AccountToken : DeletionAuditedEntity<Guid>
     public DateTime? StatsDate { get; private set; }
 
     /// <summary>
-    /// 累加统计数据，跨日自动重置今日字段
+    /// 累加调用次数统计（每次 attempt 调用，含失败）
     /// </summary>
-    public void AccumulateStats(long tokens, decimal cost, bool isSuccess)
+    public void AccumulateCallStats(bool isSuccess)
     {
         var today = DateTime.UtcNow.Date;
 
         UsageTotal++;
-        TokensTotal += tokens;
-        CostTotal += cost;
         if (isSuccess) SuccessTotal++;
 
         if (StatsDate?.Date != today)
         {
             UsageToday = 1;
-            TokensToday = tokens;
-            CostToday = cost;
+            TokensToday = 0;
+            CostToday = 0;
             SuccessToday = isSuccess ? 1 : 0;
             StatsDate = today;
         }
         else
         {
             UsageToday++;
+            if (isSuccess) SuccessToday++;
+        }
+    }
+
+    /// <summary>
+    /// 累加 Token/费用统计（请求完成后调用）
+    /// </summary>
+    public void AccumulateCostStats(long tokens, decimal cost)
+    {
+        TokensTotal += tokens;
+        CostTotal += cost;
+
+        if (StatsDate?.Date == DateTime.UtcNow.Date)
+        {
             TokensToday += tokens;
             CostToday += cost;
-            if (isSuccess) SuccessToday++;
         }
     }
 

@@ -14,22 +14,26 @@ public class UsageRecordDomainService(
     public async Task ProcessCompletionAsync(
         UsageRecord record,
         long duration,
-        int? upStatusCode,
         UsageStatus status,
         string? statusDescription,
-        string? upResponseBody,
         string? downResponseBody,
         int? inputTokens,
         int? outputTokens,
         int? cacheReadTokens,
         int? cacheCreationTokens,
+        int attemptCount,
+        // 最终成功尝试的上游信息（用于定价和缓存统计）
+        string? upModelId,
+        Guid? accountTokenId,
+        ProviderPlatform platform,
+        string? accountTokenName,
         CancellationToken cancellationToken = default)
     {
         // 1. 获取基础价格
         decimal baseCost = 0;
-        if (!string.IsNullOrEmpty(record.UpModelId))
+        if (!string.IsNullOrEmpty(upModelId))
         {
-            var pricing = await pricingProvider.GetPricingAsync(record.UpModelId, cancellationToken);
+            var pricing = await pricingProvider.GetPricingAsync(upModelId, cancellationToken);
             if (pricing != null)
             {
                 var input = inputTokens ?? 0;
@@ -37,7 +41,6 @@ public class UsageRecordDomainService(
                 var cacheRead = cacheReadTokens ?? 0;
                 var cacheCreation = cacheCreationTokens ?? 0;
 
-                // 计算基础成本
                 var inputCost = input * pricing.InputPrice;
                 var outputCost = output * pricing.OutputPrice;
                 var cacheReadCost = cacheRead * pricing.CacheReadPrice;
@@ -45,7 +48,6 @@ public class UsageRecordDomainService(
 
                 baseCost = inputCost + outputCost + cacheReadCost + cacheCreationCost;
 
-                // 应用长上下文倍率
                 if (pricing.LongContextInputThreshold.HasValue &&
                     input > pricing.LongContextInputThreshold.Value)
                 {
@@ -56,28 +58,30 @@ public class UsageRecordDomainService(
             }
         }
 
-        // 2. 更新实体状态（倍率已在记录创建时快照到 GroupRateMultiplier）
+        // 2. 更新实体状态
         record.Complete(
             duration,
-            upStatusCode,
             status,
             statusDescription,
-            upResponseBody,
             downResponseBody,
             inputTokens,
             outputTokens,
             cacheReadTokens,
             cacheCreationTokens,
-            baseCost);
+            baseCost,
+            attemptCount);
 
         // 3. 持久化记录
         await usageRepository.UpdateAsync(record, cancellationToken);
 
-        // 4. 更新缓存统计
-        await usageCacheService.IncrementUsageAsync(
-                record.AccountTokenId,
-                record.Platform,
-                record.AccountTokenName,
+        // 4. 更新缓存统计（仅在有账号信息时）
+        if (accountTokenId.HasValue && !string.IsNullOrEmpty(accountTokenName))
+        {
+            await usageCacheService.IncrementUsageAsync(
+                accountTokenId.Value,
+                platform,
+                accountTokenName,
                 cancellationToken);
+        }
     }
 }

@@ -210,8 +210,8 @@ public class UsageRecordMetricAppService(
         var query = await usageRecordRepository.GetQueryableAsync(cancellationToken);
 
         var modelStats = await asyncExecuter.ToListAsync(query
-            .Where(r => r.CreationTime >= start && r.CreationTime < end && !string.IsNullOrEmpty(r.UpModelId))
-            .GroupBy(r => r.UpModelId)
+            .Where(r => r.CreationTime >= start && r.CreationTime < end && !string.IsNullOrEmpty(r.DownModelId))
+            .GroupBy(r => r.DownModelId)
             .Select(g => new
             {
                 Model = g.Key,

@@ -3,6 +3,7 @@ using System;
 using AiRelay.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AiRelay.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AiRelayDbContext))]
-    partial class AiRelayDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260326105905_AddUsageRecordAttempt")]
+    partial class AddUsageRecordAttempt
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -752,6 +755,11 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
 
                     b.Property<long>("DurationMs")
                         .HasColumnType("bigint");
+
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<string>("Status")
                         .IsRequired()

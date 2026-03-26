@@ -1,8 +1,8 @@
 using AiRelay.Application.UsageRecords.Dtos.Lifecycle;
 using AiRelay.Domain.ApiKeys.Entities;
 using AiRelay.Domain.ProviderAccounts.Entities;
-using AiRelay.Domain.UsageRecords.DomainServices;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
+using AiRelay.Domain.UsageRecords.DomainServices;
 using AiRelay.Domain.UsageRecords.Entities;
 using Leistd.Ddd.Application.AppService;
 using Leistd.Ddd.Domain.Repositories;
@@ -17,6 +17,7 @@ namespace AiRelay.Application.UsageRecords.AppServices;
 /// </summary>
 public class UsageLifecycleAppService(
     IRepository<UsageRecord, Guid> usageRepository,
+    IRepository<UsageRecordAttempt, Guid> attemptRepository,
     IRepository<AccountToken, Guid> accountTokenRepository,
     IRepository<ApiKey, Guid> apiKeyRepository,
     UsageRecordDomainService usageRecordDomainService,
@@ -34,8 +35,6 @@ public class UsageLifecycleAppService(
             input.Platform,
             input.ApiKeyId,
             input.ApiKeyName,
-            input.AccountTokenId,
-            input.AccountTokenName,
             input.ProviderGroupId,
             input.ProviderGroupName,
             input.GroupRateMultiplier,
@@ -46,12 +45,7 @@ public class UsageLifecycleAppService(
             input.DownClientIp,
             input.DownUserAgent,
             input.DownRequestHeaders,
-            input.DownRequestBody,
-            input.UpModelId,
-            input.UpRequestUrl,
-            input.UpUserAgent,
-            input.UpRequestHeaders,
-            input.UpRequestBody);
+            input.DownRequestBody);
 
         await usageRepository.InsertAsync(record, cancellationToken);
 
@@ -64,11 +58,42 @@ public class UsageLifecycleAppService(
         return new StartUsageOutputDto { UsageRecordId = record.Id };
     }
 
+    public async Task AddAttemptAsync(
+        AddAttemptInputDto input,
+        CancellationToken cancellationToken = default)
+    {
+        var attempt = new UsageRecordAttempt(
+            input.UsageRecordId,
+            input.AttemptNumber,
+            input.AccountTokenId,
+            input.AccountTokenName,
+            input.UpModelId,
+            input.UpUserAgent,
+            input.UpRequestUrl,
+            input.UpRequestHeaders,
+            input.UpRequestBody,
+            input.UpResponseBody,
+            input.UpStatusCode,
+            input.DurationMs,
+            input.Status,
+            input.StatusDescription);
+
+        await attemptRepository.InsertAsync(attempt, cancellationToken);
+
+        // 累加账号调用次数统计（每次 attempt 均计入，含失败）
+        await AccumulateAccountTokenCallStatsAsync(input.AccountTokenId, input.Status == UsageStatus.Success, cancellationToken);
+
+        logger.LogDebug(
+            "追加 UsageRecordAttempt: UsageId={UsageId}, Attempt={AttemptNumber}, Status={Status}",
+            input.UsageRecordId,
+            input.AttemptNumber,
+            input.Status);
+    }
+
     public async Task FinishUsageAsync(
         FinishUsageInputDto input,
         CancellationToken cancellationToken = default)
     {
-        // 获取 UsageRecord 并包含 Detail
         var query = await usageRepository.GetQueryIncludingAsync(x => x.Detail);
         var record = await asyncExecuter.FirstOrDefaultAsync(query.Where(x => x.Id == input.UsageRecordId), cancellationToken);
 
@@ -78,21 +103,29 @@ public class UsageLifecycleAppService(
             return;
         }
 
-        // 调用 DomainService 完成核心逻辑
+        // 若有最终账号，提前加载实体以获取名称（供缓存统计使用）
+        AccountToken? accountToken = null;
+        if (input.AccountTokenId.HasValue)
+        {
+            accountToken = await accountTokenRepository.GetByIdAsync(input.AccountTokenId.Value, cancellationToken);
+        }
+
         await usageRecordDomainService.ProcessCompletionAsync(
             record,
             input.Duration,
-            input.UpStatusCode,
             input.Status,
             input.StatusDescription,
-            input.UpResponseBody,
             input.DownResponseBody,
             input.InputTokens,
             input.OutputTokens,
             input.CacheReadTokens,
             input.CacheCreationTokens,
-            cancellationToken
-        );
+            input.AttemptCount,
+            input.UpModelId,
+            input.AccountTokenId,
+            record.Platform,
+            accountToken?.Name,
+            cancellationToken);
 
         logger.LogDebug(
             "完成 Usage: Id={UsageRecordId}, Tokens={In}/{Out}, Cost={Cost}",
@@ -101,21 +134,35 @@ public class UsageLifecycleAppService(
             input.OutputTokens,
             record.FinalCost);
 
-        // 累加统计到 AccountToken 和 ApiKey
+        // 累加统计到 ApiKey（AccountToken 统计通过缓存服务在 DomainService 内处理）
         var tokens = (long)((record.InputTokens ?? 0) + (record.OutputTokens ?? 0) + (record.CacheReadTokens ?? 0));
         var cost = record.FinalCost ?? 0m;
         var isSuccess = record.Status == UsageStatus.Success;
 
-        await AccumulateAccountTokenStatsAsync(record.AccountTokenId, tokens, cost, isSuccess, cancellationToken);
         await AccumulateApiKeyStatsAsync(record.ApiKeyId, tokens, cost, isSuccess, cancellationToken);
+
+        // 若有最终账号，累加 token/cost 统计（调用次数已在 AddAttemptAsync 中累加）
+        if (input.AccountTokenId.HasValue)
+        {
+            await AccumulateAccountTokenCostStatsAsync(input.AccountTokenId.Value, tokens, cost, cancellationToken);
+        }
     }
 
-    private async Task AccumulateAccountTokenStatsAsync(Guid accountTokenId, long tokens, decimal cost, bool isSuccess, CancellationToken cancellationToken)
+    private async Task AccumulateAccountTokenCallStatsAsync(Guid accountTokenId, bool isSuccess, CancellationToken cancellationToken)
     {
         await using var handle = await distributedLock.LockAsync($"stats:account:{accountTokenId}", cancellationToken);
         var account = await accountTokenRepository.GetByIdAsync(accountTokenId, cancellationToken);
         if (account == null) return;
-        account.AccumulateStats(tokens, cost, isSuccess);
+        account.AccumulateCallStats(isSuccess);
+        await accountTokenRepository.UpdateAsync(account, cancellationToken: cancellationToken);
+    }
+
+    private async Task AccumulateAccountTokenCostStatsAsync(Guid accountTokenId, long tokens, decimal cost, CancellationToken cancellationToken)
+    {
+        await using var handle = await distributedLock.LockAsync($"stats:account:{accountTokenId}", cancellationToken);
+        var account = await accountTokenRepository.GetByIdAsync(accountTokenId, cancellationToken);
+        if (account == null) return;
+        account.AccumulateCostStats(tokens, cost);
         await accountTokenRepository.UpdateAsync(account, cancellationToken: cancellationToken);
     }
 

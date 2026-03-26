@@ -1,12 +1,11 @@
 using AiRelay.Domain.ApiKeys.Entities;
-using AiRelay.Domain.ProviderAccounts.Entities;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using Leistd.Ddd.Domain.Entities.Auditing;
 
 namespace AiRelay.Domain.UsageRecords.Entities;
 
 /// <summary>
-/// Token 使用记录实体
+/// Token 使用记录实体（客户端请求维度，1条/请求）
 /// </summary>
 public class UsageRecord : CreationAuditedEntity<Guid>
 {
@@ -17,10 +16,6 @@ public class UsageRecord : CreationAuditedEntity<Guid>
     public Guid ApiKeyId { get; private set; }
 
     public string ApiKeyName { get; private set; }
-
-    public Guid AccountTokenId { get; private set; }
-
-    public string AccountTokenName { get; private set; }
 
     public Guid ProviderGroupId { get; private set; }
 
@@ -40,14 +35,6 @@ public class UsageRecord : CreationAuditedEntity<Guid>
 
     public string? DownUserAgent { get; private set; }
 
-    public string? UpModelId { get; private set; }
-
-    public string? UpUserAgent { get; private set; }
-
-    public string? UpRequestUrl { get; private set; }
-
-    public int? UpStatusCode { get; private set; }
-
     public UsageStatus Status { get; private set; }
 
     public string? StatusDescription { get; private set; }
@@ -66,10 +53,14 @@ public class UsageRecord : CreationAuditedEntity<Guid>
 
     public decimal? FinalCost { get; private set; }
 
+    public int AttemptCount { get; private set; }
+
     // 导航属性
     public ApiKey ApiKey { get; private set; } = null!;
-    public AccountToken? AccountToken { get; private set; }
     public UsageRecordDetail Detail { get; private set; } = null!;
+
+    private readonly List<UsageRecordAttempt> _attempts = [];
+    public IReadOnlyList<UsageRecordAttempt> Attempts => _attempts.AsReadOnly();
 
     public UsageRecord(
         Guid usageRecordId,
@@ -77,8 +68,6 @@ public class UsageRecord : CreationAuditedEntity<Guid>
         ProviderPlatform platform,
         Guid apiKeyId,
         string apiKeyName,
-        Guid accountTokenId,
-        string accountTokenName,
         Guid providerGroupId,
         string providerGroupName,
         decimal groupRateMultiplier,
@@ -89,67 +78,49 @@ public class UsageRecord : CreationAuditedEntity<Guid>
         string? downClientIp,
         string? downUserAgent,
         string? downRequestHeaders,
-        string? downRequestBody,
-        string? upModelId,
-        string? upRequestUrl,
-        string? upUserAgent,
-        string? upRequestHeaders,
-        string? upRequestBody)
+        string? downRequestBody)
     {
         Id = usageRecordId;
         CorrelationId = correlationId;
         Platform = platform;
         ApiKeyId = apiKeyId;
+        ApiKeyName = apiKeyName;
         ProviderGroupId = providerGroupId;
         ProviderGroupName = providerGroupName;
         GroupRateMultiplier = groupRateMultiplier;
-        ApiKeyName = apiKeyName;
-        AccountTokenId = accountTokenId;
-        AccountTokenName = accountTokenName;
         IsStreaming = isStreaming;
         DownModelId = downModelId;
         DownRequestMethod = downRequestMethod;
         DownRequestUrl = downRequestUrl;
         DownClientIp = downClientIp;
         DownUserAgent = downUserAgent;
-        UpModelId = upModelId;
-        UpUserAgent = upUserAgent;
-        UpRequestUrl = upRequestUrl;
-        Detail = new UsageRecordDetail(
-            Id,
-            downRequestHeaders: downRequestHeaders,
-            downRequestBody: downRequestBody,
-            upRequestHeaders,
-            upRequestBody);
-
+        Detail = new UsageRecordDetail(Id, downRequestHeaders, downRequestBody);
         Status = UsageStatus.InProgress;
     }
 
     public void Complete(
         long duration,
-        int? upStatusCode,
         UsageStatus status,
         string? statusDescription,
-        string? upResponseBody,
         string? downResponseBody,
         int? inputTokens,
         int? outputTokens,
         int? cacheReadTokens,
         int? cacheCreationTokens,
-        decimal? baseCost)
+        decimal? baseCost,
+        int attemptCount)
     {
         DurationMs = duration;
-        UpStatusCode = upStatusCode;
         Status = status;
         StatusDescription = statusDescription?.Length > 2048
-            ? statusDescription.Substring(0, 2045) + "..."
+            ? statusDescription[..2045] + "..."
             : statusDescription;
-        Detail.Complete(upResponseBody, downResponseBody);
-
+        Detail.Complete(downResponseBody);
         InputTokens = inputTokens;
         OutputTokens = outputTokens;
         CacheReadTokens = cacheReadTokens;
         CacheCreationTokens = cacheCreationTokens;
+        AttemptCount = attemptCount;
         if (baseCost.HasValue)
         {
             BaseCost = baseCost;
@@ -161,7 +132,6 @@ public class UsageRecord : CreationAuditedEntity<Guid>
     {
         CorrelationId = null!;
         ApiKeyName = null!;
-        AccountTokenName = null!;
         ProviderGroupName = null!;
         DownRequestMethod = null!;
         DownRequestUrl = null!;

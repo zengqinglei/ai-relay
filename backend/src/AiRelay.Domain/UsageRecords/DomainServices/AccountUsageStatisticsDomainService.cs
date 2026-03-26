@@ -1,4 +1,5 @@
 using AiRelay.Domain.ProviderAccounts.Entities;
+using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.UsageRecords.Entities;
 using Leistd.Ddd.Domain.Repositories;
 
@@ -9,7 +10,8 @@ namespace AiRelay.Domain.UsageRecords.DomainServices;
 /// </summary>
 public class AccountUsageStatisticsDomainService(
     IRepository<AccountToken, Guid> accountTokenRepository,
-    IRepository<UsageRecord, Guid> usageRecordRepository)
+    IRepository<UsageRecord, Guid> usageRecordRepository,
+    IQueryableAsyncExecuter asyncExecuter)
 {
     /// <summary>
     /// 获取全局聚合指标
@@ -46,26 +48,28 @@ public class AccountUsageStatisticsDomainService(
             return remaining.HasValue && remaining.Value < 1440; // 24小时
         });
 
-        // 2. 使用量统计 - 顺序执行查询以避免 DbContext 并发冲突
+        // 2. 使用量统计 - 单次条件聚合查询
         var today = DateTime.UtcNow.Date;
         var yesterday = today.AddDays(-1);
         var last24Hours = DateTime.UtcNow.AddHours(-24);
 
-        var todayUsage = await usageRecordRepository.CountAsync(u => u.CreationTime >= today, cancellationToken);
+        var query = await usageRecordRepository.GetQueryableAsync(cancellationToken);
+        var usageStats = await asyncExecuter.FirstOrDefaultAsync(query
+            .GroupBy(r => 1)
+            .Select(g => new
+            {
+                TodayUsage = g.Count(r => r.CreationTime >= today),
+                YesterdayUsage = g.Count(r => r.CreationTime >= yesterday && r.CreationTime < today),
+                TotalRequests = g.Count(),
+                SuccessRequests = g.Count(r => r.Status == UsageStatus.Success),
+                AbnormalRequests = g.Count(r => r.CreationTime >= last24Hours && r.Status == UsageStatus.Failed)
+            }), cancellationToken);
 
-        var yesterdayUsage = await usageRecordRepository.CountAsync(
-            u => u.CreationTime >= yesterday && u.CreationTime < today,
-            cancellationToken);
-
-        var totalRequests = await usageRecordRepository.CountAsync(x => true, cancellationToken);
-
-        var successRequests = await usageRecordRepository.CountAsync(
-            u => u.UpStatusCode >= 200 && u.UpStatusCode < 300,
-            cancellationToken);
-
-        var abnormalRequests = await usageRecordRepository.CountAsync(
-            u => u.CreationTime >= last24Hours && (u.UpStatusCode < 200 || u.UpStatusCode >= 300),
-            cancellationToken);
+        var todayUsage = usageStats?.TodayUsage ?? 0;
+        var yesterdayUsage = usageStats?.YesterdayUsage ?? 0;
+        var totalRequests = usageStats?.TotalRequests ?? 0;
+        var successRequests = usageStats?.SuccessRequests ?? 0;
+        var abnormalRequests = usageStats?.AbnormalRequests ?? 0;
 
         var growthRate = yesterdayUsage > 0
             ? Math.Round((decimal)(todayUsage - yesterdayUsage) / yesterdayUsage * 100, 2)
@@ -83,7 +87,7 @@ public class AccountUsageStatisticsDomainService(
             (long)todayUsage,
             growthRate,
             averageSuccessRate,
-            abnormalRequests
+            (long)abnormalRequests
         );
     }
 }

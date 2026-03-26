@@ -3,7 +3,7 @@ using Leistd.Ddd.Domain.Entities;
 namespace AiRelay.Domain.UsageRecords.Entities;
 
 /// <summary>
-/// Token 使用记录详情 (大字段存储)
+/// Token 使用记录详情（下游大字段存储，1:1 with UsageRecord）
 /// </summary>
 public class UsageRecordDetail : Entity<Guid>
 {
@@ -15,29 +15,19 @@ public class UsageRecordDetail : Entity<Guid>
 
     public string? DownResponseBody { get; private set; }
 
-    public string? UpRequestHeaders { get; private set; }
-
-    public string? UpRequestBody { get; private set; }
-
-    public string? UpResponseBody { get; private set; }
-
-    internal UsageRecordDetail(Guid usageRecordId,
+    internal UsageRecordDetail(
+        Guid usageRecordId,
         string? downRequestHeaders,
-        string? downRequestBody,
-        string? upRequestHeaders,
-        string? upRequestBody)
+        string? downRequestBody)
     {
         Id = Guid.CreateVersion7();
         UsageRecordId = usageRecordId;
         DownRequestHeaders = downRequestHeaders;
         DownRequestBody = downRequestBody;
-        UpRequestHeaders = upRequestHeaders;
-        UpRequestBody = upRequestBody;
     }
 
-    internal void Complete(string? upResponseBody, string? downResponseBody)
+    internal void Complete(string? downResponseBody)
     {
-        UpResponseBody = upResponseBody;
         DownResponseBody = downResponseBody;
     }
 

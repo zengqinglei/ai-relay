@@ -10,7 +10,7 @@ import { finalize } from 'rxjs/operators';
 import { DIALOG_CONFIGS } from '../../../../shared/constants/dialog-config.constants';
 import { UsageStatus } from '../../../../shared/models/usage-status.enum';
 import { formatTokenCount } from '../../../../shared/utils/format.utils';
-import { UsageRecordDetailOutputDto, UsageRecordOutputDto } from '../../models/usage.dto';
+import { UsageRecordAttemptOutputDto, UsageRecordDetailOutputDto, UsageRecordOutputDto } from '../../models/usage.dto';
 import { UsageRecordService } from '../../services/usage-record-service';
 
 @Component({
@@ -50,6 +50,13 @@ import { UsageRecordService } from '../../services/usage-record-service';
                     [severity]="getStatusSeverity(record()?.status)"
                     styleClass="text-[10px] px-1.5 py-0.5 h-5"
                   ></p-tag>
+                  @if ((record()?.attemptCount ?? 0) > 1) {
+                    <p-tag
+                      [value]="'重试×' + (record()!.attemptCount - 1)"
+                      severity="warn"
+                      styleClass="text-[10px] px-1.5 py-0.5 h-5"
+                    ></p-tag>
+                  }
                   @if (record()?.status === 'Failed' && record()?.statusDescription) {
                     <i
                       class="pi pi-question-circle text-sm text-orange-500 cursor-help"
@@ -64,7 +71,7 @@ import { UsageRecordService } from '../../services/usage-record-service';
 
               <!-- 模型 -->
               <div class="flex flex-col gap-1.5">
-                <span class="text-xs font-medium text-muted-color uppercase">模型</span>
+                <span class="text-xs font-medium text-muted-color uppercase">请求模型</span>
                 <span class="text-sm font-medium text-primary truncate" [title]="getModelDisplay()">{{ getModelDisplay() }}</span>
               </div>
 
@@ -82,15 +89,7 @@ import { UsageRecordService } from '../../services/usage-record-service';
             </div>
 
             <!-- 第二行：详细信息 -->
-            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 pt-4 border-t border-surface-200 dark:border-surface-700">
-              <!-- 上游返回 -->
-              <div class="flex flex-col gap-1.5">
-                <span class="text-xs font-medium text-muted-color uppercase">上游返回</span>
-                <span class="text-sm font-mono font-bold" [ngClass]="getHttpStatusColorClass(record()?.upStatusCode)">
-                  {{ record()?.upStatusCode || 'N/A' }}
-                </span>
-              </div>
-
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t border-surface-200 dark:border-surface-700">
               <!-- 返回下游 -->
               <div class="flex flex-col gap-1.5">
                 <span class="text-xs font-medium text-muted-color uppercase">返回下游</span>
@@ -135,118 +134,140 @@ import { UsageRecordService } from '../../services/usage-record-service';
           <p-tabs value="0">
             <p-tablist>
               <p-tab value="0">下游 (客户端 -> 网关)</p-tab>
-              <p-tab value="1">上游 (网关 -> 供应商)</p-tab>
+              <p-tab value="1">尝试记录 ({{ detail()?.attempts?.length || 0 }})</p-tab>
             </p-tablist>
             <p-tabpanels>
               <p-tabpanel value="0">
-                <div class="flex flex-col gap-6 pt-4">
-                  <div class="flex flex-col gap-2">
-                    <label class="font-bold text-sm text-surface-700 dark:text-surface-200">Request URL</label>
-                    <div
-                      class="p-3 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md font-mono text-sm break-all flex items-center gap-3"
-                    >
-                      <span class="font-bold px-2 py-0.5 rounded bg-primary/10 text-primary text-xs">{{
-                        record()?.downRequestMethod || 'POST'
-                      }}</span>
-                      <span class="select-all">{{ detail()?.downRequestUrl }}</span>
+                <div class="flex flex-col gap-4 pt-4">
+                  <div class="border border-surface-200 dark:border-surface-700 rounded-lg overflow-hidden">
+                    <!-- Header -->
+                    <div class="flex items-center gap-3 px-4 py-2.5 bg-surface-50 dark:bg-surface-800 border-b border-surface-200 dark:border-surface-700">
+                      <span class="text-xs font-bold text-muted-color uppercase">下游请求</span>
+                      @if (record()?.downStatusCode) {
+                        <span class="text-xs font-mono font-bold" [ngClass]="getHttpStatusColorClass(record()?.downStatusCode)">
+                          {{ record()?.downStatusCode }}
+                        </span>
+                      }
+                      <span class="text-xs text-muted-color ml-auto">{{ record()?.durationMs || 0 }} ms</span>
                     </div>
-                  </div>
-
-                  <div class="grid grid-cols-1 gap-6">
-                    <div class="flex flex-col gap-2">
-                      <label class="font-bold text-sm text-surface-700 dark:text-surface-200">Request Headers</label>
-                      <div
-                        class="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md overflow-hidden"
-                      >
-                        <pre
-                          class="p-4 m-0 font-mono text-xs overflow-auto max-h-48 min-h-[3rem] custom-scrollbar text-surface-600 dark:text-surface-300"
-                          >{{ formatJson(detail()?.downRequestHeaders) || 'N/A' }}</pre
-                        >
-                      </div>
+                    <!-- Meta -->
+                    <div class="px-4 py-2 flex flex-wrap gap-x-6 gap-y-1 text-xs border-b border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900">
+                      <span>
+                        <span class="text-muted-color">方法：</span>
+                        <span class="font-medium font-mono">{{ record()?.downRequestMethod || 'POST' }}</span>
+                      </span>
+                      @if (detail()?.downRequestUrl) {
+                        <span class="truncate max-w-xs">
+                          <span class="text-muted-color">URL：</span>
+                          <span class="font-mono" [title]="detail()!.downRequestUrl!">{{ detail()?.downRequestUrl }}</span>
+                        </span>
+                      }
                     </div>
-
-                    <div class="flex flex-col gap-2">
-                      <label class="font-bold text-sm text-surface-700 dark:text-surface-200">Request Body</label>
-                      <div
-                        class="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md overflow-hidden relative group"
-                      >
-                        <pre
-                          class="p-4 m-0 font-mono text-xs overflow-auto max-h-[400px] min-h-[3rem] custom-scrollbar text-surface-700 dark:text-surface-200"
-                          >{{ formatJson(detail()?.downRequestBody) || 'N/A' }}</pre
-                        >
-                      </div>
-                    </div>
-
-                    <div class="flex flex-col gap-2">
-                      <label class="font-bold text-sm text-surface-700 dark:text-surface-200">Response Body</label>
-                      <div
-                        class="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md overflow-hidden"
-                      >
-                        <pre
-                          class="p-4 m-0 font-mono text-xs overflow-auto max-h-[400px] min-h-[3rem] custom-scrollbar text-surface-700 dark:text-surface-200"
-                          >{{ formatJson(detail()?.downResponseBody) || 'N/A' }}</pre
-                        >
-                      </div>
-                    </div>
+                    <!-- Bodies -->
+                    <p-tabs value="req-headers">
+                      <p-tablist>
+                        <p-tab value="req-headers">Request Headers</p-tab>
+                        <p-tab value="req-body">Request Body</p-tab>
+                        <p-tab value="resp-body">Response Body</p-tab>
+                      </p-tablist>
+                      <p-tabpanels>
+                        <p-tabpanel value="req-headers">
+                          <pre class="p-3 m-0 font-mono text-xs overflow-auto min-h-[8rem] max-h-48 custom-scrollbar text-surface-600 dark:text-surface-300">{{ formatJson(detail()?.downRequestHeaders) || 'N/A' }}</pre>
+                        </p-tabpanel>
+                        <p-tabpanel value="req-body">
+                          <pre class="p-3 m-0 font-mono text-xs overflow-auto min-h-[8rem] max-h-[300px] custom-scrollbar text-surface-700 dark:text-surface-200">{{ formatJson(detail()?.downRequestBody) || 'N/A' }}</pre>
+                        </p-tabpanel>
+                        <p-tabpanel value="resp-body">
+                          <pre class="p-3 m-0 font-mono text-xs overflow-auto min-h-[8rem] max-h-[300px] custom-scrollbar text-surface-700 dark:text-surface-200">{{ formatJson(detail()?.downResponseBody) || 'N/A' }}</pre>
+                        </p-tabpanel>
+                      </p-tabpanels>
+                    </p-tabs>
                   </div>
                 </div>
               </p-tabpanel>
 
               <p-tabpanel value="1">
-                <div class="flex flex-col gap-6 pt-4">
-                  <div class="flex flex-col gap-2">
-                    <label class="font-bold text-sm text-surface-700 dark:text-surface-200">上游 URL & 状态</label>
-                    <div class="flex gap-3">
-                      <div
-                        class="flex-1 p-3 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md font-mono text-sm break-all select-all"
-                      >
-                        {{ detail()?.upRequestUrl || 'N/A' }}
-                      </div>
-                      <div
-                        class="w-24 flex items-center justify-center bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md"
-                      >
-                        <span class="font-mono text-sm font-bold">{{ detail()?.upStatusCode || 'N/A' }}</span>
-                      </div>
+                <div class="flex flex-col gap-4 pt-4">
+                  @if (!detail()?.attempts?.length) {
+                    <div class="flex flex-col items-center justify-center h-32 text-muted-color">
+                      <i class="pi pi-inbox text-3xl opacity-30 mb-2"></i>
+                      <p class="text-sm m-0">暂无尝试记录</p>
                     </div>
-                  </div>
-
-                  <div class="grid grid-cols-1 gap-6">
-                    <div class="flex flex-col gap-2">
-                      <label class="font-bold text-sm text-surface-700 dark:text-surface-200">Request Headers</label>
+                  } @else {
+                    @for (attempt of detail()!.attempts; track attempt.attemptNumber) {
                       <div
-                        class="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md overflow-hidden"
+                        class="border border-surface-200 dark:border-surface-700 rounded-lg overflow-hidden"
+                        [class.border-green-300]="attempt.status === 'Success'"
+                        [class.dark:border-green-700]="attempt.status === 'Success'"
+                        [class.border-red-300]="attempt.status === 'Failed'"
+                        [class.dark:border-red-700]="attempt.status === 'Failed'"
                       >
-                        <pre
-                          class="p-4 m-0 font-mono text-xs overflow-auto max-h-48 min-h-[3rem] custom-scrollbar text-surface-600 dark:text-surface-300"
-                          >{{ formatJson(detail()?.upRequestHeaders) || 'N/A' }}</pre
+                        <!-- Attempt Header -->
+                        <div
+                          class="flex items-center gap-3 px-4 py-2.5 bg-surface-50 dark:bg-surface-800 border-b border-surface-200 dark:border-surface-700"
                         >
-                      </div>
-                    </div>
+                          <span class="text-xs font-bold text-muted-color uppercase">尝试 #{{ attempt.attemptNumber }}</span>
+                          <p-tag
+                            [value]="getStatusLabel(attempt.status)"
+                            [severity]="getStatusSeverity(attempt.status)"
+                            styleClass="text-[10px] px-1.5 py-0.5 h-5"
+                          ></p-tag>
+                          @if (attempt.upStatusCode) {
+                            <span
+                              class="text-xs font-mono font-bold"
+                              [ngClass]="getHttpStatusColorClass(attempt.upStatusCode)"
+                            >{{ attempt.upStatusCode }}</span>
+                          }
+                          <span class="text-xs text-muted-color ml-auto">{{ attempt.durationMs }} ms</span>
+                        </div>
 
-                    <div class="flex flex-col gap-2">
-                      <label class="font-bold text-sm text-surface-700 dark:text-surface-200">Request Body</label>
-                      <div
-                        class="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md overflow-hidden"
-                      >
-                        <pre
-                          class="p-4 m-0 font-mono text-xs overflow-auto max-h-[400px] min-h-[3rem] custom-scrollbar text-surface-700 dark:text-surface-200"
-                          >{{ formatJson(detail()?.upRequestBody) || 'N/A' }}</pre
-                        >
-                      </div>
-                    </div>
+                        <!-- Attempt Meta -->
+                        <div class="px-4 py-2 flex flex-wrap gap-x-6 gap-y-1 text-xs border-b border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900">
+                          <span>
+                            <span class="text-muted-color">账户：</span>
+                            <span class="font-medium">{{ attempt.accountTokenName }}</span>
+                          </span>
+                          @if (attempt.upModelId) {
+                            <span>
+                              <span class="text-muted-color">模型：</span>
+                              <span class="font-medium font-mono">{{ attempt.upModelId }}</span>
+                            </span>
+                          }
+                          @if (attempt.upRequestUrl) {
+                            <span class="truncate max-w-xs">
+                              <span class="text-muted-color">URL：</span>
+                              <span class="font-mono" [title]="attempt.upRequestUrl">{{ attempt.upRequestUrl }}</span>
+                            </span>
+                          }
+                          @if (attempt.statusDescription) {
+                            <span class="text-red-500 dark:text-red-400 w-full">{{ attempt.statusDescription }}</span>
+                          }
+                        </div>
 
-                    <div class="flex flex-col gap-2">
-                      <label class="font-bold text-sm text-surface-700 dark:text-surface-200">Response Body</label>
-                      <div
-                        class="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md overflow-hidden"
-                      >
-                        <pre
-                          class="p-4 m-0 font-mono text-xs overflow-auto max-h-[400px] min-h-[3rem] custom-scrollbar text-surface-700 dark:text-surface-200"
-                          >{{ formatJson(detail()?.upResponseBody) || 'N/A' }}</pre
-                        >
+                        <!-- Attempt Bodies (collapsible via accordion-like nested tabs) -->
+                        <div class="flex flex-col gap-0">
+                          <p-tabs value="req-headers">
+                            <p-tablist>
+                              <p-tab value="req-headers">Request Headers</p-tab>
+                              <p-tab value="req-body">Request Body</p-tab>
+                              <p-tab value="resp-body">Response Body</p-tab>
+                            </p-tablist>
+                            <p-tabpanels>
+                              <p-tabpanel value="req-headers">
+                                <pre class="p-3 m-0 font-mono text-xs overflow-auto min-h-[8rem] max-h-48 custom-scrollbar text-surface-600 dark:text-surface-300">{{ formatJson(attempt.upRequestHeaders) || 'N/A' }}</pre>
+                              </p-tabpanel>
+                              <p-tabpanel value="req-body">
+                                <pre class="p-3 m-0 font-mono text-xs overflow-auto min-h-[8rem] max-h-[300px] custom-scrollbar text-surface-700 dark:text-surface-200">{{ formatJson(attempt.upRequestBody) || 'N/A' }}</pre>
+                              </p-tabpanel>
+                              <p-tabpanel value="resp-body">
+                                <pre class="p-3 m-0 font-mono text-xs overflow-auto min-h-[8rem] max-h-[300px] custom-scrollbar text-surface-700 dark:text-surface-200">{{ formatJson(attempt.upResponseBody) || 'N/A' }}</pre>
+                              </p-tabpanel>
+                            </p-tabpanels>
+                          </p-tabs>
+                        </div>
                       </div>
-                    </div>
-                  </div>
+                    }
+                  }
                 </div>
               </p-tabpanel>
             </p-tabpanels>
@@ -302,7 +323,6 @@ export class UsageRecordDetailDialog {
   formatJson(jsonStr: string | undefined | null): string {
     if (!jsonStr) return '';
     try {
-      // Check if it's already an object (though type says string)
       if (typeof jsonStr === 'object') return JSON.stringify(jsonStr, null, 2);
       const obj = JSON.parse(jsonStr);
       return JSON.stringify(obj, null, 2);
@@ -345,24 +365,19 @@ export class UsageRecordDetailDialog {
     if (!statusCode) return 'text-muted-color';
 
     if (statusCode >= 200 && statusCode < 300) {
-      return 'text-green-600 dark:text-green-400'; // 成功 2xx
+      return 'text-green-600 dark:text-green-400';
     } else if (statusCode >= 400 && statusCode < 500) {
-      return 'text-orange-600 dark:text-orange-400'; // 客户端错误 4xx
+      return 'text-orange-600 dark:text-orange-400';
     } else if (statusCode >= 500) {
-      return 'text-red-600 dark:text-red-400'; // 服务器错误 5xx
+      return 'text-red-600 dark:text-red-400';
     }
 
-    return 'text-muted-color'; // 其他
+    return 'text-muted-color';
   }
 
   getModelDisplay(): string {
     const rec = this.record();
     if (!rec) return 'N/A';
-    const down = rec.downModelId;
-    const up = rec.upModelId;
-    if (!down && !up) return 'N/A';
-    if (!down) return up || 'N/A';
-    if (!up) return down;
-    return down === up ? down : `down:${down} up:${up}`;
+    return rec.downModelId || 'N/A';
   }
 }

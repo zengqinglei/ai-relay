@@ -21,7 +21,8 @@ public class UsageRecordAppService(
 {
     public async Task<UsageRecordDetailOutputDto> GetDetailAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var query = await usageRecordRepository.GetQueryIncludingAsync(x => x.Detail);
+        var baseQuery = await usageRecordRepository.GetQueryIncludingAsync(x => x.Detail);
+        var query = baseQuery.Include(x => x.Attempts).ThenInclude(a => a.Detail);
         var record = await asyncExecuter.FirstOrDefaultAsync(query.Where(x => x.Id == id), cancellationToken);
 
         if (record == null)
@@ -49,13 +50,12 @@ public class UsageRecordAppService(
         if (!string.IsNullOrWhiteSpace(input.Model))
         {
             query = query.Where(r =>
-                (r.DownModelId != null && r.DownModelId.Contains(input.Model)) ||
-                (r.UpModelId != null && r.UpModelId.Contains(input.Model)));
+                (r.DownModelId != null && r.DownModelId.Contains(input.Model)));
         }
 
         if (!string.IsNullOrWhiteSpace(input.AccountTokenName))
         {
-            query = query.Where(r => r.AccountTokenName != null && r.AccountTokenName.Contains(input.AccountTokenName));
+            query = query.Where(r => r.Attempts.Any(a => a.AccountTokenName.Contains(input.AccountTokenName)));
         }
 
         if (input.ProviderGroupId.HasValue)

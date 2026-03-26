@@ -28,7 +28,7 @@ function getPagedList(req: any): PagedResultDto<UsageRecordOutputDto> {
   if (model && String(model) !== 'undefined') {
     const query = String(model).toLowerCase();
     filteredRecords = filteredRecords.filter(
-      r => r.downModelId?.toLowerCase().includes(query) || r.upModelId?.toLowerCase().includes(query)
+      r => r.downModelId?.toLowerCase().includes(query)
     );
   }
 

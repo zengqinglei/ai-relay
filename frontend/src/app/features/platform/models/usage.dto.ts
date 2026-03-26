@@ -39,9 +39,7 @@ export interface UsageRecordOutputDto {
   apiKeyName: string;
   platform: ProviderPlatform;
   providerGroupName: string;
-  accountTokenName: string;
   downModelId?: string;
-  upModelId?: string;
   downRequestUrl: string;
   downRequestMethod: string;
   isStreaming: boolean;
@@ -53,10 +51,10 @@ export interface UsageRecordOutputDto {
   downClientIp: string;
   finalCost?: number;
   status: string;
-  upStatusCode?: number;
   downStatusCode?: number;
   durationMs?: number;
   statusDescription?: string;
+  attemptCount: number;
 }
 
 export interface UsageRecordPagedInputDto extends PagedRequestDto {
@@ -69,15 +67,26 @@ export interface UsageRecordPagedInputDto extends PagedRequestDto {
   endTime?: string;
 }
 
+export interface UsageRecordAttemptOutputDto {
+  attemptNumber: number;
+  accountTokenName: string;
+  upModelId?: string;
+  upUserAgent?: string;
+  upRequestUrl?: string;
+  upStatusCode?: number;
+  durationMs: number;
+  status: string;
+  statusDescription?: string;
+  upRequestHeaders?: string;
+  upRequestBody?: string;
+  upResponseBody?: string;
+}
+
 export interface UsageRecordDetailOutputDto {
   usageRecordId: string;
   downRequestUrl?: string;
   downRequestHeaders?: string;
   downRequestBody?: string;
   downResponseBody?: string;
-  upRequestUrl?: string;
-  upRequestHeaders?: string;
-  upRequestBody?: string;
-  upResponseBody?: string;
-  upStatusCode?: number;
+  attempts: UsageRecordAttemptOutputDto[];
 }

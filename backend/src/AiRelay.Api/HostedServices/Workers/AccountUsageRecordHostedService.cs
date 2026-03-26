@@ -38,7 +38,6 @@ public class AccountUsageRecordHostedService(
                 using var scope = serviceProvider.CreateScope();
                 var usageLifecycleAppService = scope.ServiceProvider.GetRequiredService<IUsageLifecycleAppService>();
 
-                // 使用模式匹配处理不同类型的记录
                 switch (item)
                 {
                     case UsageRecordStartItem start:
@@ -49,8 +48,6 @@ public class AccountUsageRecordHostedService(
                                 start.Platform,
                                 start.ApiKeyId,
                                 start.ApiKeyName,
-                                start.AccountTokenId,
-                                start.AccountTokenName,
                                 start.ProviderGroupId,
                                 start.ProviderGroupName,
                                 start.GroupRateMultiplier,
@@ -61,12 +58,27 @@ public class AccountUsageRecordHostedService(
                                 start.DownClientIp,
                                 start.DownUserAgent,
                                 start.DownRequestHeaders,
-                                start.DownRequestBody,
-                                start.UpModelId,
-                                start.UpRequestUrl,
-                                start.UpUserAgent,
-                                start.UpRequestHeaders,
-                                start.UpRequestBody
+                                start.DownRequestBody
+                            ));
+                        break;
+
+                    case UsageRecordAttemptItem attemptItem:
+                        await usageLifecycleAppService.AddAttemptAsync(
+                            new AddAttemptInputDto(
+                                attemptItem.UsageRecordId,
+                                attemptItem.AttemptNumber,
+                                attemptItem.AccountTokenId,
+                                attemptItem.AccountTokenName,
+                                attemptItem.UpModelId,
+                                attemptItem.UpUserAgent,
+                                attemptItem.UpRequestUrl,
+                                attemptItem.UpRequestHeaders,
+                                attemptItem.UpRequestBody,
+                                attemptItem.UpResponseBody,
+                                attemptItem.UpStatusCode,
+                                attemptItem.DurationMs,
+                                attemptItem.Status,
+                                attemptItem.StatusDescription
                             ));
                         break;
 
@@ -75,15 +87,16 @@ public class AccountUsageRecordHostedService(
                             new FinishUsageInputDto(
                                 end.UsageRecordId,
                                 end.Duration,
-                                end.UpStatusCode,
                                 end.Status,
                                 end.StatusDescription,
-                                end.UpResponseBody,
                                 end.DownResponseBody,
                                 end.InputTokens,
                                 end.OutputTokens,
                                 end.CacheReadTokens,
-                                end.CacheCreationTokens
+                                end.CacheCreationTokens,
+                                end.AttemptCount,
+                                end.UpModelId,
+                                end.AccountTokenId
                             ));
                         break;
 
@@ -111,7 +124,7 @@ public interface IUsageRecordItem
 }
 
 /// <summary>
-/// 使用记录开始项（包含下游请求信息）
+/// 使用记录开始项（INSERT UsageRecord，Status=InProgress）
 /// </summary>
 public record UsageRecordStartItem(
     Guid UsageRecordId,
@@ -119,8 +132,6 @@ public record UsageRecordStartItem(
     ProviderPlatform Platform,
     Guid ApiKeyId,
     string ApiKeyName,
-    Guid AccountTokenId,
-    string AccountTokenName,
     Guid ProviderGroupId,
     string ProviderGroupName,
     decimal GroupRateMultiplier,
@@ -130,36 +141,45 @@ public record UsageRecordStartItem(
     string? DownModelId,
     string? DownClientIp,
     string? DownUserAgent,
+    string? DownRequestHeaders,
+    string? DownRequestBody
+) : IUsageRecordItem;
+
+/// <summary>
+/// 单次上游尝试记录项（INSERT UsageRecordAttempt）
+/// </summary>
+public record UsageRecordAttemptItem(
+    Guid UsageRecordId,
+    int AttemptNumber,
+    Guid AccountTokenId,
+    string AccountTokenName,
     string? UpModelId,
     string? UpUserAgent,
     string? UpRequestUrl,
-    string? DownRequestHeaders,
-    string? UpRequestHeaders
-) : IUsageRecordItem
-{
-    public string? DownRequestBody { get; private set; }
-    public string? UpRequestBody { get; private set; }
-
-    public void LoggingBody(string downRequestBody, string upRequestBody)
-    {
-        DownRequestBody = downRequestBody;
-        UpRequestBody = upRequestBody;
-    }
-}
+    string? UpRequestHeaders,
+    string? UpRequestBody,
+    string? UpResponseBody,
+    int? UpStatusCode,
+    long DurationMs,
+    UsageStatus Status,
+    string? StatusDescription
+) : IUsageRecordItem;
 
 /// <summary>
-/// 使用记录结束项（包含上游响应信息和 Token 统计）
+/// 使用记录结束项（UPDATE UsageRecord 为最终状态）
 /// </summary>
 public record UsageRecordEndItem(
     Guid UsageRecordId,
     long Duration,
-    int? UpStatusCode,
     UsageStatus Status,
     string? StatusDescription,
-    string? UpResponseBody,
     string? DownResponseBody,
     int? InputTokens,
     int? OutputTokens,
     int? CacheReadTokens,
-    int? CacheCreationTokens
+    int? CacheCreationTokens,
+    int AttemptCount,
+    // 最终成功尝试的账号信息（用于定价和统计，Platform 从 UsageRecord 已有字段读取）
+    string? UpModelId,
+    Guid? AccountTokenId
 ) : IUsageRecordItem;

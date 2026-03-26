@@ -10,7 +10,6 @@ using AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Handler;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Provider;
 using AiRelay.Domain.Shared.OAuth.Authorize;
-using AiRelay.Domain.UsageRecords.DomainServices;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.StreamProcessor;
 using Leistd.Ddd.Application.AppService;
 using Leistd.Ddd.Application.Contracts.Dtos;

@@ -187,11 +187,11 @@
               API KEY 名 / 模型
             </th>
 
-            <!-- Column 3: Group / Account -->
+            <!-- Column 3: Group / Platform -->
             <th
               class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden lg:table-cell"
             >
-              上游账户 / 分组
+              平台 / 分组
             </th>
 
             <!-- Column 4: Request Info -->
@@ -242,6 +242,13 @@
                     [value]="getStatusLabel(record.status)"
                     styleClass="text-[10px] px-1.5 py-0.5 h-5"
                   ></p-tag>
+                  @if (record.attemptCount > 1) {
+                    <p-tag
+                      [value]="'重试×' + (record.attemptCount - 1)"
+                      severity="warn"
+                      styleClass="text-[10px] px-1.5 py-0.5 h-5"
+                    ></p-tag>
+                  }
                   @if (shouldShowFailureDetail(record)) {
                     <i
                       class="pi pi-question-circle text-sm text-orange-500 cursor-help"
@@ -276,26 +283,17 @@
               </div>
             </td>
 
-            <!-- Column 3: Group / Account -->
+            <!-- Column 3: Group / Platform -->
             <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-2 hidden lg:table-cell">
               <div class="flex flex-col gap-1.5">
-                <div class="flex items-center gap-1.5">
-                  <span class="text-sm text-muted-color whitespace-nowrap">账户：</span>
-                  <span
-                    class="text-sm text-color font-mono truncate"
-                    [pTooltip]="record.accountTokenName"
-                    tooltipPosition="top"
-                    tooltipStyleClass="max-w-md"
-                    >{{ record.accountTokenName }}</span
-                  >
-                </div>
                 <div class="flex items-center gap-1.5">
                   <span
                     class="text-[10px] bg-surface-100 dark:bg-surface-800 px-1.5 py-0.5 rounded text-muted-color border border-surface-200 dark:border-surface-700 shrink-0"
                   >
                     {{ getPlatformLabel(record.platform) }}
                   </span>
-                  <span class="text-[10px] text-surface-300 dark:text-surface-600">|</span>
+                </div>
+                <div class="flex items-center gap-1.5">
                   <span
                     class="text-[10px] text-muted-color truncate"
                     [pTooltip]="record.providerGroupName"
@@ -327,12 +325,6 @@
                   } @else {
                     <p-tag value="同步" severity="secondary" styleClass="text-[10px] px-1.5 py-0.5"></p-tag>
                   }
-                  <span class="text-[10px] text-surface-300 dark:text-surface-600">|</span>
-                  <p-tag
-                    [value]="getHttpStatusCode(record)"
-                    [severity]="record.upStatusCode | httpStatusSeverity"
-                    styleClass="text-[10px] px-1.5 py-0.5 font-mono"
-                  ></p-tag>
                   <span class="text-[10px] text-muted-color">
                     <span class="text-muted-color">耗时：</span>
                     <span class="font-medium text-muted-color">{{ record.durationMs }} ms</span>

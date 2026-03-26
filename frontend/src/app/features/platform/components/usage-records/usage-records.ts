@@ -20,7 +20,6 @@ import { PROVIDER_PLATFORM_LABELS } from '../../../../shared/constants/provider-
 import { PagedResultDto } from '../../../../shared/models/paged-result.dto';
 import { ProviderPlatform } from '../../../../shared/models/provider-platform.enum';
 import { UsageStatus } from '../../../../shared/models/usage-status.enum';
-import { HttpStatusSeverityPipe } from '../../../../shared/pipes/http-status-severity.pipe';
 import { formatTokenCount } from '../../../../shared/utils/format.utils';
 import { ProviderGroupOutputDto } from '../../models/provider-group.dto';
 import { UsageRecordOutputDto, UsageRecordPagedInputDto } from '../../models/usage.dto';
@@ -44,8 +43,7 @@ import { FilterStateService } from '../../../../shared/services/filter-state.ser
     IconFieldModule,
     InputIconModule,
     PaginatorModule,
-    UsageRecordDetailDialog,
-    HttpStatusSeverityPipe
+    UsageRecordDetailDialog
   ],
   templateUrl: './usage-records.html',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -249,10 +247,6 @@ export class UsageRecords implements OnInit {
     return PROVIDER_PLATFORM_LABELS[platform] || `Unknown (${platform})`;
   }
 
-  getHttpStatusCode(record: UsageRecordOutputDto): string {
-    return record.upStatusCode?.toString() || '200';
-  }
-
   /**
    * 判断是否显示失败详情图标
    */
@@ -271,8 +265,6 @@ export class UsageRecords implements OnInit {
    * 获取模型显示文本
    */
   getModelDisplay(record: UsageRecordOutputDto): string {
-    const down = record.downModelId || 'N/A';
-    const up = record.upModelId || 'N/A';
-    return down === up ? down : `down:${down} up:${up}`;
+    return record.downModelId || 'N/A';
   }
 }

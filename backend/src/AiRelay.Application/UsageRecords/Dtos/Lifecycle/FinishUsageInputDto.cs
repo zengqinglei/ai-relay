@@ -6,15 +6,18 @@ public record FinishUsageInputDto(
     Guid UsageRecordId,
     // 响应状态
     long Duration,
-    int? UpStatusCode,
     UsageStatus Status,
     string? StatusDescription,
     // 响应内容
-    string? UpResponseBody,
     string? DownResponseBody,
     // 计费信息（TOKEN）
     int? InputTokens,
     int? OutputTokens,
     int? CacheReadTokens,
-    int? CacheCreationTokens
+    int? CacheCreationTokens,
+    // 尝试次数
+    int AttemptCount,
+    // 最终成功尝试的账号信息（用于定价和缓存统计）
+    string? UpModelId,
+    Guid? AccountTokenId
 );

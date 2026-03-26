@@ -7,13 +7,12 @@ namespace AiRelay.Application.UsageRecords.AppServices;
 /// </summary>
 public interface IUsageLifecycleAppService
 {
-    /// <summary>
-    /// 开始记录使用
-    /// </summary>
+    /// <summary>开始记录使用（INSERT UsageRecord，Status=InProgress）</summary>
     Task<StartUsageOutputDto> StartUsageAsync(StartUsageInputDto input, CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// 完成记录使用
-    /// </summary>
+    /// <summary>追加单次上游尝试记录（INSERT UsageRecordAttempt）</summary>
+    Task AddAttemptAsync(AddAttemptInputDto input, CancellationToken cancellationToken = default);
+
+    /// <summary>完成记录使用（UPDATE UsageRecord 为最终状态）</summary>
     Task FinishUsageAsync(FinishUsageInputDto input, CancellationToken cancellationToken = default);
 }

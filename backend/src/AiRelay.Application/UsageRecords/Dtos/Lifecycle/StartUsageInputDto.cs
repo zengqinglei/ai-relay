@@ -8,8 +8,6 @@ public record StartUsageInputDto(
     ProviderPlatform Platform,
     Guid ApiKeyId,
     string ApiKeyName,
-    Guid AccountTokenId,
-    string AccountTokenName,
     Guid ProviderGroupId,
     string ProviderGroupName,
     decimal GroupRateMultiplier,
@@ -21,11 +19,5 @@ public record StartUsageInputDto(
     string? DownClientIp,
     string? DownUserAgent,
     string? DownRequestHeaders,
-    string? DownRequestBody,
-    // 转发上游信息
-    string? UpModelId,
-    string? UpRequestUrl,
-    string? UpUserAgent,
-    string? UpRequestHeaders,
-    string? UpRequestBody
+    string? DownRequestBody
 );

@@ -19,6 +19,8 @@ public class AiRelayDbContext(
     public DbSet<AccountFingerprint> AccountFingerprints { get; set; } = null!;
     public DbSet<UsageRecord> UsageRecords { get; set; } = null!;
     public DbSet<UsageRecordDetail> UsageRecordDetails { get; set; } = null!;
+    public DbSet<UsageRecordAttempt> UsageRecordAttempts { get; set; } = null!;
+    public DbSet<UsageRecordAttemptDetail> UsageRecordAttemptDetails { get; set; } = null!;
     public DbSet<ApiKey> ApiKeys { get; set; } = null!;
 
     // Provider Groups

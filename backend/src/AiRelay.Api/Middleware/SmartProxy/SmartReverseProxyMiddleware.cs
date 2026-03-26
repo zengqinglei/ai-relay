@@ -43,6 +43,50 @@ public class SmartReverseProxyMiddleware(
         var chatModelHandler = chatModelHandlerFactory.CreateHandler(platform);
         var downContext = await downstreamRequestProcessor.ProcessAsync(context, chatModelHandler, apiKeyId, context.RequestAborted);
 
+        // 请求级变量（提升到外层，供三段式写入使用）
+        var usageRecordId = Guid.CreateVersion7();
+        var attemptNumber = 0;
+        var overallStopwatch = Stopwatch.StartNew();
+        var finalStatus = UsageStatus.Failed;
+        string? finalStatusDescription = null;
+        StreamForwardResult? finalForwardResult = null;
+        string? downResponseBody = null;
+        // 最终成功尝试的账号信息（用于定价）
+        string? lastUpModelId = null;
+        Guid? lastAccountTokenId = null;
+        // 选号结果（跨循环保留）
+        Guid lastProviderGroupId = Guid.Empty;
+        string lastProviderGroupName = string.Empty;
+        decimal lastGroupRateMultiplier = 1m;
+
+        // 下游请求 body（在入队 StartItem 前捕获，日志级别为 body logging）
+        var downRequestBody = _loggingOptions.IsBodyLoggingEnabled
+            ? (downContext.IsMultipart
+                ? "[Multipart Data - Logging Skipped]"
+                : downContext.GetBodyPreview(_loggingOptions.MaxBodyLength))
+            : null;
+        var downRequestHeaders = _loggingOptions.IsBodyLoggingEnabled ? CaptureHeaders(downContext.Headers) : null;
+
+        // Step 1: 入队 StartItem（INSERT UsageRecord，Status=InProgress 立即可见）
+        usageRecordHostedService.TryEnqueue(new UsageRecordStartItem(
+            UsageRecordId: usageRecordId,
+            CorrelationId: correlationId,
+            Platform: platform,
+            ApiKeyId: apiKeyId,
+            ApiKeyName: apiKeyName,
+            ProviderGroupId: Guid.Empty,        // 尚未选号，暂填空
+            ProviderGroupName: string.Empty,
+            GroupRateMultiplier: 1m,
+            IsStreaming: downContext.IsStreaming,
+            DownRequestMethod: context.Request.Method,
+            DownRequestUrl: context.Request.GetDisplayUrl(),
+            DownModelId: downContext.ModelId,
+            DownClientIp: context.Connection.RemoteIpAddress?.ToString(),
+            DownUserAgent: context.Request.Headers.UserAgent.ToString(),
+            DownRequestHeaders: downRequestHeaders,
+            DownRequestBody: downRequestBody
+        ));
+
         try
         {
             var excludedAccountIds = new HashSet<Guid>();
@@ -70,11 +114,15 @@ public class SmartReverseProxyMiddleware(
                         },
                         context.RequestAborted);
 
+                // 记录分组信息
+                lastProviderGroupId = selectResult.ProviderGroupId;
+                lastProviderGroupName = selectResult.ProviderGroupName;
+                lastGroupRateMultiplier = selectResult.GroupRateMultiplier;
+
                 var requiresFingerprint = selectResult.AccountToken.AllowOfficialClientMimic;
 
                 if (requiresFingerprint)
                 {
-                    // 生成稳定的 Sticky Session ID 和 指纹 ClientID
                     downContext.StickySessionId = await fingerprintAppService.GenerateSessionUuidAsync(
                         selectResult.AccountToken.Id,
                         downContext.SessionId,
@@ -90,7 +138,7 @@ public class SmartReverseProxyMiddleware(
 
                 var currentAccountRetryCount = 0;
                 var shouldSwitchAccount = false;
-                var degradationLevel = 0; // 降级级别计数器（0=正常, 1=移除签名, 2=移除函数）
+                var degradationLevel = 0;
 
                 // 内层循环：同账号重试
                 while (!shouldSwitchAccount)
@@ -103,7 +151,6 @@ public class SmartReverseProxyMiddleware(
                     {
                         if (selectResult.WaitPlan.ShouldWait)
                         {
-                            // 场景1：粘性会话，在当前账号上等待
                             var maxWait = selectResult.WaitPlan.MaxConcurrency + 20;
                             if (!await concurrencyStrategy.IncrementWaitCountAsync(selectResult.AccountToken.Id, maxWait, context.RequestAborted))
                             {
@@ -131,9 +178,8 @@ public class SmartReverseProxyMiddleware(
                         }
                         else
                         {
-                            // 场景2：非粘性会话，快速切换账号
                             shouldSwitchAccount = true;
-                            break; // 跳出内层循环，执行切换逻辑
+                            break;
                         }
                     }
 
@@ -151,63 +197,27 @@ public class SmartReverseProxyMiddleware(
                         degradationLevel,
                         context.RequestAborted);
 
-                    var startRecord = new UsageRecordStartItem(
-                        UsageRecordId: activeRequestId,
-                        CorrelationId: correlationId,
-                        Platform: platform,
-                        ApiKeyId: apiKeyId,
-                        ApiKeyName: apiKeyName,
-                        AccountTokenId: selectResult.AccountToken.Id,
-                        AccountTokenName: selectResult.AccountToken.Name,
-                        ProviderGroupId: selectResult.ProviderGroupId,
-                        ProviderGroupName: selectResult.ProviderGroupName,
-                        GroupRateMultiplier: selectResult.GroupRateMultiplier,
-                        IsStreaming: downContext.IsStreaming,
-                        DownRequestMethod: context.Request.Method,
-                        DownRequestUrl: context.Request.GetDisplayUrl(),
-                        DownModelId: downContext.ModelId,
-                        DownClientIp: context.Connection.RemoteIpAddress?.ToString(),
-                        DownUserAgent: context.Request.Headers.UserAgent.ToString(),
-                        UpModelId: upContext.MappedModelId,
-                        UpUserAgent: upContext.GetUserAgent(),
-                        UpRequestUrl: upContext.GetFullUrl(),
-                        DownRequestHeaders: CaptureHeaders(downContext.Headers),
-                        UpRequestHeaders: CaptureHeaders(upContext.Headers)
-                    );
-                    if (_loggingOptions.IsBodyLoggingEnabled)
-                    {
-                        var bodyContent = upContext.BodyJson != null ? upContext.BodyJson.ToString() : null;
-                        startRecord.LoggingBody(
-                            downContext.IsMultipart ?
-                                "[Multipart Data - Logging Skipped]" :
-                                downContext.GetBodyPreview(_loggingOptions.MaxBodyLength),
-                            string.IsNullOrEmpty(bodyContent) ?
-                                string.Empty :
-                                bodyContent.Length > _loggingOptions.MaxBodyLength ?
-                                    bodyContent[.._loggingOptions.MaxBodyLength] + "...[Truncated]" :
-                                    bodyContent);
-                    }
-                    usageRecordHostedService.TryEnqueue(startRecord);
-
-                    var stopwatch = Stopwatch.StartNew();
+                    var attemptStopwatch = Stopwatch.StartNew();
+                    attemptNumber++;
                     int? httpStatusCode = null;
                     StreamForwardResult? forwardResult = null;
                     string? errorBody = null;
-                    var usageStatus = UsageStatus.Success;
-                    string? usageStatusDescription = null;
+                    var attemptStatus = UsageStatus.Failed;
+                    string? attemptStatusDesc = null;
+                    string? upResponseBody = null;
+
                     try
                     {
                         // 5. 执行 HTTP 请求
                         using var response = await accountedHandler.ProxyRequestAsync(upContext, context.RequestAborted);
-                        stopwatch.Stop();
+                        attemptStopwatch.Stop();
                         httpStatusCode = (int)response.StatusCode;
-                        // 6. 判断响应状态
+
                         if (response.IsSuccessStatusCode)
                         {
-                            usageStatus = UsageStatus.Success;
-                            // ===== 成功路径 =====
+                            attemptStatus = UsageStatus.Success;
+                            finalStatus = UsageStatus.Success;
 
-                            // 处理成功结果：清除退避计数
                             await smartProxyAppService.HandleSuccessAsync(
                                 selectResult.AccountToken.Id,
                                 context.RequestAborted);
@@ -222,26 +232,31 @@ public class SmartReverseProxyMiddleware(
                                 downContext.IsStreaming,
                                 options,
                                 context.RequestAborted);
+
+                            finalForwardResult = forwardResult;
+                            downResponseBody = _loggingOptions.IsBodyLoggingEnabled ? forwardResult?.CapturedBody : null;
+
+                            // 记录最终成功尝试的账号信息（供 EndItem 定价使用）
+                            lastUpModelId = upContext.MappedModelId;
+                            lastAccountTokenId = selectResult.AccountToken.Id;
+
                             return;
                         }
                         else
                         {
-                            usageStatus = UsageStatus.Failed;
-                            // ===== 失败路径 =====
+                            attemptStatus = UsageStatus.Failed;
                             errorBody = await response.Content.ReadAsStringAsync(context.RequestAborted);
+                            if (_loggingOptions.IsBodyLoggingEnabled) upResponseBody = errorBody;
                             var responseHeaders = ExtractHeaders(response);
 
                             logger.LogWarning("账号请求失败，状态码: {StatusCode}，正在分析错误：{BodyContent}", httpStatusCode.Value, errorBody);
 
-                            // 7. 错误分析
                             var errorAnalysis = await accountedHandler.AnalyzeErrorAsync(httpStatusCode.Value, responseHeaders, errorBody);
 
-                            // 8. 决策逻辑
                             const int MaxSameAccountRetries = 3;
                             var instruction = DetermineFailureInstruction(errorAnalysis, currentAccountRetryCount, MaxSameAccountRetries);
                             var retryAfter = CalculateRetryDelay(errorAnalysis, currentAccountRetryCount, instruction);
 
-                            // 9. 执行指令
                             switch (instruction)
                             {
                                 case FailureInstruction.RetrySameAccount:
@@ -249,17 +264,16 @@ public class SmartReverseProxyMiddleware(
                                     if (errorAnalysis.RequiresDowngrade)
                                     {
                                         degradationLevel++;
-                                        usageStatusDescription = $"启用降级级别 {degradationLevel} 进行重试 (Retry {currentAccountRetryCount})";
+                                        attemptStatusDesc = $"启用降级级别 {degradationLevel} 进行重试 (Retry {currentAccountRetryCount})";
                                     }
                                     else
                                     {
-                                        usageStatusDescription = $"同账号重试，延迟 {retryAfter.TotalMilliseconds}ms，重试次数: {currentAccountRetryCount}";
+                                        attemptStatusDesc = $"同账号重试，延迟 {retryAfter.TotalMilliseconds}ms，重试次数: {currentAccountRetryCount}";
                                     }
                                     await Task.Delay(retryAfter, context.RequestAborted);
                                     break;
 
                                 case FailureInstruction.SwitchAccount:
-                                    // 切换账号前，更新账户状态（熔断）
                                     await smartProxyAppService.HandleFailureAsync(
                                         new HandleFailureInputDto(
                                             selectResult.AccountToken.Id,
@@ -271,15 +285,14 @@ public class SmartReverseProxyMiddleware(
 
                                     if (selectResult.AvailableAccountCount <= 1)
                                     {
-                                        usageStatusDescription = $"账号 '{selectResult.AccountToken.Name}' 不可用 (状态码: {httpStatusCode})，且无其他可用账号";
-                                        throw new ServiceUnavailableException(usageStatusDescription);
+                                        attemptStatusDesc = $"账号 '{selectResult.AccountToken.Name}' 不可用 (状态码: {httpStatusCode})，且无其他可用账号";
+                                        throw new ServiceUnavailableException(attemptStatusDesc);
                                     }
                                     shouldSwitchAccount = true;
-                                    usageStatusDescription = $"账号 '{selectResult.AccountToken.Name}' 不可用 (状态码: {httpStatusCode})，切换到其他账号";
+                                    attemptStatusDesc = $"账号 '{selectResult.AccountToken.Name}' 不可用 (状态码: {httpStatusCode})，切换到其他账号";
                                     break;
 
                                 case FailureInstruction.Fail:
-                                    // 彻底失败前，更新账户状态
                                     await smartProxyAppService.HandleFailureAsync(
                                         new HandleFailureInputDto(
                                             selectResult.AccountToken.Id,
@@ -289,32 +302,39 @@ public class SmartReverseProxyMiddleware(
                                             null),
                                         context.RequestAborted);
 
-                                    usageStatusDescription = $"请求失败，不进行重试：{errorBody}";
+                                    attemptStatusDesc = $"请求失败，不进行重试：{errorBody}";
                                     WriteResponseHeaders(context, httpStatusCode.Value, responseHeaders);
                                     await context.Response.WriteAsync(errorBody, context.RequestAborted);
                                     return;
                             }
-                            if (!string.IsNullOrEmpty(usageStatusDescription))
+
+                            if (!string.IsNullOrEmpty(attemptStatusDesc))
                             {
-                                logger.LogWarning(usageStatusDescription);
+                                logger.LogWarning(attemptStatusDesc);
                             }
                         }
                     }
                     finally
                     {
+                        attemptStopwatch.Stop();
                         await concurrencyStrategy.ReleaseSlotAsync(selectResult.AccountToken.Id, activeRequestId);
-                        usageRecordHostedService.TryEnqueue(new UsageRecordEndItem(
-                            UsageRecordId: activeRequestId,
-                            Duration: stopwatch.ElapsedMilliseconds,
+
+                        // Step 2: 入队 AttemptItem（每次尝试结束后追加子记录）
+                        usageRecordHostedService.TryEnqueue(new UsageRecordAttemptItem(
+                            UsageRecordId: usageRecordId,
+                            AttemptNumber: attemptNumber,
+                            AccountTokenId: selectResult.AccountToken.Id,
+                            AccountTokenName: selectResult.AccountToken.Name,
+                            UpModelId: upContext.MappedModelId,
+                            UpUserAgent: upContext.GetUserAgent(),
+                            UpRequestUrl: upContext.GetFullUrl(),
+                            UpRequestHeaders: _loggingOptions.IsBodyLoggingEnabled ? CaptureHeaders(upContext.Headers) : null,
+                            UpRequestBody: _loggingOptions.IsBodyLoggingEnabled ? (upContext.BodyJson != null ? upContext.BodyJson.ToString() : null) : null,
+                            UpResponseBody: _loggingOptions.IsBodyLoggingEnabled ? upResponseBody : null,
                             UpStatusCode: httpStatusCode,
-                            Status: usageStatus,
-                            StatusDescription: usageStatusDescription,
-                            UpResponseBody: forwardResult?.CapturedBody ?? errorBody,
-                            DownResponseBody: forwardResult?.CapturedBody ?? errorBody,
-                            InputTokens: forwardResult?.Usage?.InputTokens,
-                            OutputTokens: forwardResult?.Usage?.OutputTokens,
-                            CacheReadTokens: forwardResult?.Usage?.CacheReadTokens,
-                            CacheCreationTokens: forwardResult?.Usage?.CacheCreationTokens
+                            DurationMs: attemptStopwatch.ElapsedMilliseconds,
+                            Status: attemptStatus,
+                            StatusDescription: attemptStatusDesc
                         ));
                     }
                 }
@@ -330,6 +350,7 @@ public class SmartReverseProxyMiddleware(
         }
         catch (Exception ex)
         {
+            finalStatusDescription = ex.Message;
             logger.LogWarning(ex, "代理网关异常被拦截: {Message}", ex.Message);
 
             if (context.Response.HasStarted)
@@ -345,6 +366,26 @@ public class SmartReverseProxyMiddleware(
             context.Response.ContentType = errorResponse.ContentType;
 
             await context.Response.WriteAsync(errorResponse.Payload, System.Text.Encoding.UTF8, context.RequestAborted);
+        }
+        finally
+        {
+            overallStopwatch.Stop();
+
+            // Step 3: 入队 EndItem（UPDATE UsageRecord 为最终状态）
+            usageRecordHostedService.TryEnqueue(new UsageRecordEndItem(
+                UsageRecordId: usageRecordId,
+                Duration: overallStopwatch.ElapsedMilliseconds,
+                Status: finalStatus,
+                StatusDescription: finalStatusDescription,
+                DownResponseBody: downResponseBody,
+                InputTokens: finalForwardResult?.Usage?.InputTokens,
+                OutputTokens: finalForwardResult?.Usage?.OutputTokens,
+                CacheReadTokens: finalForwardResult?.Usage?.CacheReadTokens,
+                CacheCreationTokens: finalForwardResult?.Usage?.CacheCreationTokens,
+                AttemptCount: attemptNumber,
+                UpModelId: lastUpModelId,
+                AccountTokenId: lastAccountTokenId
+            ));
         }
     }
 
