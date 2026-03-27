@@ -28,14 +28,14 @@ function getPagedList(req: any): PagedResultDto<UsageRecordOutputDto> {
   if (model && String(model) !== 'undefined') {
     const query = String(model).toLowerCase();
     filteredRecords = filteredRecords.filter(
-      r => r.downModelId?.toLowerCase().includes(query)
+      r => r.downModelId?.toLowerCase().includes(query) || r.upModelId?.toLowerCase().includes(query)
     );
   }
 
   // Filter: Account Token Name (substring, case-insensitive)
   if (accountTokenName && String(accountTokenName) !== 'undefined') {
     const query = String(accountTokenName).toLowerCase();
-    filteredRecords = filteredRecords.filter(r => r.accountTokenName.toLowerCase().includes(query));
+    filteredRecords = filteredRecords.filter(r => r.accountTokenName?.toLowerCase().includes(query));
   }
 
   // Filter: Provider Group ID (exact)

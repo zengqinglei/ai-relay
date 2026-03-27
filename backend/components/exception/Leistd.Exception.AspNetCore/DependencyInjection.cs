@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Leistd.Exception.AspNetCore.Handlers;
@@ -41,7 +42,11 @@ public static class DependencyInjection
         return app.UseExceptionHandler(new ExceptionHandlerOptions
         {
             AllowStatusCode404Response = true,
-            ExceptionHandler = null
+            ExceptionHandler = null,
+            // .NET 10: 客户端主动断开（OperationCanceledException）不记录 diagnostics/ERR
+            SuppressDiagnosticsCallback = ctx =>
+                ctx.Exception is OperationCanceledException
+                    && ctx.HttpContext.RequestAborted.IsCancellationRequested
         });
     }
 }

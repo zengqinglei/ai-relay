@@ -17,12 +17,6 @@ public class UsageRecord : CreationAuditedEntity<Guid>
 
     public string ApiKeyName { get; private set; }
 
-    public Guid ProviderGroupId { get; private set; }
-
-    public string ProviderGroupName { get; private set; }
-
-    public decimal GroupRateMultiplier { get; private set; }
-
     public bool IsStreaming { get; private set; }
 
     public string DownRequestMethod { get; private set; }
@@ -68,9 +62,6 @@ public class UsageRecord : CreationAuditedEntity<Guid>
         ProviderPlatform platform,
         Guid apiKeyId,
         string apiKeyName,
-        Guid providerGroupId,
-        string providerGroupName,
-        decimal groupRateMultiplier,
         bool isStreaming,
         string downRequestMethod,
         string downRequestUrl,
@@ -85,9 +76,6 @@ public class UsageRecord : CreationAuditedEntity<Guid>
         Platform = platform;
         ApiKeyId = apiKeyId;
         ApiKeyName = apiKeyName;
-        ProviderGroupId = providerGroupId;
-        ProviderGroupName = providerGroupName;
-        GroupRateMultiplier = groupRateMultiplier;
         IsStreaming = isStreaming;
         DownModelId = downModelId;
         DownRequestMethod = downRequestMethod;
@@ -99,6 +87,7 @@ public class UsageRecord : CreationAuditedEntity<Guid>
     }
 
     public void Complete(
+        decimal groupRateMultiplier,
         long duration,
         UsageStatus status,
         string? statusDescription,
@@ -124,7 +113,7 @@ public class UsageRecord : CreationAuditedEntity<Guid>
         if (baseCost.HasValue)
         {
             BaseCost = baseCost;
-            FinalCost = BaseCost.Value * GroupRateMultiplier;
+            FinalCost = BaseCost.Value * groupRateMultiplier;
         }
     }
 
@@ -132,7 +121,6 @@ public class UsageRecord : CreationAuditedEntity<Guid>
     {
         CorrelationId = null!;
         ApiKeyName = null!;
-        ProviderGroupName = null!;
         DownRequestMethod = null!;
         DownRequestUrl = null!;
     }

@@ -3,6 +3,7 @@ using System;
 using AiRelay.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AiRelay.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AiRelayDbContext))]
-    partial class AiRelayDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260326151122_MakeProviderGroupNullable")]
+    partial class MakeProviderGroupNullable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -685,6 +688,10 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 8)
                         .HasColumnType("numeric(18,8)");
 
+                    b.Property<decimal?>("GroupRateMultiplier")
+                        .HasPrecision(10, 4)
+                        .HasColumnType("numeric(10,4)");
+
                     b.Property<int?>("InputTokens")
                         .HasColumnType("integer");
 
@@ -699,6 +706,13 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<Guid?>("ProviderGroupId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ProviderGroupName")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -711,6 +725,8 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ApiKeyId", "CreationTime");
+
+                    b.HasIndex("ProviderGroupId", "CreationTime");
 
                     b.HasIndex("ApiKeyId", "Status", "CreationTime");
 
@@ -738,17 +754,6 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
 
                     b.Property<long>("DurationMs")
                         .HasColumnType("bigint");
-
-                    b.Property<decimal?>("GroupRateMultiplier")
-                        .HasPrecision(10, 4)
-                        .HasColumnType("numeric(10,4)");
-
-                    b.Property<Guid?>("ProviderGroupId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ProviderGroupName")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -780,8 +785,6 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AccountTokenId", "Status");
-
-                    b.HasIndex("ProviderGroupId", "UsageRecordId");
 
                     b.HasIndex("UsageRecordId", "AttemptNumber");
 
@@ -1088,6 +1091,11 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
                     b.HasOne("AiRelay.Domain.ApiKeys.Entities.ApiKey", "ApiKey")
                         .WithMany()
                         .HasForeignKey("ApiKeyId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AiRelay.Domain.ProviderGroups.Entities.ProviderGroup", null)
+                        .WithMany()
+                        .HasForeignKey("ProviderGroupId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("ApiKey");

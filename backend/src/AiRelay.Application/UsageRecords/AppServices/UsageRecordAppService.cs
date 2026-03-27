@@ -21,7 +21,7 @@ public class UsageRecordAppService(
 {
     public async Task<UsageRecordDetailOutputDto> GetDetailAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var baseQuery = await usageRecordRepository.GetQueryIncludingAsync(x => x.Detail);
+        var baseQuery = await usageRecordRepository.GetQueryIncludingAsync(cancellationToken, x => x.Detail);
         var query = baseQuery.Include(x => x.Attempts).ThenInclude(a => a.Detail);
         var record = await asyncExecuter.FirstOrDefaultAsync(query.Where(x => x.Id == id), cancellationToken);
 
@@ -30,8 +30,6 @@ public class UsageRecordAppService(
             throw new NotFoundException($"Usage record with id {id} not found.");
         }
 
-        // 优先使用 Detail 中的数据，如果 Detail 不存在或字段为空，则回退到主记录中的数据（如果适用）
-        // 实际上 DTO 映射会在 Profile 中定义
         return objectMapper.Map<UsageRecord, UsageRecordDetailOutputDto>(record);
     }
 
@@ -39,7 +37,7 @@ public class UsageRecordAppService(
         UsageRecordPagedInputDto input,
         CancellationToken cancellationToken = default)
     {
-        var query = await usageRecordRepository.GetQueryableAsync(cancellationToken);
+        var query = await usageRecordRepository.GetQueryIncludingAsync(cancellationToken, p => p.Attempts);
 
         // 应用筛选条件
         if (!string.IsNullOrWhiteSpace(input.ApiKeyName))
@@ -60,7 +58,7 @@ public class UsageRecordAppService(
 
         if (input.ProviderGroupId.HasValue)
         {
-            query = query.Where(r => r.ProviderGroupId == input.ProviderGroupId.Value);
+            query = query.Where(r => r.Attempts.Any(a => a.ProviderGroupId == input.ProviderGroupId.Value));
         }
 
         if (input.Platform.HasValue)
@@ -83,7 +81,6 @@ public class UsageRecordAppService(
 
         // 使用动态排序，null 值按 0 处理
         var sorting = input.Sorting ?? $"{nameof(UsageRecord.CreationTime)} desc";
-        // 对可能为 null 的数值字段做 null-safe 处理，避免 null 排到最前
         sorting = System.Text.RegularExpressions.Regex.Replace(
             sorting,
             @"\b(finalCost|inputTokens|outputTokens|durationMs)\b",
@@ -92,12 +89,29 @@ public class UsageRecordAppService(
 
         var sortedQuery = query.OrderBy(sorting);
 
-        // 应用分页
-        var records = await asyncExecuter.ToListAsync(
-            sortedQuery.Skip(input.Offset).Take(input.Limit),
+        // 分页 + LEFT JOIN 最新一次 Attempt
+        var pagedRecords = await asyncExecuter.ToListAsync(
+            sortedQuery
+                .Skip(input.Offset)
+                .Take(input.Limit)
+                .Select(r => new
+                {
+                    Record = r,
+                    LatestAttempt = r.Attempts
+                        .OrderByDescending(a => a.AttemptNumber)
+                        .FirstOrDefault()
+                }),
             cancellationToken);
 
-        var items = objectMapper.Map<List<UsageRecord>, List<UsageRecordOutputDto>>(records);
+        var items = pagedRecords.Select(x =>
+        {
+            var dto = objectMapper.Map<UsageRecord, UsageRecordOutputDto>(x.Record);
+            dto.ProviderGroupName = x.LatestAttempt?.ProviderGroupName;
+            dto.AccountTokenName = x.LatestAttempt?.AccountTokenName;
+            dto.UpModelId = x.LatestAttempt?.UpModelId;
+            dto.UpStatusCode = x.LatestAttempt?.UpStatusCode;
+            return dto;
+        }).ToList();
 
         return new PagedResultDto<UsageRecordOutputDto>(totalCount, items);
     }

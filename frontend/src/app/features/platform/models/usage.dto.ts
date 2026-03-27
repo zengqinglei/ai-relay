@@ -38,8 +38,10 @@ export interface UsageRecordOutputDto {
   creationTime: string;
   apiKeyName: string;
   platform: ProviderPlatform;
-  providerGroupName: string;
+  providerGroupName?: string;
+  accountTokenName?: string;
   downModelId?: string;
+  upModelId?: string;
   downRequestUrl: string;
   downRequestMethod: string;
   isStreaming: boolean;
@@ -51,6 +53,7 @@ export interface UsageRecordOutputDto {
   downClientIp: string;
   finalCost?: number;
   status: string;
+  upStatusCode?: number;
   downStatusCode?: number;
   durationMs?: number;
   statusDescription?: string;

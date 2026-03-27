@@ -35,9 +35,6 @@ public class UsageLifecycleAppService(
             input.Platform,
             input.ApiKeyId,
             input.ApiKeyName,
-            input.ProviderGroupId,
-            input.ProviderGroupName,
-            input.GroupRateMultiplier,
             input.IsStreaming,
             input.DownRequestMethod,
             input.DownRequestUrl,
@@ -58,8 +55,8 @@ public class UsageLifecycleAppService(
         return new StartUsageOutputDto { UsageRecordId = record.Id };
     }
 
-    public async Task AddAttemptAsync(
-        AddAttemptInputDto input,
+    public async Task StartAttemptAsync(
+        StartAttemptInputDto input,
         CancellationToken cancellationToken = default)
     {
         var attempt = new UsageRecordAttempt(
@@ -67,24 +64,48 @@ public class UsageLifecycleAppService(
             input.AttemptNumber,
             input.AccountTokenId,
             input.AccountTokenName,
+            input.ProviderGroupId,
+            input.ProviderGroupName,
+            input.GroupRateMultiplier,
             input.UpModelId,
             input.UpUserAgent,
             input.UpRequestUrl,
             input.UpRequestHeaders,
-            input.UpRequestBody,
-            input.UpResponseBody,
-            input.UpStatusCode,
-            input.DurationMs,
-            input.Status,
-            input.StatusDescription);
+            input.UpRequestBody);
 
         await attemptRepository.InsertAsync(attempt, cancellationToken);
 
-        // 累加账号调用次数统计（每次 attempt 均计入，含失败）
-        await AccumulateAccountTokenCallStatsAsync(input.AccountTokenId, input.Status == UsageStatus.Success, cancellationToken);
+        logger.LogDebug(
+            "开始 UsageRecordAttempt: UsageId={UsageId}, Attempt={AttemptNumber}, Account={AccountName}",
+            input.UsageRecordId,
+            input.AttemptNumber,
+            input.AccountTokenName);
+    }
+
+    public async Task CompleteAttemptAsync(
+        CompleteAttemptInputDto input,
+        CancellationToken cancellationToken = default)
+    {
+        var query = await attemptRepository.GetQueryIncludingAsync(cancellationToken, (UsageRecordAttempt a) => a.Detail);
+        var attempt = await asyncExecuter.FirstOrDefaultAsync(
+            query.Where(a => a.UsageRecordId == input.UsageRecordId && a.AttemptNumber == input.AttemptNumber),
+            cancellationToken);
+
+        if (attempt == null)
+        {
+            logger.LogWarning("未找到 UsageRecordAttempt: UsageId={UsageId}, Attempt={AttemptNumber}",
+                input.UsageRecordId, input.AttemptNumber);
+            return;
+        }
+
+        attempt.Complete(input.UpStatusCode, input.DurationMs, input.Status, input.StatusDescription, input.UpResponseBody);
+        await attemptRepository.UpdateAsync(attempt, cancellationToken: cancellationToken);
+
+        // 累加账号调用次数统计
+        await AccumulateAccountTokenCallStatsAsync(attempt.AccountTokenId, input.Status == UsageStatus.Success, cancellationToken);
 
         logger.LogDebug(
-            "追加 UsageRecordAttempt: UsageId={UsageId}, Attempt={AttemptNumber}, Status={Status}",
+            "完成 UsageRecordAttempt: UsageId={UsageId}, Attempt={AttemptNumber}, Status={Status}",
             input.UsageRecordId,
             input.AttemptNumber,
             input.Status);
@@ -94,7 +115,7 @@ public class UsageLifecycleAppService(
         FinishUsageInputDto input,
         CancellationToken cancellationToken = default)
     {
-        var query = await usageRepository.GetQueryIncludingAsync(x => x.Detail);
+        var query = await usageRepository.GetQueryIncludingAsync(cancellationToken, x => x.Detail);
         var record = await asyncExecuter.FirstOrDefaultAsync(query.Where(x => x.Id == input.UsageRecordId), cancellationToken);
 
         if (record == null)
@@ -103,15 +124,21 @@ public class UsageLifecycleAppService(
             return;
         }
 
-        // 若有最终账号，提前加载实体以获取名称（供缓存统计使用）
-        AccountToken? accountToken = null;
-        if (input.AccountTokenId.HasValue)
-        {
-            accountToken = await accountTokenRepository.GetByIdAsync(input.AccountTokenId.Value, cancellationToken);
-        }
+        // 从最后一次 Attempt 取 group/account/upModel 信息（用于定价和缓存统计）
+        var attemptQuery = await attemptRepository.GetQueryableAsync(cancellationToken);
+        var lastAttempt = await asyncExecuter.FirstOrDefaultAsync(
+            attemptQuery
+                .Where(a => a.UsageRecordId == input.UsageRecordId)
+                .OrderByDescending(a => a.AttemptNumber),
+            cancellationToken);
+
+        var groupRateMultiplier = lastAttempt?.GroupRateMultiplier ?? 1m;
+        var upModelId = lastAttempt?.UpModelId;
+        var accountTokenId = lastAttempt?.AccountTokenId;
 
         await usageRecordDomainService.ProcessCompletionAsync(
             record,
+            groupRateMultiplier,
             input.Duration,
             input.Status,
             input.StatusDescription,
@@ -121,10 +148,7 @@ public class UsageLifecycleAppService(
             input.CacheReadTokens,
             input.CacheCreationTokens,
             input.AttemptCount,
-            input.UpModelId,
-            input.AccountTokenId,
-            record.Platform,
-            accountToken?.Name,
+            upModelId,
             cancellationToken);
 
         logger.LogDebug(
@@ -134,17 +158,17 @@ public class UsageLifecycleAppService(
             input.OutputTokens,
             record.FinalCost);
 
-        // 累加统计到 ApiKey（AccountToken 统计通过缓存服务在 DomainService 内处理）
+        // 累加统计到 ApiKey
         var tokens = (long)((record.InputTokens ?? 0) + (record.OutputTokens ?? 0) + (record.CacheReadTokens ?? 0));
         var cost = record.FinalCost ?? 0m;
         var isSuccess = record.Status == UsageStatus.Success;
 
         await AccumulateApiKeyStatsAsync(record.ApiKeyId, tokens, cost, isSuccess, cancellationToken);
 
-        // 若有最终账号，累加 token/cost 统计（调用次数已在 AddAttemptAsync 中累加）
-        if (input.AccountTokenId.HasValue)
+        // 若有最终账号，累加 token/cost 统计
+        if (accountTokenId.HasValue)
         {
-            await AccumulateAccountTokenCostStatsAsync(input.AccountTokenId.Value, tokens, cost, cancellationToken);
+            await AccumulateAccountTokenCostStatsAsync(accountTokenId.Value, tokens, cost, cancellationToken);
         }
     }
 

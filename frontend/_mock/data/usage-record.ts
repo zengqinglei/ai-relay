@@ -6,7 +6,6 @@ import { UsageStatus } from '../../src/app/shared/models/usage-status.enum';
 export interface MockUsageRecord extends UsageRecordOutputDto {
   accountTokenId: string;
   providerGroupId: string;
-  accountTokenName: string;
 }
 
 const MODELS = [
@@ -78,13 +77,15 @@ const generateRecords = (count: number): MockUsageRecord[] => {
         platform: account.platform,
         providerGroupName: group.name,
         providerGroupId: group.id,
-        accountTokenName: account.name,
+        accountTokenName: account.name,  // UsageRecordOutputDto.accountTokenName
         accountTokenId: account.id,
         downModelId: model,
+        upModelId: model,
         downRequestUrl: PATHS[Math.floor(Math.random() * PATHS.length)],
         downRequestMethod: METHODS[0],
         isStreaming: isStreaming,
         downUserAgent: USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)],
+        upUserAgent: 'AiRelay/1.0',
         inputTokens: inputTokens,
         outputTokens: outputTokens,
         cacheReadTokens: Math.random() > 0.8 ? Math.floor(Math.random() * 100) : 0,
@@ -92,6 +93,7 @@ const generateRecords = (count: number): MockUsageRecord[] => {
         downClientIp: `203.0.113.${Math.floor(Math.random() * 255)}`,
         finalCost: finalCost,
         status: status,
+        upStatusCode: status === UsageStatus.Success ? 200 : (status === UsageStatus.InProgress ? undefined : 429),
         durationMs: Math.floor(Math.random() * 10000) + 200,
         statusDescription: statusDescription,
         attemptCount: attemptCount
@@ -111,7 +113,7 @@ export const getUsageRecordDetail = (id: string) => {
     const attemptStatus = isLast ? record.status : UsageStatus.Failed;
     return {
       attemptNumber: i + 1,
-      accountTokenName: record.accountTokenName,
+      accountTokenName: record.accountTokenName ?? '',
       upModelId: record.downModelId,
       upUserAgent: 'AiRelay/1.0',
       upRequestUrl: `https://api.openai.com${record.downRequestUrl}`,

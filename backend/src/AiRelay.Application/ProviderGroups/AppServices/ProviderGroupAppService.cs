@@ -129,7 +129,7 @@ public class ProviderGroupAppService(
         if (providerGroups.Any())
         {
             var groupIds = providerGroups.Select(g => g.Id).ToList();
-            var relationQuery = await relationRepository.GetQueryIncludingAsync(r => r.AccountToken);
+            var relationQuery = await relationRepository.GetQueryIncludingAsync(cancellationToken, r => r.AccountToken);
             var allRelations = await asyncExecuter.ToListAsync(relationQuery
                 .Where(r => groupIds.Contains(r.ProviderGroupId)),
                 cancellationToken);
@@ -167,7 +167,7 @@ public class ProviderGroupAppService(
         var result = objectMapper.Map<ProviderGroup, ProviderGroupOutputDto>(group);
 
         // 加载关联的账户
-        var relationQuery = await relationRepository.GetQueryIncludingAsync(r => r.AccountToken);
+        var relationQuery = await relationRepository.GetQueryIncludingAsync(cancellationToken, r => r.AccountToken);
         var relations = await asyncExecuter.ToListAsync(relationQuery
             .Where(r => r.ProviderGroupId == group.Id),
             cancellationToken);

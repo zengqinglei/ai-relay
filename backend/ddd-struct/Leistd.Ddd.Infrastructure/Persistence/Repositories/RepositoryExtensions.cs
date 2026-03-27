@@ -15,10 +15,11 @@ public static class RepositoryExtensions
     /// </summary>
     public static async Task<IQueryable<TEntity>> GetQueryIncludingAsync<TEntity, TKey>(
         this IRepository<TEntity, TKey> repository,
+        CancellationToken cancellationToken = default,
         params Expression<Func<TEntity, object?>>[] propertySelectors)
         where TEntity : class, IEntity<TKey>
     {
-        var query = await repository.GetQueryableAsync();
+        var query = await repository.GetQueryableAsync(cancellationToken);
 
         if (propertySelectors != null && propertySelectors.Any())
         {

@@ -43,15 +43,7 @@ public class SseResponseStreamProcessor(
         while ((line = await reader.ReadLineAsync(cancellationToken)) != null)
         {
             var part = responseParser.ParseChunk(line);
-            if (part == null)
-            {
-                if (!string.IsNullOrWhiteSpace(line))
-                {
-                    logger.LogDebug("ParseChunk 返回 null，line 前200字符: {Line}",
-                        line.Length > 200 ? line[..200] + "..." : line);
-                }
-                continue;
-            }
+            if (part == null) continue;
 
             if (part.IsComplete) break;
 
@@ -116,10 +108,6 @@ public class SseResponseStreamProcessor(
                             {
                                 accumulator.Add(part.Usage);
                                 accumulator.SetModelId(part.ModelId);
-                            }
-                            else
-                            {
-                                logger.LogDebug("SSE 行解析返回 null: {Line}", line.Length > 200 ? line[..200] + "..." : line);
                             }
                         }
                     }

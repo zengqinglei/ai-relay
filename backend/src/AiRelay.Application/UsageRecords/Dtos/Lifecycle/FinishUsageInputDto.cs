@@ -16,8 +16,5 @@ public record FinishUsageInputDto(
     int? CacheReadTokens,
     int? CacheCreationTokens,
     // 尝试次数
-    int AttemptCount,
-    // 最终成功尝试的账号信息（用于定价和缓存统计）
-    string? UpModelId,
-    Guid? AccountTokenId
+    int AttemptCount
 );

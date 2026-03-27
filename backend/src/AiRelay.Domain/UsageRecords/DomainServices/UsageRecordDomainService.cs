@@ -1,4 +1,3 @@
-using AiRelay.Domain.ProviderAccounts.DomainServices;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.UsageRecords.Entities;
 using AiRelay.Domain.UsageRecords.Providers;
@@ -8,11 +7,11 @@ namespace AiRelay.Domain.UsageRecords.DomainServices;
 
 public class UsageRecordDomainService(
     IPricingProvider pricingProvider,
-    IRepository<UsageRecord, Guid> usageRepository,
-    AccountUsageCacheDomainService usageCacheService)
+    IRepository<UsageRecord, Guid> usageRepository)
 {
     public async Task ProcessCompletionAsync(
         UsageRecord record,
+        decimal groupRateMultiplier,
         long duration,
         UsageStatus status,
         string? statusDescription,
@@ -22,11 +21,7 @@ public class UsageRecordDomainService(
         int? cacheReadTokens,
         int? cacheCreationTokens,
         int attemptCount,
-        // 最终成功尝试的上游信息（用于定价和缓存统计）
         string? upModelId,
-        Guid? accountTokenId,
-        ProviderPlatform platform,
-        string? accountTokenName,
         CancellationToken cancellationToken = default)
     {
         // 1. 获取基础价格
@@ -60,6 +55,7 @@ public class UsageRecordDomainService(
 
         // 2. 更新实体状态
         record.Complete(
+            groupRateMultiplier,
             duration,
             status,
             statusDescription,
@@ -74,14 +70,5 @@ public class UsageRecordDomainService(
         // 3. 持久化记录
         await usageRepository.UpdateAsync(record, cancellationToken);
 
-        // 4. 更新缓存统计（仅在有账号信息时）
-        if (accountTokenId.HasValue && !string.IsNullOrEmpty(accountTokenName))
-        {
-            await usageCacheService.IncrementUsageAsync(
-                accountTokenId.Value,
-                platform,
-                accountTokenName,
-                cancellationToken);
-        }
     }
 }

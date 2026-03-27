@@ -18,7 +18,6 @@ public class QuotaPriorityStrategy(
 {
     public async Task<ProviderGroupAccountRelation?> SelectAccountAsync(
         IReadOnlyList<ProviderGroupAccountRelation> relations,
-        Func<IEnumerable<Guid>, Task<Dictionary<Guid, long>>> usageProvider,
         IReadOnlyDictionary<Guid, int> concurrencyCounts)
     {
         if (relations.Count == 0)

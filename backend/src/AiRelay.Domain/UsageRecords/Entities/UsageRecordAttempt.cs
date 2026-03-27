@@ -16,6 +16,12 @@ public class UsageRecordAttempt : Entity<Guid>
 
     public string AccountTokenName { get; private set; }
 
+    public Guid? ProviderGroupId { get; private set; }
+
+    public string? ProviderGroupName { get; private set; }
+
+    public decimal? GroupRateMultiplier { get; private set; }
+
     public string? UpModelId { get; private set; }
 
     public string? UpUserAgent { get; private set; }
@@ -32,37 +38,55 @@ public class UsageRecordAttempt : Entity<Guid>
 
     public UsageRecordAttemptDetail Detail { get; private set; } = null!;
 
+    /// <summary>
+    /// 创建进行中的尝试记录（选号成功后立即调用）
+    /// </summary>
     public UsageRecordAttempt(
         Guid usageRecordId,
         int attemptNumber,
         Guid accountTokenId,
         string accountTokenName,
+        Guid? providerGroupId,
+        string? providerGroupName,
+        decimal? groupRateMultiplier,
         string? upModelId,
         string? upUserAgent,
         string? upRequestUrl,
         string? upRequestHeaders,
-        string? upRequestBody,
-        string? upResponseBody,
-        int? upStatusCode,
-        long durationMs,
-        UsageStatus status,
-        string? statusDescription)
+        string? upRequestBody)
     {
         Id = Guid.CreateVersion7();
         UsageRecordId = usageRecordId;
         AttemptNumber = attemptNumber;
         AccountTokenId = accountTokenId;
         AccountTokenName = accountTokenName;
+        ProviderGroupId = providerGroupId;
+        ProviderGroupName = providerGroupName;
+        GroupRateMultiplier = groupRateMultiplier;
         UpModelId = upModelId;
         UpUserAgent = upUserAgent;
         UpRequestUrl = upRequestUrl;
+        Status = UsageStatus.InProgress;
+        Detail = new UsageRecordAttemptDetail(Id, upRequestHeaders, upRequestBody, null);
+    }
+
+    /// <summary>
+    /// 完成尝试记录（HTTP 请求结束后调用）
+    /// </summary>
+    public void Complete(
+        int? upStatusCode,
+        long durationMs,
+        UsageStatus status,
+        string? statusDescription,
+        string? upResponseBody)
+    {
         UpStatusCode = upStatusCode;
         DurationMs = durationMs;
         Status = status;
         StatusDescription = statusDescription?.Length > 2048
             ? statusDescription[..2045] + "..."
             : statusDescription;
-        Detail = new UsageRecordAttemptDetail(Id, upRequestHeaders, upRequestBody, upResponseBody);
+        Detail.CompleteAttempt(upResponseBody);
     }
 
     private UsageRecordAttempt() { AccountTokenName = null!; }

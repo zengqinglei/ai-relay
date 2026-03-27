@@ -2,8 +2,6 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { Subject } from 'rxjs';
-import { debounceTime, finalize } from 'rxjs/operators';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
 import { IconFieldModule } from 'primeng/iconfield';
@@ -14,18 +12,22 @@ import { SelectModule } from 'primeng/select';
 import { TableLazyLoadEvent, TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
+import { Subject } from 'rxjs';
+import { debounceTime, finalize } from 'rxjs/operators';
+
 import { UsageRecordDetailDialog } from './usage-record-detail-dialog';
 import { LayoutService } from '../../../../layout/services/layout-service';
 import { PROVIDER_PLATFORM_LABELS } from '../../../../shared/constants/provider-platform.constants';
 import { PagedResultDto } from '../../../../shared/models/paged-result.dto';
 import { ProviderPlatform } from '../../../../shared/models/provider-platform.enum';
 import { UsageStatus } from '../../../../shared/models/usage-status.enum';
+import { HttpStatusSeverityPipe } from '../../../../shared/pipes/http-status-severity.pipe';
+import { FilterStateService } from '../../../../shared/services/filter-state.service';
 import { formatTokenCount } from '../../../../shared/utils/format.utils';
 import { ProviderGroupOutputDto } from '../../models/provider-group.dto';
 import { UsageRecordOutputDto, UsageRecordPagedInputDto } from '../../models/usage.dto';
 import { ProviderGroupService } from '../../services/provider-group-service';
 import { UsageRecordService } from '../../services/usage-record-service';
-import { FilterStateService } from '../../../../shared/services/filter-state.service';
 
 @Component({
   selector: 'app-usage-records',
@@ -43,7 +45,8 @@ import { FilterStateService } from '../../../../shared/services/filter-state.ser
     IconFieldModule,
     InputIconModule,
     PaginatorModule,
-    UsageRecordDetailDialog
+    UsageRecordDetailDialog,
+    HttpStatusSeverityPipe
   ],
   templateUrl: './usage-records.html',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -98,10 +101,7 @@ export class UsageRecords implements OnInit {
     if (saved.platform !== undefined) this.filterPlatform.set(saved.platform ?? null);
     if (saved.providerGroupId !== undefined) this.filterProviderGroupId.set(saved.providerGroupId ?? null);
 
-    this.textFilterSubject.pipe(
-      debounceTime(300),
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe(() => {
+    this.textFilterSubject.pipe(debounceTime(300), takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.first.set(0);
       this.loadData();
     });
@@ -247,6 +247,10 @@ export class UsageRecords implements OnInit {
     return PROVIDER_PLATFORM_LABELS[platform] || `Unknown (${platform})`;
   }
 
+  getHttpStatusCode(record: UsageRecordOutputDto): string {
+    return record.upStatusCode?.toString() || '...';
+  }
+
   /**
    * 判断是否显示失败详情图标
    */
@@ -265,6 +269,8 @@ export class UsageRecords implements OnInit {
    * 获取模型显示文本
    */
   getModelDisplay(record: UsageRecordOutputDto): string {
-    return record.downModelId || 'N/A';
+    const down = record.downModelId || 'N/A';
+    const up = record.upModelId || 'N/A';
+    return down === up ? down : `down: ${down} | up: ${up}`;
   }
 }

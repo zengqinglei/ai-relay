@@ -8,9 +8,6 @@ public record StartUsageInputDto(
     ProviderPlatform Platform,
     Guid ApiKeyId,
     string ApiKeyName,
-    Guid ProviderGroupId,
-    string ProviderGroupName,
-    decimal GroupRateMultiplier,
     // 下游请求信息
     bool IsStreaming,
     string DownRequestMethod,

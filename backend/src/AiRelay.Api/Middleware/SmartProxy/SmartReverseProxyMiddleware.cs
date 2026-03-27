@@ -54,10 +54,6 @@ public class SmartReverseProxyMiddleware(
         // 最终成功尝试的账号信息（用于定价）
         string? lastUpModelId = null;
         Guid? lastAccountTokenId = null;
-        // 选号结果（跨循环保留）
-        Guid lastProviderGroupId = Guid.Empty;
-        string lastProviderGroupName = string.Empty;
-        decimal lastGroupRateMultiplier = 1m;
 
         // 下游请求 body（在入队 StartItem 前捕获，日志级别为 body logging）
         var downRequestBody = _loggingOptions.IsBodyLoggingEnabled
@@ -74,9 +70,6 @@ public class SmartReverseProxyMiddleware(
             Platform: platform,
             ApiKeyId: apiKeyId,
             ApiKeyName: apiKeyName,
-            ProviderGroupId: Guid.Empty,        // 尚未选号，暂填空
-            ProviderGroupName: string.Empty,
-            GroupRateMultiplier: 1m,
             IsStreaming: downContext.IsStreaming,
             DownRequestMethod: context.Request.Method,
             DownRequestUrl: context.Request.GetDisplayUrl(),
@@ -113,11 +106,6 @@ public class SmartReverseProxyMiddleware(
                             ModelId = downContext.ModelId
                         },
                         context.RequestAborted);
-
-                // 记录分组信息
-                lastProviderGroupId = selectResult.ProviderGroupId;
-                lastProviderGroupName = selectResult.ProviderGroupName;
-                lastGroupRateMultiplier = selectResult.GroupRateMultiplier;
 
                 var requiresFingerprint = selectResult.AccountToken.AllowOfficialClientMimic;
 
@@ -205,6 +193,22 @@ public class SmartReverseProxyMiddleware(
                     var attemptStatus = UsageStatus.Failed;
                     string? attemptStatusDesc = null;
                     string? upResponseBody = null;
+
+                    // Step 2: 入队 AttemptStartItem（INSERT Attempt，Status=InProgress，立即可见当前账号）
+                    usageRecordHostedService.TryEnqueue(new UsageRecordAttemptStartItem(
+                        UsageRecordId: usageRecordId,
+                        AttemptNumber: attemptNumber,
+                        AccountTokenId: selectResult.AccountToken.Id,
+                        AccountTokenName: selectResult.AccountToken.Name,
+                        ProviderGroupId: selectResult.ProviderGroupId,
+                        ProviderGroupName: selectResult.ProviderGroupName,
+                        GroupRateMultiplier: selectResult.GroupRateMultiplier,
+                        UpModelId: upContext.MappedModelId,
+                        UpUserAgent: upContext.GetUserAgent(),
+                        UpRequestUrl: upContext.GetFullUrl(),
+                        UpRequestHeaders: _loggingOptions.IsBodyLoggingEnabled ? CaptureHeaders(upContext.Headers) : null,
+                        UpRequestBody: _loggingOptions.IsBodyLoggingEnabled ? (upContext.BodyJson != null ? upContext.BodyJson.ToString() : null) : null
+                    ));
 
                     try
                     {
@@ -319,22 +323,15 @@ public class SmartReverseProxyMiddleware(
                         attemptStopwatch.Stop();
                         await concurrencyStrategy.ReleaseSlotAsync(selectResult.AccountToken.Id, activeRequestId);
 
-                        // Step 2: 入队 AttemptItem（每次尝试结束后追加子记录）
-                        usageRecordHostedService.TryEnqueue(new UsageRecordAttemptItem(
+                        // Step 3: 入队 AttemptEndItem（UPDATE Attempt 为最终状态）
+                        usageRecordHostedService.TryEnqueue(new UsageRecordAttemptEndItem(
                             UsageRecordId: usageRecordId,
                             AttemptNumber: attemptNumber,
-                            AccountTokenId: selectResult.AccountToken.Id,
-                            AccountTokenName: selectResult.AccountToken.Name,
-                            UpModelId: upContext.MappedModelId,
-                            UpUserAgent: upContext.GetUserAgent(),
-                            UpRequestUrl: upContext.GetFullUrl(),
-                            UpRequestHeaders: _loggingOptions.IsBodyLoggingEnabled ? CaptureHeaders(upContext.Headers) : null,
-                            UpRequestBody: _loggingOptions.IsBodyLoggingEnabled ? (upContext.BodyJson != null ? upContext.BodyJson.ToString() : null) : null,
-                            UpResponseBody: _loggingOptions.IsBodyLoggingEnabled ? upResponseBody : null,
                             UpStatusCode: httpStatusCode,
                             DurationMs: attemptStopwatch.ElapsedMilliseconds,
                             Status: attemptStatus,
-                            StatusDescription: attemptStatusDesc
+                            StatusDescription: attemptStatusDesc,
+                            UpResponseBody: _loggingOptions.IsBodyLoggingEnabled ? upResponseBody : null
                         ));
                     }
                 }
@@ -371,7 +368,7 @@ public class SmartReverseProxyMiddleware(
         {
             overallStopwatch.Stop();
 
-            // Step 3: 入队 EndItem（UPDATE UsageRecord 为最终状态）
+            // Step 4: 入队 EndItem（UPDATE UsageRecord 为最终状态）
             usageRecordHostedService.TryEnqueue(new UsageRecordEndItem(
                 UsageRecordId: usageRecordId,
                 Duration: overallStopwatch.ElapsedMilliseconds,
@@ -382,9 +379,7 @@ public class SmartReverseProxyMiddleware(
                 OutputTokens: finalForwardResult?.Usage?.OutputTokens,
                 CacheReadTokens: finalForwardResult?.Usage?.CacheReadTokens,
                 CacheCreationTokens: finalForwardResult?.Usage?.CacheCreationTokens,
-                AttemptCount: attemptNumber,
-                UpModelId: lastUpModelId,
-                AccountTokenId: lastAccountTokenId
+                AttemptCount: attemptNumber
             ));
         }
     }

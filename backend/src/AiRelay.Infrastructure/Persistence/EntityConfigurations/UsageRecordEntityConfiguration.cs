@@ -1,4 +1,3 @@
-using AiRelay.Domain.ProviderGroups.Entities;
 using AiRelay.Domain.UsageRecords.Entities;
 using Leistd.Ddd.Infrastructure.Persistence.Extensions;
 using Microsoft.EntityFrameworkCore;
@@ -23,7 +22,6 @@ internal static class UsageRecordEntityConfiguration
 
             b.Property(e => e.CorrelationId).IsRequired().HasMaxLength(64);
             b.Property(e => e.ApiKeyName).IsRequired().HasMaxLength(256);
-            b.Property(e => e.ProviderGroupName).IsRequired().HasMaxLength(256);
             b.Property(e => e.DownRequestMethod).IsRequired().HasMaxLength(16);
             b.Property(e => e.DownRequestUrl).IsRequired().HasMaxLength(2048);
             b.Property(e => e.DownModelId).HasMaxLength(128);
@@ -31,12 +29,10 @@ internal static class UsageRecordEntityConfiguration
             b.Property(e => e.DownUserAgent).HasMaxLength(1024);
             b.Property(e => e.StatusDescription).HasMaxLength(2048);
             b.Property(e => e.BaseCost).HasPrecision(18, 8);
-            b.Property(e => e.GroupRateMultiplier).HasPrecision(10, 4);
             b.Property(e => e.FinalCost).HasPrecision(18, 8);
 
             // 核心复合索引（覆盖高频查询场景）
             b.HasIndex(e => new { e.ApiKeyId, e.CreationTime });
-            b.HasIndex(e => new { e.ProviderGroupId, e.CreationTime });
             b.HasIndex(e => new { e.ApiKeyId, e.Status, e.CreationTime });
             b.HasIndex(e => new { e.Platform, e.Status, e.CreationTime });
 
@@ -45,11 +41,6 @@ internal static class UsageRecordEntityConfiguration
                 .HasForeignKey(e => e.ApiKeyId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .IsRequired(false);
-
-            b.HasOne<ProviderGroup>()
-                .WithMany()
-                .HasForeignKey(e => e.ProviderGroupId)
-                .OnDelete(DeleteBehavior.Restrict);
 
             b.HasOne(e => e.Detail)
                 .WithOne()
@@ -80,6 +71,8 @@ internal static class UsageRecordEntityConfiguration
             b.ConfigureByConvention();
 
             b.Property(e => e.AccountTokenName).IsRequired().HasMaxLength(256);
+            b.Property(e => e.ProviderGroupName).HasMaxLength(256);
+            b.Property(e => e.GroupRateMultiplier).HasPrecision(10, 4);
             b.Property(e => e.UpModelId).HasMaxLength(128);
             b.Property(e => e.UpUserAgent).HasMaxLength(1024);
             b.Property(e => e.UpRequestUrl).HasMaxLength(2048);
@@ -89,6 +82,8 @@ internal static class UsageRecordEntityConfiguration
             b.HasIndex(e => new { e.UsageRecordId, e.AttemptNumber });
             // 账号维度分析索引
             b.HasIndex(e => new { e.AccountTokenId, e.Status });
+            // 分组过滤索引
+            b.HasIndex(e => new { e.ProviderGroupId, e.UsageRecordId });
 
             b.HasOne(e => e.Detail)
                 .WithOne()

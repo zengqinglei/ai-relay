@@ -34,7 +34,7 @@ public class SmartProxyAppService(
     {
         // 1. 获取 ApiKey 绑定的分组 ID
         var bindingGroupQuery = await apiKeyProviderGroupBindingRepository
-            .GetQueryIncludingAsync(p => p.ProviderGroup);
+            .GetQueryIncludingAsync(cancellationToken, p => p.ProviderGroup);
         var bindingGroup = await queryableAsyncExecuter.FirstOrDefaultAsync(
             bindingGroupQuery.Where(b => b.ApiKeyId == input.ApiKeyId && b.Platform == input.Platform))
             ?? throw new ForbiddenException($"ApiKey '{input.ApiKeyName}' 未绑定 {input.Platform} 平台的分组，无法选择账户");

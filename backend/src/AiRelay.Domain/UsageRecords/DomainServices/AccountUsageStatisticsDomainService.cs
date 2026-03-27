@@ -55,6 +55,7 @@ public class AccountUsageStatisticsDomainService(
 
         var query = await usageRecordRepository.GetQueryableAsync(cancellationToken);
         var usageStats = await asyncExecuter.FirstOrDefaultAsync(query
+            .OrderByDescending(m => m.CreationTime)
             .GroupBy(r => 1)
             .Select(g => new
             {
@@ -84,10 +85,10 @@ public class AccountUsageStatisticsDomainService(
             activeAccounts,
             disabledAccounts,
             expiringAccounts,
-            (long)todayUsage,
+            todayUsage,
             growthRate,
             averageSuccessRate,
-            (long)abnormalRequests
+            abnormalRequests
         );
     }
 }

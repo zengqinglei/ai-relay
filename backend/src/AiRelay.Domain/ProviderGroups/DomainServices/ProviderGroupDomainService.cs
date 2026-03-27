@@ -23,7 +23,6 @@ public class ProviderGroupDomainService(
     IProviderGroupAccountRelationRepository providerGroupAccountRelationRepository,
     IRepository<AccountToken, Guid> accountTokenRepository,
     IRepository<ApiKeyProviderGroupBinding, Guid> apiKeyProviderGroupBindingRepository,
-    AccountUsageCacheDomainService usageCacheDomainService,
     AccountTokenDomainService accountTokenDomainService,
     GroupSchedulingStrategyFactory groupSchedulingStrategyFactory,
     AccountRateLimitDomainService accountRateLimitDomainService,
@@ -330,7 +329,6 @@ public class ProviderGroupDomainService(
         var strategy = groupSchedulingStrategyFactory.CreateStrategy(group.SchedulingStrategy);
         var selectedRelation = await strategy.SelectAccountAsync(
             availableRelations,
-            ids => usageCacheDomainService.GetUsageCountsAsync(ids),
             concurrencyCounts);
 
         if (selectedRelation == null)

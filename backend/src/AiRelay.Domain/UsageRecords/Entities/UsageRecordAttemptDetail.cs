@@ -28,5 +28,10 @@ public class UsageRecordAttemptDetail : Entity<Guid>
         UpResponseBody = upResponseBody;
     }
 
+    internal void CompleteAttempt(string? upResponseBody)
+    {
+        UpResponseBody = upResponseBody;
+    }
+
     private UsageRecordAttemptDetail() { }
 }

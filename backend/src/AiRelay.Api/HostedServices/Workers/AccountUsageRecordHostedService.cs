@@ -48,9 +48,6 @@ public class AccountUsageRecordHostedService(
                                 start.Platform,
                                 start.ApiKeyId,
                                 start.ApiKeyName,
-                                start.ProviderGroupId,
-                                start.ProviderGroupName,
-                                start.GroupRateMultiplier,
                                 start.IsStreaming,
                                 start.DownRequestMethod,
                                 start.DownRequestUrl,
@@ -62,23 +59,34 @@ public class AccountUsageRecordHostedService(
                             ));
                         break;
 
-                    case UsageRecordAttemptItem attemptItem:
-                        await usageLifecycleAppService.AddAttemptAsync(
-                            new AddAttemptInputDto(
-                                attemptItem.UsageRecordId,
-                                attemptItem.AttemptNumber,
-                                attemptItem.AccountTokenId,
-                                attemptItem.AccountTokenName,
-                                attemptItem.UpModelId,
-                                attemptItem.UpUserAgent,
-                                attemptItem.UpRequestUrl,
-                                attemptItem.UpRequestHeaders,
-                                attemptItem.UpRequestBody,
-                                attemptItem.UpResponseBody,
-                                attemptItem.UpStatusCode,
-                                attemptItem.DurationMs,
-                                attemptItem.Status,
-                                attemptItem.StatusDescription
+                    case UsageRecordAttemptStartItem attemptStart:
+                        await usageLifecycleAppService.StartAttemptAsync(
+                            new StartAttemptInputDto(
+                                attemptStart.UsageRecordId,
+                                attemptStart.AttemptNumber,
+                                attemptStart.AccountTokenId,
+                                attemptStart.AccountTokenName,
+                                attemptStart.ProviderGroupId,
+                                attemptStart.ProviderGroupName,
+                                attemptStart.GroupRateMultiplier,
+                                attemptStart.UpModelId,
+                                attemptStart.UpUserAgent,
+                                attemptStart.UpRequestUrl,
+                                attemptStart.UpRequestHeaders,
+                                attemptStart.UpRequestBody
+                            ));
+                        break;
+
+                    case UsageRecordAttemptEndItem attemptEnd:
+                        await usageLifecycleAppService.CompleteAttemptAsync(
+                            new CompleteAttemptInputDto(
+                                attemptEnd.UsageRecordId,
+                                attemptEnd.AttemptNumber,
+                                attemptEnd.UpStatusCode,
+                                attemptEnd.DurationMs,
+                                attemptEnd.Status,
+                                attemptEnd.StatusDescription,
+                                attemptEnd.UpResponseBody
                             ));
                         break;
 
@@ -94,9 +102,7 @@ public class AccountUsageRecordHostedService(
                                 end.OutputTokens,
                                 end.CacheReadTokens,
                                 end.CacheCreationTokens,
-                                end.AttemptCount,
-                                end.UpModelId,
-                                end.AccountTokenId
+                                end.AttemptCount
                             ));
                         break;
 
@@ -132,9 +138,6 @@ public record UsageRecordStartItem(
     ProviderPlatform Platform,
     Guid ApiKeyId,
     string ApiKeyName,
-    Guid ProviderGroupId,
-    string ProviderGroupName,
-    decimal GroupRateMultiplier,
     bool IsStreaming,
     string DownRequestMethod,
     string DownRequestUrl,
@@ -146,23 +149,34 @@ public record UsageRecordStartItem(
 ) : IUsageRecordItem;
 
 /// <summary>
-/// 单次上游尝试记录项（INSERT UsageRecordAttempt）
+/// 单次上游尝试开始项（INSERT UsageRecordAttempt，Status=InProgress，选号后立即入队）
 /// </summary>
-public record UsageRecordAttemptItem(
+public record UsageRecordAttemptStartItem(
     Guid UsageRecordId,
     int AttemptNumber,
     Guid AccountTokenId,
     string AccountTokenName,
+    Guid? ProviderGroupId,
+    string? ProviderGroupName,
+    decimal? GroupRateMultiplier,
     string? UpModelId,
     string? UpUserAgent,
     string? UpRequestUrl,
     string? UpRequestHeaders,
-    string? UpRequestBody,
-    string? UpResponseBody,
+    string? UpRequestBody
+) : IUsageRecordItem;
+
+/// <summary>
+/// 单次上游尝试结束项（UPDATE UsageRecordAttempt 为最终状态，HTTP 请求结束后入队）
+/// </summary>
+public record UsageRecordAttemptEndItem(
+    Guid UsageRecordId,
+    int AttemptNumber,
     int? UpStatusCode,
     long DurationMs,
     UsageStatus Status,
-    string? StatusDescription
+    string? StatusDescription,
+    string? UpResponseBody
 ) : IUsageRecordItem;
 
 /// <summary>
@@ -178,8 +192,5 @@ public record UsageRecordEndItem(
     int? OutputTokens,
     int? CacheReadTokens,
     int? CacheCreationTokens,
-    int AttemptCount,
-    // 最终成功尝试的账号信息（用于定价和统计，Platform 从 UsageRecord 已有字段读取）
-    string? UpModelId,
-    Guid? AccountTokenId
+    int AttemptCount
 ) : IUsageRecordItem;

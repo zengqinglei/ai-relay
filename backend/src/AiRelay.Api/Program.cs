@@ -201,7 +201,7 @@ try
     }
 
     // 7. 中间件管道配置
-    app.UseExceptionHandler();
+    app.UseGlobalExceptionHandler();
     app.UseCorrelationId();
     app.MapHealthChecks("/api/health").AllowAnonymous();
 

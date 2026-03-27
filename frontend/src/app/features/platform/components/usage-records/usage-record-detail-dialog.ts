@@ -378,6 +378,11 @@ export class UsageRecordDetailDialog {
   getModelDisplay(): string {
     const rec = this.record();
     if (!rec) return 'N/A';
-    return rec.downModelId || 'N/A';
+    const down = rec.downModelId;
+    const up = rec.upModelId;
+    if (!down && !up) return 'N/A';
+    if (!down) return up || 'N/A';
+    if (!up) return down;
+    return down === up ? down : `down: ${down} | up: ${up}`;
   }
 }

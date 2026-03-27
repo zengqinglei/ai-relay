@@ -3,7 +3,7 @@ using AiRelay.Domain.ProviderAccounts.ValueObjects;
 namespace AiRelay.Application.UsageRecords.Dtos.Query;
 
 /// <summary>
-/// 使用记录列表输出
+/// 使用记录列表输出（含最新一次 Attempt 的关键字段）
 /// </summary>
 public class UsageRecordOutputDto
 {
@@ -18,9 +18,6 @@ public class UsageRecordOutputDto
 
     /// <summary>平台类型</summary>
     public ProviderPlatform Platform { get; set; }
-
-    /// <summary>分组名称</summary>
-    public string ProviderGroupName { get; set; } = string.Empty;
 
     /// <summary>下游请求模型ID</summary>
     public string? DownModelId { get; set; }
@@ -66,4 +63,18 @@ public class UsageRecordOutputDto
 
     /// <summary>总尝试次数</summary>
     public int AttemptCount { get; set; }
+
+    // --- 来自最新一次 Attempt ---
+
+    /// <summary>分组名称（取最新 Attempt）</summary>
+    public string? ProviderGroupName { get; set; }
+
+    /// <summary>账号名称（取最新 Attempt）</summary>
+    public string? AccountTokenName { get; set; }
+
+    /// <summary>上游模型ID（取最新 Attempt）</summary>
+    public string? UpModelId { get; set; }
+
+    /// <summary>上游状态码（取最新 Attempt）</summary>
+    public int? UpStatusCode { get; set; }
 }
