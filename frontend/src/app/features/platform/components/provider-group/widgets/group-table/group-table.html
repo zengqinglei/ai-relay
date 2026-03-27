@@ -113,7 +113,7 @@
             <div>
               <p class="font-semibold text-color text-sm group-hover:text-primary transition-colors m-0">{{ group.name }}</p>
               @if (group.description) {
-                <div class="text-[11px] text-muted-color mt-0.5 truncate max-w-[200px]" [pTooltip]="group.description">
+                <div class="text-[11px] text-muted-color mt-0.5 truncate max-w-[200px]" [pTooltip]="group.description" tooltipPosition="top" tooltipStyleClass="max-w-md">
                   {{ group.description }}
                 </div>
               }

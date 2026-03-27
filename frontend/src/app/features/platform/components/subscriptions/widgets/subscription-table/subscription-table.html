@@ -153,9 +153,9 @@
         <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 text-right">
           <div class="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <p-button (onClick)="edit.emit(item.id)" [text]="true" [rounded]="true" severity="secondary"
-              icon="pi pi-pencil" styleClass="w-8 h-8 !p-0"></p-button>
+              icon="pi pi-pencil" styleClass="w-8 h-8 !p-0" pTooltip="编辑" tooltipPosition="top"></p-button>
             <p-button (onClick)="delete.emit(item.id)" [text]="true" [rounded]="true" severity="danger"
-              icon="pi pi-trash" styleClass="w-8 h-8 !p-0"></p-button>
+              icon="pi pi-trash" styleClass="w-8 h-8 !p-0" pTooltip="删除" tooltipPosition="top"></p-button>
           </div>
         </td>
       </tr>

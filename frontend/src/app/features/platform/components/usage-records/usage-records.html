@@ -271,11 +271,12 @@
                     class="text-sm font-medium text-color truncate"
                     [pTooltip]="record.apiKeyName"
                     tooltipPosition="top"
+                    tooltipStyleClass="max-w-md"
                     >{{ record.apiKeyName }}</span
                   >
                 </div>
                 <div class="flex items-center gap-1.5">
-                  <span class="text-[10px] text-muted-color truncate max-w-[180px]" [pTooltip]="getModelDisplay(record)">
+                  <span class="text-[10px] text-muted-color truncate max-w-[180px]" [pTooltip]="getModelDisplay(record)" tooltipPosition="top" tooltipStyleClass="max-w-md">
                     <span class="text-muted-color">模型：</span>
                     <span class="font-medium text-muted-color">{{ getModelDisplay(record) }}</span>
                   </span>
@@ -307,6 +308,7 @@
                     class="text-[10px] text-muted-color truncate"
                     [pTooltip]="record.providerGroupName"
                     tooltipPosition="top"
+                    tooltipStyleClass="max-w-md"
                   >
                     <span class="text-muted-color">分组：</span>
                     <span class="font-medium text-muted-color">{{ record.providerGroupName }}</span>

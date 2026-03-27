@@ -76,7 +76,8 @@
               <app-platform-icon [platform]="acc.platform" />
             </div>
             <div class="min-w-0">
-              <p class="font-semibold text-color text-sm group-hover:text-primary transition-colors m-0 truncate max-w-[160px]">{{ acc.name }}</p>
+              <p class="font-semibold text-color text-sm group-hover:text-primary transition-colors m-0 truncate max-w-[160px]"
+                [pTooltip]="acc.name" tooltipPosition="top" tooltipStyleClass="max-w-xs">{{ acc.name }}</p>
               <div class="flex items-center gap-2 mt-0.5">
                 <span
                   class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-surface-100 dark:bg-surface-800 text-muted-color border border-surface-200 dark:border-surface-700 whitespace-nowrap">
@@ -140,7 +141,7 @@
                 @if (acc.status === AccountStatus.RateLimited && acc.lockedUntil) {
                 <span
                   class="text-[10px] font-mono opacity-80 border-l border-orange-200 dark:border-orange-500/30 pl-1.5 text-orange-600 dark:text-orange-400 cursor-help"
-                  [pTooltip]="formatUnlockTime(acc.lockedUntil)" tooltipPosition="top">
+                  [pTooltip]="formatUnlockTime(acc.lockedUntil)" tooltipPosition="top" tooltipStyleClass="max-w-xs">
                   {{ formatRemainingTime(getRateLimitRemainingSeconds(acc)) }}
                 </span>
                 }

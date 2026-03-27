@@ -31,8 +31,7 @@ import { AccountService } from '../../services/account-service';
     CheckboxModule,
     StyleClassModule,
     ThemeConfigurator,
-    LogoComponent,
-    RouterLink
+    LogoComponent
   ],
   templateUrl: './login.html',
   changeDetection: ChangeDetectionStrategy.OnPush
