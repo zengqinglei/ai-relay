@@ -13,5 +13,7 @@ public interface IQueryableAsyncExecuter
 
     Task<T?> FirstOrDefaultAsync<T>(IQueryable<T> query, CancellationToken cancellationToken = default);
 
+    Task<T?> SingleOrDefaultAsync<T>(IQueryable<T> query, CancellationToken cancellationToken = default);
+
     Task<bool> AnyAsync<T>(IQueryable<T> query, CancellationToken cancellationToken = default);
 }

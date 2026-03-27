@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject, signal, OnInit } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { CardModule } from 'primeng/card';
@@ -11,6 +11,7 @@ import { PasswordModule } from 'primeng/password';
 import { StyleClassModule } from 'primeng/styleclass';
 import { lastValueFrom } from 'rxjs';
 
+import { environment } from '../../../../../environments/environment';
 import { AuthService } from '../../../../core/services/auth-service';
 import { LayoutService } from '../../../../layout/services/layout-service';
 import { LogoComponent } from '../../../../shared/components/logo/logo';
@@ -30,7 +31,8 @@ import { AccountService } from '../../services/account-service';
     CheckboxModule,
     StyleClassModule,
     ThemeConfigurator,
-    LogoComponent
+    LogoComponent,
+    RouterLink
   ],
   templateUrl: './login.html',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -46,6 +48,9 @@ export class Login implements OnInit {
   // 加载状态
   private _isLoading = signal(false);
   public readonly isLoading = this._isLoading.asReadonly();
+
+  // Mock状态
+  public readonly isMockEnabled = signal(typeof environment.useMock === 'object' && environment.useMock.enable === true);
 
   // 登录表单
   loginForm = this.fb.group({

@@ -28,6 +28,11 @@ public class EfCoreQueryableAsyncExecuter : IQueryableAsyncExecuter
         return EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(query, cancellationToken);
     }
 
+    public Task<T?> SingleOrDefaultAsync<T>(IQueryable<T> query, CancellationToken cancellationToken = default)
+    {
+        return EntityFrameworkQueryableExtensions.SingleOrDefaultAsync(query, cancellationToken);
+    }
+
     public Task<bool> AnyAsync<T>(IQueryable<T> query, CancellationToken cancellationToken = default)
     {
         return EntityFrameworkQueryableExtensions.AnyAsync(query, cancellationToken);

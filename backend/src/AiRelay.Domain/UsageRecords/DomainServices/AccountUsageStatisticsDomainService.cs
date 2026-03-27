@@ -54,8 +54,7 @@ public class AccountUsageStatisticsDomainService(
         var last24Hours = DateTime.UtcNow.AddHours(-24);
 
         var query = await usageRecordRepository.GetQueryableAsync(cancellationToken);
-        var usageStats = await asyncExecuter.FirstOrDefaultAsync(query
-            .OrderByDescending(m => m.CreationTime)
+        var usageStats = await asyncExecuter.SingleOrDefaultAsync(query
             .GroupBy(r => 1)
             .Select(g => new
             {

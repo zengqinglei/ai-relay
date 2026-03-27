@@ -329,17 +329,11 @@ function getAvailableModelsForPlatform(req: MockRequest) {
 
   // 模拟上游拉取：ApiKey 类账户返回扩展列表，OAuth 类返回静态
   if (platform === ProviderPlatform.CLAUDE_APIKEY) {
-    return [
-      ...(AVAILABLE_MODELS[platform] ?? []),
-      { label: 'Claude Opus 4.7 (Upstream)', value: 'claude-opus-4-7-preview' }
-    ];
+    return [...(AVAILABLE_MODELS[platform] ?? []), { label: 'Claude Opus 4.7 (Upstream)', value: 'claude-opus-4-7-preview' }];
   }
 
   if (platform === ProviderPlatform.GEMINI_APIKEY) {
-    return [
-      ...(AVAILABLE_MODELS[platform] ?? []),
-      { label: 'Gemini 3.2 Flash (Upstream)', value: 'gemini-3.2-flash-preview' }
-    ];
+    return [...(AVAILABLE_MODELS[platform] ?? []), { label: 'Gemini 3.2 Flash (Upstream)', value: 'gemini-3.2-flash-preview' }];
   }
 
   // OAuth 类降级静态

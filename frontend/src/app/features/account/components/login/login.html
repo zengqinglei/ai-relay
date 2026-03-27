@@ -315,17 +315,19 @@
       </form>
 
       <!-- Test Account Hint -->
-      <div class="mt-8 p-4 bg-surface-0 dark:bg-surface-900 rounded-xl border border-surface shadow-md">
-        <h4 class="font-bold text-color mb-2 flex items-center gap-2"> <i class="pi pi-info-circle text-primary"></i> 测试账号 </h4>
-        <div class="grid grid-cols-1 gap-2 text-sm">
-          <div class="bg-surface-50 dark:bg-surface-800 p-2 rounded shadow-sm border border-surface">
-            <span class="block text-xs text-muted-color mb-1">管理员</span>
-            <span class="font-mono text-color">admin</span>
-            <span class="text-muted-color mx-1">/</span>
-            <span class="font-mono text-color">Admin&#64;123456</span>
+      @if (isMockEnabled()) {
+        <div class="mt-8 p-4 bg-surface-0 dark:bg-surface-900 rounded-xl border border-surface shadow-md">
+          <h4 class="font-bold text-color mb-2 flex items-center gap-2"> <i class="pi pi-info-circle text-primary"></i> 测试账号 </h4>
+          <div class="grid grid-cols-1 gap-2 text-sm">
+            <div class="bg-surface-50 dark:bg-surface-800 p-2 rounded shadow-sm border border-surface">
+              <span class="block text-xs text-muted-color mb-1">管理员</span>
+              <span class="font-mono text-color">admin</span>
+              <span class="text-muted-color mx-1">/</span>
+              <span class="font-mono text-color">Admin&#64;123456</span>
+            </div>
           </div>
         </div>
-      </div>
+      }
     </div>
   </div>
 </div>

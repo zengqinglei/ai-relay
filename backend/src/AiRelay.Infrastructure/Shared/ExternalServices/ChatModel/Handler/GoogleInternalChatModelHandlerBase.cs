@@ -1,6 +1,7 @@
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.RequestParsing;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.SignatureCache;
+using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Cleaning;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.StreamProcessor;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
@@ -23,70 +24,37 @@ public abstract class GoogleInternalChatModelHandlerBase(
     ILogger logger)
     : BaseChatModelHandler(options, httpClientFactory, streamProcessor, signatureCache, logger)
 {
-    public override async Task<ModelErrorAnalysisResult> AnalyzeErrorAsync(
+    protected override string? GetFallbackBaseUrl(int statusCode)
+    {
+        if (statusCode == 429 || statusCode == 408 || statusCode == 404 ||
+            (statusCode >= 500 && statusCode < 600))
+            return "https://daily-cloudcode-pa.sandbox.googleapis.com";
+        return null;
+    }
+
+    public override async Task<ModelErrorAnalysisResult> CheckRetryPolicyAsync(
         int statusCode,
         Dictionary<string, IEnumerable<string>>? headers,
         string responseBody)
     {
+        // 签名错误 → 降级重试
+        if (statusCode == 400 && GoogleSignatureCleaner.IsSignatureError(responseBody))
+        {
+            return new ModelErrorAnalysisResult { IsCanRetry = true, RequiresDowngrade = true };
+        }
+
         // 429/503 限流 / 容量不足
         if (statusCode == 429 || statusCode == 503)
         {
-            var result = new ModelErrorAnalysisResult
-            {
-                ErrorType = ModelErrorType.RateLimit,
-                IsRetryableOnSameAccount = IsModelCapacityExhausted(responseBody), // 容量耗尽时同账号重试
-                RequiresDowngrade = false,
-                RetryAfter = null
-            };
+            var retryAfter = ExtractRetryAfter(headers, responseBody);
 
-            // Google JSON 错误格式解析 (优先级高于通用解析)
-            result.RetryAfter = ExtractRetryDelayFromGoogleError(responseBody) ??
-                                ExtractRetryAfterGeneric(headers, responseBody);
-
-            return result;
+            return new ModelErrorAnalysisResult { IsCanRetry = true, RetryAfter = retryAfter };
         }
 
-        return await base.AnalyzeErrorAsync(statusCode, headers, responseBody);
+        return await base.CheckRetryPolicyAsync(statusCode, headers, responseBody);
     }
 
-    /// <summary>
-    /// 检查是否为模型容量耗尽错误（适合同账号重试）
-    /// </summary>
-    private static bool IsModelCapacityExhausted(string responseBody)
-    {
-        if (string.IsNullOrWhiteSpace(responseBody)) return false;
-
-        try
-        {
-            var json = JsonNode.Parse(responseBody);
-            if (json is not JsonObject jsonObj) return false;
-
-            // 检查 error.details[].reason == "MODEL_CAPACITY_EXHAUSTED"
-            var details = jsonObj["error"]?["details"] as JsonArray;
-            if (details != null)
-            {
-                foreach (var detail in details)
-                {
-                    if (detail is JsonObject detailObj)
-                    {
-                        var reason = detailObj["reason"]?.GetValue<string>();
-                        if (reason == "MODEL_CAPACITY_EXHAUSTED")
-                        {
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
-        catch
-        {
-            // 解析失败，默认不是容量耗尽
-        }
-
-        return false;
-    }
-
-    protected TimeSpan? ExtractRetryDelayFromGoogleError(string body)
+    protected override TimeSpan? ExtractRetryAfter(Dictionary<string, IEnumerable<string>>? headers, string? body)
     {
         if (string.IsNullOrWhiteSpace(body)) return null;
 
@@ -126,7 +94,7 @@ public abstract class GoogleInternalChatModelHandlerBase(
         {
             // 解析失败忽略
         }
-        return null;
+        return base.ExtractRetryAfter(headers, body);
     }
 
     protected static bool TryParseGoogleDuration(string? duration, out TimeSpan result)

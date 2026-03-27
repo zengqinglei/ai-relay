@@ -10,7 +10,7 @@ import { finalize } from 'rxjs/operators';
 import { DIALOG_CONFIGS } from '../../../../shared/constants/dialog-config.constants';
 import { UsageStatus } from '../../../../shared/models/usage-status.enum';
 import { formatTokenCount } from '../../../../shared/utils/format.utils';
-import { UsageRecordAttemptOutputDto, UsageRecordDetailOutputDto, UsageRecordOutputDto } from '../../models/usage.dto';
+import { UsageRecordDetailOutputDto, UsageRecordOutputDto } from '../../models/usage.dto';
 import { UsageRecordService } from '../../services/usage-record-service';
 
 @Component({
@@ -141,7 +141,9 @@ import { UsageRecordService } from '../../services/usage-record-service';
                 <div class="flex flex-col gap-4 pt-4">
                   <div class="border border-surface-200 dark:border-surface-700 rounded-lg overflow-hidden">
                     <!-- Header -->
-                    <div class="flex items-center gap-3 px-4 py-2.5 bg-surface-50 dark:bg-surface-800 border-b border-surface-200 dark:border-surface-700">
+                    <div
+                      class="flex items-center gap-3 px-4 py-2.5 bg-surface-50 dark:bg-surface-800 border-b border-surface-200 dark:border-surface-700"
+                    >
                       <span class="text-xs font-bold text-muted-color uppercase">下游请求</span>
                       @if (record()?.downStatusCode) {
                         <span class="text-xs font-mono font-bold" [ngClass]="getHttpStatusColorClass(record()?.downStatusCode)">
@@ -151,7 +153,9 @@ import { UsageRecordService } from '../../services/usage-record-service';
                       <span class="text-xs text-muted-color ml-auto">{{ record()?.durationMs || 0 }} ms</span>
                     </div>
                     <!-- Meta -->
-                    <div class="px-4 py-2 flex flex-wrap gap-x-6 gap-y-1 text-xs border-b border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900">
+                    <div
+                      class="px-4 py-2 flex flex-wrap gap-x-6 gap-y-1 text-xs border-b border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900"
+                    >
                       <span>
                         <span class="text-muted-color">方法：</span>
                         <span class="font-medium font-mono">{{ record()?.downRequestMethod || 'POST' }}</span>
@@ -172,13 +176,22 @@ import { UsageRecordService } from '../../services/usage-record-service';
                       </p-tablist>
                       <p-tabpanels>
                         <p-tabpanel value="req-headers">
-                          <pre class="p-3 m-0 font-mono text-xs overflow-auto min-h-[8rem] max-h-48 custom-scrollbar text-surface-600 dark:text-surface-300">{{ formatJson(detail()?.downRequestHeaders) || 'N/A' }}</pre>
+                          <pre
+                            class="p-3 m-0 font-mono text-xs overflow-auto min-h-[8rem] max-h-48 custom-scrollbar text-surface-600 dark:text-surface-300"
+                            >{{ formatJson(detail()?.downRequestHeaders) || 'N/A' }}</pre
+                          >
                         </p-tabpanel>
                         <p-tabpanel value="req-body">
-                          <pre class="p-3 m-0 font-mono text-xs overflow-auto min-h-[8rem] max-h-[300px] custom-scrollbar text-surface-700 dark:text-surface-200">{{ formatJson(detail()?.downRequestBody) || 'N/A' }}</pre>
+                          <pre
+                            class="p-3 m-0 font-mono text-xs overflow-auto min-h-[8rem] max-h-[300px] custom-scrollbar text-surface-700 dark:text-surface-200"
+                            >{{ formatJson(detail()?.downRequestBody) || 'N/A' }}</pre
+                          >
                         </p-tabpanel>
                         <p-tabpanel value="resp-body">
-                          <pre class="p-3 m-0 font-mono text-xs overflow-auto min-h-[8rem] max-h-[300px] custom-scrollbar text-surface-700 dark:text-surface-200">{{ formatJson(detail()?.downResponseBody) || 'N/A' }}</pre>
+                          <pre
+                            class="p-3 m-0 font-mono text-xs overflow-auto min-h-[8rem] max-h-[300px] custom-scrollbar text-surface-700 dark:text-surface-200"
+                            >{{ formatJson(detail()?.downResponseBody) || 'N/A' }}</pre
+                          >
                         </p-tabpanel>
                       </p-tabpanels>
                     </p-tabs>
@@ -213,16 +226,17 @@ import { UsageRecordService } from '../../services/usage-record-service';
                             styleClass="text-[10px] px-1.5 py-0.5 h-5"
                           ></p-tag>
                           @if (attempt.upStatusCode) {
-                            <span
-                              class="text-xs font-mono font-bold"
-                              [ngClass]="getHttpStatusColorClass(attempt.upStatusCode)"
-                            >{{ attempt.upStatusCode }}</span>
+                            <span class="text-xs font-mono font-bold" [ngClass]="getHttpStatusColorClass(attempt.upStatusCode)">{{
+                              attempt.upStatusCode
+                            }}</span>
                           }
                           <span class="text-xs text-muted-color ml-auto">{{ attempt.durationMs }} ms</span>
                         </div>
 
                         <!-- Attempt Meta -->
-                        <div class="px-4 py-2 flex flex-wrap gap-x-6 gap-y-1 text-xs border-b border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900">
+                        <div
+                          class="px-4 py-2 flex flex-wrap gap-x-6 gap-y-1 text-xs border-b border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900"
+                        >
                           <span>
                             <span class="text-muted-color">账户：</span>
                             <span class="font-medium">{{ attempt.accountTokenName }}</span>
@@ -254,13 +268,22 @@ import { UsageRecordService } from '../../services/usage-record-service';
                             </p-tablist>
                             <p-tabpanels>
                               <p-tabpanel value="req-headers">
-                                <pre class="p-3 m-0 font-mono text-xs overflow-auto min-h-[8rem] max-h-48 custom-scrollbar text-surface-600 dark:text-surface-300">{{ formatJson(attempt.upRequestHeaders) || 'N/A' }}</pre>
+                                <pre
+                                  class="p-3 m-0 font-mono text-xs overflow-auto min-h-[8rem] max-h-48 custom-scrollbar text-surface-600 dark:text-surface-300"
+                                  >{{ formatJson(attempt.upRequestHeaders) || 'N/A' }}</pre
+                                >
                               </p-tabpanel>
                               <p-tabpanel value="req-body">
-                                <pre class="p-3 m-0 font-mono text-xs overflow-auto min-h-[8rem] max-h-[300px] custom-scrollbar text-surface-700 dark:text-surface-200">{{ formatJson(attempt.upRequestBody) || 'N/A' }}</pre>
+                                <pre
+                                  class="p-3 m-0 font-mono text-xs overflow-auto min-h-[8rem] max-h-[300px] custom-scrollbar text-surface-700 dark:text-surface-200"
+                                  >{{ formatJson(attempt.upRequestBody) || 'N/A' }}</pre
+                                >
                               </p-tabpanel>
                               <p-tabpanel value="resp-body">
-                                <pre class="p-3 m-0 font-mono text-xs overflow-auto min-h-[8rem] max-h-[300px] custom-scrollbar text-surface-700 dark:text-surface-200">{{ formatJson(attempt.upResponseBody) || 'N/A' }}</pre>
+                                <pre
+                                  class="p-3 m-0 font-mono text-xs overflow-auto min-h-[8rem] max-h-[300px] custom-scrollbar text-surface-700 dark:text-surface-200"
+                                  >{{ formatJson(attempt.upResponseBody) || 'N/A' }}</pre
+                                >
                               </p-tabpanel>
                             </p-tabpanels>
                           </p-tabs>

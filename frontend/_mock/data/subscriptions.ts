@@ -12,7 +12,7 @@ export const SUBSCRIPTIONS: SubscriptionOutputDto[] = [
     usageToday: 150,
     usageTotal: 5000,
     costToday: 0.18,
-    costTotal: 6.00,
+    costTotal: 6.0,
     tokensToday: 15000,
     tokensTotal: 500000,
     bindings: [
@@ -36,7 +36,7 @@ export const SUBSCRIPTIONS: SubscriptionOutputDto[] = [
     usageToday: 8900,
     usageTotal: 250000,
     costToday: 13.35,
-    costTotal: 375.00,
+    costTotal: 375.0,
     tokensToday: 890000,
     tokensTotal: 25000000,
     bindings: [

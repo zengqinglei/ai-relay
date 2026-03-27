@@ -240,9 +240,9 @@ public class ClaudeChatModelHandler(
         return string.Empty;
     }
 
-    // ── Error Analysis
+    // ── Retry Policy
 
-    public override Task<ModelErrorAnalysisResult> AnalyzeErrorAsync(
+    public override Task<ModelErrorAnalysisResult> CheckRetryPolicyAsync(
         int statusCode,
         Dictionary<string, IEnumerable<string>>? headers,
         string responseBody)
@@ -252,14 +252,12 @@ public class ClaudeChatModelHandler(
             Logger.LogWarning("检测到 Claude thinking 签名错误，建议降级重试");
             return Task.FromResult(new ModelErrorAnalysisResult
             {
-                ErrorType = ModelErrorType.SignatureError,
-                IsRetryableOnSameAccount = true,
-                RequiresDowngrade = true,
-                RetryAfter = null
+                IsCanRetry = true,
+                RequiresDowngrade = true
             });
         }
 
-        return base.AnalyzeErrorAsync(statusCode, headers, responseBody);
+        return base.CheckRetryPolicyAsync(statusCode, headers, responseBody);
     }
 
     // ── IResponseParser

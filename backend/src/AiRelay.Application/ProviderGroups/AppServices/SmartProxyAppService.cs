@@ -118,18 +118,13 @@ public class SmartProxyAppService(
         var account = await accountRepository.GetByIdAsync(input.AccountId, cancellationToken);
         if (account == null) return;
 
-        // 判断是否可重试错误
-        var isRetryable = input.ErrorAnalysis.ErrorType == ModelErrorType.RateLimit ||
-                          input.ErrorAnalysis.ErrorType == ModelErrorType.SignatureError ||
-                          input.ErrorAnalysis.ErrorType == ModelErrorType.ServerError;
-
         // 调用领域服务执行熔断/禁用
         await accountResultHandlerDomainService.HandleFailureAsync(
             account,
             input.StatusCode,
             input.ErrorContent,
-            isRetryable,
-            input.RetryAfter,
+            input.ErrorAnalysis.IsCanRetry,
+            input.ErrorAnalysis.RetryAfter,
             cancellationToken);
 
         await accountRepository.UpdateAsync(account, cancellationToken);

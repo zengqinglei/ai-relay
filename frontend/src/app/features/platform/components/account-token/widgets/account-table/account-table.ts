@@ -1,9 +1,18 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, EventEmitter, inject, input, OnInit, Output, signal, ViewChild } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  EventEmitter,
+  inject,
+  input,
+  OnInit,
+  Output,
+  signal,
+  ViewChild
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { Subject } from 'rxjs';
-import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { ConfirmationService, MenuItem } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { ConfirmPopupModule } from 'primeng/confirmpopup';
@@ -17,15 +26,17 @@ import { TableLazyLoadEvent, TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { TooltipModule } from 'primeng/tooltip';
+import { Subject } from 'rxjs';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 
 import { PlatformIcon } from '../../../../../../shared/components/platform-icon/platform-icon';
 import { PROVIDER_PLATFORM_OPTIONS } from '../../../../../../shared/constants/provider-platform.constants';
 import { ProviderPlatform } from '../../../../../../shared/models/provider-platform.enum';
 import { PlatformLabelPipe } from '../../../../../../shared/pipes/platform-label-pipe';
 import { FilterStateService } from '../../../../../../shared/services/filter-state.service';
+import { formatTokenCount } from '../../../../../../shared/utils/format.utils';
 import { GetAccountTokenPagedInputDto, AccountTokenOutputDto, AccountStatus } from '../../../../models/account-token.dto';
 import { ModelTestDialog } from '../model-test-dialog/model-test-dialog';
-import { formatTokenCount } from '../../../../../../shared/utils/format.utils';
 
 @Component({
   selector: 'app-account-table',
@@ -101,15 +112,17 @@ export class AccountTable implements OnInit {
   sortOrder = signal<number>(-1);
 
   constructor() {
-    this.searchSubject.pipe(
-      debounceTime(300),
-      distinctUntilChanged(),
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe(() => this.onFilter());
+    this.searchSubject
+      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.onFilter());
   }
 
   ngOnInit() {
-    const saved = this.filterStateService.load<{ keyword: string; platform: ProviderPlatform | null; status: 'active' | 'inactive' | null }>(this.FILTER_KEY);
+    const saved = this.filterStateService.load<{
+      keyword: string;
+      platform: ProviderPlatform | null;
+      status: 'active' | 'inactive' | null;
+    }>(this.FILTER_KEY);
     if (saved.keyword) this.searchQuery.set(saved.keyword);
     if (saved.platform) this.selectedPlatform.set(saved.platform);
     if (saved.status !== undefined) this.selectedStatus.set(saved.status ?? null);

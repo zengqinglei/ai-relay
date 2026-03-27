@@ -140,46 +140,28 @@ public abstract class BaseChatModelHandler : IChatModelHandler
 
     public virtual Action<string>? GetSseLineCallback(string? sessionId) => null;
 
-    // ── Error Analysis
+    // ── Retry Policy
 
-    public virtual Task<ModelErrorAnalysisResult> AnalyzeErrorAsync(
+    public virtual Task<ModelErrorAnalysisResult> CheckRetryPolicyAsync(
         int statusCode,
         Dictionary<string, IEnumerable<string>>? headers,
         string responseBody)
     {
-        var result = new ModelErrorAnalysisResult
-        {
-            ErrorType = ModelErrorType.Unknown,
-            IsRetryableOnSameAccount = false,
-            RequiresDowngrade = false,
-            RetryAfter = null
-        };
+        var isOfficialAccount = string.IsNullOrEmpty(Options.BaseUrl);
+        var result = new ModelErrorAnalysisResult();
 
-        // 默认判断逻辑：5xx 视为 ServerError
-        if (statusCode >= 500 && statusCode < 600)
+        if (statusCode == 429 || statusCode == 503) // 429/503 限流 / 容量不足
         {
-            result.ErrorType = ModelErrorType.ServerError;
-            result.IsRetryableOnSameAccount = true; // 临时故障，可尝试同账号重试
-
-            // 🟢 统一退避策略：优先遵循官方 Retry-After，否则使用斐波那契退避
-            result.RetryAfter = ExtractRetryAfterGeneric(headers, responseBody);
+            var retryAfter = ExtractRetryAfter(headers, responseBody);
+            result.RetryAfter = retryAfter;
+            result.IsCanRetry = true;
         }
-        // 429 视为 RateLimit
-        else if (statusCode == 429)
+        else
         {
-            result.ErrorType = ModelErrorType.RateLimit;
-            // 尝试通用解析
-            result.RetryAfter = ExtractRetryAfterGeneric(headers, responseBody);
-        }
-        // 401/403 视为 AuthenticationError
-        else if (statusCode == 401 || statusCode == 403)
-        {
-            result.ErrorType = ModelErrorType.AuthenticationError;
-        }
-        // 400 视为 BadRequest
-        else if (statusCode == 400)
-        {
-            result.ErrorType = ModelErrorType.BadRequest;
+            // 官方账号 5xx：不允许同账号重试，由外层换号
+            // 非官方账号 5xx：允许重试（临时故障）
+            result.IsCanRetry = !isOfficialAccount;
+            result.RetryAfter = result.IsCanRetry ? ExtractRetryAfter(headers, responseBody) : null;
         }
 
         return Task.FromResult(result);
@@ -202,7 +184,7 @@ public abstract class BaseChatModelHandler : IChatModelHandler
         return Task.FromResult<IReadOnlyList<ModelOption>?>(null);
     }
 
-    protected TimeSpan? ExtractRetryAfterGeneric(Dictionary<string, IEnumerable<string>>? headers, string? body)
+    protected virtual TimeSpan? ExtractRetryAfter(Dictionary<string, IEnumerable<string>>? headers, string? body)
     {
         // 1. 检查 Standard Retry-After Header
         if (headers != null && headers.TryGetValue("Retry-After", out var values))

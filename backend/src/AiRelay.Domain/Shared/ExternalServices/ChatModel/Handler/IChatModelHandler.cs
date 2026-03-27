@@ -45,9 +45,9 @@ public interface IChatModelHandler : IResponseParser
     Action<string>? GetSseLineCallback(string? sessionId);
 
     /// <summary>
-    /// 响应异常分析
+    /// 检查失败响应的重试策略（是否可重试、等待时间、是否需要降级）
     /// </summary>
-    Task<ModelErrorAnalysisResult> AnalyzeErrorAsync(
+    Task<ModelErrorAnalysisResult> CheckRetryPolicyAsync(
         int statusCode,
         Dictionary<string, IEnumerable<string>>? headers,
         string responseBody);

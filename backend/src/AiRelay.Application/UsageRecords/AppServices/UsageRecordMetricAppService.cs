@@ -25,7 +25,7 @@ public class UsageRecordMetricAppService(
         var query = await usageRecordRepository.GetQueryableAsync(cancellationToken);
 
         // 1. 当前周期总请求与消耗
-        var currentStats = await asyncExecuter.FirstOrDefaultAsync(query
+        var currentStats = await asyncExecuter.SingleOrDefaultAsync(query
             .Where(r => r.CreationTime >= start && r.CreationTime < end)
             .GroupBy(r => 1)
             .Select(g => new

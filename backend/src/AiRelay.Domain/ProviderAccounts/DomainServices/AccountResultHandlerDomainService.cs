@@ -12,14 +12,8 @@ public class AccountResultHandlerDomainService(
     ILogger<AccountResultHandlerDomainService> logger)
 {
     /// <summary>
-    /// 处理账号失败
+    /// 处理账号失败：可重试错误触发指数退避熔断，达到阈值后永久禁用；鉴权失败直接永久禁用
     /// </summary>
-    /// <param name="account">账号实体</param>
-    /// <param name="statusCode">HTTP 状态码</param>
-    /// <param name="errorContent">错误内容</param>
-    /// <param name="isRetryable">是否为可重试错误</param>
-    /// <param name="retryAfter">重试延迟</param>
-    /// <param name="cancellationToken">取消令牌</param>
     public async Task HandleFailureAsync(
         AccountToken account,
         int statusCode,
@@ -28,11 +22,12 @@ public class AccountResultHandlerDomainService(
         TimeSpan? retryAfter,
         CancellationToken cancellationToken)
     {
-        // 1. 可重试错误（429/5xx）-> 熔断
+        var isOfficialAccount = string.IsNullOrEmpty(account.BaseUrl);
+
+        // 1. 可重试错误（429/5xx）-> 指数退避熔断
         if (isRetryable)
         {
             // 幂等保护：高并发下若账号已被锁定，跳过重复熔断
-            // 避免多个并发失败请求叠加递增退避计数，导致瞬间跳到最大退避时间
             var alreadyLocked = await rateLimitDomainService.IsRateLimitedAsync(account.Id, cancellationToken);
             if (alreadyLocked)
             {
@@ -49,42 +44,67 @@ public class AccountResultHandlerDomainService(
             }
             else
             {
-                // 先递增计数拿到新值，再计算退避时长，最后用退避时长作为计数 TTL
-                // TTL 与熔断时长绑定：熔断解除后计数自动过期，下次失败重新从 30s 开始
                 var newCount = await usageCacheDomainService.IncrementBackoffCountAsync(account.Id, cancellationToken);
-                var backoffSeconds = newCount switch
-                {
-                    1 => 30,
-                    2 => 180,
-                    3 => 600,
-                    4 => 1800,
-                    _ => 3600
-                };
-                lockDuration = TimeSpan.FromSeconds(backoffSeconds);
 
-                // 累加退避计数
-                await usageCacheDomainService.IncrementBackoffCountAsync(account.Id, cancellationToken);
+                if (isOfficialAccount)
+                {
+                    // 官方账号：5分钟~5小时，5小时连续3次永久禁用
+                    if (newCount > 7)
+                    {
+                        var permanentMsg = $"账号 {account.Name} 连续失败次数过多，已永久禁用，状态码: {statusCode}";
+                        account.MarkAsError(permanentMsg);
+                        logger.LogError(permanentMsg);
+                        return;
+                    }
+                    var backoffSeconds = newCount switch
+                    {
+                        1 => 300,
+                        2 => 900,
+                        3 => 1800,
+                        4 => 3600,
+                        _ => 18000  // 第5~7次：5小时
+                    };
+                    lockDuration = TimeSpan.FromSeconds(backoffSeconds);
+                }
+                else
+                {
+                    // 非官方账号：30s~1小时，超过7次永久禁用
+                    if (newCount > 7)
+                    {
+                        var permanentMsg = $"账号 {account.Name} 连续失败次数过多，已永久禁用，状态码: {statusCode}";
+                        account.MarkAsError(permanentMsg);
+                        logger.LogError(permanentMsg);
+                        return;
+                    }
+                    var backoffSeconds = newCount switch
+                    {
+                        1 => 30,
+                        2 => 180,
+                        3 => 600,
+                        4 => 1800,
+                        5 => 3600,
+                        6 => 10800,
+                        _ => 18000  // 第7次：5小时
+                    };
+                    lockDuration = TimeSpan.FromSeconds(backoffSeconds);
+                }
             }
 
             await rateLimitDomainService.LockAsync(account.Id, lockDuration, cancellationToken);
 
             var errorMsg = $"账号 {account.Name} 触发熔断 {(int)lockDuration.TotalSeconds}秒，状态码: {statusCode}";
             account.MarkAsRateLimited(lockDuration, errorMsg);
-
             logger.LogWarning(errorMsg);
-
             return;
         }
 
-        // 2. 致命鉴权错误（401/403）-> 永久禁用
-        if (statusCode is 401 or 403)
+        // 2. 致命鉴权错误 -> 永久禁用
+        // 官方账号：401/403 直接永久禁用
+        // 非官方账号：isRetryable=false 时 statusCode 通常为 400/其他，不影响账号状态
+        if (isOfficialAccount && statusCode is 401 or 403)
         {
             account.MarkAsError($"鉴权失败: HTTP {statusCode} {errorContent}");
-
-            logger.LogError(
-                "账号 {AccountName} 发生 {StatusCode} 鉴权失败",
-                account.Name,
-                statusCode);
+            logger.LogError("账号 {AccountName} 发生 {StatusCode} 鉴权失败", account.Name, statusCode);
         }
     }
 }

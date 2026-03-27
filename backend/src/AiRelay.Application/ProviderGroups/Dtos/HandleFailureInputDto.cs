@@ -9,5 +9,4 @@ public record HandleFailureInputDto(
     Guid AccountId,
     int StatusCode,
     string? ErrorContent,
-    ModelErrorAnalysisResult ErrorAnalysis,
-    TimeSpan? RetryAfter = null);
+    ModelErrorAnalysisResult ErrorAnalysis);

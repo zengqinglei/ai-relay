@@ -77,7 +77,7 @@ const generateRecords = (count: number): MockUsageRecord[] => {
         platform: account.platform,
         providerGroupName: group.name,
         providerGroupId: group.id,
-        accountTokenName: account.name,  // UsageRecordOutputDto.accountTokenName
+        accountTokenName: account.name, // UsageRecordOutputDto.accountTokenName
         accountTokenId: account.id,
         downModelId: model,
         upModelId: model,
@@ -93,7 +93,7 @@ const generateRecords = (count: number): MockUsageRecord[] => {
         downClientIp: `203.0.113.${Math.floor(Math.random() * 255)}`,
         finalCost: finalCost,
         status: status,
-        upStatusCode: status === UsageStatus.Success ? 200 : (status === UsageStatus.InProgress ? undefined : 429),
+        upStatusCode: status === UsageStatus.Success ? 200 : status === UsageStatus.InProgress ? undefined : 429,
         durationMs: Math.floor(Math.random() * 10000) + 200,
         statusDescription: statusDescription,
         attemptCount: attemptCount

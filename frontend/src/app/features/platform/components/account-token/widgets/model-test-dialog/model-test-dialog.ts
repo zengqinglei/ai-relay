@@ -150,7 +150,10 @@ export class ModelTestDialog {
               return [...blocks, { type: 'text' as const, text: event.content! }];
             });
           } else if (event.inlineData) {
-            this.contentBlocks.update(blocks => [...blocks, { type: 'image', mimeType: event.inlineData!.mimeType, data: event.inlineData!.data }]);
+            this.contentBlocks.update(blocks => [
+              ...blocks,
+              { type: 'image', mimeType: event.inlineData!.mimeType, data: event.inlineData!.data }
+            ]);
           }
         },
         error: (err: any) => {

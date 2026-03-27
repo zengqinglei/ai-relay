@@ -215,8 +215,7 @@ public class ClaudeThinkingCleaner(ILogger<ClaudeThinkingCleaner> logger)
     }
 
     /// <summary>
-    /// 检测是否为 thinking block 签名错误
-    /// 用于 AnalyzeErrorAsync 中判断是否需要降级重试
+    /// 检测是否为 thinking block 签名错误（需要降级重试）
     /// </summary>
     public static bool IsThinkingBlockSignatureError(string responseBody)
     {

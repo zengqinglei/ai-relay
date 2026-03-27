@@ -84,7 +84,7 @@ public class SmartReverseProxyMiddleware(
         {
             var excludedAccountIds = new HashSet<Guid>();
             var accountSwitchCount = 0;
-            const int MaxAccountSwitches = 10;
+            const int MaxAccountSwitches = 5;
 
             while (true)
             {
@@ -189,7 +189,6 @@ public class SmartReverseProxyMiddleware(
                     attemptNumber++;
                     int? httpStatusCode = null;
                     StreamForwardResult? forwardResult = null;
-                    string? errorBody = null;
                     var attemptStatus = UsageStatus.Failed;
                     string? attemptStatusDesc = null;
                     string? upResponseBody = null;
@@ -207,7 +206,7 @@ public class SmartReverseProxyMiddleware(
                         UpUserAgent: upContext.GetUserAgent(),
                         UpRequestUrl: upContext.GetFullUrl(),
                         UpRequestHeaders: _loggingOptions.IsBodyLoggingEnabled ? CaptureHeaders(upContext.Headers) : null,
-                        UpRequestBody: _loggingOptions.IsBodyLoggingEnabled ? (upContext.BodyJson != null ? upContext.BodyJson.ToString() : null) : null
+                        UpRequestBody: _loggingOptions.IsBodyLoggingEnabled ? upContext.BodyJson?.ToString() : null
                     ));
 
                     try
@@ -239,6 +238,7 @@ public class SmartReverseProxyMiddleware(
 
                             finalForwardResult = forwardResult;
                             downResponseBody = _loggingOptions.IsBodyLoggingEnabled ? forwardResult?.CapturedBody : null;
+                            upResponseBody = downResponseBody;
 
                             // 记录最终成功尝试的账号信息（供 EndItem 定价使用）
                             lastUpModelId = upContext.MappedModelId;
@@ -249,23 +249,21 @@ public class SmartReverseProxyMiddleware(
                         else
                         {
                             attemptStatus = UsageStatus.Failed;
-                            errorBody = await response.Content.ReadAsStringAsync(context.RequestAborted);
-                            if (_loggingOptions.IsBodyLoggingEnabled) upResponseBody = errorBody;
+                            upResponseBody = await response.Content.ReadAsStringAsync(context.RequestAborted);
                             var responseHeaders = ExtractHeaders(response);
 
-                            logger.LogWarning("账号请求失败，状态码: {StatusCode}，正在分析错误：{BodyContent}", httpStatusCode.Value, errorBody);
+                            logger.LogWarning("账号请求失败，状态码: {StatusCode}，正在分析错误：{BodyContent}", httpStatusCode.Value, upResponseBody);
 
-                            var errorAnalysis = await accountedHandler.AnalyzeErrorAsync(httpStatusCode.Value, responseHeaders, errorBody);
+                            var retryPolicy = await accountedHandler.CheckRetryPolicyAsync(httpStatusCode.Value, responseHeaders, upResponseBody);
 
                             const int MaxSameAccountRetries = 3;
-                            var instruction = DetermineFailureInstruction(errorAnalysis, currentAccountRetryCount, MaxSameAccountRetries);
-                            var retryAfter = CalculateRetryDelay(errorAnalysis, currentAccountRetryCount, instruction);
+                            var (instruction, retryAfter) = DetermineFailureInstruction(retryPolicy, currentAccountRetryCount, MaxSameAccountRetries);
 
                             switch (instruction)
                             {
                                 case FailureInstruction.RetrySameAccount:
                                     currentAccountRetryCount++;
-                                    if (errorAnalysis.RequiresDowngrade)
+                                    if (retryPolicy.RequiresDowngrade)
                                     {
                                         degradationLevel++;
                                         attemptStatusDesc = $"启用降级级别 {degradationLevel} 进行重试 (Retry {currentAccountRetryCount})";
@@ -282,9 +280,8 @@ public class SmartReverseProxyMiddleware(
                                         new HandleFailureInputDto(
                                             selectResult.AccountToken.Id,
                                             httpStatusCode.Value,
-                                            errorBody,
-                                            errorAnalysis,
-                                            retryAfter),
+                                            upResponseBody,
+                                            retryPolicy),
                                         context.RequestAborted);
 
                                     if (selectResult.AvailableAccountCount <= 1)
@@ -301,14 +298,13 @@ public class SmartReverseProxyMiddleware(
                                         new HandleFailureInputDto(
                                             selectResult.AccountToken.Id,
                                             httpStatusCode.Value,
-                                            errorBody,
-                                            errorAnalysis,
-                                            null),
+                                            upResponseBody,
+                                            retryPolicy),
                                         context.RequestAborted);
 
-                                    attemptStatusDesc = $"请求失败，不进行重试：{errorBody}";
+                                    attemptStatusDesc = $"请求失败，不进行重试：{upResponseBody}";
                                     WriteResponseHeaders(context, httpStatusCode.Value, responseHeaders);
-                                    await context.Response.WriteAsync(errorBody, context.RequestAborted);
+                                    await context.Response.WriteAsync(upResponseBody, context.RequestAborted);
                                     return;
                             }
 
@@ -331,7 +327,7 @@ public class SmartReverseProxyMiddleware(
                             DurationMs: attemptStopwatch.ElapsedMilliseconds,
                             Status: attemptStatus,
                             StatusDescription: attemptStatusDesc,
-                            UpResponseBody: _loggingOptions.IsBodyLoggingEnabled ? upResponseBody : null
+                            UpResponseBody: upResponseBody
                         ));
                     }
                 }
@@ -429,45 +425,22 @@ public class SmartReverseProxyMiddleware(
         }
     }
 
-    private static FailureInstruction DetermineFailureInstruction(
-        ModelErrorAnalysisResult errorAnalysis,
+    private static (FailureInstruction Instruction, TimeSpan RetryDelay) DetermineFailureInstruction(
+        ModelErrorAnalysisResult retryPolicy,
         int currentRetryCount,
         int maxRetries)
     {
-        if (errorAnalysis.IsRetryableOnSameAccount && currentRetryCount < maxRetries)
+        if (retryPolicy.IsCanRetry && currentRetryCount < maxRetries)
         {
-            return FailureInstruction.RetrySameAccount;
+            // RetryAfter >= 15s：等待时间太长，换号更划算
+            if (retryPolicy.RetryAfter.HasValue && retryPolicy.RetryAfter.Value.TotalSeconds >= 15)
+                return (FailureInstruction.SwitchAccount, TimeSpan.Zero);
+
+            var delay = retryPolicy.RetryAfter ?? TimeSpan.FromMilliseconds(1000 * Math.Pow(2, currentRetryCount) * (Random.Shared.NextDouble() * 0.4 + 0.8));
+            return (FailureInstruction.RetrySameAccount, delay);
         }
 
-        if (errorAnalysis.ErrorType == ModelErrorType.RateLimit ||
-            errorAnalysis.ErrorType == ModelErrorType.SignatureError ||
-            errorAnalysis.ErrorType == ModelErrorType.ServerError ||
-            errorAnalysis.ErrorType == ModelErrorType.AuthenticationError)
-        {
-            return FailureInstruction.SwitchAccount;
-        }
-
-        return FailureInstruction.Fail;
-    }
-
-    private static TimeSpan CalculateRetryDelay(
-        ModelErrorAnalysisResult errorAnalysis,
-        int currentRetryCount,
-        FailureInstruction instruction)
-    {
-        if (instruction != FailureInstruction.RetrySameAccount)
-        {
-            return TimeSpan.Zero;
-        }
-
-        if (errorAnalysis.RetryAfter.HasValue)
-        {
-            return errorAnalysis.RetryAfter.Value;
-        }
-
-        var delayMs = 1000 * Math.Pow(2, currentRetryCount);
-        var jitter = Random.Shared.NextDouble() * 0.4 + 0.8;
-        return TimeSpan.FromMilliseconds(delayMs * jitter);
+        return retryPolicy.IsCanRetry ? (FailureInstruction.SwitchAccount, TimeSpan.Zero) : (FailureInstruction.Fail, TimeSpan.Zero);
     }
 
     private static string? CaptureHeaders(Dictionary<string, string> headers)

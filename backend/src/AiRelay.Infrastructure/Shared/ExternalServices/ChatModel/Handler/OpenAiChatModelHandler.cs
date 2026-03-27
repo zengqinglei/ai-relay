@@ -184,35 +184,16 @@ public class OpenAiChatModelHandler(
         return string.Empty;
     }
 
-    public override async Task<ModelErrorAnalysisResult> AnalyzeErrorAsync(
-        int statusCode,
-        Dictionary<string, IEnumerable<string>>? headers,
-        string responseBody)
+    protected override TimeSpan? ExtractRetryAfter(Dictionary<string, IEnumerable<string>>? headers, string? body)
     {
-        if (statusCode == 429)
+        // 优先解析 OpenAI 专有 header，再 fallback 到通用解析
+        if (headers != null && headers.TryGetValue("x-ratelimit-reset-requests", out var resetValues))
         {
-            var result = new ModelErrorAnalysisResult
-            {
-                ErrorType = ModelErrorType.RateLimit,
-                IsRetryableOnSameAccount = false,
-                RequiresDowngrade = false,
-                RetryAfter = null
-            };
-
-            if (headers != null && headers.TryGetValue("x-ratelimit-reset-requests", out var resetValues))
-            {
-                var resetStr = resetValues.FirstOrDefault();
-                if (!string.IsNullOrEmpty(resetStr))
-                    result.RetryAfter = ParseOpenAiDuration(resetStr);
-            }
-
-            if (result.RetryAfter == null)
-                result.RetryAfter = ExtractRetryAfterGeneric(headers, responseBody);
-
-            return result;
+            var resetStr = resetValues.FirstOrDefault();
+            if (!string.IsNullOrEmpty(resetStr))
+                return ParseOpenAiDuration(resetStr);
         }
-
-        return await base.AnalyzeErrorAsync(statusCode, headers, responseBody);
+        return base.ExtractRetryAfter(headers, body);
     }
 
     public override ChatResponsePart? ParseChunk(string chunk) =>

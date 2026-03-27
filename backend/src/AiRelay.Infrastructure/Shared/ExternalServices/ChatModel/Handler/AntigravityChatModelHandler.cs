@@ -1,8 +1,8 @@
 using System.Text;
 using System.Text.Json.Nodes;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
-using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Cleaning;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
+using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Cleaning;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Parsing;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Processors;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Provider;
@@ -34,14 +34,6 @@ public sealed class AntigravityChatModelHandler(
 {
     public override bool Supports(ProviderPlatform platform) =>
         platform == ProviderPlatform.ANTIGRAVITY;
-
-    protected override string? GetFallbackBaseUrl(int statusCode)
-    {
-        if (statusCode == 429 || statusCode == 408 || statusCode == 404 ||
-            (statusCode >= 500 && statusCode < 600))
-            return "https://daily-cloudcode-pa.sandbox.googleapis.com";
-        return null;
-    }
 
     protected override IReadOnlyList<IRequestProcessor> GetProcessors(
         DownRequestContext down, int degradationLevel)
@@ -170,35 +162,6 @@ public sealed class AntigravityChatModelHandler(
 
         // 返回上游模型列表（后续在 AppService 中与静态列表交集）
         return upstreamModels.Select(m => new ModelOption(m!, m!)).ToList();
-    }
-
-    public override async Task<ModelErrorAnalysisResult> AnalyzeErrorAsync(
-        int statusCode,
-        Dictionary<string, IEnumerable<string>>? headers,
-        string responseBody)
-    {
-        if (statusCode == 400)
-        {
-            if (GoogleSignatureCleaner.IsSignatureError(responseBody))
-            {
-                return new ModelErrorAnalysisResult
-                {
-                    ErrorType = ModelErrorType.SignatureError,
-                    IsRetryableOnSameAccount = true,
-                    RequiresDowngrade = true,
-                    RetryAfter = null
-                };
-            }
-            return new ModelErrorAnalysisResult
-            {
-                ErrorType = ModelErrorType.BadRequest,
-                IsRetryableOnSameAccount = false,
-                RequiresDowngrade = false,
-                RetryAfter = null
-            };
-        }
-
-        return await base.AnalyzeErrorAsync(statusCode, headers, responseBody);
     }
 
     public override DownRequestContext CreateDebugDownContext(string modelId, string message)

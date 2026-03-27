@@ -35,8 +35,6 @@ public class GeminiApiChatModelHandler(
     public override bool Supports(ProviderPlatform platform) =>
         platform == ProviderPlatform.GEMINI_APIKEY;
 
-    protected override string? GetFallbackBaseUrl(int statusCode) => null;
-
     protected override IReadOnlyList<IRequestProcessor> GetProcessors(
         DownRequestContext down, int degradationLevel)
     {

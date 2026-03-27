@@ -35,14 +35,6 @@ public class GeminiAccountChatModelHandler(
     public override bool Supports(ProviderPlatform platform) =>
         platform == ProviderPlatform.GEMINI_OAUTH;
 
-    protected override string? GetFallbackBaseUrl(int statusCode)
-    {
-        if (statusCode == 429 || statusCode == 408 || statusCode == 404 ||
-            (statusCode >= 500 && statusCode < 600))
-            return "https://daily-cloudcode-pa.sandbox.googleapis.com";
-        return null;
-    }
-
     protected override IReadOnlyList<IRequestProcessor> GetProcessors(
         DownRequestContext down, int degradationLevel)
     {
@@ -212,25 +204,6 @@ public class GeminiAccountChatModelHandler(
 
         // 返回上游模型列表（后续在 AppService 中与静态列表交集）
         return upstreamModels.Select(m => new ModelOption(m!, m!)).ToList();
-    }
-
-    public override async Task<ModelErrorAnalysisResult> AnalyzeErrorAsync(
-        int statusCode,
-        Dictionary<string, IEnumerable<string>>? headers,
-        string responseBody)
-    {
-        if (statusCode == 400 && GoogleSignatureCleaner.IsSignatureError(responseBody))
-        {
-            return new ModelErrorAnalysisResult
-            {
-                ErrorType = ModelErrorType.SignatureError,
-                IsRetryableOnSameAccount = true,
-                RequiresDowngrade = true,
-                RetryAfter = null
-            };
-        }
-
-        return await base.AnalyzeErrorAsync(statusCode, headers, responseBody);
     }
 
     public override DownRequestContext CreateDebugDownContext(string modelId, string message)

@@ -79,9 +79,7 @@ export class GroupEditDialogComponent {
   selectedAccountsToAdd: string[] = [];
 
   // Accounts not yet added to the group (excludes already-added ones)
-  unaddedAccounts = computed(() =>
-    this.availableAccounts().filter(a => !this.isAccountAdded(a.id))
-  );
+  unaddedAccounts = computed(() => this.availableAccounts().filter(a => !this.isAccountAdded(a.id)));
 
   platformOptions = PROVIDER_PLATFORM_OPTIONS;
 

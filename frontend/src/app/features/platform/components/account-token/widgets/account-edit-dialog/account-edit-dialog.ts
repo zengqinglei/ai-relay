@@ -12,16 +12,16 @@ import {
   ChangeDetectorRef
 } from '@angular/core';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators, FormsModule } from '@angular/forms';
+import { AutoCompleteModule } from 'primeng/autocomplete';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
+import { PanelModule } from 'primeng/panel';
 import { SelectModule } from 'primeng/select';
 import { TextareaModule } from 'primeng/textarea';
-import { TooltipModule } from 'primeng/tooltip';
-import { AutoCompleteModule } from 'primeng/autocomplete';
-import { PanelModule } from 'primeng/panel';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
+import { TooltipModule } from 'primeng/tooltip';
 import { finalize } from 'rxjs/operators';
 
 import { DIALOG_CONFIGS } from '../../../../../../shared/constants/dialog-config.constants';
@@ -145,16 +145,19 @@ export class AccountEditDialogComponent implements OnChanges {
       this.isEditMode.set(true);
       const projectId = this.account.extraProperties?.['project_id'] || '';
 
-      this.form.patchValue({
-        name: this.account.name,
-        platform: this.account.platform,
-        projectId: projectId,
-        baseUrl: this.account.baseUrl,
-        credential: '', // Don't fill credential
-        description: this.account.description,
-        maxConcurrency: this.account.maxConcurrency,
-        allowOfficialClientMimic: this.account.allowOfficialClientMimic ?? false
-      }, { emitEvent: false });
+      this.form.patchValue(
+        {
+          name: this.account.name,
+          platform: this.account.platform,
+          projectId: projectId,
+          baseUrl: this.account.baseUrl,
+          credential: '', // Don't fill credential
+          description: this.account.description,
+          maxConcurrency: this.account.maxConcurrency,
+          allowOfficialClientMimic: this.account.allowOfficialClientMimic ?? false
+        },
+        { emitEvent: false }
+      );
       this.platformType.set(this.account.platform);
       this.form.get('name')?.disable({ emitEvent: false });
       this.form.get('platform')?.disable({ emitEvent: false });
@@ -179,12 +182,15 @@ export class AccountEditDialogComponent implements OnChanges {
       }
     } else {
       this.isEditMode.set(false);
-      this.form.reset({
-        platform: ProviderPlatform.GEMINI_OAUTH,
-        credential: '',
-        maxConcurrency: 10,
-        allowOfficialClientMimic: true // GEMINI_OAUTH 是 OAuth 平台，默认开启
-      }, { emitEvent: false });
+      this.form.reset(
+        {
+          platform: ProviderPlatform.GEMINI_OAUTH,
+          credential: '',
+          maxConcurrency: 10,
+          allowOfficialClientMimic: true // GEMINI_OAUTH 是 OAuth 平台，默认开启
+        },
+        { emitEvent: false }
+      );
       this.platformType.set(ProviderPlatform.GEMINI_OAUTH);
       this.form.get('name')?.enable({ emitEvent: false });
       this.form.get('platform')?.enable({ emitEvent: false });
@@ -414,13 +420,8 @@ export class AccountEditDialogComponent implements OnChanges {
   filterModels(event: { query: string }) {
     const q = event.query.toLowerCase().trim();
     const existing = new Set(this.modelWhites);
-    const matched = this.availableModels.filter(
-      m => !existing.has(m) && (q === '' || m.toLowerCase().includes(q))
-    );
-    this.filteredModels =
-      q && !this.availableModels.some(m => m.toLowerCase() === q)
-        ? [q, ...matched]
-        : matched;
+    const matched = this.availableModels.filter(m => !existing.has(m) && (q === '' || m.toLowerCase().includes(q)));
+    this.filteredModels = q && !this.availableModels.some(m => m.toLowerCase() === q) ? [q, ...matched] : matched;
   }
 
   onWhitelistSelect(event: { value: string }) {
@@ -465,9 +466,7 @@ export class AccountEditDialogComponent implements OnChanges {
 
   private buildModelMapping(): Record<string, string> | undefined {
     const entries = this.modelMappings.filter(m => m.from.trim() && m.to.trim());
-    return entries.length > 0
-      ? Object.fromEntries(entries.map(m => [m.from.trim(), m.to.trim()]))
-      : undefined;
+    return entries.length > 0 ? Object.fromEntries(entries.map(m => [m.from.trim(), m.to.trim()])) : undefined;
   }
 
   trackByIndex(index: number) {
