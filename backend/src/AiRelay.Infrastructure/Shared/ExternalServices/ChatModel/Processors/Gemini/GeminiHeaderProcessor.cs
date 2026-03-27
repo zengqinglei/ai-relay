@@ -9,13 +9,13 @@ public class GeminiHeaderProcessor(ChatModelConnectionOptions options) : IReques
 {
     private static readonly HashSet<string> AllowedHeaders = new(StringComparer.OrdinalIgnoreCase)
     {
-        "accept",
+        "Accept",
         "accept-language",
         "sec-fetch-mode",
         "user-agent",
         "x-goog-api-client",
         "x-gemini-api-privileged-user-id",
-        "content-type"
+        "Content-Type"
     };
 
 
@@ -63,8 +63,8 @@ public class GeminiHeaderProcessor(ChatModelConnectionOptions options) : IReques
         if (isOfficialClient)
             return; // 官方客户端：身份标识透传，不补充默认值
 
-        if (!up.Headers.ContainsKey("accept"))
-            up.Headers["accept"] = "*/*";
+        if (!up.Headers.ContainsKey("Accept"))
+            up.Headers["Accept"] = "*/*";
         if (!up.Headers.ContainsKey("x-goog-api-client"))
         {
             if (options.Platform == ProviderPlatform.GEMINI_OAUTH)
@@ -84,7 +84,7 @@ public class GeminiHeaderProcessor(ChatModelConnectionOptions options) : IReques
         // 以下必须覆盖
         if (!isOfficialClient)
         {
-            up.Headers["user-agent"] = string.Format("GeminiCLI/0.33.1/{0} (win32; x64) google-api-nodejs-client/10.6.1", modelId ?? "gemini-2.0-flash-exp");
+            up.Headers["User-Agent"] = string.Format("GeminiCLI/0.33.1/{0} (win32; x64) google-api-nodejs-client/10.6.1", modelId ?? "gemini-2.0-flash-exp");
         }
     }
 }

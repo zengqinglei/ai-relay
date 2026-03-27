@@ -15,23 +15,23 @@ public class ClaudeHeaderProcessor(
 {
     private static readonly HashSet<string> AllowedHeaders = new(StringComparer.OrdinalIgnoreCase)
     {
-        "accept",
-        "x-stainless-retry-count",
-        "x-stainless-timeout",
-        "x-stainless-lang",
-        "x-stainless-package-version",
-        "x-stainless-os",
-        "x-stainless-arch",
-        "x-stainless-runtime",
-        "x-stainless-runtime-version",
-        "x-stainless-helper-method",
+        "Accept",
+        "X-Stainless-Retry-Count",
+        "X-Stainless-Timeout",
+        "X-Stainless-Lang",
+        "X-Stainless-Package-Version",
+        "X-Stainless-Os",
+        "X-Stainless-Arch",
+        "X-Stainless-Runtime",
+        "X-Stainless-Runtime-Version",
+        "X-Stainless-Helper-Method",
         "anthropic-dangerous-direct-browser-access",
         "anthropic-version",
         "x-app",
         "anthropic-beta",
         "accept-language",
         "sec-fetch-mode",
-        "user-agent",
+        "User-Agent",
         "content-type"
     };
 
@@ -48,12 +48,12 @@ public class ClaudeHeaderProcessor(
         if (options.Platform == ProviderPlatform.CLAUDE_OAUTH)
         {
             // 覆盖认证信息
-            up.Headers["authorization"] = $"Bearer {options.Credential}";
+            up.Headers["Authorization"] = $"Bearer {options.Credential}";
         }
         else
         {
             // 移除 OAuth 相关 headers，覆盖认证信息
-            up.Headers.Remove("authorization");
+            up.Headers.Remove("Authorization");
             up.Headers.Remove("cookie");
             up.Headers["x-api-key"] = options.Credential;
         }
@@ -79,24 +79,24 @@ public class ClaudeHeaderProcessor(
             return; // 官方客户端：身份标识透传，不补充默认值
 
         // 非官方客户端：缺失则补充默认值
-        if (!headers.ContainsKey("accept"))
-            headers["accept"] = "application/json";
-        if (!headers.ContainsKey("x-stainless-lang"))
-            headers["x-stainless-lang"] = "js";
-        if (!headers.ContainsKey("x-stainless-package-version"))
-            headers["x-stainless-package-version"] = "0.74.0";
-        if (!headers.ContainsKey("x-stainless-os"))
-            headers["x-stainless-os"] = "Windows";
-        if (!headers.ContainsKey("x-stainless-arch"))
-            headers["x-stainless-arch"] = "x64";
-        if (!headers.ContainsKey("x-stainless-runtime"))
-            headers["x-stainless-runtime"] = "node";
-        if (!headers.ContainsKey("x-stainless-runtime-version"))
-            headers["x-stainless-runtime-version"] = "v22.17.0";
-        if (!headers.ContainsKey("x-stainless-retry-count"))
-            headers["x-stainless-retry-count"] = "0";
-        if (!headers.ContainsKey("x-stainless-timeout"))
-            headers["x-stainless-timeout"] = "600";
+        if (!headers.ContainsKey("Accept"))
+            headers["Accept"] = "application/json";
+        if (!headers.ContainsKey("X-Stainless-Lang"))
+            headers["X-Stainless-Lang"] = "js";
+        if (!headers.ContainsKey("X-Stainless-Package-Version"))
+            headers["X-Stainless-Package-Version"] = "0.74.0";
+        if (!headers.ContainsKey("X-Stainless-Os"))
+            headers["X-Stainless-Os"] = "Windows";
+        if (!headers.ContainsKey("X-Stainless-Arch"))
+            headers["X-Stainless-Arch"] = "x64";
+        if (!headers.ContainsKey("X-Stainless-Runtime"))
+            headers["X-Stainless-Runtime"] = "node";
+        if (!headers.ContainsKey("X-Stainless-Runtime-Version"))
+            headers["X-Stainless-Runtime-Version"] = "v22.17.0";
+        if (!headers.ContainsKey("X-Stainless-Retry-Count"))
+            headers["X-Stainless-Retry-Count"] = "0";
+        if (!headers.ContainsKey("X-Stainless-Timeout"))
+            headers["X-Stainless-Timeout"] = "600";
         if (!headers.ContainsKey("anthropic-dangerous-direct-browser-access"))
             headers["anthropic-dangerous-direct-browser-access"] = "true";
         if (!headers.ContainsKey("accept-language"))
@@ -107,7 +107,7 @@ public class ClaudeHeaderProcessor(
         // 以下必须覆盖
         if (!isOfficialClient)
         {
-            headers["user-agent"] = "claude-cli/2.1.81 (external, cli)";
+            headers["User-Agent"] = "claude-cli/2.1.85 (external, cli)";
             headers["x-app"] = "cli";
             headers["anthropic-beta"] = isHaikuModel
                 ? "oauth-2025-04-20,interleaved-thinking-2025-05-14"

@@ -284,16 +284,16 @@ public class AccountToken : DeletionAuditedEntity<Guid>
         Status = AccountStatus.RateLimited;
         RateLimitDurationSeconds = (int)lockDuration.TotalSeconds;
         LockedUntil = DateTime.UtcNow.AddSeconds((int)lockDuration.TotalSeconds);
-        StatusDescription = description;
+        StatusDescription = description?.Length > 512 ? description[..512] : description;
 
-        AddLocalEvent(new AccountCircuitBrokenEvent(Id, lockDuration, description));
+        AddLocalEvent(new AccountCircuitBrokenEvent(Id, lockDuration, StatusDescription));
     }
 
     public void MarkAsError(string? description)
     {
         Status = AccountStatus.Error;
         RateLimitDurationSeconds = null;
-        StatusDescription = description;
+        StatusDescription = description?.Length > 512 ? description.Substring(0, 512) : description;
     }
 
     public bool ResetStatus()

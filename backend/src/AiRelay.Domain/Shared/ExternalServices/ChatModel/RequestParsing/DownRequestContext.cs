@@ -16,7 +16,7 @@ public class DownRequestContext
     public HttpMethod Method { get; init; } = HttpMethod.Post;
     public string RelativePath { get; init; } = string.Empty;
     public string? QueryString { get; init; }
-    public Dictionary<string, string> Headers { get; init; } = [];
+    public Dictionary<string, string> Headers { get; init; } = new(StringComparer.OrdinalIgnoreCase);
 
     // ============ 原始数据 ============
     /// <summary>
@@ -75,7 +75,7 @@ public class DownRequestContext
         if (BodyBytes.Length == 0) return string.Empty;
 
         var length = Math.Min(BodyBytes.Length, maxLength);
-        var content = Encoding.UTF8.GetString(BodyBytes.Slice(0, length).Span);
+        var content = Encoding.UTF8.GetString(BodyBytes[..length].Span);
 
         return BodyBytes.Length > maxLength ? content + "...[Truncated]" : content;
     }
@@ -89,7 +89,7 @@ public class DownRequestContext
         if (BodyBytes.Length == 0) return Match.Empty;
 
         var searchLength = Math.Min(BodyBytes.Length, maxSearchLength);
-        var searchContent = Encoding.UTF8.GetString(BodyBytes.Slice(0, searchLength).Span);
+        var searchContent = Encoding.UTF8.GetString(BodyBytes[..searchLength].Span);
 
         return regex.Match(searchContent);
     }

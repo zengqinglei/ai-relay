@@ -17,7 +17,7 @@ public class UpRequestContext
     public string GetFullUrl() => $"{BaseUrl}{RelativePath}{QueryString}";
 
     // ── Headers（HeaderProcessor 填充）
-    public Dictionary<string, string> Headers { get; set; } = new();
+    public Dictionary<string, string> Headers { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     // ── Body（RequestBodyProcessor 填充）
     public JsonObject? BodyJson { get; set; }
