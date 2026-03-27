@@ -55,6 +55,14 @@ try
     builder.Services.Configure<ExternalAuthOptions>(
         builder.Configuration.GetSection(ExternalAuthOptions.SectionName));
 
+    // ModelPricing 本地备份路径默认值（未配置时使用 ContentRootPath 下的 Resources 目录）
+    builder.Services.PostConfigure<ModelPricingOptions>(options =>
+    {
+        if (string.IsNullOrWhiteSpace(options.LocalPath))
+            options.LocalPath = Path.Combine(
+                builder.Environment.ContentRootPath, "Resources", "model_pricing.json");
+    });
+
     // 3. 注册应用启动引导程序 (替代手动 InitializeApplicationAsync)
     builder.Services.AddHostedService<ApplicationBootstrapper>();
 

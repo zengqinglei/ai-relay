@@ -95,7 +95,7 @@ public class LiteLlmPricingProvider(
         if (string.IsNullOrWhiteSpace(url))
         {
             logger.LogWarning("未配置 Pricing:RemoteUrl，尝试使用本地备份");
-            await LoadLocalFallbackAsync(cancellationToken);
+            await LoadLocalFileAsync(cancellationToken);
             return;
         }
 
@@ -106,33 +106,60 @@ public class LiteLlmPricingProvider(
 
             await ParseAndCachePricingDataAsync(json);
             logger.LogInformation("从远程 URL 更新模型价格表成功");
+
+            // 同步写入本地备份文件，保持 fallback 数据最新
+            await SaveLocalFileAsync(json, cancellationToken);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "从远程 URL 更新模型价格表失败，尝试使用本地备份");
-            await LoadLocalFallbackAsync(cancellationToken);
+            await LoadLocalFileAsync(cancellationToken);
         }
     }
 
-    private async Task LoadLocalFallbackAsync(CancellationToken cancellationToken)
+    private async Task SaveLocalFileAsync(string json, CancellationToken cancellationToken)
+    {
+        var path = _pricingOptions.LocalPath;
+        if (string.IsNullOrWhiteSpace(path)) return;
+
+        try
+        {
+            var dir = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+
+            if (File.Exists(path))
+            {
+                var existing = await File.ReadAllTextAsync(path, cancellationToken);
+                if (existing == json)
+                {
+                    logger.LogDebug("本地备份文件内容无变化，跳过写入");
+                    return;
+                }
+            }
+
+            await File.WriteAllTextAsync(path, json, cancellationToken);
+            logger.LogDebug("本地备份文件已更新: {Path}", path);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "写入本地备份文件失败，不影响缓存更新");
+        }
+    }
+
+    private async Task LoadLocalFileAsync(CancellationToken cancellationToken)
     {
         try
         {
-            var assembly = typeof(LiteLlmPricingProvider).Assembly;
-            var resourceName = "AiRelay.Api.Resources.model_pricing.json";
-
-            await using var stream = assembly.GetManifestResourceStream(resourceName);
-            if (stream == null)
+            var path = _pricingOptions.LocalPath;
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
             {
-                logger.LogError("无法找到嵌入资源: {ResourceName}", resourceName);
+                logger.LogError("本地备份文件不存在: {Path}", path);
                 return;
             }
 
-            using var reader = new StreamReader(stream);
-            var json = await reader.ReadToEndAsync(cancellationToken);
-
+            var json = await File.ReadAllTextAsync(path, cancellationToken);
             await ParseAndCachePricingDataAsync(json);
-            logger.LogInformation("从本地备份加载模型价格表成功");
+            logger.LogInformation("从本地备份加载模型价格表成功: {Path}", path);
         }
         catch (Exception ex)
         {
@@ -174,7 +201,6 @@ public class LiteLlmPricingProvider(
             return data;
         }
 
-        // 使用信号量防止并发更新
         await UpdateLock.WaitAsync(cancellationToken);
         try
         {
@@ -185,21 +211,13 @@ public class LiteLlmPricingProvider(
             }
 
             await UpdatePricingCacheAsync(cancellationToken);
-            if (cache.TryGetValue(CacheKey, out data))
-            {
-                return data;
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "获取定价数据失败");
+            cache.TryGetValue(CacheKey, out data);
+            return data;
         }
         finally
         {
             UpdateLock.Release();
         }
-
-        return null;
     }
 
     private class LiteLlmModelEntry
