@@ -152,7 +152,7 @@ public class ClaudeChatModelHandler(
         // 提取 SessionHash
         if (down.BodyJsonNode is not JsonObject root) return;
 
-        // 优先级 1: metadata.user_id
+        // 优先级 1: metadata.user_id（支持新格式 JSON 和旧格式 legacy string）
         if (root.TryGetPropertyValue("metadata", out var metadataNode) &&
             metadataNode is JsonObject metadata &&
             metadata.TryGetPropertyValue("user_id", out var userIdNode) &&
@@ -160,15 +160,49 @@ public class ClaudeChatModelHandler(
             userIdValue.TryGetValue<string>(out var userIdStr) &&
             !string.IsNullOrWhiteSpace(userIdStr))
         {
+            userIdStr = userIdStr.Trim();
+
+            // 新格式: {"device_id":"...","account_uuid":"...","session_id":"..."}
+            if (userIdStr.StartsWith('{'))
+            {
+                try
+                {
+                    var parsed = JsonNode.Parse(userIdStr);
+                    if (parsed is JsonObject jo &&
+                        jo.TryGetPropertyValue("session_id", out var sidNode) &&
+                        sidNode is JsonValue sidVal &&
+                        sidVal.TryGetValue<string>(out var sid) &&
+                        !string.IsNullOrWhiteSpace(sid))
+                    {
+                        down.SessionId = sid;
+                        return;
+                    }
+                }
+                catch { /* 解析失败，继续其他格式 */ }
+            }
+
+            // 旧格式: user_{64hex}_account_{uuid}_session_{uuid}
+            var legacyMatch = System.Text.RegularExpressions.Regex.Match(
+                userIdStr,
+                @"^user_[a-fA-F0-9]{64}_account_[a-fA-F0-9-]*_session_([a-fA-F0-9\-]{36})$");
+            if (legacyMatch.Success)
+            {
+                down.SessionId = legacyMatch.Groups[1].Value;
+                return;
+            }
+
+            // 兼容旧逻辑: session_ 前缀
             if (userIdStr.StartsWith("session_", StringComparison.OrdinalIgnoreCase))
             {
-                var sessionId = userIdStr.Substring("session_".Length);
+                var sessionId = userIdStr["session_".Length..];
                 if (!string.IsNullOrWhiteSpace(sessionId))
                 {
                     down.SessionId = sessionId;
                     return;
                 }
             }
+
+            // fallback: 直接使用整个字符串
             down.SessionId = userIdStr;
             return;
         }

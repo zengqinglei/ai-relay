@@ -25,10 +25,10 @@ public class AccountFingerprintAppService(AccountFingerprintDomainService finger
     /// </summary>
     public Task<string> GenerateSessionUuidAsync(
         Guid accountTokenId,
-        string? sessionHash,
+        string? sessionId,
         bool enableMasking,
         CancellationToken cancellationToken = default)
     {
-        return fingerprintDomainService.GenerateSessionUuidAsync(accountTokenId, sessionHash, enableMasking, cancellationToken);
+        return fingerprintDomainService.GenerateSessionUuidAsync(accountTokenId, sessionId, enableMasking, cancellationToken);
     }
 }

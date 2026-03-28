@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using AiRelay.Domain.Shared.ExternalServices.ChatModel.Constants;
 
 namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Cleaning;
 
@@ -8,9 +9,6 @@ namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Cleaning;
 /// </summary>
 public class ClaudeSystemPromptInjector
 {
-    private const string BillingHeader = "x-anthropic-billing-header: cc_version=2.1.85.351; cc_entrypoint=cli; cch=00000;";
-    public const string ClaudeCodeSystemPrompt = "You are Claude Code, Anthropic's official CLI for Claude.";
-
     /// <summary>
     /// 创建 billing header block（无 cache_control）
     /// </summary>
@@ -19,34 +17,34 @@ public class ClaudeSystemPromptInjector
         return new JsonObject
         {
             ["type"] = "text",
-            ["text"] = BillingHeader
+            ["text"] = ClaudeMimicDefaults.BillingHeader
         };
     }
 
     /// <summary>
-    /// 创建带 cache_control 的 Claude Code system block
+    /// 创建无 cache_control 的 Claude Code system block
     /// </summary>
     public static JsonObject CreateClaudeCodeSystemBlock()
     {
         return new JsonObject
         {
             ["type"] = "text",
-            ["text"] = ClaudeCodeSystemPrompt,
-            ["cache_control"] = new JsonObject { ["type"] = "ephemeral" }
+            ["text"] = ClaudeMimicDefaults.ClaudeCodeSystemPrompt
         };
     }
 
     /// <summary>
-    /// 创建带 cache_control 的 text content block
+    /// 清理已知的第三方伪装提示词（如 OpenCode），防止出现矛盾的身份声明
     /// </summary>
-    public static JsonObject CreateCachedTextBlock(string text)
+    private static string SanitizeSystemText(string text)
     {
-        return new JsonObject
-        {
-            ["type"] = "text",
-            ["text"] = text,
-            ["cache_control"] = new JsonObject { ["type"] = "ephemeral" }
-        };
+        if (string.IsNullOrWhiteSpace(text)) return text;
+
+        text = text.Replace(
+            ClaudeMimicDefaults.OpenCodeSystemPrompt,
+            ClaudeMimicDefaults.ClaudeCodeSystemPrompt);
+
+        return text;
     }
 
     /// <summary>
@@ -57,10 +55,12 @@ public class ClaudeSystemPromptInjector
     {
         try
         {
+            var claudeCodeSystemPrompt = ClaudeMimicDefaults.ClaudeCodeSystemPrompt;
+
             // 检查 system 中是否已有 Claude Code 提示词
             if (requestJson.TryGetPropertyValue("system", out var systemNode))
             {
-                if (SystemIncludesClaudeCodePrompt(systemNode))
+                if (SystemIncludesClaudeCodePrompt(systemNode, claudeCodeSystemPrompt))
                 {
                     return false; // 已存在，不重复注入
                 }
@@ -75,71 +75,56 @@ public class ClaudeSystemPromptInjector
             // 处理不同的 system 格式
             if (systemNode == null)
             {
-                // null: 注入 billing header + Claude Code
                 newSystem.Add(billingHeaderBlock);
                 newSystem.Add(claudeCodeBlock);
             }
             else if (systemNode is JsonValue jsonValue && jsonValue.TryGetValue<string>(out var systemString))
             {
-                // string: 注入 billing header + Claude Code + 保留原内容
+                systemString = SanitizeSystemText(systemString);
+
                 newSystem.Add(billingHeaderBlock);
                 newSystem.Add(claudeCodeBlock);
                 if (!string.IsNullOrWhiteSpace(systemString) &&
-                    systemString.Trim() != ClaudeCodeSystemPrompt.Trim())
+                    systemString.Trim() != claudeCodeSystemPrompt.Trim())
                 {
                     newSystem.Add(new JsonObject
                     {
                         ["type"] = "text",
-                        ["text"] = systemString,
-                        ["cache_control"] = new JsonObject { ["type"] = "ephemeral" }
+                        ["text"] = systemString
                     });
                 }
             }
             else if (systemNode is JsonArray systemArray)
             {
-                // array: 注入 billing header + Claude Code 到开头
                 newSystem.Add(billingHeaderBlock);
                 newSystem.Add(claudeCodeBlock);
 
-                bool prefixedNext = false;
                 foreach (var item in systemArray)
                 {
                     if (item is JsonObject block)
                     {
-                        // 跳过已存在的 Claude Code 提示词
                         if (block.TryGetPropertyValue("text", out var textNode) &&
                             textNode is JsonValue textValue &&
-                            textValue.TryGetValue<string>(out var text) &&
-                            text.Trim() == ClaudeCodeSystemPrompt.Trim())
+                            textValue.TryGetValue<string>(out var text))
                         {
-                            continue;
-                        }
+                            text = SanitizeSystemText(text);
+                            block["text"] = text;
 
-                        // 在第一个 text block 前添加前缀
-                        if (!prefixedNext &&
-                            block.TryGetPropertyValue("type", out var typeNode) &&
-                            typeNode?.GetValue<string>() == "text" &&
-                            block.TryGetPropertyValue("text", out var blockTextNode) &&
-                            blockTextNode is JsonValue blockTextValue &&
-                            blockTextValue.TryGetValue<string>(out var blockText) &&
-                            !string.IsNullOrWhiteSpace(blockText) &&
-                            !blockText.StartsWith(ClaudeCodeSystemPrompt))
-                        {
-                            block["text"] = $"{ClaudeCodeSystemPrompt}\n\n{blockText}";
-                            prefixedNext = true;
+                            if (text.Trim() == claudeCodeSystemPrompt.Trim())
+                            {
+                                continue;
+                            }
                         }
                     }
                     newSystem.Add(item?.DeepClone());
                 }
             }
 
-            // 更新 system 字段
             requestJson["system"] = newSystem;
             return true;
         }
         catch
         {
-            // 解析失败
             return false;
         }
     }
@@ -147,19 +132,15 @@ public class ClaudeSystemPromptInjector
     /// <summary>
     /// 检查 system 中是否已包含 Claude Code 提示词
     /// </summary>
-    private static bool SystemIncludesClaudeCodePrompt(JsonNode? systemNode)
+    private static bool SystemIncludesClaudeCodePrompt(JsonNode? systemNode, string claudeCodeSystemPrompt)
     {
         if (systemNode == null) return false;
 
-        var promptTrimmed = ClaudeCodeSystemPrompt.Trim();
-
-        // string 格式
         if (systemNode is JsonValue jsonValue && jsonValue.TryGetValue<string>(out var systemString))
         {
-            return systemString.Contains(ClaudeCodeSystemPrompt, StringComparison.OrdinalIgnoreCase);
+            return systemString.Contains(claudeCodeSystemPrompt, StringComparison.OrdinalIgnoreCase);
         }
 
-        // array 格式
         if (systemNode is JsonArray systemArray)
         {
             foreach (var item in systemArray)
@@ -168,7 +149,7 @@ public class ClaudeSystemPromptInjector
                     block.TryGetPropertyValue("text", out var textNode) &&
                     textNode is JsonValue textValue &&
                     textValue.TryGetValue<string>(out var text) &&
-                    text.Contains(ClaudeCodeSystemPrompt, StringComparison.OrdinalIgnoreCase))
+                    text.Contains(claudeCodeSystemPrompt, StringComparison.OrdinalIgnoreCase))
                 {
                     return true;
                 }

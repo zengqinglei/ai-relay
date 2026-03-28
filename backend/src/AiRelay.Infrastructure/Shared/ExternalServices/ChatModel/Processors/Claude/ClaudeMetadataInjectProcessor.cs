@@ -1,4 +1,3 @@
-using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Processors;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.RequestParsing;
@@ -16,11 +15,8 @@ public class ClaudeMetadataInjectProcessor(
 
     public Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
     {
-        // Claude OAuth 专属：fingerprint user_id 注入
-        // 仅 OAuth 且非 batches 路由
-        if (options.Platform != ProviderPlatform.CLAUDE_OAUTH
-            || down.RelativePath.Contains("/batches", StringComparison.OrdinalIgnoreCase)
-            || up.BodyJson == null)
+        // 非 batches 路由
+        if (down.RelativePath.Contains("/batches", StringComparison.OrdinalIgnoreCase) || up.BodyJson == null)
         {
             return Task.CompletedTask;
         }
@@ -36,19 +32,22 @@ public class ClaudeMetadataInjectProcessor(
             return Task.CompletedTask;
         }
 
-        var clientId = down.FingerprintClientId ?? "unknown";
+        var deviceId = down.FingerprintClientId ?? "unknown";
         var sessionId = down.StickySessionId ?? Guid.NewGuid().ToString("D");
         options.ExtraProperties.TryGetValue("account_uuid", out var accountUuid);
 
-        var userId = !string.IsNullOrWhiteSpace(accountUuid)
-            ? $"user_{clientId}_account_{accountUuid.Trim()}_session_{sessionId}"
-            : $"user_{clientId}_account__session_{sessionId}";
+        var userIdObj = new JsonObject
+        {
+            ["device_id"] = deviceId,
+            ["account_uuid"] = accountUuid?.Trim() ?? "",
+            ["session_id"] = sessionId
+        };
 
         if (!up.BodyJson.ContainsKey("metadata"))
             up.BodyJson["metadata"] = new JsonObject();
 
         if (up.BodyJson["metadata"] is JsonObject metadata)
-            metadata["user_id"] = userId;
+            metadata["user_id"] = userIdObj.ToJsonString();
 
         return Task.CompletedTask;
     }

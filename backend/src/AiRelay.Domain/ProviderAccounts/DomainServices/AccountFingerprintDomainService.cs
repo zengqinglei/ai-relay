@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using AiRelay.Domain.ProviderAccounts.Entities;
+using AiRelay.Domain.Shared.ExternalServices.ChatModel.Constants;
 using Leistd.Ddd.Domain.Repositories;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -18,18 +19,6 @@ public class AccountFingerprintDomainService(
 {
     private const string MaskedSessionIdCacheKeyPrefix = "AccountFingerprint:MaskedSessionId:";
     private static readonly TimeSpan MaskedSessionIdTtl = TimeSpan.FromMinutes(15);
-
-    // 默认指纹值
-    private static readonly Dictionary<string, string> DefaultFingerprint = new()
-    {
-        ["UserAgent"] = "anthropic-sdk-typescript/0.32.1",
-        ["StainlessLang"] = "js",
-        ["StainlessPackageVersion"] = "v1.104.0",
-        ["StainlessOS"] = "MacOS",
-        ["StainlessArch"] = "arm64",
-        ["StainlessRuntime"] = "node",
-        ["StainlessRuntimeVersion"] = "v24.13.0"
-    };
 
     /// <summary>
     /// 获取或创建账号指纹
@@ -71,25 +60,19 @@ public class AccountFingerprintDomainService(
         return fingerprint;
     }
 
-    /// <summary>
-    /// 从请求头创建指纹
-    /// </summary>
     private AccountFingerprint CreateFingerprintFromHeaders(Guid accountTokenId, Dictionary<string, string> headers)
     {
-        // 获取 User-Agent
         headers.TryGetValue("User-Agent", out var ua);
-        var userAgent = !string.IsNullOrEmpty(ua) ? ua : DefaultFingerprint["UserAgent"];
+        var userAgent = !string.IsNullOrEmpty(ua) ? ua : ClaudeMimicDefaults.GetDefaultValue("User-Agent");
 
-        // 生成随机 ClientID
         var clientId = GenerateClientId();
 
-        // 获取 x-stainless-* 头，如果没有则使用默认值
-        var stainlessLang = GetHeaderOrDefault(headers, "X-Stainless-Lang", DefaultFingerprint["StainlessLang"]);
-        var stainlessPackageVersion = GetHeaderOrDefault(headers, "X-Stainless-Package-Version", DefaultFingerprint["StainlessPackageVersion"]);
-        var stainlessOS = GetHeaderOrDefault(headers, "X-Stainless-OS", DefaultFingerprint["StainlessOS"]);
-        var stainlessArch = GetHeaderOrDefault(headers, "X-Stainless-Arch", DefaultFingerprint["StainlessArch"]);
-        var stainlessRuntime = GetHeaderOrDefault(headers, "X-Stainless-Runtime", DefaultFingerprint["StainlessRuntime"]);
-        var stainlessRuntimeVersion = GetHeaderOrDefault(headers, "X-Stainless-Runtime-Version", DefaultFingerprint["StainlessRuntimeVersion"]);
+        var stainlessLang = GetHeaderOrDefault(headers, "X-Stainless-Lang");
+        var stainlessPackageVersion = GetHeaderOrDefault(headers, "X-Stainless-Package-Version");
+        var stainlessOS = GetHeaderOrDefault(headers, "X-Stainless-Os");
+        var stainlessArch = GetHeaderOrDefault(headers, "X-Stainless-Arch");
+        var stainlessRuntime = GetHeaderOrDefault(headers, "X-Stainless-Runtime");
+        var stainlessRuntimeVersion = GetHeaderOrDefault(headers, "X-Stainless-Runtime-Version");
 
         return new AccountFingerprint(
             accountTokenId,
@@ -103,12 +86,11 @@ public class AccountFingerprintDomainService(
             stainlessRuntimeVersion);
     }
 
-    /// <summary>
-    /// 获取 header 值，如果不存在则返回默认值
-    /// </summary>
-    private static string GetHeaderOrDefault(Dictionary<string, string> headers, string key, string defaultValue)
+    private static string GetHeaderOrDefault(Dictionary<string, string> headers, string key)
     {
-        return headers.TryGetValue(key, out var value) && !string.IsNullOrEmpty(value) ? value : defaultValue;
+        return headers.TryGetValue(key, out var value) && !string.IsNullOrEmpty(value)
+            ? value
+            : ClaudeMimicDefaults.GetDefaultValue(key);
     }
 
     /// <summary>
@@ -125,11 +107,11 @@ public class AccountFingerprintDomainService(
     /// 生成会话 UUID（支持 Session ID Masking）
     /// </summary>
     /// <param name="accountTokenId">账号令牌 ID</param>
-    /// <param name="sessionHash">会话哈希</param>
+    /// <param name="sessionId">会话哈希</param>
     /// <param name="enableMasking">是否启用会话ID伪装（15分钟内固定）</param>
     public async Task<string> GenerateSessionUuidAsync(
         Guid accountTokenId,
-        string? sessionHash,
+        string? sessionId,
         bool enableMasking,
         CancellationToken cancellationToken = default)
     {
@@ -149,14 +131,14 @@ public class AccountFingerprintDomainService(
 
         // 生成新的 SessionID
         string newSessionId;
-        if (string.IsNullOrEmpty(sessionHash))
+        if (string.IsNullOrEmpty(sessionId))
         {
             newSessionId = Guid.NewGuid().ToString();
         }
         else
         {
             // 确定性生成（基于 accountId + sessionHash）
-            string seed = $"{accountTokenId}::{sessionHash}";
+            string seed = $"{accountTokenId}::{sessionId}";
             byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(seed));
             byte[] bytes = hash[..16];
 
@@ -164,11 +146,11 @@ public class AccountFingerprintDomainService(
             bytes[6] = (byte)((bytes[6] & 0x0f) | 0x40);
             bytes[8] = (byte)((bytes[8] & 0x3f) | 0x80);
 
-            newSessionId = $"{BitConverter.ToString(bytes[..4]).Replace("-", "").ToLowerInvariant()}-" +
-                           $"{BitConverter.ToString(bytes[4..6]).Replace("-", "").ToLowerInvariant()}-" +
-                           $"{BitConverter.ToString(bytes[6..8]).Replace("-", "").ToLowerInvariant()}-" +
-                           $"{BitConverter.ToString(bytes[8..10]).Replace("-", "").ToLowerInvariant()}-" +
-                           $"{BitConverter.ToString(bytes[10..16]).Replace("-", "").ToLowerInvariant()}";
+            newSessionId = $"{Convert.ToHexStringLower(bytes[..4])}-" +
+                           $"{Convert.ToHexStringLower(bytes[4..6])}-" +
+                           $"{Convert.ToHexStringLower(bytes[6..8])}-" +
+                           $"{Convert.ToHexStringLower(bytes[8..10])}-" +
+                           $"{Convert.ToHexStringLower(bytes[10..16])}";
         }
 
         // 如果启用 Masking，缓存新生成的 SessionID

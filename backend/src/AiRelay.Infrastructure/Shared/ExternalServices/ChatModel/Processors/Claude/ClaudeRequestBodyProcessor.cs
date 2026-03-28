@@ -54,25 +54,11 @@ public class ClaudeRequestBodyProcessor(
             if (shouldMimic && !isClaudeCodeClient && !isHaikuModel)
             {
                 claudeSystemPromptInjector.InjectClaudeCodePrompt(clonedBody);
-                InjectClaudeCodeMetadata(clonedBody);
             }
+
         }
 
         up.BodyJson = clonedBody;
         return Task.CompletedTask;
-    }
-
-    private static void InjectClaudeCodeMetadata(JsonObject requestJson)
-    {
-        if (!requestJson.ContainsKey("metadata"))
-            requestJson["metadata"] = new JsonObject();
-
-        if (requestJson["metadata"] is JsonObject metadata && !metadata.ContainsKey("user_id"))
-        {
-            var randomBytes = new byte[32];
-            System.Security.Cryptography.RandomNumberGenerator.Fill(randomBytes);
-            var hex64 = Convert.ToHexString(randomBytes).ToLowerInvariant();
-            metadata["user_id"] = $"user_{hex64}_account__session_{Guid.NewGuid():N}";
-        }
     }
 }
