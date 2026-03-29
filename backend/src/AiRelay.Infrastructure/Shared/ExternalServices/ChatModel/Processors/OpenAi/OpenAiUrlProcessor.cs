@@ -12,11 +12,21 @@ public class OpenAiUrlProcessor(ChatModelConnectionOptions options) : IRequestPr
     {
         up.BaseUrl = !string.IsNullOrEmpty(options.BaseUrl)
             ? options.BaseUrl
-            : options.Platform == ProviderPlatform.OPENAI_OAUTH? "https://chatgpt.com": "https://api.openai.com";
+            : options.Platform == ProviderPlatform.OPENAI_OAUTH ? "https://chatgpt.com" : "https://api.openai.com";
 
-        var relativePath = down.RelativePath;
-        if (!string.IsNullOrEmpty(relativePath) && !relativePath.StartsWith('/'))
-            relativePath = "/" + relativePath;
+        // 统一转换为 Responses API 路径
+        var relativePath = options.Platform == ProviderPlatform.OPENAI_OAUTH
+            ? "/backend-api/codex/responses"
+            : "/v1/responses";
+
+        // 保留 /responses/ 后的子路径（如 /responses/compact）
+        var downPath = down.RelativePath?.Trim() ?? "";
+        if (downPath.Contains("/responses/"))
+        {
+            var idx = downPath.IndexOf("/responses/", StringComparison.Ordinal);
+            relativePath += downPath[(idx + "/responses".Length)..];
+        }
+
         up.RelativePath = relativePath;
         up.QueryString = down.QueryString;
 

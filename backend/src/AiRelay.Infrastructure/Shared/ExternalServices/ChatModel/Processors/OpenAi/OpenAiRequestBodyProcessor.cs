@@ -22,6 +22,13 @@ public class OpenAiRequestBodyProcessor(ChatModelConnectionOptions options, Open
         }
 
         var clonedBody = down.CloneBodyJson() ?? [];
+
+        // 格式转换：Chat Completions → Responses API
+        if (ChatCompletionsConverter.IsChatCompletionsFormat(clonedBody))
+        {
+            clonedBody = ChatCompletionsConverter.ConvertRequestBody(clonedBody);
+        }
+
         // 写入 mapped model id
         if (!string.IsNullOrEmpty(up.MappedModelId) && up.MappedModelId != down.ModelId)
             clonedBody["model"] = up.MappedModelId;

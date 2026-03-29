@@ -97,26 +97,7 @@ public class SseResponseStreamProcessor(
                 {
                     var span = buffer.AsSpan(0, bytesRead);
 
-                    // Token 统计
-                    if (isStreaming)
-                    {
-                        foreach (var line in sseBuffer!.ProcessChunk(span))
-                        {
-                            options.OnSseLine?.Invoke(line);
-                            var part = parser.ParseChunk(line);
-                            if (part != null)
-                            {
-                                accumulator.Add(part.Usage);
-                                accumulator.SetModelId(part.ModelId);
-                            }
-                        }
-                    }
-                    else
-                    {
-                        fullBodyBuffer!.Write(span);
-                    }
-
-                    // 响应体捕获
+                    // 响应体捕获（需要在 await 前完成，避免 span 跨边界）
                     if (capturedStream != null && !truncated)
                     {
                         if (capturedStream.Length >= options.MaxCaptureLength)
@@ -136,9 +117,42 @@ public class SseResponseStreamProcessor(
                         }
                     }
 
-                    // 转发字节流
-                    await targetStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
-                    await targetStream.FlushAsync(cancellationToken);
+                    // Token 统计 + 响应转换
+                    if (isStreaming)
+                    {
+                        foreach (var line in sseBuffer!.ProcessChunk(span))
+                        {
+                            options.OnSseLine?.Invoke(line);
+                            var part = parser.ParseChunk(line);
+                            if (part != null)
+                            {
+                                accumulator.Add(part.Usage);
+                                accumulator.SetModelId(part.ModelId);
+                            }
+
+                            // 响应格式转换
+                            if (options.NeedsResponseConversion && options.ResponseConverter != null)
+                            {
+                                foreach (var convertedLine in options.ResponseConverter(line))
+                                {
+                                    var bytes = Encoding.UTF8.GetBytes(convertedLine + "\n\n");
+                                    await targetStream.WriteAsync(bytes, cancellationToken);
+                                }
+                                await targetStream.FlushAsync(cancellationToken);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        fullBodyBuffer!.Write(span);
+                    }
+
+                    // 转发字节流（仅在非转换模式下）
+                    if (!options.NeedsResponseConversion)
+                    {
+                        await targetStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
+                        await targetStream.FlushAsync(cancellationToken);
+                    }
                 }
             }
             finally
@@ -158,6 +172,22 @@ public class SseResponseStreamProcessor(
                         accumulator.Add(part.Usage);
                         accumulator.SetModelId(part.ModelId);
                     }
+
+                    // 响应格式转换（残留数据）
+                    if (options.NeedsResponseConversion && options.ResponseConverter != null)
+                    {
+                        foreach (var convertedLine in options.ResponseConverter(line))
+                        {
+                            var bytes = Encoding.UTF8.GetBytes(convertedLine + "\n\n");
+                            await targetStream.WriteAsync(bytes, cancellationToken);
+                        }
+                    }
+                }
+
+                // 转换模式下最后 flush
+                if (options.NeedsResponseConversion)
+                {
+                    await targetStream.FlushAsync(cancellationToken);
                 }
             }
 
@@ -208,7 +238,9 @@ public class SseResponseStreamProcessor(
 public record ForwardResponseOptions(
     bool CaptureBody,
     int MaxCaptureLength,
-    Action<string>? OnSseLine);
+    Action<string>? OnSseLine,
+    bool NeedsResponseConversion = false,
+    Func<string, IEnumerable<string>>? ResponseConverter = null);
 
 public record StreamForwardResult(
     ResponseUsage Usage,

@@ -11,6 +11,7 @@ using AiRelay.Domain.ProviderGroups.ValueObjects;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Handler;
 using AiRelay.Domain.UsageRecords.Options;
+using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.OpenAi;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.StreamProcessor;
 using Leistd.Exception.Core;
 using Leistd.Tracing.Core.Services;
@@ -227,7 +228,18 @@ public class SmartReverseProxyMiddleware(
 
                             WriteResponseHeaders(context, (int)response.StatusCode, ExtractHeaders(response));
 
-                            var options = new ForwardResponseOptions(_loggingOptions.IsBodyLoggingEnabled, _loggingOptions.MaxBodyLength, accountedHandler.GetSseLineCallback(upContext.SessionId));
+                            var needsConversion = downContext.RelativePath?.Contains("/chat/completions") == true;
+                            ResponsesToCompletionsConverter? converter = null;
+                            if (needsConversion)
+                                converter = new ResponsesToCompletionsConverter();
+
+                            var options = new ForwardResponseOptions(
+                                _loggingOptions.IsBodyLoggingEnabled,
+                                _loggingOptions.MaxBodyLength,
+                                accountedHandler.GetSseLineCallback(upContext.SessionId),
+                                needsConversion,
+                                converter != null ? converter.ConvertSseLine : null);
+
                             forwardResult = await streamProcessor.ForwardResponseAsync(
                                 response,
                                 context.Response.Body,
