@@ -34,17 +34,18 @@ public class ClaudeSystemPromptInjector
     }
 
     /// <summary>
-    /// 清理已知的第三方伪装提示词（如 OpenCode），防止出现矛盾的身份声明
+    /// 清理已知的第三方伪装提示词（如 OpenCode, OpenClaw 等），防止出现矛盾的身份声明
     /// </summary>
     private static string SanitizeSystemText(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return text;
 
-        text = text.Replace(
-            ClaudeMimicDefaults.OpenCodeSystemPrompt,
-            ClaudeMimicDefaults.ClaudeCodeSystemPrompt);
+        // 将已知的第三方身份声明替换为为空字符串（即删除它们）
+        // 因为我们在代码其它地方已经强制注入了官方的身份声明，这样能彻底避免重复
+        text = text.Replace(ClaudeMimicDefaults.OpenCodeSystemPrompt, "");
+        text = text.Replace(ClaudeMimicDefaults.OpenClawSystemPrompt, "");
 
-        return text;
+        return text.Trim();
     }
 
     /// <summary>
@@ -82,16 +83,24 @@ public class ClaudeSystemPromptInjector
             {
                 systemString = SanitizeSystemText(systemString);
 
-                newSystem.Add(billingHeaderBlock);
-                newSystem.Add(claudeCodeBlock);
-                if (!string.IsNullOrWhiteSpace(systemString) &&
-                    systemString.Trim() != claudeCodeSystemPrompt.Trim())
+                // 如果清理后该文本块变成空了（比如原本只有一句 OpenCode），直接丢弃该块
+                if (string.IsNullOrWhiteSpace(systemString))
                 {
-                    newSystem.Add(new JsonObject
+                    newSystem.Add(billingHeaderBlock);
+                    newSystem.Add(claudeCodeBlock);
+                }
+                else
+                {
+                    newSystem.Add(billingHeaderBlock);
+                    newSystem.Add(claudeCodeBlock);
+                    if (systemString.Trim() != claudeCodeSystemPrompt.Trim())
                     {
-                        ["type"] = "text",
-                        ["text"] = systemString
-                    });
+                        newSystem.Add(new JsonObject
+                        {
+                            ["type"] = "text",
+                            ["text"] = systemString
+                        });
+                    }
                 }
             }
             else if (systemNode is JsonArray systemArray)
@@ -108,12 +117,18 @@ public class ClaudeSystemPromptInjector
                             textValue.TryGetValue<string>(out var text))
                         {
                             text = SanitizeSystemText(text);
+
+                            // 如果清理后该文本块变成空了（比如原本只有一句 OpenCode），直接丢弃该块
+                            if (string.IsNullOrWhiteSpace(text))
+                                continue;
+
                             block["text"] = text;
 
+                            // 跳过与注入块重复的内容
                             if (text.Trim() == claudeCodeSystemPrompt.Trim())
-                            {
                                 continue;
-                            }
+                            if (text.TrimStart().StartsWith("x-anthropic-billing-header:", StringComparison.OrdinalIgnoreCase))
+                                continue;
                         }
                     }
                     newSystem.Add(item?.DeepClone());

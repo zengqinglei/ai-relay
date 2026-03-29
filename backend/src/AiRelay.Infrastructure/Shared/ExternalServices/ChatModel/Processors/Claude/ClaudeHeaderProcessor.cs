@@ -46,7 +46,18 @@ public class ClaudeHeaderProcessor(
             bool isOfficialClient = clientDetector.IsClaudeCodeClient(down, down.BodyJsonNode as JsonObject);
             bool isHaikuModel = !string.IsNullOrEmpty(up.MappedModelId) &&
                                 up.MappedModelId.Contains("haiku", StringComparison.OrdinalIgnoreCase);
-            CoverCliHeaders(up.Headers, isOfficialClient, isHaikuModel);
+
+            // 解析是否为流式请求（用于 X-Stainless-Helper-Method）
+            bool isStream = false;
+            if (down.BodyJsonNode is JsonObject bodyObj &&
+                bodyObj.TryGetPropertyValue("stream", out var streamNode) &&
+                streamNode is JsonValue streamValue &&
+                streamValue.TryGetValue<bool>(out var streamBool))
+            {
+                isStream = streamBool;
+            }
+
+            CoverCliHeaders(up.Headers, isOfficialClient, isHaikuModel, isStream);
         }
 
         return Task.CompletedTask;
@@ -55,7 +66,7 @@ public class ClaudeHeaderProcessor(
     /// <summary>
     /// 覆盖官方 CLI Headers：官方客户端透传已有值，非官方客户端补充缺失的默认值或强制覆盖
     /// </summary>
-    private static void CoverCliHeaders(Dictionary<string, string> headers, bool isOfficialClient, bool isHaikuModel)
+    private static void CoverCliHeaders(Dictionary<string, string> headers, bool isOfficialClient, bool isHaikuModel, bool isStream)
     {
         if (isOfficialClient)
             return; // 官方客户端：身份标识透传，不补充默认值
@@ -72,5 +83,11 @@ public class ClaudeHeaderProcessor(
 
         // anthropic-beta 根据模型动态设置（强制覆盖）
         headers["anthropic-beta"] = isHaikuModel ? ClaudeMimicDefaults.AnthropicBetaHaiku : ClaudeMimicDefaults.AnthropicBeta;
+
+        // X-Stainless-Helper-Method 补充：优先保证下游传递
+        if (isStream && !headers.ContainsKey("x-stainless-helper-method"))
+        {
+            headers["x-stainless-helper-method"] = "stream";
+        }
     }
 }

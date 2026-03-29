@@ -72,13 +72,24 @@ public class ClaudeOAuthProvider(
             throw new BadRequestException("解析 Claude Token 响应失败");
         }
 
-        // Claude 响应通常包含 access_token, refresh_token, token_type, expires_in
+        // 解析 account.uuid（用于 metadata.user_id 注入）
+        Dictionary<string, string>? extraProperties = null;
+        if (tokenResponse.TryGetValue("account", out var accountEl) &&
+            accountEl.ValueKind == JsonValueKind.Object &&
+            accountEl.TryGetProperty("uuid", out var uuidEl))
+        {
+            var uuid = uuidEl.GetString();
+            if (!string.IsNullOrEmpty(uuid))
+                extraProperties = new Dictionary<string, string> { ["account_uuid"] = uuid };
+        }
+
         return new OAuthTokenInfo
         {
             AccessToken = accessToken.GetString()!,
             RefreshToken = tokenResponse.TryGetValue("refresh_token", out var rt) ? rt.GetString() : null,
             ExpiresIn = tokenResponse.TryGetValue("expires_in", out var exp) ? exp.GetInt32() : 3600,
-            TokenType = tokenResponse.TryGetValue("token_type", out var tt) ? tt.GetString() : "Bearer"
+            TokenType = tokenResponse.TryGetValue("token_type", out var tt) ? tt.GetString() : "Bearer",
+            ExtraProperties = extraProperties
         };
     }
 
@@ -122,12 +133,24 @@ public class ClaudeOAuthProvider(
             throw new InternalServerException("Claude Token Refresh Response Invalid");
         }
 
+        // 解析 account.uuid（刷新时也可能返回）
+        Dictionary<string, string>? extraProperties = null;
+        if (tokenResponse.TryGetValue("account", out var accountEl) &&
+            accountEl.ValueKind == JsonValueKind.Object &&
+            accountEl.TryGetProperty("uuid", out var uuidEl))
+        {
+            var uuid = uuidEl.GetString();
+            if (!string.IsNullOrEmpty(uuid))
+                extraProperties = new Dictionary<string, string> { ["account_uuid"] = uuid };
+        }
+
         return new OAuthTokenInfo
         {
             AccessToken = accessToken.GetString()!,
             RefreshToken = tokenResponse.TryGetValue("refresh_token", out var rt) ? rt.GetString() : refreshToken,
             ExpiresIn = tokenResponse.TryGetValue("expires_in", out var exp) ? exp.GetInt32() : 3600,
-            TokenType = tokenResponse.TryGetValue("token_type", out var tt) ? tt.GetString() : "Bearer"
+            TokenType = tokenResponse.TryGetValue("token_type", out var tt) ? tt.GetString() : "Bearer",
+            ExtraProperties = extraProperties
         };
     }
 }

@@ -5,7 +5,8 @@ namespace AiRelay.Domain.Shared.ExternalServices.ChatModel.Constants;
 /// </summary>
 public static class OpenAiMimicDefaults
 {
-    public const string Originator = "codex_cli_rs/0.116.0 (Windows 10.0.26100; x86_64) WindowsTerminal";
+    public const string Originator = "codex_cli_rs";
+    public const string UserAgent = "codex_cli_rs/0.116.0 (Windows 10.0.26100; x86_64) WindowsTerminal";
     public const string OpenAiBeta = "responses=experimental";
 
     /// <summary>
@@ -18,12 +19,11 @@ public static class OpenAiMimicDefaults
             ["accept-language"] = (true, null, false),
             ["content-type"] = (true, null, false),
             ["conversation_id"] = (true, null, false),
-            ["user-agent"] = (true, null, false),
+            ["user-agent"] = (true, UserAgent, true),
             ["originator"] = (true, Originator, true), // 强制覆盖
             ["session_id"] = (true, null, false),
             ["x-codex-turn-state"] = (true, null, false),
             ["x-codex-turn-metadata"] = (true, null, false),
-            ["openai-beta"] = (true, null, false),
-            ["OpenAI-Beta"] = (true, OpenAiBeta, false)
+            ["openai-beta"] = (true, OpenAiBeta, false)
         };
 }

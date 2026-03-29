@@ -418,10 +418,11 @@ export class AccountEditDialogComponent implements OnChanges {
   }
 
   filterModels(event: { query: string }) {
-    const q = event.query.toLowerCase().trim();
+    const originalQuery = event.query.trim();
+    const lowerQuery = originalQuery.toLowerCase();
     const existing = new Set(this.modelWhites);
-    const matched = this.availableModels.filter(m => !existing.has(m) && (q === '' || m.toLowerCase().includes(q)));
-    this.filteredModels = q && !this.availableModels.some(m => m.toLowerCase() === q) ? [q, ...matched] : matched;
+    const matched = this.availableModels.filter(m => !existing.has(m) && (lowerQuery === '' || m.toLowerCase().includes(lowerQuery)));
+    this.filteredModels = originalQuery && !this.availableModels.some(m => m.toLowerCase() === lowerQuery) ? [originalQuery, ...matched] : matched;
   }
 
   onWhitelistSelect(event: { value: string }) {
