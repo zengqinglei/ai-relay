@@ -73,9 +73,7 @@ public abstract class BaseChatModelHandler : IChatModelHandler
 
     // ── ProxyRequestAsync（含 Fallback 重试）
 
-    public async Task<HttpResponseMessage> ProxyRequestAsync(
-        UpRequestContext up,
-        CancellationToken ct = default)
+    public async Task<HttpResponseMessage> ProxyRequestAsync(UpRequestContext up, CancellationToken ct = default)
     {
         var currentBaseUrl = up.BaseUrl;
         var hasTriedFallback = false;
@@ -84,11 +82,31 @@ public abstract class BaseChatModelHandler : IChatModelHandler
         {
             try
             {
-                var response = await ExecuteHttpAsync(up, currentBaseUrl, ct);
+                using var httpClient = HttpClientFactory.CreateClient();
 
+                // 确保 Base URL 以 '/' 结尾，方便拼接相对路径
+                var normalizedBase = currentBaseUrl.EndsWith('/') ? currentBaseUrl : currentBaseUrl + "/";
+                var relativeUrl = up.RelativePath.TrimStart('/') + (up.QueryString ?? "");
+
+                // 组织请求信息
+                var request = new HttpRequestMessage(up.Method, normalizedBase + relativeUrl);
+                foreach (var header in up.Headers)
+                {
+                    request.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                }
+                if (up.BodyJson != null)
+                {
+                    var bodyContent = up.BodyJson.ToJsonString();
+                    request.Content = new ByteArrayContent(Encoding.UTF8.GetBytes(bodyContent));
+                    request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+                }
+
+                // 发送请求
+                var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
                 if (response.IsSuccessStatusCode)
                     return response;
 
+                // 检查是否有备用 URL 可切换
                 var fallbackUrl = GetFallbackBaseUrl((int)response.StatusCode);
                 if (fallbackUrl != null && !hasTriedFallback)
                 {
@@ -107,33 +125,6 @@ public abstract class BaseChatModelHandler : IChatModelHandler
                 throw;
             }
         }
-    }
-
-    protected virtual async Task<HttpResponseMessage> ExecuteHttpAsync(
-        UpRequestContext up,
-        string baseUrl,
-        CancellationToken ct = default)
-    {
-        var httpClient = HttpClientFactory.CreateClient();
-
-        var normalizedBase = baseUrl.EndsWith('/') ? baseUrl : baseUrl + "/";
-        var relativeUrl = up.RelativePath.TrimStart('/') + (up.QueryString ?? "");
-
-        var request = new HttpRequestMessage(up.Method, normalizedBase + relativeUrl);
-
-        foreach (var header in up.Headers)
-        {
-            request.Headers.TryAddWithoutValidation(header.Key, header.Value);
-        }
-
-        if (up.BodyJson != null)
-        {
-            var bodyContent = up.BodyJson.ToJsonString();
-            request.Content = new ByteArrayContent(Encoding.UTF8.GetBytes(bodyContent));
-            request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-        }
-
-        return await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
     }
 
     // ── SSE Line Callback
