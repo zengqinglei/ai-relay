@@ -125,7 +125,7 @@ public class SmartReverseProxyMiddleware(
                     downContext.FingerprintClientId = fingerprint.ClientId;
                 }
 
-                var currentAccountRetryCount = 0;
+                var currentAccountRetryCount = 1;
                 var shouldSwitchAccount = false;
                 var degradationLevel = 0;
 
