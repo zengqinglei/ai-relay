@@ -1,7 +1,8 @@
+export type ChatStreamEventType = 'Content' | 'Error' | 'System';
+
 export interface ChatStreamEvent {
+  type?: ChatStreamEventType;
   content?: string;
-  error?: string;
-  systemMessage?: string;
   isComplete?: boolean;
   inlineData?: InlineDataPart;
 }

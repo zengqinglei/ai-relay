@@ -1,14 +1,39 @@
 using System.Text.Json;
+using AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.ResponseParsing;
 
-namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.Parsers;
+namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Response.Claude;
 
-public class ClaudeChatModelResponseParser : IChatModelResponseParser, IResponseParser
+/// <summary>
+/// Claude 平台 SSE 解析 Processor
+/// 内聚原 ClaudeChatModelResponseParser 的全部逻辑
+/// </summary>
+public class ClaudeParseSseResponseProcessor : IResponseProcessor
 {
-    public ChatResponsePart? ParseChunk(string chunk) => ParseChunkStatic(chunk);
-    public ChatResponsePart ParseCompleteResponse(string responseBody) => ParseCompleteResponseStatic(responseBody);
+    public bool RequiresMutation => false;
 
-    public static ChatResponsePart? ParseChunkStatic(string chunk)
+    public Task ProcessAsync(StreamEvent evt, CancellationToken ct)
+    {
+        if (evt.Type == StreamEventType.Error) return Task.CompletedTask;
+
+        if (evt.SseLine != null)
+        {
+            var part = ParseChunk(evt.SseLine);
+            if (part != null) ApplyPart(evt, part);
+        }
+        else if (evt.Content != null)
+        {
+            var part = ParseCompleteResponse(evt.Content);
+            ApplyPart(evt, part);
+            evt.IsComplete = true;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    // ── 以下为从 ClaudeChatModelResponseParser 迁入的解析逻辑 ──
+
+    private static ChatResponsePart? ParseChunk(string chunk)
     {
         var trimmed = chunk.Trim();
         if (string.IsNullOrEmpty(trimmed) || !trimmed.StartsWith("data: ")) return null;
@@ -35,15 +60,7 @@ public class ClaudeChatModelResponseParser : IChatModelResponseParser, IResponse
                     if (root.TryGetProperty("message", out var msg))
                     {
                         if (msg.TryGetProperty("model", out var m)) model = m.GetString();
-                        if (msg.TryGetProperty("usage", out var u))
-                        {
-                            int input = 0, cachedRead = 0, cachedCreate = 0;
-                            if (u.TryGetProperty("input_tokens", out var it)) input = it.GetInt32();
-                            if (u.TryGetProperty("cache_read_input_tokens", out var cr)) cachedRead = cr.GetInt32();
-                            if (u.TryGetProperty("cache_creation_input_tokens", out var cc)) cachedCreate = cc.GetInt32();
-
-                            usage = new ResponseUsage(input, 0, cachedRead, cachedCreate);
-                        }
+                        if (msg.TryGetProperty("usage", out var u))  usage = ExtractUsage(u);
                     }
                     break;
 
@@ -58,11 +75,7 @@ public class ClaudeChatModelResponseParser : IChatModelResponseParser, IResponse
                     break;
 
                 case "message_delta":
-                    if (root.TryGetProperty("usage", out var deltaUsage) &&
-                        deltaUsage.TryGetProperty("output_tokens", out var ot))
-                    {
-                        usage = new ResponseUsage(0, ot.GetInt32());
-                    }
+                    if (root.TryGetProperty("usage", out var deltaUsage)) usage = ExtractUsage(deltaUsage);
                     break;
 
                 case "message_stop":
@@ -70,15 +83,11 @@ public class ClaudeChatModelResponseParser : IChatModelResponseParser, IResponse
                     break;
 
                 case "error":
-                    // Claude 错误事件
                     string? errorMsg = null;
                     if (root.TryGetProperty("error", out var error))
                     {
                         if (error.TryGetProperty("message", out var errMsg))
-                        {
                             errorMsg = errMsg.GetString();
-                        }
-
                         if (error.TryGetProperty("type", out var errType))
                         {
                             var typeStr = errType.GetString();
@@ -105,7 +114,7 @@ public class ClaudeChatModelResponseParser : IChatModelResponseParser, IResponse
         }
     }
 
-    public static ChatResponsePart ParseCompleteResponseStatic(string responseBody)
+    private static ChatResponsePart ParseCompleteResponse(string responseBody)
     {
         try
         {
@@ -130,16 +139,7 @@ public class ClaudeChatModelResponseParser : IChatModelResponseParser, IResponse
                 }
             }
 
-            if (root.TryGetProperty("usage", out var u))
-            {
-                int input = 0, output = 0, cachedRead = 0, cachedCreate = 0;
-                if (u.TryGetProperty("input_tokens", out var it)) input = it.GetInt32();
-                if (u.TryGetProperty("output_tokens", out var ot)) output = ot.GetInt32();
-                if (u.TryGetProperty("cache_read_input_tokens", out var cr)) cachedRead = cr.GetInt32();
-                if (u.TryGetProperty("cache_creation_input_tokens", out var cc)) cachedCreate = cc.GetInt32();
-
-                usage = new ResponseUsage(input, output, cachedRead, cachedCreate);
-            }
+            if (root.TryGetProperty("usage", out var u)) usage = ExtractUsage(u);
 
             return new ChatResponsePart(
                 Content: content,
@@ -152,5 +152,33 @@ public class ClaudeChatModelResponseParser : IChatModelResponseParser, IResponse
         {
             return new ChatResponsePart(Error: "Invalid JSON response");
         }
+    }
+
+    private static ResponseUsage ExtractUsage(JsonElement usageElement)
+    {
+        int input = 0, output = 0, cachedRead = 0, cachedCreate = 0;
+        if (usageElement.TryGetProperty("input_tokens", out var it)) input = it.GetInt32();
+        if (usageElement.TryGetProperty("output_tokens", out var ot)) output = ot.GetInt32();
+        if (usageElement.TryGetProperty("cache_read_input_tokens", out var cr)) cachedRead = cr.GetInt32();
+        if (usageElement.TryGetProperty("cache_creation_input_tokens", out var cc)) cachedCreate = cc.GetInt32();
+
+        return new ResponseUsage(input, output, cachedRead, cachedCreate);
+    }
+
+    private static void ApplyPart(StreamEvent evt, ChatResponsePart part)
+    {
+        if (part.Error != null)
+        {
+            evt.Type = StreamEventType.Error;
+            evt.Content = part.Error;
+        }
+        else
+        {
+            evt.Content = part.Content;
+        }
+        evt.Usage = part.Usage;
+        evt.ModelId ??= part.ModelId;
+        evt.IsComplete = part.IsComplete;
+        evt.InlineData = part.InlineData;
     }
 }

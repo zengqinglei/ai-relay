@@ -11,10 +11,10 @@ using AiRelay.Domain.Shared.ExternalServices.ChatModel.RequestParsing;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.ResponseParsing;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.SignatureCache;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Gemini;
-using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.Parsers;
-using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.StreamProcessor;
+using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Response;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
+using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Response.Google;
 
 namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Handler;
 
@@ -24,10 +24,9 @@ public class GeminiApiChatModelHandler(
     GoogleJsonSchemaCleaner googleJsonSchemaCleaner,
     GoogleSignatureCleaner googleSignatureCleaner,
     GeminiSystemPromptInjector geminiSystemPromptInjector,
-    SseResponseStreamProcessor streamProcessor,
     ISignatureCache signatureCache,
     ILogger<GeminiApiChatModelHandler> logger)
-    : BaseChatModelHandler(options, httpClientFactory, streamProcessor, signatureCache, logger)
+    : BaseChatModelHandler(options, httpClientFactory, signatureCache, logger)
 {
     // Gemini CLI 临时目录正则匹配: .gemini/tmp/[64位哈希]
     private static readonly Regex GeminiCliTmpDirRegex = new(@"\.gemini/tmp/([A-Fa-f0-9]{64})", RegexOptions.Compiled);
@@ -46,6 +45,18 @@ public class GeminiApiChatModelHandler(
                 geminiSystemPromptInjector,
                 Options.ShouldMimicOfficialClient),
             new GeminiDegradationProcessor(degradationLevel, googleSignatureCleaner, logger)
+        ];
+    }
+
+    protected override IReadOnlyList<IResponseProcessor> GetResponseProcessors(
+        UpRequestContext up, DownRequestContext down)
+    {
+        return
+        [
+
+            new GoogleParseSseResponseProcessor(),
+            new FetchUsageTokenResponseProcessor(),
+            new CacheSignatureResponseProcessor(SignatureCache, up.SessionId, Logger)
         ];
     }
 
@@ -135,7 +146,7 @@ public class GeminiApiChatModelHandler(
             };
 
             var up = await ProcessRequestContextAsync(down, 0, ct);
-            using var response = await ProxyRequestAsync(up, ct);
+            using var response = await SendRequestAsync(up, ct);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -156,7 +167,7 @@ public class GeminiApiChatModelHandler(
                         var fullName = nameProp.GetString(); // "models/gemini-2.5-pro"
                         if (!string.IsNullOrEmpty(fullName) && fullName.StartsWith("models/"))
                         {
-                            var modelId = fullName.Substring(7);
+                            var modelIdStr = fullName.Substring(7);
 
                             // 过滤：仅保留 generateContent 支持的模型
                             if (item.TryGetProperty("supportedGenerationMethods", out var methodsArray))
@@ -169,9 +180,9 @@ public class GeminiApiChatModelHandler(
                                 if (methods.Contains("generateContent"))
                                 {
                                     var displayName = item.TryGetProperty("displayName", out var dispProp)
-                                        ? dispProp.GetString() ?? modelId
-                                        : modelId;
-                                    models.Add(new ModelOption(displayName, modelId));
+                                        ? dispProp.GetString() ?? modelIdStr
+                                        : modelIdStr;
+                                    models.Add(new ModelOption(displayName, modelIdStr));
                                 }
                             }
                         }
@@ -212,10 +223,4 @@ public class GeminiApiChatModelHandler(
             BodyBytes = Encoding.UTF8.GetBytes(json.ToJsonString()).AsMemory()
         };
     }
-
-    public override ChatResponsePart? ParseChunk(string chunk) =>
-        GeminiChatModelResponseParser.ParseChunkStatic(chunk);
-
-    public override ChatResponsePart ParseCompleteResponse(string responseBody) =>
-        GeminiChatModelResponseParser.ParseCompleteResponseStatic(responseBody);
 }

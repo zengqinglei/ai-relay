@@ -46,18 +46,20 @@ public class SseStreamBuffer
                 {
                     var line = _buffer.ToString(start, i - start).Trim();
                     if (!string.IsNullOrEmpty(line))
-                    {
-                        results.Add(line);
-                    }
+                        results.Add(line);      // 有内容的行
+                    else
+                        results.Add("");         // \r 等空白字符行 → 视为空行
+                }
+                else
+                {
+                    results.Add("");             // 连续 \n → SSE 事件定界符
                 }
                 start = i + 1;
             }
         }
 
         if (start > 0)
-        {
             _buffer.Remove(0, start);
-        }
 
         return results;
     }

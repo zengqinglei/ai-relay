@@ -1,8 +1,10 @@
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.RequestParsing;
+using AiRelay.Domain.Shared.ExternalServices.ChatModel.ResponseParsing;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.SignatureCache;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Cleaning;
-using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.StreamProcessor;
+using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Response;
+using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Response.Google;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
 using System.Net.Http.Json;
@@ -19,10 +21,9 @@ namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Handler;
 public abstract class GoogleInternalChatModelHandlerBase(
     ChatModelConnectionOptions options,
     IHttpClientFactory httpClientFactory,
-    SseResponseStreamProcessor streamProcessor,
     ISignatureCache signatureCache,
     ILogger logger)
-    : BaseChatModelHandler(options, httpClientFactory, streamProcessor, signatureCache, logger)
+    : BaseChatModelHandler(options, httpClientFactory, signatureCache, logger)
 {
     protected override string? GetFallbackBaseUrl(int statusCode)
     {
@@ -32,10 +33,23 @@ public abstract class GoogleInternalChatModelHandlerBase(
         return null;
     }
 
+    protected override IReadOnlyList<IResponseProcessor> GetResponseProcessors(
+        UpRequestContext up, DownRequestContext down)
+    {
+        var processors = new List<IResponseProcessor>
+        {
+
+            new GoogleParseSseResponseProcessor(),
+            new FetchUsageTokenResponseProcessor(),
+            new CacheSignatureResponseProcessor(SignatureCache, up.SessionId, Logger)
+        };
+        return processors;
+    }
+
     public override async Task<ModelErrorAnalysisResult> CheckRetryPolicyAsync(
         int statusCode,
         Dictionary<string, IEnumerable<string>>? headers,
-        string responseBody)
+        string? responseBody)
     {
         // 签名错误 → 降级重试
         if (statusCode == 400 && GoogleSignatureCleaner.IsSignatureError(responseBody))
@@ -149,7 +163,7 @@ public abstract class GoogleInternalChatModelHandlerBase(
                 BodyBytes = Encoding.UTF8.GetBytes(body).AsMemory()
             };
             var up = await ProcessRequestContextAsync(down, 0, ct);
-            using var response = await ProxyRequestAsync(up, ct);
+            using var response = await SendRequestAsync(up, ct);
             response.EnsureSuccessStatusCode();
 
             var result = await response.Content.ReadFromJsonAsync<LoadCodeAssistResponse>(
@@ -190,47 +204,5 @@ public abstract class GoogleInternalChatModelHandlerBase(
     {
         public string? ReasonMessage { get; set; }
         public string? TierName { get; set; }
-    }
-
-    public override Action<string>? GetSseLineCallback(string? sessionId) =>
-        string.IsNullOrEmpty(sessionId) ? null : line => TryExtractAndCacheSignature(line, sessionId);
-
-    protected void TryExtractAndCacheSignature(string line, string? sessionId)
-    {
-        if (string.IsNullOrEmpty(sessionId) || !line.StartsWith("data:")) return;
-
-        var json = line.Substring(5).TrimStart();
-        if (json == "[DONE]") return;
-
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-            if (root.TryGetProperty("response", out var responseObj))
-                root = responseObj;
-
-            if (root.TryGetProperty("candidates", out var candidates) && candidates.GetArrayLength() > 0)
-            {
-                var candidate = candidates[0];
-                if (candidate.TryGetProperty("content", out var content) &&
-                    content.TryGetProperty("parts", out var parts))
-                {
-                    foreach (var part in parts.EnumerateArray())
-                    {
-                        if (part.TryGetProperty("thoughtSignature", out var sig))
-                        {
-                            var signature = sig.GetString();
-                            if (!string.IsNullOrEmpty(signature))
-                            {
-                                SignatureCache.CacheSignature(sessionId, signature);
-                                Logger.LogDebug("提取并缓存签名 Session: {Session}", sessionId);
-                                return;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        catch { }
     }
 }

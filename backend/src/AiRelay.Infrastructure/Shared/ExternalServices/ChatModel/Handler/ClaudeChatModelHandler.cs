@@ -9,8 +9,8 @@ using AiRelay.Domain.Shared.ExternalServices.ChatModel.ResponseParsing;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Provider;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.SignatureCache;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Claude;
-using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.Parsers;
-using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.StreamProcessor;
+using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Response;
+using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Response.Claude;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
@@ -25,13 +25,23 @@ public class ClaudeChatModelHandler(
     IModelProvider modelProvider,
     IClaudeCodeClientDetector clientDetector,
     IHttpClientFactory httpClientFactory,
-    SseResponseStreamProcessor streamProcessor,
     ISignatureCache signatureCache,
     ILogger<ClaudeChatModelHandler> logger)
-    : BaseChatModelHandler(options, httpClientFactory, streamProcessor, signatureCache, logger)
+    : BaseChatModelHandler(options, httpClientFactory, signatureCache, logger)
 {
     public override bool Supports(ProviderPlatform platform) =>
         platform is ProviderPlatform.CLAUDE_OAUTH or ProviderPlatform.CLAUDE_APIKEY;
+
+    protected override IReadOnlyList<IResponseProcessor> GetResponseProcessors(
+        UpRequestContext up, DownRequestContext down)
+    {
+        return
+        [
+
+            new ClaudeParseSseResponseProcessor(),
+            new FetchUsageTokenResponseProcessor()
+        ];
+    }
 
     public override async Task<IReadOnlyList<ModelOption>?> GetModelsAsync(CancellationToken ct = default)
     {
@@ -53,7 +63,7 @@ public class ClaudeChatModelHandler(
             var up = await ProcessRequestContextAsync(down, 0, ct);
 
             // 3. 发送请求
-            using var response = await ProxyRequestAsync(up, ct);
+            using var response = await SendRequestAsync(up, ct);
             if (!response.IsSuccessStatusCode)
             {
                 Logger.LogWarning("Claude 上游模型拉取失败: {StatusCode}", response.StatusCode);
@@ -279,7 +289,7 @@ public class ClaudeChatModelHandler(
     public override Task<ModelErrorAnalysisResult> CheckRetryPolicyAsync(
         int statusCode,
         Dictionary<string, IEnumerable<string>>? headers,
-        string responseBody)
+        string? responseBody)
     {
         if (statusCode == 400 && ClaudeThinkingCleaner.IsThinkingBlockSignatureError(responseBody))
         {
@@ -293,12 +303,4 @@ public class ClaudeChatModelHandler(
 
         return base.CheckRetryPolicyAsync(statusCode, headers, responseBody);
     }
-
-    // ── IResponseParser
-
-    public override ChatResponsePart? ParseChunk(string chunk) =>
-        ClaudeChatModelResponseParser.ParseChunkStatic(chunk);
-
-    public override ChatResponsePart ParseCompleteResponse(string responseBody) =>
-        ClaudeChatModelResponseParser.ParseCompleteResponseStatic(responseBody);
 }

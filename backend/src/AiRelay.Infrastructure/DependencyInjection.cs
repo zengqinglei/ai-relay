@@ -32,7 +32,7 @@ using AiRelay.Domain.UsageRecords.Options;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.SignatureCache;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.SignatureCache;
 using AiRelay.Infrastructure.BackgroundJobs;
-using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.StreamProcessor;
+
 using AiRelay.Domain.ProviderGroups.DomainServices.SchedulingStrategy.AccountConcurrencyStrategy;
 using AiRelay.Infrastructure.SchedulingStrategy.AccountConcurrencyStrategy;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Handler;
@@ -165,8 +165,7 @@ public static class DependencyInjection
 
         // (Removed HttpRequestSender)
 
-        // SSE 响应流处理器
-        services.AddTransient<SseResponseStreamProcessor>();
+        // SseResponseStreamProcessor 已内化到 BaseChatModelHandler.StreamProxyAsync
 
         // 密码哈希服务（无状态，使用 Transient 生命周期）
         services.AddTransient<IPasswordHasher, PasswordHasher>();

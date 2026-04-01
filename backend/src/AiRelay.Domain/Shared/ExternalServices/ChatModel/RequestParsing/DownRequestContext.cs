@@ -67,8 +67,7 @@ public class DownRequestContext
     private JsonNode? _bodyJsonNode;
 
     /// <summary>
-    /// 获取 Body 内容（用于日志或正则匹配）
-    /// maxLength = int.MaxValue 获取完整内容
+    /// 获取 Body 内容
     /// </summary>
     public string GetBodyPreview(int maxLength = 2000)
     {

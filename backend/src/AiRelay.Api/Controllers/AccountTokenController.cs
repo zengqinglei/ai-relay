@@ -31,7 +31,7 @@ public class AccountTokenController(IAccountTokenAppService accountTokenAppServi
         Response.Headers.Append("Connection", "keep-alive");
         Response.Headers.Append("X-Accel-Buffering", "no");
 
-        var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        var options = Domain.Shared.Json.JsonOptions.WebApi;
 
         try
         {
@@ -44,7 +44,7 @@ public class AccountTokenController(IAccountTokenAppService accountTokenAppServi
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            var errorEvt = new ChatStreamEvent(Error: ex.Message);
+            var errorEvt = new StreamEvent { Type = StreamEventType.Error, Content = $"连接意外中断: {ex.Message}" };
             var data = JsonSerializer.Serialize(errorEvt, options);
             await Response.Body.WriteAsync(Encoding.UTF8.GetBytes($"data: {data}\n\n"), CancellationToken.None);
             await Response.Body.FlushAsync(CancellationToken.None);

@@ -10,14 +10,15 @@ using AiRelay.Domain.ProviderGroups.DomainServices.SchedulingStrategy.AccountCon
 using AiRelay.Domain.ProviderGroups.ValueObjects;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Handler;
+using AiRelay.Domain.Shared.ExternalServices.ChatModel.ResponseParsing;
 using AiRelay.Domain.UsageRecords.Options;
-using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.OpenAi;
-using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.StreamProcessor;
 using Leistd.Exception.Core;
 using Leistd.Tracing.Core.Services;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Primitives;
 using System.Diagnostics;
+using System.Text;
 
 namespace AiRelay.Api.Middleware.SmartProxy;
 
@@ -26,7 +27,6 @@ public class SmartReverseProxyMiddleware(
     IDownstreamRequestProcessor downstreamRequestProcessor,
     IChatModelHandlerFactory chatModelHandlerFactory,
     ProxyErrorFormatterFactory errorFormatterFactory,
-    SseResponseStreamProcessor streamProcessor,
     AccountUsageRecordHostedService usageRecordHostedService,
     IOptions<UsageLoggingOptions> loggingOptions,
     IConcurrencyStrategy concurrencyStrategy,
@@ -44,19 +44,15 @@ public class SmartReverseProxyMiddleware(
         var chatModelHandler = chatModelHandlerFactory.CreateHandler(platform);
         var downContext = await downstreamRequestProcessor.ProcessAsync(context, chatModelHandler, apiKeyId, context.RequestAborted);
 
-        // 请求级变量（提升到外层，供三段式写入使用）
+        // 请求级变量
         var usageRecordId = Guid.CreateVersion7();
         var attemptNumber = 0;
         var overallStopwatch = Stopwatch.StartNew();
         var finalStatus = UsageStatus.Failed;
         string? finalStatusDescription = null;
-        StreamForwardResult? finalForwardResult = null;
         string? downResponseBody = null;
-        // 最终成功尝试的账号信息（用于定价）
-        string? lastUpModelId = null;
-        Guid? lastAccountTokenId = null;
+        ResponseUsage? finalUsage = null;
 
-        // 下游请求 body（在入队 StartItem 前捕获，日志级别为 body logging）
         var downRequestBody = _loggingOptions.IsBodyLoggingEnabled
             ? (downContext.IsMultipart
                 ? "[Multipart Data - Logging Skipped]"
@@ -64,7 +60,7 @@ public class SmartReverseProxyMiddleware(
             : null;
         var downRequestHeaders = _loggingOptions.IsBodyLoggingEnabled ? CaptureHeaders(downContext.Headers) : null;
 
-        // Step 1: 入队 StartItem（INSERT UsageRecord，Status=InProgress 立即可见）
+        // Step 1: 入队 StartItem
         usageRecordHostedService.TryEnqueue(new UsageRecordStartItem(
             UsageRecordId: usageRecordId,
             CorrelationId: correlationId,
@@ -89,7 +85,6 @@ public class SmartReverseProxyMiddleware(
 
             while (true)
             {
-                // 账号切换次数检查
                 if (accountSwitchCount >= MaxAccountSwitches)
                 {
                     throw new BadRequestException($"已尝试 {MaxAccountSwitches} 个账号，均不可用");
@@ -189,12 +184,16 @@ public class SmartReverseProxyMiddleware(
                     var attemptStopwatch = Stopwatch.StartNew();
                     attemptNumber++;
                     int? httpStatusCode = null;
-                    StreamForwardResult? forwardResult = null;
                     var attemptStatus = UsageStatus.Failed;
                     string? attemptStatusDesc = null;
                     string? upResponseBody = null;
 
-                    // Step 2: 入队 AttemptStartItem（INSERT Attempt，Status=InProgress，立即可见当前账号）
+                    // Step 2: 入队 AttemptStartItem
+                    var upRequestBody = _loggingOptions.IsBodyLoggingEnabled
+                        ? (downContext.IsMultipart
+                            ? "[Multipart Data - Logging Skipped]"
+                            : upContext.GetBodyPreview(_loggingOptions.MaxBodyLength))
+                        : null;
                     usageRecordHostedService.TryEnqueue(new UsageRecordAttemptStartItem(
                         UsageRecordId: usageRecordId,
                         AttemptNumber: attemptNumber,
@@ -207,66 +206,117 @@ public class SmartReverseProxyMiddleware(
                         UpUserAgent: upContext.GetUserAgent(),
                         UpRequestUrl: upContext.GetFullUrl(),
                         UpRequestHeaders: _loggingOptions.IsBodyLoggingEnabled ? CaptureHeaders(upContext.Headers) : null,
-                        UpRequestBody: _loggingOptions.IsBodyLoggingEnabled ? upContext.BodyJson?.ToString() : null
+                        UpRequestBody: upRequestBody
                     ));
 
                     try
                     {
-                        // 5. 执行 HTTP 请求
-                        using var response = await accountedHandler.ProxyRequestAsync(upContext, context.RequestAborted);
-                        attemptStopwatch.Stop();
-                        httpStatusCode = (int)response.StatusCode;
+                        // Phase 1: 发送请求，等待响应头（body 未消费）
+                        var proxyResponse = await accountedHandler.SendAsync(upContext, downContext, downContext.IsStreaming, context.RequestAborted);
+                        httpStatusCode = proxyResponse.StatusCode;
 
-                        if (response.IsSuccessStatusCode)
+                        bool isStreamCrash = false;
+
+                        // ====================================================================
+                        // ── 第一阶段：处理正常响应（包含流读首包崩溃检查）
+                        // ====================================================================
+                        if (proxyResponse.IsSuccess)
                         {
+                            // ── Phase 2: 成功响应 - 写入下游 Headers，然后转发事件流 ──
                             attemptStatus = UsageStatus.Success;
                             finalStatus = UsageStatus.Success;
 
-                            await smartProxyAppService.HandleSuccessAsync(
-                                selectResult.AccountToken.Id,
-                                context.RequestAborted);
+                            await smartProxyAppService.HandleSuccessAsync(selectResult.AccountToken.Id, context.RequestAborted);
 
-                            WriteResponseHeaders(context, (int)response.StatusCode, ExtractHeaders(response));
+                            WriteResponseHeaders(context, proxyResponse.StatusCode, proxyResponse.Headers);
 
-                            var needsConversion = downContext.RelativePath?.Contains("/chat/completions") == true;
-                            ResponsesToCompletionsConverter? converter = null;
-                            if (needsConversion)
-                                converter = new ResponsesToCompletionsConverter();
+                            var tempUpResponseBody = new StringBuilder();
+                            var tempDownResponseBody = new StringBuilder();
 
-                            var options = new ForwardResponseOptions(
-                                _loggingOptions.IsBodyLoggingEnabled,
-                                _loggingOptions.MaxBodyLength,
-                                accountedHandler.GetSseLineCallback(upContext.SessionId),
-                                needsConversion,
-                                converter != null ? converter.ConvertSseLine : null);
+                            try
+                            {
+                                // 枚举事件流（ForwardBytes 直接透传给下游）
+                                await foreach (var evt in proxyResponse.Events!.WithCancellation(context.RequestAborted))
+                                {
+                                    // 收集 Usage & ModelId
+                                    if (evt.IsComplete && evt.Usage != null)
+                                    {
+                                        finalUsage = evt.Usage;
+                                    }
 
-                            forwardResult = await streamProcessor.ForwardResponseAsync(
-                                response,
-                                context.Response.Body,
-                                accountedHandler,
-                                downContext.IsStreaming,
-                                options,
-                                context.RequestAborted);
+                                    // 转发字节
+                                    if (evt.ForwardBytes != null)
+                                    {
+                                        if (_loggingOptions.IsBodyLoggingEnabled && tempUpResponseBody.Length < _loggingOptions.MaxBodyLength)
+                                        {
+                                            var maxLength = _loggingOptions.MaxBodyLength - tempUpResponseBody.Length;
+                                            var length = Math.Min(evt.ForwardBytes.Length, maxLength);
+                                            var content = Encoding.UTF8.GetString(evt.ForwardBytes[..length]);
+                                            tempUpResponseBody.Append(content);
+                                            tempDownResponseBody.Append(content);
+                                            if (evt.ForwardBytes.Length > maxLength)
+                                            {
+                                                tempUpResponseBody.Append("...[Truncated]");
+                                                tempDownResponseBody.Append("...[Truncated]");
+                                            }
+                                        }
+                                        await context.Response.Body.WriteAsync(evt.ForwardBytes, context.RequestAborted);
+                                        await context.Response.Body.FlushAsync(context.RequestAborted);
+                                    }
+                                }
 
-                            finalForwardResult = forwardResult;
-                            downResponseBody = _loggingOptions.IsBodyLoggingEnabled ? forwardResult?.CapturedBody : null;
-                            upResponseBody = downResponseBody;
+                                // 完全成功，直接返回退出当前请求
+                                return;
+                            }
+                            catch (Exception ex) when (ex is not OperationCanceledException)
+                            {
+                                attemptStatus = UsageStatus.Failed;
+                                finalStatus = UsageStatus.Failed;
+                                if (context.Response.HasStarted)
+                                {
+                                    // 标记为中途坠机，避免记录成 Success
+                                    attemptStatusDesc = $"连接意外中断: {ex.Message}";
 
-                            // 记录最终成功尝试的账号信息（供 EndItem 定价使用）
-                            lastUpModelId = upContext.MappedModelId;
-                            lastAccountTokenId = selectResult.AccountToken.Id;
+                                    // 响应头或部分实体已发出，无法补救，只能向上抛出交由最外层强制 Abort 断开网络
+                                    throw;
+                                }
+                                else
+                                {
+                                    // ⭐ 尚未发送任何响应内容（仅仅在 WriteResponseHeaders 写入了内存头，但未 Flush）
+                                    // 清理掉准备发给下游的 HTTP Headers，将其回滚到干净状态
+                                    context.Response.Clear();
 
-                            return;
+                                    // 标记流崩溃标志，使其跃迁出成功区块，平滑下落到异常重试处理分支
+                                    isStreamCrash = true;
+                                    attemptStatusDesc = $"流尚未开始下发便中断异常，触发同号重试或切号重试机制: {ex.Message}";
+                                    logger.LogWarning(ex, attemptStatusDesc);
+                                }
+                            }
+                            finally
+                            {
+                                // 确保无论是用户中途取消(Cancel)、转发异常中断，还是正常完成，
+                                // 都将这段时间真正接收到并下发的片段保存至日志审计中，避免流失。
+                                upResponseBody = tempUpResponseBody.ToString();
+                                downResponseBody = tempDownResponseBody.ToString();
+                            }
                         }
-                        else
+
+                        // ====================================================================
+                        // ── 第二阶段：错误响应（或流读首包崩溃），进入重试决策
+                        // ====================================================================
+                        if (!proxyResponse.IsSuccess || isStreamCrash)
                         {
-                            attemptStatus = UsageStatus.Failed;
-                            upResponseBody = await response.Content.ReadAsStringAsync(context.RequestAborted);
-                            var responseHeaders = ExtractHeaders(response);
+                            if (!isStreamCrash)
+                            {
+                                attemptStatus = UsageStatus.Failed;
+                                upResponseBody = LoggingSubBody(proxyResponse.ErrorBody);
+                            }
 
-                            logger.LogWarning("账号请求失败，状态码: {StatusCode}，正在分析错误：{BodyContent}", httpStatusCode.Value, upResponseBody);
+                            logger.LogWarning("账号请求失败或流首包崩溃，状态码: {StatusCode}，正在分析错误：{BodyContent}", httpStatusCode, upResponseBody);
 
-                            var retryPolicy = await accountedHandler.CheckRetryPolicyAsync(httpStatusCode.Value, responseHeaders, upResponseBody);
+                            var retryPolicy = isStreamCrash ?
+                                new ModelErrorAnalysisResult() { IsCanRetry = true } : // 对于流直接断开导致的崩溃，强制视为网络异常要求重试（等效于502/504等）
+                                await accountedHandler.CheckRetryPolicyAsync(httpStatusCode.Value, proxyResponse.Headers, proxyResponse.ErrorBody);
 
                             const int MaxSameAccountRetries = 3;
                             var (instruction, retryAfter) = DetermineFailureInstruction(retryPolicy, currentAccountRetryCount, MaxSameAccountRetries);
@@ -274,7 +324,6 @@ public class SmartReverseProxyMiddleware(
                             switch (instruction)
                             {
                                 case FailureInstruction.RetrySameAccount:
-                                    currentAccountRetryCount++;
                                     if (retryPolicy.RequiresDowngrade)
                                     {
                                         degradationLevel++;
@@ -285,6 +334,7 @@ public class SmartReverseProxyMiddleware(
                                         attemptStatusDesc = $"同账号重试，延迟 {retryAfter.TotalMilliseconds}ms，重试次数: {currentAccountRetryCount}";
                                     }
                                     await Task.Delay(retryAfter, context.RequestAborted);
+                                    currentAccountRetryCount++;
                                     break;
 
                                 case FailureInstruction.SwitchAccount:
@@ -292,7 +342,7 @@ public class SmartReverseProxyMiddleware(
                                         new HandleFailureInputDto(
                                             selectResult.AccountToken.Id,
                                             httpStatusCode.Value,
-                                            upResponseBody,
+                                            proxyResponse.ErrorBody,
                                             retryPolicy),
                                         context.RequestAborted);
 
@@ -310,20 +360,19 @@ public class SmartReverseProxyMiddleware(
                                         new HandleFailureInputDto(
                                             selectResult.AccountToken.Id,
                                             httpStatusCode.Value,
-                                            upResponseBody,
+                                            proxyResponse.ErrorBody,
                                             retryPolicy),
                                         context.RequestAborted);
 
                                     attemptStatusDesc = $"请求失败，不进行重试：{upResponseBody}";
-                                    WriteResponseHeaders(context, httpStatusCode.Value, responseHeaders);
-                                    await context.Response.WriteAsync(upResponseBody, context.RequestAborted);
+                                    WriteResponseHeaders(context, httpStatusCode.Value, proxyResponse.Headers);
+                                    downResponseBody = LoggingSubBody(proxyResponse.ErrorBody);
+                                    await context.Response.WriteAsync(proxyResponse.ErrorBody ?? "", context.RequestAborted);
                                     return;
                             }
 
                             if (!string.IsNullOrEmpty(attemptStatusDesc))
-                            {
                                 logger.LogWarning(attemptStatusDesc);
-                            }
                         }
                     }
                     finally
@@ -331,7 +380,7 @@ public class SmartReverseProxyMiddleware(
                         attemptStopwatch.Stop();
                         await concurrencyStrategy.ReleaseSlotAsync(selectResult.AccountToken.Id, activeRequestId);
 
-                        // Step 3: 入队 AttemptEndItem（UPDATE Attempt 为最终状态）
+                        // Step 3: 入队 AttemptEndItem
                         usageRecordHostedService.TryEnqueue(new UsageRecordAttemptEndItem(
                             UsageRecordId: usageRecordId,
                             AttemptNumber: attemptNumber,
@@ -353,15 +402,31 @@ public class SmartReverseProxyMiddleware(
 
             } // End outer while
         }
+        catch (OperationCanceledException)
+        {
+            finalStatus = UsageStatus.Failed;
+            finalStatusDescription = "客户端主动断开连接";
+            logger.LogInformation("原始客户端已强制断开连接，提前终止代理。");
+        }
         catch (Exception ex)
         {
-            finalStatusDescription = ex.Message;
-            logger.LogWarning(ex, "代理网关异常被拦截: {Message}", ex.Message);
-
+            finalStatus = UsageStatus.Failed;
             if (context.Response.HasStarted)
             {
-                logger.LogWarning("代理网关异常：响应已开始，无法覆写平台[{Platform}]的专有错误格式", platform);
+                finalStatusDescription = $"连接意外中断: {ex.Message}";
+                logger.LogWarning(ex, finalStatusDescription);
+
+                // 模拟直连：遇到上游中途断开，不伪造 [DONE] 平滑结束，
+                // 而是直接强行重置/释放当前 HttpContext 的网络连接。
+                // 这样下游的官方 SDK (如 OpenAI/Claude Client) 会收到类似于 ECONNRESET 等网络层异常，
+                // 从而能正确触发这些 SDK 自身内置的自动重试容灾机制。
+                context.Abort();
                 return;
+            }
+            else
+            {
+                finalStatusDescription = $"代理网关异常被拦截: {ex.Message}";
+                logger.LogWarning(ex, finalStatusDescription);
             }
 
             var formatter = errorFormatterFactory.GetFormatter(platform);
@@ -369,27 +434,43 @@ public class SmartReverseProxyMiddleware(
 
             context.Response.StatusCode = errorResponse.StatusCode;
             context.Response.ContentType = errorResponse.ContentType;
-
-            await context.Response.WriteAsync(errorResponse.Payload, System.Text.Encoding.UTF8, context.RequestAborted);
+            downResponseBody = LoggingSubBody(errorResponse.Payload);
+            await context.Response.WriteAsync(errorResponse.Payload, Encoding.UTF8, context.RequestAborted);
         }
         finally
         {
             overallStopwatch.Stop();
 
-            // Step 4: 入队 EndItem（UPDATE UsageRecord 为最终状态）
+            // Step 4: 入队 EndItem
             usageRecordHostedService.TryEnqueue(new UsageRecordEndItem(
                 UsageRecordId: usageRecordId,
                 Duration: overallStopwatch.ElapsedMilliseconds,
                 Status: finalStatus,
                 StatusDescription: finalStatusDescription,
                 DownResponseBody: downResponseBody,
-                InputTokens: finalForwardResult?.Usage?.InputTokens,
-                OutputTokens: finalForwardResult?.Usage?.OutputTokens,
-                CacheReadTokens: finalForwardResult?.Usage?.CacheReadTokens,
-                CacheCreationTokens: finalForwardResult?.Usage?.CacheCreationTokens,
+                InputTokens: finalUsage?.InputTokens,
+                OutputTokens: finalUsage?.OutputTokens,
+                CacheReadTokens: finalUsage?.CacheReadTokens,
+                CacheCreationTokens: finalUsage?.CacheCreationTokens,
                 AttemptCount: attemptNumber
             ));
         }
+    }
+
+    private string? LoggingSubBody(string? sourceStr)
+    {
+        if (string.IsNullOrEmpty(sourceStr))
+        {
+            return sourceStr;
+        }
+        if (!_loggingOptions.IsBodyLoggingEnabled)
+        {
+            return null;
+        }
+        var length = Math.Min(sourceStr.Length, _loggingOptions.MaxBodyLength);
+        var content = sourceStr[..length];
+
+        return sourceStr.Length > _loggingOptions.MaxBodyLength ? content + "...[Truncated]" : content;
     }
 
     private static (ProviderPlatform Platform, Guid ApiKeyId, string ApiKeyName) ValidateAndGetContext(HttpContext context)
@@ -416,16 +497,7 @@ public class SmartReverseProxyMiddleware(
         _ => false
     };
 
-    private static Dictionary<string, IEnumerable<string>> ExtractHeaders(HttpResponseMessage response)
-    {
-        var headers = new Dictionary<string, IEnumerable<string>>();
-        foreach (var header in response.Headers)
-            headers[header.Key] = header.Value;
-        if (response.Content?.Headers != null)
-            foreach (var header in response.Content.Headers)
-                headers[header.Key] = header.Value;
-        return headers;
-    }
+
 
     private static void WriteResponseHeaders(HttpContext context, int statusCode, Dictionary<string, IEnumerable<string>> headers)
     {
@@ -444,7 +516,6 @@ public class SmartReverseProxyMiddleware(
     {
         if (retryPolicy.IsCanRetry && currentRetryCount < maxRetries)
         {
-            // RetryAfter >= 15s：等待时间太长，换号更划算
             if (retryPolicy.RetryAfter.HasValue && retryPolicy.RetryAfter.Value.TotalSeconds >= 15)
                 return (FailureInstruction.SwitchAccount, TimeSpan.Zero);
 
@@ -464,5 +535,4 @@ public class SmartReverseProxyMiddleware(
 
         return string.Join("\n", filtered);
     }
-
 }

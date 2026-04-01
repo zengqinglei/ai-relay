@@ -10,7 +10,7 @@ using AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Handler;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Provider;
 using AiRelay.Domain.Shared.OAuth.Authorize;
-using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.StreamProcessor;
+
 using Leistd.Ddd.Application.AppService;
 using Leistd.Ddd.Application.Contracts.Dtos;
 using Leistd.Ddd.Domain.Repositories;
@@ -32,7 +32,6 @@ public class AccountTokenAppService(
     IChatModelHandlerFactory chatModelHandlerFactory,
     AccountRateLimitDomainService accountRateLimitDomainService,
     IModelProvider modelProvider,
-    SseResponseStreamProcessor streamProcessor,
     ILogger<AccountTokenAppService> logger,
     IObjectMapper objectMapper,
     IQueryableAsyncExecuter asyncExecuter,
@@ -94,15 +93,18 @@ public class AccountTokenAppService(
             .TrimEnd('=');
     }
 
-    public async IAsyncEnumerable<ChatStreamEvent> DebugModelAsync(
+    public async IAsyncEnumerable<StreamEvent> DebugModelAsync(
         Guid id,
         ChatMessageInputDto input,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var accountToken = await accountTokenRepository.GetByIdAsync(id, cancellationToken)
             ?? throw new NotFoundException($"账户不存在: {id}");
-        yield return new ChatStreamEvent(
-            SystemMessage: $"开始测试 {accountToken.Platform} 平台账户 {accountToken.Name} ...");
+        yield return new StreamEvent
+        {
+            Type = StreamEventType.System,
+            Content = $"开始测试 {accountToken.Platform} 平台账户 {accountToken.Name} ..."
+        };
 
         await accountTokenDomainService.RefreshTokenIfNeededAsync(accountToken, cancellationToken);
 
@@ -121,19 +123,28 @@ public class AccountTokenAppService(
         var mappedModel = upContext.MappedModelId == downContext.ModelId
             ? input.ModelId
             : $"{input.ModelId} --> {upContext.MappedModelId}";
-        yield return new ChatStreamEvent(SystemMessage: $"测试模型 {mappedModel}");
+        yield return new StreamEvent { Type = StreamEventType.System, Content = $"测试模型 {mappedModel}" };
 
-        using var response = await handler.ProxyRequestAsync(upContext, cancellationToken);
+        var proxyResponse = await handler.SendAsync(upContext, downContext, isStreaming: true, ct: cancellationToken);
 
-        if (!response.IsSuccessStatusCode)
+        if (!proxyResponse.IsSuccess)
         {
-            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-            yield return new ChatStreamEvent(Error: $"API 错误 ({response.StatusCode}): {errorBody}");
+            yield return new StreamEvent
+            {
+                Type = StreamEventType.Error,
+                Content = $"API 错误 {proxyResponse.StatusCode}: {proxyResponse.ErrorBody}",
+                IsComplete = true
+            };
+            yield break;
         }
 
-        await foreach (var evt in streamProcessor.ParseSseStreamAsync(response, handler, cancellationToken))
+        await foreach (var evt in proxyResponse.Events!.WithCancellation(cancellationToken))
         {
-            yield return evt;
+            // 在测试模式下，过滤掉 Fast-Pass 产生的纯网络分发帧，仅推送有业务文本或状态的帧给前端
+            if (evt.Content != null || evt.Type == StreamEventType.Error || evt.IsComplete || evt.Usage != null)
+            {
+                yield return evt;
+            }
         }
     }
 

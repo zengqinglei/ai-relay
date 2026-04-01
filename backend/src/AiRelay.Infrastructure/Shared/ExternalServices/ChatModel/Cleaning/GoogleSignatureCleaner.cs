@@ -139,7 +139,7 @@ public class GoogleSignatureCleaner(
     /// <summary>
     /// 检测响应 body 是否为签名错误
     /// </summary>
-    public static bool IsSignatureError(string body)
+    public static bool IsSignatureError(string? body)
     {
         // 简单判断 body 中是否包含 signature 相关的错误信息
         // 实际场景可能需要更精确的 JSON 解析，但目前字符串匹配已足够覆盖常见情况

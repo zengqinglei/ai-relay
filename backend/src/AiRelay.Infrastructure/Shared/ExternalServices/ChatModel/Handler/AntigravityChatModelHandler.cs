@@ -5,13 +5,11 @@ using AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Cleaning;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Parsing;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Processors;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.Provider;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.RequestParsing;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.ResponseParsing;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.SignatureCache;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Antigravity;
-using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.Parsers;
-using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.StreamProcessor;
+using AiRelay.Domain.Shared.ExternalServices.ChatModel.Provider;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
@@ -27,10 +25,9 @@ public sealed class AntigravityChatModelHandler(
     GoogleJsonSchemaCleaner googleJsonSchemaCleaner,
     GoogleSignatureCleaner googleSignatureCleaner,
     AntigravityIdentityInjector antigravityIdentityInjector,
-    SseResponseStreamProcessor streamProcessor,
     ISignatureCache signatureCache,
     ILogger<AntigravityChatModelHandler> logger)
-    : GoogleInternalChatModelHandlerBase(options, httpClientFactory, streamProcessor, signatureCache, logger)
+    : GoogleInternalChatModelHandlerBase(options, httpClientFactory, signatureCache, logger)
 {
     public override bool Supports(ProviderPlatform platform) =>
         platform == ProviderPlatform.ANTIGRAVITY;
@@ -103,7 +100,7 @@ public sealed class AntigravityChatModelHandler(
             BodyBytes = Encoding.UTF8.GetBytes(body).AsMemory()
         };
         var up = await ProcessRequestContextAsync(down, 0, ct);
-        using var response = await ProxyRequestAsync(up, ct);
+        using var response = await SendRequestAsync(up, ct);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -121,7 +118,7 @@ public sealed class AntigravityChatModelHandler(
 
         foreach (var model in models.EnumerateObject())
         {
-            var modelId = model.Name;
+            var modelIdStr = model.Name;
 
             double? remainingFraction = null;
             string? resetTime = null;
@@ -136,7 +133,7 @@ public sealed class AntigravityChatModelHandler(
 
             quotaList.Add(new AccountQuotaInfo
             {
-                ModelId = modelId,
+                ModelId = modelIdStr,
                 RemainingQuota = remainingFraction.HasValue ? (int)(remainingFraction.Value * 100) : null,
                 QuotaResetTime = resetTime,
                 LastRefreshed = DateTime.UtcNow
@@ -160,7 +157,6 @@ public sealed class AntigravityChatModelHandler(
 
         Logger.LogInformation("Antigravity 上游拉取成功: {Count} 个模型", upstreamModels.Count);
 
-        // 返回上游模型列表（后续在 AppService 中与静态列表交集）
         return upstreamModels.Select(m => new ModelOption(m!, m!)).ToList();
     }
 
@@ -187,10 +183,4 @@ public sealed class AntigravityChatModelHandler(
             BodyBytes = Encoding.UTF8.GetBytes(json.ToJsonString()).AsMemory()
         };
     }
-
-    public override ChatResponsePart? ParseChunk(string chunk) =>
-        GeminiChatModelResponseParser.ParseChunkStatic(chunk);
-
-    public override ChatResponsePart ParseCompleteResponse(string responseBody) =>
-        GeminiChatModelResponseParser.ParseCompleteResponseStatic(responseBody);
 }

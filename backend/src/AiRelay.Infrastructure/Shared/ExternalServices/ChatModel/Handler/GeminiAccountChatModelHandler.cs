@@ -2,13 +2,10 @@ using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Processors;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.RequestParsing;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.ResponseParsing;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.SignatureCache;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Cleaning;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Parsing;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Gemini;
-using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.Parsers;
-using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.StreamProcessor;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
 using System.Text;
@@ -24,10 +21,9 @@ public class GeminiAccountChatModelHandler(
     GoogleJsonSchemaCleaner googleJsonSchemaCleaner,
     GoogleSignatureCleaner googleSignatureCleaner,
     GeminiSystemPromptInjector geminiSystemPromptInjector,
-    SseResponseStreamProcessor streamProcessor,
     ISignatureCache signatureCache,
     ILogger<GeminiAccountChatModelHandler> logger)
-    : GoogleInternalChatModelHandlerBase(options, httpClientFactory, streamProcessor, signatureCache, logger)
+    : GoogleInternalChatModelHandlerBase(options, httpClientFactory, signatureCache, logger)
 {
     // Gemini CLI 临时目录正则匹配: .gemini/tmp/[64位哈希]
     private static readonly Regex GeminiCliTmpDirRegex = new(@"\.gemini/tmp/([A-Fa-f0-9]{64})", RegexOptions.Compiled);
@@ -141,7 +137,7 @@ public class GeminiAccountChatModelHandler(
             BodyBytes = Encoding.UTF8.GetBytes(body).AsMemory()
         };
         var up = await ProcessRequestContextAsync(down, 0, ct);
-        using var response = await ProxyRequestAsync(up, ct);
+        using var response = await SendRequestAsync(up, ct);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -159,7 +155,7 @@ public class GeminiAccountChatModelHandler(
 
         foreach (var bucket in buckets.EnumerateArray())
         {
-            var modelId = bucket.TryGetProperty("modelId", out var modelIdProp)
+            var modelIdStr = bucket.TryGetProperty("modelId", out var modelIdProp)
                 ? modelIdProp.GetString()
                 : null;
 
@@ -175,11 +171,11 @@ public class GeminiAccountChatModelHandler(
                 ? fractionProp.GetDecimal()
                 : 0m;
 
-            if (!string.IsNullOrEmpty(modelId))
+            if (!string.IsNullOrEmpty(modelIdStr))
             {
                 quotaBuckets.Add(new AccountQuotaInfo
                 {
-                    ModelId = modelId,
+                    ModelId = modelIdStr,
                     QuotaResetTime = resetTime ?? string.Empty
                 });
             }
@@ -202,7 +198,6 @@ public class GeminiAccountChatModelHandler(
 
         Logger.LogInformation("Gemini OAuth 上游拉取成功: {Count} 个模型", upstreamModels.Count);
 
-        // 返回上游模型列表（后续在 AppService 中与静态列表交集）
         return upstreamModels.Select(m => new ModelOption(m!, m!)).ToList();
     }
 
@@ -229,10 +224,4 @@ public class GeminiAccountChatModelHandler(
             BodyBytes = Encoding.UTF8.GetBytes(json.ToJsonString()).AsMemory()
         };
     }
-
-    public override ChatResponsePart? ParseChunk(string chunk) =>
-        GeminiChatModelResponseParser.ParseChunkStatic(chunk);
-
-    public override ChatResponsePart ParseCompleteResponse(string responseBody) =>
-        GeminiChatModelResponseParser.ParseCompleteResponseStatic(responseBody);
 }

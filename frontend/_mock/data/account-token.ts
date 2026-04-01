@@ -370,14 +370,15 @@ export const AVAILABLE_MODELS: Record<ProviderPlatform, ModelOptionOutputDto[]> 
 };
 
 // Mock streaming chat responses for model test
-// 格式对齐 ChatStreamEvent 接口：{ content?, error?, isComplete? }
+// 格式对齐 ChatStreamEvent 接口：{ type, content?, isComplete? }
 export const MOCK_CHAT_STREAM_CHUNKS = [
-  { content: 'Hello! ' },
-  { content: 'I am a ' },
-  { content: 'mock AI ' },
-  { content: 'assistant. ' },
-  { content: 'This is a ' },
-  { content: 'simulated ' },
-  { content: 'streaming response.' },
-  { isComplete: true }
+  { type: 'System', content: '开始测试模型...' },
+  { type: 'Content', content: 'Hello! ' },
+  { type: 'Content', content: 'I am a ' },
+  { type: 'Content', content: 'mock AI ' },
+  { type: 'Content', content: 'assistant. ' },
+  { type: 'Content', content: 'This is a ' },
+  { type: 'Content', content: 'simulated ' },
+  { type: 'Content', content: 'streaming response.' },
+  { type: 'Content', isComplete: true }
 ];

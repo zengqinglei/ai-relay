@@ -18,7 +18,7 @@ public class UsageLoggingOptions
     /// <summary>
     /// Body 最大记录长度 (字符数)
     /// </summary>
-    public int MaxBodyLength { get; set; } = 1024; // 1KB
+    public int MaxBodyLength { get; set; } = 1024 * 1024 * 4; // 4KB
 
     /// <summary>
     /// 排除的Content-Type列表

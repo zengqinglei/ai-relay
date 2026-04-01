@@ -1,14 +1,39 @@
 using System.Text.Json;
+using AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.ResponseParsing;
 
-namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.Parsers;
+namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Response.OpenAi;
 
-public class OpenAiChatModelResponseParser : IChatModelResponseParser, IResponseParser
+/// <summary>
+/// OpenAI 平台 SSE 解析 Processor
+/// 内聚原 OpenAiChatModelResponseParser 的全部逻辑
+/// </summary>
+public class OpenAiParseSseResponseProcessor : IResponseProcessor
 {
-    public ChatResponsePart? ParseChunk(string chunk) => ParseChunkStatic(chunk);
-    public ChatResponsePart ParseCompleteResponse(string responseBody) => ParseCompleteResponseStatic(responseBody);
+    public bool RequiresMutation => false;
 
-    public static ChatResponsePart? ParseChunkStatic(string chunk)
+    public Task ProcessAsync(StreamEvent evt, CancellationToken ct)
+    {
+        if (evt.Type == StreamEventType.Error) return Task.CompletedTask;
+
+        if (evt.SseLine != null)
+        {
+            var part = ParseChunk(evt.SseLine);
+            if (part != null) ApplyPart(evt, part);
+        }
+        else if (evt.Content != null)
+        {
+            var part = ParseCompleteResponse(evt.Content);
+            ApplyPart(evt, part);
+            evt.IsComplete = true;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    // ── 迁入自 OpenAiChatModelResponseParser ──
+
+    private static ChatResponsePart? ParseChunk(string chunk)
     {
         var trimmed = chunk.Trim();
         if (string.IsNullOrEmpty(trimmed) || !trimmed.StartsWith("data: ")) return null;
@@ -26,53 +51,35 @@ public class OpenAiChatModelResponseParser : IChatModelResponseParser, IResponse
             ResponseUsage? usage = null;
             bool isComplete = false;
 
-            // 检测是 Responses API 还是 Chat Completions API
             if (root.TryGetProperty("type", out var typeProperty))
             {
                 var eventType = typeProperty.GetString();
 
-                // Responses API 格式
                 switch (eventType)
                 {
                     case "response.output_text.delta":
-                        // 文本增量事件
                         if (root.TryGetProperty("delta", out var delta))
-                        {
                             content = delta.GetString();
-                        }
                         break;
 
                     case "response.completed":
-                        // 响应完成事件
                         isComplete = true;
-
-                        // 提取 usage
                         if (root.TryGetProperty("response", out var response))
                         {
                             if (response.TryGetProperty("model", out var m))
-                            {
                                 model = m.GetString();
-                            }
-
                             if (response.TryGetProperty("usage", out var u))
-                            {
                                 usage = ExtractResponsesApiUsage(u);
-                            }
                         }
                         break;
 
                     case "response.failed":
-                        // 响应失败事件
                         string? errorMsg = null;
                         if (root.TryGetProperty("response", out var failedResponse) &&
                             failedResponse.TryGetProperty("error", out var error))
                         {
                             if (error.TryGetProperty("message", out var msg))
-                            {
                                 errorMsg = msg.GetString();
-                            }
-
-                            // 如果有 code，也附加上
                             if (error.TryGetProperty("code", out var code))
                             {
                                 var codeStr = code.GetString();
@@ -84,17 +91,14 @@ public class OpenAiChatModelResponseParser : IChatModelResponseParser, IResponse
                         return new ChatResponsePart(Error: errorMsg ?? "Unknown error from upstream");
 
                     default:
-                        // 其他事件类型（如 response.created, response.in_progress 等）忽略
                         return null;
                 }
             }
             else
             {
-                // Chat Completions API 格式（原有逻辑）
+                // Chat Completions API 格式
                 if (root.TryGetProperty("model", out var modelProp))
-                {
                     model = modelProp.GetString();
-                }
 
                 if (root.TryGetProperty("choices", out var choices) && choices.GetArrayLength() > 0)
                 {
@@ -107,9 +111,7 @@ public class OpenAiChatModelResponseParser : IChatModelResponseParser, IResponse
                 }
 
                 if (root.TryGetProperty("usage", out var u))
-                {
                     usage = ExtractUsage(u);
-                }
             }
 
             return new ChatResponsePart(
@@ -125,7 +127,7 @@ public class OpenAiChatModelResponseParser : IChatModelResponseParser, IResponse
         }
     }
 
-    public static ChatResponsePart ParseCompleteResponseStatic(string responseBody)
+    private static ChatResponsePart ParseCompleteResponse(string responseBody)
     {
         try
         {
@@ -137,9 +139,7 @@ public class OpenAiChatModelResponseParser : IChatModelResponseParser, IResponse
             ResponseUsage? usage = null;
 
             if (root.TryGetProperty("model", out var modelProp))
-            {
                 model = modelProp.GetString();
-            }
 
             if (root.TryGetProperty("choices", out var choices) && choices.GetArrayLength() > 0)
             {
@@ -152,9 +152,7 @@ public class OpenAiChatModelResponseParser : IChatModelResponseParser, IResponse
             }
 
             if (root.TryGetProperty("usage", out var u))
-            {
                 usage = ExtractUsage(u);
-            }
 
             return new ChatResponsePart(
                 Content: content,
@@ -172,31 +170,41 @@ public class OpenAiChatModelResponseParser : IChatModelResponseParser, IResponse
     private static ResponseUsage ExtractUsage(JsonElement usageElement)
     {
         int input = 0, output = 0, cached = 0;
-
         if (usageElement.TryGetProperty("prompt_tokens", out var pt)) input = pt.GetInt32();
         if (usageElement.TryGetProperty("completion_tokens", out var ct)) output = ct.GetInt32();
-
         if (usageElement.TryGetProperty("prompt_tokens_details", out var details))
         {
             if (details.TryGetProperty("cached_tokens", out var c)) cached = c.GetInt32();
         }
-
         return new ResponseUsage(input, output, cached);
     }
 
     private static ResponseUsage ExtractResponsesApiUsage(JsonElement usageElement)
     {
         int input = 0, output = 0, cached = 0;
-
-        // Responses API 使用 input_tokens 和 output_tokens
         if (usageElement.TryGetProperty("input_tokens", out var it)) input = it.GetInt32();
         if (usageElement.TryGetProperty("output_tokens", out var ot)) output = ot.GetInt32();
-
         if (usageElement.TryGetProperty("input_tokens_details", out var details))
         {
             if (details.TryGetProperty("cached_tokens", out var c)) cached = c.GetInt32();
         }
-
         return new ResponseUsage(input, output, cached);
+    }
+
+    private static void ApplyPart(StreamEvent evt, ChatResponsePart part)
+    {
+        if (part.Error != null)
+        {
+            evt.Type = StreamEventType.Error;
+            evt.Content = part.Error;
+        }
+        else
+        {
+            evt.Content = part.Content;
+        }
+        evt.Usage = part.Usage;
+        evt.ModelId ??= part.ModelId;
+        evt.IsComplete = part.IsComplete;
+        evt.InlineData = part.InlineData;
     }
 }

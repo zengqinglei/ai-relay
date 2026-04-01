@@ -8,7 +8,7 @@ import { MessageModule } from 'primeng/message';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { SelectModule } from 'primeng/select';
 import { TextareaModule } from 'primeng/textarea';
-import { finalize } from 'rxjs';
+import { finalize, Subscription } from 'rxjs';
 
 import { PlatformIcon } from '../../../../../../shared/components/platform-icon/platform-icon';
 import { DIALOG_CONFIGS } from '../../../../../../shared/constants/dialog-config.constants';
@@ -69,6 +69,8 @@ export class ModelTestDialog {
   // 使用中型 Dialog 配置
   dialogConfig = DIALOG_CONFIGS.MEDIUM;
 
+  private testSub?: Subscription;
+
   // Test State
   selectedModel = signal<string | null>(null);
   systemPrompt = signal('你好，当前使用的是什么模型？');
@@ -128,7 +130,8 @@ export class ModelTestDialog {
       message: this.systemPrompt()
     };
 
-    this.service
+    this.testSub?.unsubscribe();
+    this.testSub = this.service
       .debugModel(this.account()!.id, input)
       .pipe(
         finalize(() => {
@@ -137,23 +140,29 @@ export class ModelTestDialog {
       )
       .subscribe({
         next: event => {
-          if (event.systemMessage) {
-            this.systemMessages.update(msgs => [...msgs, event.systemMessage!]);
-          } else if (event.error) {
-            this.errorMessage.set(event.error);
-          } else if (event.content) {
-            this.contentBlocks.update(blocks => {
-              const last = blocks[blocks.length - 1];
-              if (last?.type === 'text') {
-                return [...blocks.slice(0, -1), { type: 'text' as const, text: last.text + event.content! }];
+          switch (event.type) {
+            case 'System':
+              this.systemMessages.update(msgs => [...msgs, event.content!]);
+              break;
+            case 'Error':
+              this.errorMessage.set(event.content ?? '未知错误');
+              break;
+            case 'Content':
+              if (event.content) {
+                this.contentBlocks.update(blocks => {
+                  const last = blocks[blocks.length - 1];
+                  if (last?.type === 'text') {
+                    return [...blocks.slice(0, -1), { type: 'text' as const, text: last.text + event.content! }];
+                  }
+                  return [...blocks, { type: 'text' as const, text: event.content! }];
+                });
+              } else if (event.inlineData) {
+                this.contentBlocks.update(blocks => [
+                  ...blocks,
+                  { type: 'image', mimeType: event.inlineData!.mimeType, data: event.inlineData!.data }
+                ]);
               }
-              return [...blocks, { type: 'text' as const, text: event.content! }];
-            });
-          } else if (event.inlineData) {
-            this.contentBlocks.update(blocks => [
-              ...blocks,
-              { type: 'image', mimeType: event.inlineData!.mimeType, data: event.inlineData!.data }
-            ]);
+              break;
           }
         },
         error: (err: any) => {
@@ -170,6 +179,7 @@ export class ModelTestDialog {
   }
 
   close() {
+    this.testSub?.unsubscribe();
     this.visible.set(false);
   }
 }

@@ -1,3 +1,6 @@
+using System.Buffers;
+using System.Runtime.CompilerServices;
+using System.Text;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Handler;
@@ -10,7 +13,6 @@ using Microsoft.Extensions.Logging;
 using System.Globalization;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
@@ -25,20 +27,17 @@ public abstract class BaseChatModelHandler : IChatModelHandler
 
     protected readonly ChatModelConnectionOptions Options;
     protected readonly IHttpClientFactory HttpClientFactory;
-    protected readonly SseResponseStreamProcessor StreamProcessor;
     protected readonly ISignatureCache SignatureCache;
     protected readonly ILogger Logger;
 
     protected BaseChatModelHandler(
         ChatModelConnectionOptions options,
         IHttpClientFactory httpClientFactory,
-        SseResponseStreamProcessor streamProcessor,
         ISignatureCache signatureCache,
         ILogger logger)
     {
         Options = options;
         HttpClientFactory = httpClientFactory;
-        StreamProcessor = streamProcessor;
         SignatureCache = signatureCache;
         Logger = logger;
     }
@@ -48,11 +47,18 @@ public abstract class BaseChatModelHandler : IChatModelHandler
     protected virtual string? GetFallbackBaseUrl(int statusCode) => null;
 
     /// <summary>
-    /// 子类根据请求路由（down.RelativePath）和降级级别返回 Processor 列表
+    /// 子类根据请求路由和降级级别返回 Request Processor 列表
     /// </summary>
     protected abstract IReadOnlyList<IRequestProcessor> GetProcessors(
         DownRequestContext down,
         int degradationLevel);
+
+    /// <summary>
+    /// 子类返回 Response Processor 列表（按平台 + 请求上下文定制）
+    /// </summary>
+    protected abstract IReadOnlyList<IResponseProcessor> GetResponseProcessors(
+        UpRequestContext up,
+        DownRequestContext down);
 
     // ── ProcessRequestContextAsync
 
@@ -71,11 +77,10 @@ public abstract class BaseChatModelHandler : IChatModelHandler
         return up;
     }
 
-    // ── ProxyRequestAsync（含 Fallback 重试）
+    // ── SendRequestAsync（含 Fallback 重试，仅供内部及子类调用）
 
-    public async Task<HttpResponseMessage> ProxyRequestAsync(UpRequestContext up, CancellationToken ct = default)
+    protected async Task<HttpResponseMessage> SendRequestAsync(UpRequestContext up, CancellationToken ct = default)
     {
-        var currentBaseUrl = up.BaseUrl;
         var hasTriedFallback = false;
 
         while (true)
@@ -84,22 +89,8 @@ public abstract class BaseChatModelHandler : IChatModelHandler
             {
                 using var httpClient = HttpClientFactory.CreateClient();
 
-                // 确保 Base URL 以 '/' 结尾，方便拼接相对路径
-                var normalizedBase = currentBaseUrl.EndsWith('/') ? currentBaseUrl : currentBaseUrl + "/";
-                var relativeUrl = up.RelativePath.TrimStart('/') + (up.QueryString ?? "");
-
-                // 组织请求信息
-                var request = new HttpRequestMessage(up.Method, normalizedBase + relativeUrl);
-                foreach (var header in up.Headers)
-                {
-                    request.Headers.TryAddWithoutValidation(header.Key, header.Value);
-                }
-                if (up.BodyJson != null)
-                {
-                    var bodyContent = up.BodyJson.ToJsonString();
-                    request.Content = new ByteArrayContent(Encoding.UTF8.GetBytes(bodyContent));
-                    request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-                }
+                // 统一交由 UpRequestContext 中心化构建请求报文
+                using var request = up.BuildHttpRequestMessage();
 
                 // 发送请求
                 var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
@@ -113,7 +104,8 @@ public abstract class BaseChatModelHandler : IChatModelHandler
                     Logger.LogWarning("端点异常 ({StatusCode})，切换备用端点", response.StatusCode);
                     response.Dispose();
                     hasTriedFallback = true;
-                    currentBaseUrl = fallbackUrl;
+                    // 同步更新上下文的 BaseUrl 以供下一轮 BuildHttpRequestMessage 使用
+                    up.BaseUrl = fallbackUrl;
                     continue;
                 }
 
@@ -127,16 +119,162 @@ public abstract class BaseChatModelHandler : IChatModelHandler
         }
     }
 
-    // ── SSE Line Callback
+    // ── SendAsync（两阶段：Phase 1 发送 + Phase 2 流式消费）
 
-    public virtual Action<string>? GetSseLineCallback(string? sessionId) => null;
+    /// <summary>
+    /// Phase 1：发送请求，等待响应头返回。
+    /// 成功时 ProxyResponse.Events 携带懒加载事件流；
+    /// 失败时 ProxyResponse.ErrorBody 携带错误体，HttpResponseMessage 已 Dispose。
+    /// </summary>
+    public async Task<ProxyResponse> SendAsync(
+        UpRequestContext up,
+        DownRequestContext down,
+        bool isStreaming,
+        CancellationToken ct = default)
+    {
+        var response = await SendRequestAsync(up, ct);
+        var statusCode = (int)response.StatusCode;
+        var headers = ExtractResponseHeaders(response);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(ct);
+            response.Dispose();
+            return new ProxyResponse
+            {
+                IsSuccess = false,
+                StatusCode = statusCode,
+                Headers = headers,
+                ErrorBody = errorBody
+            };
+        }
+
+        // Phase 2：状态机闭包持有 response，finally 块负责 Dispose
+        var processors = GetResponseProcessors(up, down);
+        var events = StreamResponseAsync(response, statusCode, headers, processors, isStreaming, ct);
+        return new ProxyResponse
+        {
+            IsSuccess = true,
+            StatusCode = statusCode,
+            Headers = headers,
+            Events = events
+        };
+    }
+
+    /// <summary>
+    /// Phase 2（私有）：懒加载消费响应体，处理 SSE 解析与事件产出。
+    /// HttpResponseMessage 在 finally 块中 Dispose，由调用方（中间件）通过枚举触发。
+    /// </summary>
+    private async IAsyncEnumerable<StreamEvent> StreamResponseAsync(
+        HttpResponseMessage response,
+        int statusCode,
+        Dictionary<string, IEnumerable<string>> responseHeaders,
+        IReadOnlyList<IResponseProcessor> processors,
+        bool isStreaming,
+        [EnumeratorCancellation] CancellationToken ct)
+    {
+        try
+        {
+            if (isStreaming)
+            {
+                var sseBuffer = new SseStreamBuffer();
+                await using var responseStream = await response.Content.ReadAsStreamAsync(ct);
+                var buffer = ArrayPool<byte>.Shared.Rent(8192);
+
+                bool requiresMutation = processors.Any(p => p.RequiresMutation);
+
+                try
+                {
+                    int bytesRead;
+                    while ((bytesRead = await responseStream.ReadAsync(buffer, ct)) > 0)
+                    {
+                        if (!requiresMutation)
+                        {
+                            // 【Fast-Pass 模式】直接将底层网络数据块作为 ForwardBytes 抛出，0 损耗 / 0 篡改
+                            yield return new StreamEvent
+                            {
+                                ForwardBytes = buffer.AsSpan(0, bytesRead).ToArray()
+                            };
+                        }
+
+                        var lines = sseBuffer.ProcessChunk(buffer.AsSpan(0, bytesRead));
+                        foreach (var line in lines)
+                        {
+                            var evt = await ProcessLineAsync(line);
+                            if (evt != null) yield return evt;
+                            if (evt?.IsComplete == true) yield break;
+                        }
+                    }
+
+                    // 刷新 SSE 缓冲区残留
+                    foreach (var line in sseBuffer.Flush())
+                    {
+                        var evt = await ProcessLineAsync(line);
+                        if (evt != null) yield return evt;
+                        if (evt?.IsComplete == true) yield break;
+                    }
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(buffer);
+                }
+
+                async ValueTask<StreamEvent?> ProcessLineAsync(string line)
+                {
+                    if (string.IsNullOrEmpty(line))
+                    {
+                        return requiresMutation ? new StreamEvent { ForwardBytes = "\n"u8.ToArray() } : null;
+                    }
+
+                    var evt = new StreamEvent { SseLine = line };
+                    
+                    // Mutating 模式下按行附加已缓冲的重写报文以供修改
+                    if (requiresMutation) evt.ForwardBytes = Encoding.UTF8.GetBytes(line + "\n");
+
+                    foreach (var proc in processors) await proc.ProcessAsync(evt, ct);
+
+                    // 当提取出关键元数据，或者在 Mutating 模式下必发包时抛出事件
+                    return (evt.Content != null || evt.InlineData != null || evt.IsComplete || evt.Type == StreamEventType.Error || evt.Usage != null || evt.ForwardBytes != null)
+                        ? evt
+                        : null;
+                }
+
+                // 补发完成事件（ForwardBytes=null，让中间件补发 [DONE]）
+                var completeEvt = new StreamEvent
+                {
+                    IsComplete = true
+                };
+                foreach (var proc in processors)
+                    await proc.ProcessAsync(completeEvt, ct);
+                yield return completeEvt;
+            }
+            else
+            {
+                // 非流式：读取完整响应体
+                var body = await response.Content.ReadAsStringAsync(ct);
+                var evt = new StreamEvent
+                {
+                    Content = body,
+                    IsComplete = true
+                };
+                foreach (var proc in processors)
+                    await proc.ProcessAsync(evt, ct);
+                yield return evt;
+            }
+        }
+        finally
+        {
+            // 确保 HttpResponseMessage 在枚举完成（含取消）后正确释放
+            response.Dispose();
+        }
+    }
 
     // ── Retry Policy
 
     public virtual Task<ModelErrorAnalysisResult> CheckRetryPolicyAsync(
         int statusCode,
         Dictionary<string, IEnumerable<string>>? headers,
-        string responseBody)
+        string? responseBody)
     {
         var isOfficialAccount = string.IsNullOrEmpty(Options.BaseUrl);
         var result = new ModelErrorAnalysisResult();
@@ -158,8 +296,6 @@ public abstract class BaseChatModelHandler : IChatModelHandler
         return Task.FromResult(result);
     }
 
-    public abstract ChatResponsePart? ParseChunk(string chunk);
-    public abstract ChatResponsePart ParseCompleteResponse(string responseBody);
     public abstract void ExtractModelInfo(DownRequestContext down, Guid apiKeyId);
     public abstract DownRequestContext CreateDebugDownContext(string modelId, string message);
     public virtual Task<ConnectionValidationResult> ValidateConnectionAsync(CancellationToken ct = default) =>
@@ -428,5 +564,18 @@ public abstract class BaseChatModelHandler : IChatModelHandler
         }
 
         return null;
+    }
+
+    // ── Helper: Extract response headers
+
+    private static Dictionary<string, IEnumerable<string>> ExtractResponseHeaders(HttpResponseMessage response)
+    {
+        var headers = new Dictionary<string, IEnumerable<string>>();
+        foreach (var header in response.Headers)
+            headers[header.Key] = header.Value;
+        if (response.Content?.Headers != null)
+            foreach (var header in response.Content.Headers)
+                headers[header.Key] = header.Value;
+        return headers;
     }
 }

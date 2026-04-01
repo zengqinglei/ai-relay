@@ -7,8 +7,8 @@ using AiRelay.Domain.Shared.ExternalServices.ChatModel.ResponseParsing;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.SignatureCache;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Cleaning;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.OpenAi;
-using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.Parsers;
-using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.ResponseParsing.StreamProcessor;
+using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Response;
+using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Response.OpenAi;
 using Microsoft.Extensions.Logging;
 using System.Text;
 using System.Text.Json.Nodes;
@@ -20,13 +20,29 @@ public class OpenAiChatModelHandler(
     OpenAiCodexInjector openAiCodexInjector,
     IModelProvider modelProvider,
     IHttpClientFactory httpClientFactory,
-    SseResponseStreamProcessor streamProcessor,
     ISignatureCache signatureCache,
     ILogger<OpenAiChatModelHandler> logger)
-    : BaseChatModelHandler(options, httpClientFactory, streamProcessor, signatureCache, logger)
+    : BaseChatModelHandler(options, httpClientFactory, signatureCache, logger)
 {
     public override bool Supports(ProviderPlatform platform) =>
         platform is ProviderPlatform.OPENAI_OAUTH or ProviderPlatform.OPENAI_APIKEY;
+
+    protected override IReadOnlyList<IResponseProcessor> GetResponseProcessors(
+        UpRequestContext up, DownRequestContext down)
+    {
+        var processors = new List<IResponseProcessor>
+        {
+
+            new OpenAiParseSseResponseProcessor(),
+            new FetchUsageTokenResponseProcessor()
+        };
+
+        // /responses 端点的响应需要转化为标准 Chat Completion 格式
+        if (down.RelativePath.Contains("/chat/completions", StringComparison.OrdinalIgnoreCase))
+            processors.Add(new ToCompletionResponseProcessor());
+
+        return processors;
+    }
 
     public override DownRequestContext CreateDebugDownContext(string modelId, string message)
     {
@@ -195,12 +211,6 @@ public class OpenAiChatModelHandler(
         }
         return base.ExtractRetryAfter(headers, body);
     }
-
-    public override ChatResponsePart? ParseChunk(string chunk) =>
-        OpenAiChatModelResponseParser.ParseChunkStatic(chunk);
-
-    public override ChatResponsePart ParseCompleteResponse(string responseBody) =>
-        OpenAiChatModelResponseParser.ParseCompleteResponseStatic(responseBody);
 
     private static TimeSpan? ParseOpenAiDuration(string duration)
     {

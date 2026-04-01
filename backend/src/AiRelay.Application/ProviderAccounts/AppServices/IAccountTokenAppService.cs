@@ -8,7 +8,7 @@ namespace AiRelay.Application.ProviderAccounts.AppServices;
 
 public interface IAccountTokenAppService : IAppService
 {
-    IAsyncEnumerable<ChatStreamEvent> DebugModelAsync(
+    IAsyncEnumerable<StreamEvent> DebugModelAsync(
         Guid id,
         ChatMessageInputDto input,
         CancellationToken cancellationToken = default);
