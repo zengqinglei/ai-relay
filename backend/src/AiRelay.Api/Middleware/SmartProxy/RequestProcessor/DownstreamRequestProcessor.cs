@@ -1,5 +1,5 @@
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.Handler;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.RequestParsing;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient.Context;
 using AiRelay.Domain.UsageRecords.Options;
 using Leistd.Exception.Core;
 using Microsoft.Extensions.Options;

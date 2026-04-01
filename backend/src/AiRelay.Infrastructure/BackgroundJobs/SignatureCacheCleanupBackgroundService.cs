@@ -1,4 +1,4 @@
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.SignatureCache;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient.SignatureCache;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 

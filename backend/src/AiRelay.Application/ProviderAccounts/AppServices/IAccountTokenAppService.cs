@@ -1,6 +1,6 @@
 using AiRelay.Application.ProviderAccounts.Dtos;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 using Leistd.Ddd.Application.Contracts.AppService;
 using Leistd.Ddd.Application.Contracts.Dtos;
 

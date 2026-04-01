@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using AiRelay.Domain.ProviderAccounts.Entities;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.Constants;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient.Constants;
 using Leistd.Ddd.Domain.Repositories;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;

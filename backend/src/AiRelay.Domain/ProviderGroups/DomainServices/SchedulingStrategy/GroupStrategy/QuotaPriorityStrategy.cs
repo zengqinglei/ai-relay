@@ -1,6 +1,6 @@
 using AiRelay.Domain.ProviderAccounts.DomainServices;
 using AiRelay.Domain.ProviderGroups.Entities;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;

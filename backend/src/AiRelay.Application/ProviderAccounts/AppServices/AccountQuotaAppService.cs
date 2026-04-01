@@ -1,6 +1,6 @@
 using AiRelay.Domain.ProviderAccounts.Entities;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.Handler;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient;
 using Leistd.Ddd.Application.AppService;
 using Leistd.Ddd.Domain.Repositories;
 using Microsoft.Extensions.Caching.Distributed;

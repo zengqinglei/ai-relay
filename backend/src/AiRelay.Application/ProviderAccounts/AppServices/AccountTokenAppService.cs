@@ -6,9 +6,6 @@ using AiRelay.Domain.ProviderAccounts.Extensions;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.ProviderGroups.DomainServices.SchedulingStrategy.AccountConcurrencyStrategy;
 using AiRelay.Domain.ProviderGroups.Entities;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.Handler;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.Provider;
 using AiRelay.Domain.Shared.OAuth.Authorize;
 
 using Leistd.Ddd.Application.AppService;
@@ -19,6 +16,10 @@ using Leistd.ObjectMapping.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Runtime.CompilerServices;
+using AiRelay.Domain.Shared.ExternalServices.ModelProvider;
+using AiRelay.Domain.Shared.ExternalServices.ModelProvider.Dto;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient;
 
 namespace AiRelay.Application.ProviderAccounts.AppServices;
 

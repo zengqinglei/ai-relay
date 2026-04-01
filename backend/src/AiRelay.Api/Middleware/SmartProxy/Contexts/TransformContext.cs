@@ -1,5 +1,5 @@
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.RequestParsing;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient.Context;
 
 namespace AiRelay.Api.Middleware.SmartProxy.Contexts;
 

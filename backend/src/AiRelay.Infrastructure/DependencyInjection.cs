@@ -26,19 +26,19 @@ using AiRelay.Domain.Shared.OAuth.Authorize;
 using AiRelay.Domain.Shared.OAuth.Google;
 using AiRelay.Infrastructure.Shared.OAuth.Authorize;
 using AiRelay.Infrastructure.Shared.OAuth.Google;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.Provider;
-using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Provider;
 using AiRelay.Domain.UsageRecords.Options;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.SignatureCache;
-using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.SignatureCache;
 using AiRelay.Infrastructure.BackgroundJobs;
 
 using AiRelay.Domain.ProviderGroups.DomainServices.SchedulingStrategy.AccountConcurrencyStrategy;
 using AiRelay.Infrastructure.SchedulingStrategy.AccountConcurrencyStrategy;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.Handler;
-using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Handler;
-using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Claude;
-using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Cleaning;
+using AiRelay.Domain.Shared.ExternalServices.ModelProvider;
+using AiRelay.Infrastructure.Shared.ExternalServices.ModelProvider;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient.SignatureCache;
+using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient;
+using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.SignatureCache;
+using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Cleaning;
+using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.Claude;
 
 namespace AiRelay.Infrastructure;
 

@@ -1,4 +1,4 @@
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 
 namespace AiRelay.Application.ProviderGroups.Dtos;
 

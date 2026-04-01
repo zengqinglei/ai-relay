@@ -1,8 +1,8 @@
 using AiRelay.Domain.ProviderAccounts.Entities;
 using AiRelay.Domain.ProviderAccounts.Extensions;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.Handler;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.Provider;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient;
+using AiRelay.Domain.Shared.ExternalServices.ModelProvider;
 using AiRelay.Domain.Shared.OAuth.Authorize;
 using Leistd.Ddd.Domain.Repositories;
 using Leistd.Exception.Core;

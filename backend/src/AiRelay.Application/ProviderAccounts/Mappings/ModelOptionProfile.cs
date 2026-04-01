@@ -1,5 +1,5 @@
 using AiRelay.Application.ProviderAccounts.Dtos;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
+using AiRelay.Domain.Shared.ExternalServices.ModelProvider.Dto;
 using AutoMapper;
 
 namespace AiRelay.Application.ProviderAccounts.Mappings;

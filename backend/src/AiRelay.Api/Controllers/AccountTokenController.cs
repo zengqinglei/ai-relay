@@ -3,7 +3,7 @@ using System.Text.Json;
 using AiRelay.Application.ProviderAccounts.AppServices;
 using AiRelay.Application.ProviderAccounts.Dtos;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 using Leistd.Ddd.Application.Contracts.Dtos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
