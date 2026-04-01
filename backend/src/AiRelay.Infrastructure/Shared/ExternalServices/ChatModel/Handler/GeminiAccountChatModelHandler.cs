@@ -224,4 +224,41 @@ public class GeminiAccountChatModelHandler(
             BodyBytes = Encoding.UTF8.GetBytes(json.ToJsonString()).AsMemory()
         };
     }
+
+
+
+    /// <summary>
+    /// 统计 payload（通常为 contents 或 messages）中 user 角色的数量，作为递增提问索引
+    /// </summary>
+    private static int ExtractPromptIndex(JsonNode? body)
+    {
+        if (body is not JsonObject jsonObj) return 0;
+
+        var index = 0;
+
+        // 兼容 Gemini 格式
+        if (jsonObj.TryGetPropertyValue("contents", out var contentsNode) && contentsNode is JsonArray contents)
+        {
+            foreach (var item in contents)
+            {
+                if (item is JsonObject obj && obj.TryGetPropertyValue("role", out var roleNode) && roleNode is JsonValue roleVal && roleVal.TryGetValue<string>(out var role) && role == "user")
+                {
+                    index++;
+                }
+            }
+        }
+        // 兼容 OpenAI / Claude 等 messages 格式
+        else if (jsonObj.TryGetPropertyValue("messages", out var messagesNode) && messagesNode is JsonArray messages)
+        {
+            foreach (var item in messages)
+            {
+                if (item is JsonObject obj && obj.TryGetPropertyValue("role", out var roleNode) && roleNode is JsonValue roleVal && roleVal.TryGetValue<string>(out var role) && role == "user")
+                {
+                    index++;
+                }
+            }
+        }
+
+        return index > 0 ? index - 1 : 0;
+    }
 }

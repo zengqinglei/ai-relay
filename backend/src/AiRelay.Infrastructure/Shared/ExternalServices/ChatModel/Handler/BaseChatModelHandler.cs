@@ -140,25 +140,13 @@ public abstract class BaseChatModelHandler : IChatModelHandler
         {
             var errorBody = await response.Content.ReadAsStringAsync(ct);
             response.Dispose();
-            return new ProxyResponse
-            {
-                IsSuccess = false,
-                StatusCode = statusCode,
-                Headers = headers,
-                ErrorBody = errorBody
-            };
+            return new ProxyResponse(false, statusCode, headers, errorBody, null);
         }
 
         // Phase 2：状态机闭包持有 response，finally 块负责 Dispose
         var processors = GetResponseProcessors(up, down);
         var events = StreamResponseAsync(response, statusCode, headers, processors, isStreaming, ct);
-        return new ProxyResponse
-        {
-            IsSuccess = true,
-            StatusCode = statusCode,
-            Headers = headers,
-            Events = events
-        };
+        return new ProxyResponse(true, statusCode, headers, null, events);
     }
 
     /// <summary>
@@ -190,15 +178,15 @@ public abstract class BaseChatModelHandler : IChatModelHandler
                     {
                         if (!requiresMutation)
                         {
-                            // 【Fast-Pass 模式】直接将底层网络数据块作为 ForwardBytes 抛出，0 损耗 / 0 篡改
-                            yield return new StreamEvent
-                            {
-                                ForwardBytes = buffer.AsSpan(0, bytesRead).ToArray()
-                            };
+                            // 【Fast-Pass 模式】整块网络帧直接作为 ForwardBytes 转发，0 损耗 / 0 篡改
+                            // 解决 #1：帧只在此处 yield 一次，ProcessLineAsync 不再写 ForwardBytes，消除双 yield
+                            yield return new StreamEvent { ForwardBytes = buffer.AsSpan(0, bytesRead).ToArray() };
                         }
 
-                        var lines = sseBuffer.ProcessChunk(buffer.AsSpan(0, bytesRead));
-                        foreach (var line in lines)
+                        // 无论 Fast-Pass 还是 Mutation 模式，行解析都要执行
+                        // 解决 #2：Fast-Pass 下仍驱动 Processor 链，UsageAccumulatorResponseProcessor 可正常累积 Usage
+                        // span 在 yield 之后创建，不跨越 yield/await 边界
+                        foreach (var line in sseBuffer.ProcessChunk(buffer.AsSpan(0, bytesRead)))
                         {
                             var evt = await ProcessLineAsync(line);
                             if (evt != null) yield return evt;
@@ -223,18 +211,20 @@ public abstract class BaseChatModelHandler : IChatModelHandler
                 {
                     if (string.IsNullOrEmpty(line))
                     {
+                        // Mutation 模式：空行是 SSE 事件定界符，需要转发
+                        // Fast-Pass 模式：空行已包含在整块帧中，无需单独处理
                         return requiresMutation ? new StreamEvent { ForwardBytes = "\n"u8.ToArray() } : null;
                     }
 
+                    // ProcessLineAsync 只负责语义解析，不写 ForwardBytes
+                    // Fast-Pass 下 ForwardBytes 由外层整块帧负责
+                    // Mutation 下 ForwardBytes 由各 Processor（如 ToCompletionResponseProcessor）负责
                     var evt = new StreamEvent { SseLine = line };
-                    
-                    // Mutating 模式下按行附加已缓冲的重写报文以供修改
-                    if (requiresMutation) evt.ForwardBytes = Encoding.UTF8.GetBytes(line + "\n");
-
                     foreach (var proc in processors) await proc.ProcessAsync(evt, ct);
 
-                    // 当提取出关键元数据，或者在 Mutating 模式下必发包时抛出事件
-                    return (evt.Content != null || evt.InlineData != null || evt.IsComplete || evt.Type == StreamEventType.Error || evt.Usage != null || evt.ForwardBytes != null)
+                    // 有语义内容（Content/Usage/IsComplete/Error）或 Mutation 模式下 Processor 填充了 ForwardBytes，才 yield
+                    return (evt.Content != null || evt.InlineData != null || evt.IsComplete
+                            || evt.Type == StreamEventType.Error || evt.Usage != null || evt.ForwardBytes != null)
                         ? evt
                         : null;
                 }
@@ -435,135 +425,6 @@ public abstract class BaseChatModelHandler : IChatModelHandler
     protected static string GenerateFallbackSessionId()
     {
         return $"sid-{Guid.NewGuid():N}"[..FallbackSessionIdLength];
-    }
-
-    /// <summary>
-    /// 统计 payload（通常为 contents 或 messages）中 user 角色的数量，作为递增提问索引
-    /// </summary>
-    protected static int ExtractPromptIndex(JsonNode? body)
-    {
-        if (body is not JsonObject jsonObj) return 0;
-
-        var index = 0;
-
-        // 兼容 Gemini 格式
-        if (jsonObj.TryGetPropertyValue("contents", out var contentsNode) && contentsNode is JsonArray contents)
-        {
-            foreach (var item in contents)
-            {
-                if (item is JsonObject obj && obj.TryGetPropertyValue("role", out var roleNode) && roleNode is JsonValue roleVal && roleVal.TryGetValue<string>(out var role) && role == "user")
-                {
-                    index++;
-                }
-            }
-        }
-        // 兼容 OpenAI / Claude 等 messages 格式
-        else if (jsonObj.TryGetPropertyValue("messages", out var messagesNode) && messagesNode is JsonArray messages)
-        {
-            foreach (var item in messages)
-            {
-                if (item is JsonObject obj && obj.TryGetPropertyValue("role", out var roleNode) && roleNode is JsonValue roleVal && roleVal.TryGetValue<string>(out var role) && role == "user")
-                {
-                    index++;
-                }
-            }
-        }
-
-        return index > 0 ? index - 1 : 0;
-    }
-
-    /// <summary>
-    /// 提取带 cache_control: ephemeral 的内容（Prompt Caching 支持）
-    /// </summary>
-    protected static string? ExtractCacheableContent(JsonNode? root)
-    {
-        if (root is not JsonObject rootObj) return null;
-
-        if (rootObj.TryGetPropertyValue("system", out var systemNode) &&
-            systemNode is JsonArray systemArray)
-        {
-            foreach (var part in systemArray)
-            {
-                if (part is not JsonObject partObj) continue;
-                if (partObj.TryGetPropertyValue("cache_control", out var cacheControlNode) &&
-                    cacheControlNode is JsonObject cacheControl &&
-                    cacheControl.TryGetPropertyValue("type", out var typeNode) &&
-                    typeNode is JsonValue typeValue &&
-                    typeValue.TryGetValue<string>(out var type) &&
-                    type == "ephemeral")
-                {
-                    if (partObj.TryGetPropertyValue("text", out var textNode) &&
-                        textNode is JsonValue textValue &&
-                        textValue.TryGetValue<string>(out var text) &&
-                        !string.IsNullOrWhiteSpace(text))
-                    {
-                        return text;
-                    }
-                }
-            }
-        }
-
-        if (rootObj.TryGetPropertyValue("messages", out var messagesNode) &&
-            messagesNode is JsonArray messagesArray)
-        {
-            foreach (var message in messagesArray)
-            {
-                if (message is not JsonObject messageObj) continue;
-                if (messageObj.TryGetPropertyValue("content", out var contentNode) &&
-                    contentNode is JsonArray contentArray)
-                {
-                    foreach (var part in contentArray)
-                    {
-                        if (part is not JsonObject partObj) continue;
-                        if (partObj.TryGetPropertyValue("cache_control", out var cacheControlNode) &&
-                            cacheControlNode is JsonObject cacheControl &&
-                            cacheControl.TryGetPropertyValue("type", out var typeNode) &&
-                            typeNode is JsonValue typeValue &&
-                            typeValue.TryGetValue<string>(out var type) &&
-                            type == "ephemeral")
-                        {
-                            return ExtractTextFromMessageContent(message);
-                        }
-                    }
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private static string? ExtractTextFromMessageContent(JsonNode? message)
-    {
-        if (message is not JsonObject messageObj ||
-            !messageObj.TryGetPropertyValue("content", out var contentNode))
-            return null;
-
-        if (contentNode is JsonValue contentValue &&
-            contentValue.TryGetValue<string>(out var contentStr))
-            return contentStr;
-
-        if (contentNode is JsonArray contentArray)
-        {
-            var builder = new StringBuilder();
-            foreach (var part in contentArray)
-            {
-                if (part is not JsonObject partObj) continue;
-                if (partObj.TryGetPropertyValue("type", out var typeNode) &&
-                    typeNode is JsonValue typeValue &&
-                    typeValue.TryGetValue<string>(out var type) &&
-                    type == "text" &&
-                    partObj.TryGetPropertyValue("text", out var textNode) &&
-                    textNode is JsonValue textValue &&
-                    textValue.TryGetValue<string>(out var text) &&
-                    !string.IsNullOrWhiteSpace(text))
-                {
-                    builder.Append(text);
-                }
-            }
-            return builder.Length > 0 ? builder.ToString() : null;
-        }
-
-        return null;
     }
 
     // ── Helper: Extract response headers

@@ -34,10 +34,11 @@ public class OpenAiChatModelHandler(
         {
 
             new OpenAiParseSseResponseProcessor(),
-            new FetchUsageTokenResponseProcessor()
+            new UsageAccumulatorResponseProcessor()
         };
 
-        // /responses 端点的响应需要转化为标准 Chat Completion 格式
+        // 下游请求路径为 /chat/completions 时，上游走的是 Responses API（/v1/responses 或 /backend-api/codex/responses）
+        // 需要将 Responses API 的 SSE 格式转换为标准 Chat Completions SSE 格式
         if (down.RelativePath.Contains("/chat/completions", StringComparison.OrdinalIgnoreCase))
             processors.Add(new ToCompletionResponseProcessor());
 

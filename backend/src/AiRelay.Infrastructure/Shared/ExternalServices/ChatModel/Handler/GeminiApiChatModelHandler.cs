@@ -8,13 +8,10 @@ using AiRelay.Domain.Shared.ExternalServices.ChatModel.Dto;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Parsing;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.Processors;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.RequestParsing;
-using AiRelay.Domain.Shared.ExternalServices.ChatModel.ResponseParsing;
 using AiRelay.Domain.Shared.ExternalServices.ChatModel.SignatureCache;
 using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Gemini;
-using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Response;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
-using AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Response.Google;
 
 namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Handler;
 
@@ -26,7 +23,7 @@ public class GeminiApiChatModelHandler(
     GeminiSystemPromptInjector geminiSystemPromptInjector,
     ISignatureCache signatureCache,
     ILogger<GeminiApiChatModelHandler> logger)
-    : BaseChatModelHandler(options, httpClientFactory, signatureCache, logger)
+    : GoogleInternalChatModelHandlerBase(options, httpClientFactory, signatureCache, logger)
 {
     // Gemini CLI 临时目录正则匹配: .gemini/tmp/[64位哈希]
     private static readonly Regex GeminiCliTmpDirRegex = new(@"\.gemini/tmp/([A-Fa-f0-9]{64})", RegexOptions.Compiled);
@@ -48,18 +45,7 @@ public class GeminiApiChatModelHandler(
         ];
     }
 
-    protected override IReadOnlyList<IResponseProcessor> GetResponseProcessors(
-        UpRequestContext up, DownRequestContext down)
-    {
-        return
-        [
-
-            new GoogleParseSseResponseProcessor(),
-            new FetchUsageTokenResponseProcessor(),
-            new CacheSignatureResponseProcessor(SignatureCache, up.SessionId, Logger)
-        ];
-    }
-
+    protected override string? GetFallbackBaseUrl(int statusCode) => null;
     public override void ExtractModelInfo(DownRequestContext down, Guid apiKeyId)
     {
         // 1. 提取 ModelId — 优先从 URL 路径提取
@@ -92,6 +78,7 @@ public class GeminiApiChatModelHandler(
 
         // ========== 提取 SessionHash ==========
         // 优先级 1: Gemini CLI 专用逻辑 (从 tmp 目录提取)
+        // ApiKey 场景：通过 header x-gemini-api-privileged-user-id + tmpDirHash 组合
         var match = down.SearchBodyPattern(GeminiCliTmpDirRegex, maxSearchLength: 50000);
         if (match.Success && match.Groups.Count >= 2)
         {
@@ -167,7 +154,7 @@ public class GeminiApiChatModelHandler(
                         var fullName = nameProp.GetString(); // "models/gemini-2.5-pro"
                         if (!string.IsNullOrEmpty(fullName) && fullName.StartsWith("models/"))
                         {
-                            var modelIdStr = fullName.Substring(7);
+                            var modelIdStr = fullName[7..];
 
                             // 过滤：仅保留 generateContent 支持的模型
                             if (item.TryGetProperty("supportedGenerationMethods", out var methodsArray))
@@ -223,4 +210,10 @@ public class GeminiApiChatModelHandler(
             BodyBytes = Encoding.UTF8.GetBytes(json.ToJsonString()).AsMemory()
         };
     }
+
+    public override Task<ModelErrorAnalysisResult> CheckRetryPolicyAsync(int statusCode, Dictionary<string, IEnumerable<string>>? headers, string? responseBody) =>
+        base.CheckRetryPolicyAsync(statusCode, headers, responseBody);
+
+    public override Task<ConnectionValidationResult> ValidateConnectionAsync(CancellationToken ct = default) =>
+        Task.FromResult(new ConnectionValidationResult(true));
 }

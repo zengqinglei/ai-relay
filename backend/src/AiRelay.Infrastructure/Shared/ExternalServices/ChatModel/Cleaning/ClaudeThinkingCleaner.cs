@@ -217,7 +217,7 @@ public class ClaudeThinkingCleaner(ILogger<ClaudeThinkingCleaner> logger)
     /// <summary>
     /// 检测是否为 thinking block 签名错误（需要降级重试）
     /// </summary>
-    public static bool IsThinkingBlockSignatureError(string responseBody)
+    public static bool IsThinkingBlockSignatureError(string? responseBody)
     {
         if (string.IsNullOrWhiteSpace(responseBody)) return false;
 

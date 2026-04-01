@@ -6,7 +6,7 @@ namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Re
 
 /// <summary>
 /// OpenAI 平台 SSE 解析 Processor
-/// 内聚原 OpenAiChatModelResponseParser 的全部逻辑
+/// 内聚原 OpenAiChatModelResponseParser 的全部逻辑，直接操作 StreamEvent 消除中间对象分配
 /// </summary>
 public class OpenAiParseSseResponseProcessor : IResponseProcessor
 {
@@ -17,59 +17,45 @@ public class OpenAiParseSseResponseProcessor : IResponseProcessor
         if (evt.Type == StreamEventType.Error) return Task.CompletedTask;
 
         if (evt.SseLine != null)
-        {
-            var part = ParseChunk(evt.SseLine);
-            if (part != null) ApplyPart(evt, part);
-        }
+            ParseChunk(evt.SseLine, evt);
         else if (evt.Content != null)
         {
-            var part = ParseCompleteResponse(evt.Content);
-            ApplyPart(evt, part);
+            ParseCompleteResponse(evt.Content, evt);
             evt.IsComplete = true;
         }
 
         return Task.CompletedTask;
     }
 
-    // ── 迁入自 OpenAiChatModelResponseParser ──
-
-    private static ChatResponsePart? ParseChunk(string chunk)
+    private static void ParseChunk(string chunk, StreamEvent evt)
     {
         var trimmed = chunk.Trim();
-        if (string.IsNullOrEmpty(trimmed) || !trimmed.StartsWith("data: ")) return null;
+        if (string.IsNullOrEmpty(trimmed) || !trimmed.StartsWith("data: ")) return;
 
-        var json = trimmed.Substring(6).Trim();
-        if (json == "[DONE]") return new ChatResponsePart(IsComplete: true);
+        var json = trimmed[6..].Trim();
+        if (json == "[DONE]") { evt.IsComplete = true; return; }
 
         try
         {
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
-            string? content = null;
-            string? model = null;
-            ResponseUsage? usage = null;
-            bool isComplete = false;
-
             if (root.TryGetProperty("type", out var typeProperty))
             {
-                var eventType = typeProperty.GetString();
-
-                switch (eventType)
+                // Responses API 格式
+                switch (typeProperty.GetString())
                 {
                     case "response.output_text.delta":
                         if (root.TryGetProperty("delta", out var delta))
-                            content = delta.GetString();
+                            evt.Content = delta.GetString();
                         break;
 
                     case "response.completed":
-                        isComplete = true;
+                        evt.IsComplete = true;
                         if (root.TryGetProperty("response", out var response))
                         {
-                            if (response.TryGetProperty("model", out var m))
-                                model = m.GetString();
-                            if (response.TryGetProperty("usage", out var u))
-                                usage = ExtractResponsesApiUsage(u);
+                            if (response.TryGetProperty("model", out var m)) evt.ModelId ??= m.GetString();
+                            if (response.TryGetProperty("usage", out var u)) evt.Usage = ExtractResponsesApiUsage(u);
                         }
                         break;
 
@@ -88,17 +74,15 @@ public class OpenAiParseSseResponseProcessor : IResponseProcessor
                                     : $"{errorMsg} (code: {codeStr})";
                             }
                         }
-                        return new ChatResponsePart(Error: errorMsg ?? "Unknown error from upstream");
-
-                    default:
-                        return null;
+                        evt.Type = StreamEventType.Error;
+                        evt.Content = errorMsg ?? "Unknown error from upstream";
+                        break;
                 }
             }
             else
             {
                 // Chat Completions API 格式
-                if (root.TryGetProperty("model", out var modelProp))
-                    model = modelProp.GetString();
+                if (root.TryGetProperty("model", out var modelProp)) evt.ModelId ??= modelProp.GetString();
 
                 if (root.TryGetProperty("choices", out var choices) && choices.GetArrayLength() > 0)
                 {
@@ -106,40 +90,24 @@ public class OpenAiParseSseResponseProcessor : IResponseProcessor
                     if (choice.TryGetProperty("delta", out var delta) &&
                         delta.TryGetProperty("content", out var c))
                     {
-                        content = c.GetString();
+                        evt.Content = c.GetString();
                     }
                 }
 
-                if (root.TryGetProperty("usage", out var u))
-                    usage = ExtractUsage(u);
+                if (root.TryGetProperty("usage", out var u)) evt.Usage = ExtractUsage(u);
             }
-
-            return new ChatResponsePart(
-                Content: content,
-                Usage: usage,
-                IsComplete: isComplete,
-                ModelId: model
-            );
         }
-        catch
-        {
-            return null;
-        }
+        catch { }
     }
 
-    private static ChatResponsePart ParseCompleteResponse(string responseBody)
+    private static void ParseCompleteResponse(string responseBody, StreamEvent evt)
     {
         try
         {
             using var doc = JsonDocument.Parse(responseBody);
             var root = doc.RootElement;
 
-            string? content = null;
-            string? model = null;
-            ResponseUsage? usage = null;
-
-            if (root.TryGetProperty("model", out var modelProp))
-                model = modelProp.GetString();
+            if (root.TryGetProperty("model", out var modelProp)) evt.ModelId ??= modelProp.GetString();
 
             if (root.TryGetProperty("choices", out var choices) && choices.GetArrayLength() > 0)
             {
@@ -147,23 +115,16 @@ public class OpenAiParseSseResponseProcessor : IResponseProcessor
                 if (choice.TryGetProperty("message", out var message) &&
                     message.TryGetProperty("content", out var c))
                 {
-                    content = c.GetString();
+                    evt.Content = c.GetString();
                 }
             }
 
-            if (root.TryGetProperty("usage", out var u))
-                usage = ExtractUsage(u);
-
-            return new ChatResponsePart(
-                Content: content,
-                Usage: usage,
-                IsComplete: true,
-                ModelId: model
-            );
+            if (root.TryGetProperty("usage", out var u)) evt.Usage = ExtractUsage(u);
         }
         catch
         {
-            return new ChatResponsePart(Error: "Invalid JSON response");
+            evt.Type = StreamEventType.Error;
+            evt.Content = "Invalid JSON response";
         }
     }
 
@@ -189,22 +150,5 @@ public class OpenAiParseSseResponseProcessor : IResponseProcessor
             if (details.TryGetProperty("cached_tokens", out var c)) cached = c.GetInt32();
         }
         return new ResponseUsage(input, output, cached);
-    }
-
-    private static void ApplyPart(StreamEvent evt, ChatResponsePart part)
-    {
-        if (part.Error != null)
-        {
-            evt.Type = StreamEventType.Error;
-            evt.Content = part.Error;
-        }
-        else
-        {
-            evt.Content = part.Content;
-        }
-        evt.Usage = part.Usage;
-        evt.ModelId ??= part.ModelId;
-        evt.IsComplete = part.IsComplete;
-        evt.InlineData = part.InlineData;
     }
 }

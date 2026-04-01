@@ -219,7 +219,7 @@ public class GoogleSignatureCleaner(
             while ((line = reader.ReadLine()) != null)
             {
                 if (!line.StartsWith("data:")) continue;
-                var json = line.Substring(5).TrimStart();
+                var json = line[5..].TrimStart();
                 if (json == "[DONE]") break;
 
                 try

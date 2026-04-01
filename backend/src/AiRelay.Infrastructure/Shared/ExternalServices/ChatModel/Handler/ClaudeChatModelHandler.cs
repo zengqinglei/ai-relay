@@ -39,7 +39,7 @@ public class ClaudeChatModelHandler(
         [
 
             new ClaudeParseSseResponseProcessor(),
-            new FetchUsageTokenResponseProcessor()
+            new UsageAccumulatorResponseProcessor()
         ];
     }
 
@@ -251,6 +251,24 @@ public class ClaudeChatModelHandler(
         }
     }
 
+    public override Task<ModelErrorAnalysisResult> CheckRetryPolicyAsync(
+        int statusCode,
+        Dictionary<string, IEnumerable<string>>? headers,
+        string? responseBody)
+    {
+        if (statusCode == 400 && ClaudeThinkingCleaner.IsThinkingBlockSignatureError(responseBody))
+        {
+            Logger.LogWarning("检测到 Claude thinking 签名错误，建议降级重试");
+            return Task.FromResult(new ModelErrorAnalysisResult
+            {
+                IsCanRetry = true,
+                RequiresDowngrade = true
+            });
+        }
+
+        return base.CheckRetryPolicyAsync(statusCode, headers, responseBody);
+    }
+
     private static string ExtractTextFromContent(JsonNode? message)
     {
         if (message is not JsonObject messageObj ||
@@ -284,23 +302,97 @@ public class ClaudeChatModelHandler(
         return string.Empty;
     }
 
-    // ── Retry Policy
-
-    public override Task<ModelErrorAnalysisResult> CheckRetryPolicyAsync(
-        int statusCode,
-        Dictionary<string, IEnumerable<string>>? headers,
-        string? responseBody)
+    /// <summary>
+    /// 提取带 cache_control: ephemeral 的内容（Prompt Caching 支持）
+    /// </summary>
+    private static string? ExtractCacheableContent(JsonNode? root)
     {
-        if (statusCode == 400 && ClaudeThinkingCleaner.IsThinkingBlockSignatureError(responseBody))
+        if (root is not JsonObject rootObj) return null;
+
+        if (rootObj.TryGetPropertyValue("system", out var systemNode) &&
+            systemNode is JsonArray systemArray)
         {
-            Logger.LogWarning("检测到 Claude thinking 签名错误，建议降级重试");
-            return Task.FromResult(new ModelErrorAnalysisResult
+            foreach (var part in systemArray)
             {
-                IsCanRetry = true,
-                RequiresDowngrade = true
-            });
+                if (part is not JsonObject partObj) continue;
+                if (partObj.TryGetPropertyValue("cache_control", out var cacheControlNode) &&
+                    cacheControlNode is JsonObject cacheControl &&
+                    cacheControl.TryGetPropertyValue("type", out var typeNode) &&
+                    typeNode is JsonValue typeValue &&
+                    typeValue.TryGetValue<string>(out var type) &&
+                    type == "ephemeral")
+                {
+                    if (partObj.TryGetPropertyValue("text", out var textNode) &&
+                        textNode is JsonValue textValue &&
+                        textValue.TryGetValue<string>(out var text) &&
+                        !string.IsNullOrWhiteSpace(text))
+                    {
+                        return text;
+                    }
+                }
+            }
         }
 
-        return base.CheckRetryPolicyAsync(statusCode, headers, responseBody);
+        if (rootObj.TryGetPropertyValue("messages", out var messagesNode) &&
+            messagesNode is JsonArray messagesArray)
+        {
+            foreach (var message in messagesArray)
+            {
+                if (message is not JsonObject messageObj) continue;
+                if (messageObj.TryGetPropertyValue("content", out var contentNode) &&
+                    contentNode is JsonArray contentArray)
+                {
+                    foreach (var part in contentArray)
+                    {
+                        if (part is not JsonObject partObj) continue;
+                        if (partObj.TryGetPropertyValue("cache_control", out var cacheControlNode) &&
+                            cacheControlNode is JsonObject cacheControl &&
+                            cacheControl.TryGetPropertyValue("type", out var typeNode) &&
+                            typeNode is JsonValue typeValue &&
+                            typeValue.TryGetValue<string>(out var type) &&
+                            type == "ephemeral")
+                        {
+                            return ExtractTextFromMessageContent(message);
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static string? ExtractTextFromMessageContent(JsonNode? message)
+    {
+        if (message is not JsonObject messageObj ||
+            !messageObj.TryGetPropertyValue("content", out var contentNode))
+            return null;
+
+        if (contentNode is JsonValue contentValue &&
+            contentValue.TryGetValue<string>(out var contentStr))
+            return contentStr;
+
+        if (contentNode is JsonArray contentArray)
+        {
+            var builder = new StringBuilder();
+            foreach (var part in contentArray)
+            {
+                if (part is not JsonObject partObj) continue;
+                if (partObj.TryGetPropertyValue("type", out var typeNode) &&
+                    typeNode is JsonValue typeValue &&
+                    typeValue.TryGetValue<string>(out var type) &&
+                    type == "text" &&
+                    partObj.TryGetPropertyValue("text", out var textNode) &&
+                    textNode is JsonValue textValue &&
+                    textValue.TryGetValue<string>(out var text) &&
+                    !string.IsNullOrWhiteSpace(text))
+                {
+                    builder.Append(text);
+                }
+            }
+            return builder.Length > 0 ? builder.ToString() : null;
+        }
+
+        return null;
     }
 }

@@ -7,7 +7,7 @@ namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Re
 /// Usage 累加 Processor — 累加各 ParseSse Processor 解析出的 Usage
 /// 使用 Max 策略（各平台返回的是累积值），在完成事件上附带最终的 Usage 和 ModelId
 /// </summary>
-public class FetchUsageTokenResponseProcessor : IResponseProcessor
+public class UsageAccumulatorResponseProcessor : IResponseProcessor
 {
     private int _inputTokens;
     private int _outputTokens;

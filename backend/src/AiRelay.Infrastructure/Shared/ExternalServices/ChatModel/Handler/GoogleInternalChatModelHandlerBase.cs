@@ -40,7 +40,7 @@ public abstract class GoogleInternalChatModelHandlerBase(
         {
 
             new GoogleParseSseResponseProcessor(),
-            new FetchUsageTokenResponseProcessor(),
+            new UsageAccumulatorResponseProcessor(),
             new CacheSignatureResponseProcessor(SignatureCache, up.SessionId, Logger)
         };
         return processors;

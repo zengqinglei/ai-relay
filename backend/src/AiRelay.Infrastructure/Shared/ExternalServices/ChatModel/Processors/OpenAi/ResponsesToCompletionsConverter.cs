@@ -25,7 +25,7 @@ public class ResponsesToCompletionsConverter
         var trimmed = line.Trim();
         if (string.IsNullOrEmpty(trimmed) || !trimmed.StartsWith("data: ")) yield break;
 
-        var json = trimmed.Substring(6).Trim();
+        var json = trimmed[6..].Trim();
         if (json == "[DONE]")
         {
             // 若上游直接发 [DONE] 而没有 response.completed，补发 finish chunk

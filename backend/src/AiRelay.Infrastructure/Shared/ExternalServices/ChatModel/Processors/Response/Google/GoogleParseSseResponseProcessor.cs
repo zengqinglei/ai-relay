@@ -7,7 +7,7 @@ namespace AiRelay.Infrastructure.Shared.ExternalServices.ChatModel.Processors.Re
 
 /// <summary>
 /// Gemini 平台 SSE 解析 Processor
-/// 内聚原 GeminiChatModelResponseParser 的全部逻辑
+/// 内聚原 GeminiChatModelResponseParser 的全部逻辑，直接操作 StreamEvent 消除中间对象分配
 /// </summary>
 public class GoogleParseSseResponseProcessor : IResponseProcessor
 {
@@ -18,29 +18,23 @@ public class GoogleParseSseResponseProcessor : IResponseProcessor
         if (evt.Type == StreamEventType.Error) return Task.CompletedTask;
 
         if (evt.SseLine != null)
-        {
-            var part = ParseChunk(evt.SseLine);
-            if (part != null) ApplyPart(evt, part);
-        }
+            ParseChunk(evt.SseLine, evt);
         else if (evt.Content != null)
         {
-            var part = ParseCompleteResponse(evt.Content);
-            ApplyPart(evt, part);
+            ParseCompleteResponse(evt.Content, evt);
             evt.IsComplete = true;
         }
 
         return Task.CompletedTask;
     }
 
-    // ── 迁入自 GeminiChatModelResponseParser ──
-
-    private static ChatResponsePart? ParseChunk(string chunk)
+    private static void ParseChunk(string chunk, StreamEvent evt)
     {
         var trimmed = chunk.Trim();
-        if (string.IsNullOrEmpty(trimmed) || !trimmed.StartsWith("data:")) return null;
+        if (string.IsNullOrEmpty(trimmed) || !trimmed.StartsWith("data:")) return;
 
         var json = trimmed[5..].TrimStart();
-        if (string.IsNullOrEmpty(json) || json == "[DONE]") return new ChatResponsePart(IsComplete: true);
+        if (string.IsNullOrEmpty(json) || json == "[DONE]") { evt.IsComplete = true; return; }
 
         try
         {
@@ -50,29 +44,12 @@ public class GoogleParseSseResponseProcessor : IResponseProcessor
             if (root.TryGetProperty("response", out var responseObj))
                 root = responseObj;
 
-            // 检查是否有错误
             if (root.TryGetProperty("error", out var error))
             {
-                string? errorMsg = null;
-                if (error.TryGetProperty("message", out var msg))
-                    errorMsg = msg.GetString();
-
-                if (error.TryGetProperty("code", out var code))
-                {
-                    var codeValue = code.ValueKind == JsonValueKind.Number
-                        ? code.GetInt32().ToString()
-                        : code.GetString();
-                    errorMsg = string.IsNullOrEmpty(errorMsg)
-                        ? $"Error code: {codeValue}"
-                        : $"{errorMsg} (code: {codeValue})";
-                }
-
-                return new ChatResponsePart(Error: errorMsg ?? "Unknown error from upstream");
+                evt.Type = StreamEventType.Error;
+                evt.Content = ExtractErrorMessage(error);
+                return;
             }
-
-            string? content = null;
-            InlineDataPart? inlineData = null;
-            ResponseUsage? usage = null;
 
             if (root.TryGetProperty("candidates", out var candidates) && candidates.GetArrayLength() > 0)
             {
@@ -81,48 +58,16 @@ public class GoogleParseSseResponseProcessor : IResponseProcessor
                     c.TryGetProperty("parts", out var parts) &&
                     parts.GetArrayLength() > 0)
                 {
-                    var sb = new StringBuilder();
-                    foreach (var part in parts.EnumerateArray())
-                    {
-                        if (part.TryGetProperty("text", out var text))
-                        {
-                            var textValue = text.GetString();
-                            if (!string.IsNullOrEmpty(textValue))
-                                sb.Append(textValue);
-                        }
-                        else if (part.TryGetProperty("inlineData", out var inline))
-                        {
-                            if (inline.TryGetProperty("mimeType", out var mime) &&
-                                inline.TryGetProperty("data", out var data))
-                            {
-                                var mimeType = mime.GetString();
-                                var dataValue = data.GetString();
-                                if (!string.IsNullOrEmpty(mimeType) && !string.IsNullOrEmpty(dataValue))
-                                    inlineData = new InlineDataPart(mimeType, dataValue);
-                            }
-                        }
-                    }
-                    if (sb.Length > 0)
-                        content = sb.ToString();
+                    ExtractPartsContent(parts, evt);
                 }
             }
 
-            if (root.TryGetProperty("usageMetadata", out var meta))  usage = ExtractUsage(meta);
-
-            return new ChatResponsePart(
-                Content: content,
-                Usage: usage,
-                IsComplete: false,
-                InlineData: inlineData
-            );
+            if (root.TryGetProperty("usageMetadata", out var meta)) evt.Usage = ExtractUsage(meta);
         }
-        catch
-        {
-            return null;
-        }
+        catch { }
     }
 
-    private static ChatResponsePart ParseCompleteResponse(string responseBody)
+    private static void ParseCompleteResponse(string responseBody, StreamEvent evt)
     {
         try
         {
@@ -134,26 +79,10 @@ public class GoogleParseSseResponseProcessor : IResponseProcessor
 
             if (root.TryGetProperty("error", out var error))
             {
-                string? errorMsg = null;
-                if (error.TryGetProperty("message", out var msg))
-                    errorMsg = msg.GetString();
-
-                if (error.TryGetProperty("code", out var code))
-                {
-                    var codeValue = code.ValueKind == JsonValueKind.Number
-                        ? code.GetInt32().ToString()
-                        : code.GetString();
-                    errorMsg = string.IsNullOrEmpty(errorMsg)
-                        ? $"Error code: {codeValue}"
-                        : $"{errorMsg} (code: {codeValue})";
-                }
-
-                return new ChatResponsePart(Error: errorMsg ?? "Unknown error from upstream", IsComplete: true);
+                evt.Type = StreamEventType.Error;
+                evt.Content = ExtractErrorMessage(error);
+                return;
             }
-
-            string? content = null;
-            InlineDataPart? inlineData = null;
-            ResponseUsage? usage = null;
 
             if (root.TryGetProperty("candidates", out var candidates) && candidates.GetArrayLength() > 0)
             {
@@ -162,45 +91,59 @@ public class GoogleParseSseResponseProcessor : IResponseProcessor
                     c.TryGetProperty("parts", out var parts) &&
                     parts.GetArrayLength() > 0)
                 {
-                    var sb = new StringBuilder();
-                    foreach (var part in parts.EnumerateArray())
-                    {
-                        if (part.TryGetProperty("text", out var text))
-                        {
-                            var textValue = text.GetString();
-                            if (!string.IsNullOrEmpty(textValue))
-                                sb.Append(textValue);
-                        }
-                        else if (part.TryGetProperty("inlineData", out var inline))
-                        {
-                            if (inline.TryGetProperty("mimeType", out var mime) &&
-                                inline.TryGetProperty("data", out var data))
-                            {
-                                var mimeType = mime.GetString();
-                                var dataValue = data.GetString();
-                                if (!string.IsNullOrEmpty(mimeType) && !string.IsNullOrEmpty(dataValue))
-                                    inlineData = new InlineDataPart(mimeType, dataValue);
-                            }
-                        }
-                    }
-                    if (sb.Length > 0)
-                        content = sb.ToString();
+                    ExtractPartsContent(parts, evt);
                 }
             }
 
-            if (root.TryGetProperty("usageMetadata", out var meta)) usage = ExtractUsage(meta);
-
-            return new ChatResponsePart(
-                Content: content,
-                Usage: usage,
-                IsComplete: true,
-                InlineData: inlineData
-            );
+            if (root.TryGetProperty("usageMetadata", out var meta)) evt.Usage = ExtractUsage(meta);
         }
         catch
         {
-            return new ChatResponsePart(Error: "Invalid JSON response");
+            evt.Type = StreamEventType.Error;
+            evt.Content = "Invalid JSON response";
         }
+    }
+
+    private static void ExtractPartsContent(JsonElement parts, StreamEvent evt)
+    {
+        var sb = new StringBuilder();
+        foreach (var part in parts.EnumerateArray())
+        {
+            if (part.TryGetProperty("text", out var text))
+            {
+                var textValue = text.GetString();
+                if (!string.IsNullOrEmpty(textValue))
+                    sb.Append(textValue);
+            }
+            else if (part.TryGetProperty("inlineData", out var inline))
+            {
+                if (inline.TryGetProperty("mimeType", out var mime) &&
+                    inline.TryGetProperty("data", out var data))
+                {
+                    var mimeType = mime.GetString();
+                    var dataValue = data.GetString();
+                    if (!string.IsNullOrEmpty(mimeType) && !string.IsNullOrEmpty(dataValue))
+                        evt.InlineData = new InlineDataPart(mimeType, dataValue);
+                }
+            }
+        }
+        if (sb.Length > 0) evt.Content = sb.ToString();
+    }
+
+    private static string ExtractErrorMessage(JsonElement error)
+    {
+        string? errorMsg = null;
+        if (error.TryGetProperty("message", out var msg)) errorMsg = msg.GetString();
+        if (error.TryGetProperty("code", out var code))
+        {
+            var codeValue = code.ValueKind == JsonValueKind.Number
+                ? code.GetInt32().ToString()
+                : code.GetString();
+            errorMsg = string.IsNullOrEmpty(errorMsg)
+                ? $"Error code: {codeValue}"
+                : $"{errorMsg} (code: {codeValue})";
+        }
+        return errorMsg ?? "Unknown error from upstream";
     }
 
     private static ResponseUsage ExtractUsage(JsonElement meta)
@@ -212,22 +155,5 @@ public class GoogleParseSseResponseProcessor : IResponseProcessor
         if (meta.TryGetProperty("cachedContentTokenCount", out var cc)) cached = cc.GetInt32();
 
         return new ResponseUsage(input, output + thoughts, cached);
-    }
-
-    private static void ApplyPart(StreamEvent evt, ChatResponsePart part)
-    {
-        if (part.Error != null)
-        {
-            evt.Type = StreamEventType.Error;
-            evt.Content = part.Error;
-        }
-        else
-        {
-            evt.Content = part.Content;
-        }
-        evt.Usage = part.Usage;
-        evt.ModelId ??= part.ModelId;
-        evt.IsComplete = part.IsComplete;
-        evt.InlineData = part.InlineData;
     }
 }
