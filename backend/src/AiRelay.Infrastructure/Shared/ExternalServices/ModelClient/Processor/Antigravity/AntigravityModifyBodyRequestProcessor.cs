@@ -17,57 +17,57 @@ public class AntigravityModifyBodyRequestProcessor(
     ILogger logger) : IRequestProcessor
 {
 
-    public Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
+    public async Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
     {
-        if (down.BodyJsonNode is not JsonObject || down.BodyJsonNode == null)
+        up.SessionId = down.SessionId;
+        
+        // 聊天接口特有处理
+        bool isChatRoute = up.RelativePath.EndsWith(":streamGenerateContent", StringComparison.OrdinalIgnoreCase) || 
+                           up.RelativePath.EndsWith(":generateContent", StringComparison.OrdinalIgnoreCase);
+
+        if (!isChatRoute)
         {
-            return Task.CompletedTask;
+            return;
         }
 
-        var clonedBody = down.CloneBodyJson() ?? [];
-        // 聊天接口特有处理
-        if (up.RelativePath.EndsWith(":streamGenerateContent") || up.RelativePath.EndsWith(":generateContent"))
-        {
-            // 协议必需：注入 Antigravity 特有字段
-            antigravityIdentityInjector.EnsureAntigravityIdentity(clonedBody);
-            FixGeminiCliTools(clonedBody);
+        var clonedBody = await up.EnsureMutableBodyAsync(down);
 
-            // 清洗 JSON Schema
-            if (clonedBody["tools"] is JsonArray tools)
+        // 协议必需：注入 Antigravity 特有字段
+        antigravityIdentityInjector.EnsureAntigravityIdentity(clonedBody);
+        FixGeminiCliTools(clonedBody);
+
+        // 清洗 JSON Schema
+        if (clonedBody["tools"] is JsonArray tools)
+        {
+            foreach (var tool in tools)
             {
-                foreach (var tool in tools)
+                if (tool is not JsonObject toolObj) continue;
+                var func = toolObj["functionDeclarations"]?.AsArray().FirstOrDefault()
+                           ?? toolObj["function"];
+                if (func is JsonObject funcObj && funcObj["parameters"] is JsonObject paramsObj)
                 {
-                    if (tool is not JsonObject toolObj) continue;
-                    var func = toolObj["functionDeclarations"]?.AsArray().FirstOrDefault()
-                               ?? toolObj["function"];
-                    if (func is JsonObject funcObj && funcObj["parameters"] is JsonObject paramsObj)
-                    {
-                        googleJsonSchemaCleaner.Clean(paramsObj);
-                    }
+                    googleJsonSchemaCleaner.Clean(paramsObj);
                 }
             }
-
-            // 构建 v1internal 包装
-            clonedBody.Remove("model");
-            var requestType = DetermineRequestType(up.MappedModelId ?? string.Empty, clonedBody);
-            var projectId = options.ExtraProperties.TryGetValue("project_id", out var pid) ? pid : "";
-
-            clonedBody = new JsonObject
-            {
-                ["project"] = projectId,
-                ["requestId"] = $"agent-{down.StickySessionId ?? Guid.NewGuid().ToString("D")}",
-                ["userAgent"] = "antigravity",
-                ["requestType"] = requestType,
-                ["model"] = up.MappedModelId,
-                ["request"] = clonedBody
-            };
-
-            logger.LogDebug("已构建 Antigravity 请求: Model={Model}, Type={Type}", up.MappedModelId, requestType);
         }
 
-        up.BodyJson = clonedBody;
-        up.SessionId = down.SessionId;
-        return Task.CompletedTask;
+        // 构建 v1internal 包装
+        clonedBody.Remove("model");
+        var requestType = DetermineRequestType(up.MappedModelId ?? string.Empty, clonedBody);
+        var projectId = options.ExtraProperties.TryGetValue("project_id", out var pid) ? pid : "";
+
+        clonedBody = new JsonObject
+        {
+            ["project"] = projectId,
+            ["requestId"] = $"agent-{down.StickySessionId ?? Guid.NewGuid().ToString("D")}",
+            ["userAgent"] = "antigravity",
+            ["requestType"] = requestType,
+            ["model"] = up.MappedModelId,
+            ["request"] = clonedBody
+        };
+        up.BodyJson = clonedBody; // 包装后必须回写，否则 BuildHttpRequestMessage 序列化的仍是原始未包装 body
+
+        logger.LogDebug("已构建 Antigravity 请求: Model={Model}, Type={Type}", up.MappedModelId, requestType);
     }
 
     private static void FixGeminiCliTools(JsonObject requestJson)

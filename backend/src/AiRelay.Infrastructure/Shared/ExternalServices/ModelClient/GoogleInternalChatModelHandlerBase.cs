@@ -160,10 +160,10 @@ public abstract class GoogleInternalChatModelHandlerBase(
             {
                 Method = HttpMethod.Post,
                 RelativePath = "/v1internal:loadCodeAssist",
-                BodyBytes = Encoding.UTF8.GetBytes(body).AsMemory()
+                RawStream = new MemoryStream(Encoding.UTF8.GetBytes(body))
             };
             var up = await ProcessRequestContextAsync(down, 0, ct);
-            using var response = await SendRequestAsync(up, ct);
+            using var response = await SendRequestAsync(up, down, ct);
             response.EnsureSuccessStatusCode();
 
             var result = await response.Content.ReadFromJsonAsync<LoadCodeAssistResponse>(

@@ -68,10 +68,8 @@ public class GeminiApiChatModelHandler(
 
         // 2. 从 Body 提取
         if (string.IsNullOrEmpty(down.ModelId) &&
-            down.BodyJsonNode is JsonObject obj &&
-            obj.TryGetPropertyValue("model", out var modelProp) &&
-            modelProp is JsonValue modelValue &&
-            modelValue.TryGetValue<string>(out var modelId))
+            down.ExtractedProps.TryGetValue("model", out var modelId) &&
+            !string.IsNullOrWhiteSpace(modelId))
         {
             down.ModelId = modelId;
         }
@@ -79,11 +77,8 @@ public class GeminiApiChatModelHandler(
         // ========== 提取 SessionHash ==========
         // 优先级 1: Gemini CLI 专用逻辑 (从 tmp 目录提取)
         // ApiKey 场景：通过 header x-gemini-api-privileged-user-id + tmpDirHash 组合
-        var match = down.SearchBodyPattern(GeminiCliTmpDirRegex, maxSearchLength: 50000);
-        if (match.Success && match.Groups.Count >= 2)
+        if (down.ExtractedProps.TryGetValue("gemini_cli_tmp_hash", out var tmpDirHash) && !string.IsNullOrWhiteSpace(tmpDirHash))
         {
-            var tmpDirHash = match.Groups[1].Value;
-
             string? privilegedUserId = null;
             if (down.Headers.TryGetValue("x-gemini-api-privileged-user-id", out var headerVal))
                 privilegedUserId = headerVal;
@@ -101,22 +96,11 @@ public class GeminiApiChatModelHandler(
             return;
         }
 
-        if (down.BodyJsonNode is JsonObject root)
+        // 优先级 2: 第一条消息内容
+        if (down.ExtractedProps.TryGetValue("messages[0].content", out var text) && !string.IsNullOrWhiteSpace(text))
         {
-            // 优先级 2: 只取第一条消息内容
-            if (root.TryGetPropertyValue("contents", out var contentsNode) &&
-                contentsNode is JsonArray contents)
-            {
-                foreach (var contentNode in contents)
-                {
-                    var text = ExtractTextFromParts(contentNode);
-                    if (!string.IsNullOrWhiteSpace(text))
-                    {
-                        down.SessionId = GenerateSessionHashWithContext(text, down, apiKeyId);
-                        return;
-                    }
-                }
-            }
+            down.SessionId = GenerateSessionHashWithContext(text, down, apiKeyId);
+            return;
         }
     }
 
@@ -133,7 +117,7 @@ public class GeminiApiChatModelHandler(
             };
 
             var up = await ProcessRequestContextAsync(down, 0, ct);
-            using var response = await SendRequestAsync(up, ct);
+            using var response = await SendRequestAsync(up, down, ct);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -207,7 +191,7 @@ public class GeminiApiChatModelHandler(
             RelativePath = $"/v1beta/models/{modelId}:streamGenerateContent",
             QueryString = "?alt=sse",
             ModelId = modelId,
-            BodyBytes = Encoding.UTF8.GetBytes(json.ToJsonString()).AsMemory()
+            RawStream = new MemoryStream(Encoding.UTF8.GetBytes(json.ToJsonString()))
         };
     }
 

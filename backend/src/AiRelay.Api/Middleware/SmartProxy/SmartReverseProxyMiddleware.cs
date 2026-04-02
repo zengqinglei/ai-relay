@@ -1,7 +1,6 @@
 using AiRelay.Api.Authentication;
 using AiRelay.Api.HostedServices.Workers;
 using AiRelay.Api.Middleware.SmartProxy.ErrorHandling;
-using AiRelay.Api.Middleware.SmartProxy.RequestProcessor;
 using AiRelay.Application.ProviderAccounts.AppServices;
 using AiRelay.Application.ProviderGroups.AppServices;
 using AiRelay.Application.ProviderGroups.Dtos;
@@ -9,6 +8,8 @@ using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.ProviderGroups.DomainServices.SchedulingStrategy.AccountConcurrencyStrategy;
 using AiRelay.Domain.ProviderGroups.ValueObjects;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient.Context;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient.Helpers;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 using AiRelay.Domain.UsageRecords.Options;
 using Leistd.Exception.Core;
@@ -23,7 +24,6 @@ namespace AiRelay.Api.Middleware.SmartProxy;
 
 public class SmartReverseProxyMiddleware(
     ISmartProxyAppService smartProxyAppService,
-    IDownstreamRequestProcessor downstreamRequestProcessor,
     IChatModelHandlerFactory chatModelHandlerFactory,
     ProxyErrorFormatterFactory errorFormatterFactory,
     AccountUsageRecordHostedService usageRecordHostedService,
@@ -41,7 +41,7 @@ public class SmartReverseProxyMiddleware(
         var correlationId = correlationIdProvider.Get() ?? correlationIdProvider.Create();
 
         var chatModelHandler = chatModelHandlerFactory.CreateHandler(platform);
-        var downContext = await downstreamRequestProcessor.ProcessAsync(context, chatModelHandler, apiKeyId, context.RequestAborted);
+        var downContext = await ProcessDownstreamRequestAsync(context, chatModelHandler, apiKeyId);
 
         // 请求级变量
         var usageRecordId = Guid.CreateVersion7();
@@ -55,7 +55,7 @@ public class SmartReverseProxyMiddleware(
         var downRequestBody = _loggingOptions.IsBodyLoggingEnabled
             ? (downContext.IsMultipart
                 ? "[Multipart Data - Logging Skipped]"
-                : downContext.GetBodyPreview(_loggingOptions.MaxBodyLength))
+                : downContext.PreloadedBodyPreview)
             : null;
         var downRequestHeaders = _loggingOptions.IsBodyLoggingEnabled ? CaptureHeaders(downContext.Headers) : null;
 
@@ -191,7 +191,7 @@ public class SmartReverseProxyMiddleware(
                     var upRequestBody = _loggingOptions.IsBodyLoggingEnabled
                         ? (downContext.IsMultipart
                             ? "[Multipart Data - Logging Skipped]"
-                            : upContext.GetBodyPreview(_loggingOptions.MaxBodyLength))
+                            : upContext.GetBodyPreview(downContext.PreloadedBodyPreview, _loggingOptions.MaxBodyLength))
                         : null;
                     usageRecordHostedService.TryEnqueue(new UsageRecordAttemptStartItem(
                         UsageRecordId: usageRecordId,
@@ -470,6 +470,70 @@ public class SmartReverseProxyMiddleware(
         var content = sourceStr[..length];
 
         return sourceStr.Length > _loggingOptions.MaxBodyLength ? content + "...[Truncated]" : content;
+    }
+
+    private async Task<DownRequestContext> ProcessDownstreamRequestAsync(HttpContext context, IChatModelHandler chatModelHandler, Guid apiKeyId)
+    {
+        var request = context.Request;
+        var contentType = request.ContentType ?? "";
+        var isMultipart = contentType.Contains("multipart", StringComparison.OrdinalIgnoreCase);
+
+        const long MaxBodySize = 100 * 1024 * 1024; // 100MB
+        bool hasBody = request.ContentLength > 0 || request.Headers.ContainsKey("Transfer-Encoding");
+        if (hasBody && !isMultipart)
+        {
+            // 对于已知长度的请求，直接检查
+            if (request.ContentLength > MaxBodySize)
+                throw new BadRequestException($"Request body too large, limit is {MaxBodySize / (1024 * 1024)}MB");
+
+            // 启用流缓冲（实现基于内存+文件的分级缓存，消灭 LOH 分配）
+            // 设置阈值为 MaxBodySize，超过此大小 request.Body.Read 阶段会抛出异常或停止缓存
+            request.EnableBuffering(MaxBodySize);
+        }
+
+        var relativePath = "";
+        if (context.Request.RouteValues.TryGetValue("catch-all", out var catchAll) && catchAll != null)
+        {
+            relativePath = "/" + catchAll.ToString()!.TrimStart('/');
+        }
+
+        var rawStream = (hasBody && !isMultipart) ? request.Body : null;
+        var (extractedProps, bodyPreview) = await JsonExtractHelper.ExtractEssentialPropsAsync(rawStream, _loggingOptions.IsBodyLoggingEnabled, _loggingOptions.MaxBodyLength);
+
+        var downContext = new DownRequestContext
+        {
+            Method = ParseHttpMethod(request.Method),
+            RelativePath = relativePath,
+            QueryString = request.QueryString.Value,
+            Headers = ConvertHeaders(request.Headers),
+            RawStream = rawStream,
+            IsMultipart = isMultipart,
+            ExtractedProps = extractedProps,
+            PreloadedBodyPreview = bodyPreview
+        };
+
+        // 各平台 Handler 负责从 Header/Body 提取元信息（ModelId、SessionHash）
+        chatModelHandler.ExtractModelInfo(downContext, apiKeyId);
+        return downContext;
+    }
+
+    private static HttpMethod ParseHttpMethod(string method) => method?.ToUpperInvariant() switch
+    {
+        "GET" => HttpMethod.Get,
+        "POST" => HttpMethod.Post,
+        "PUT" => HttpMethod.Put,
+        "DELETE" => HttpMethod.Delete,
+        "PATCH" => HttpMethod.Patch,
+        "HEAD" => HttpMethod.Head,
+        "OPTIONS" => HttpMethod.Options,
+        _ => HttpMethod.Post
+    };
+
+    private static Dictionary<string, string> ConvertHeaders(IHeaderDictionary headers)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var header in headers) result[header.Key] = header.Value.ToString();
+        return result;
     }
 
     private static (ProviderPlatform Platform, Guid ApiKeyId, string ApiKeyName) ValidateAndGetContext(HttpContext context)

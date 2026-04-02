@@ -5,5 +5,5 @@ namespace AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.C
 
 public interface IClaudeCodeClientDetector
 {
-    bool IsClaudeCodeClient(DownRequestContext down, JsonObject? requestJson);
+    bool IsClaudeCodeClient(DownRequestContext down);
 }

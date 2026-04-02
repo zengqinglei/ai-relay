@@ -13,23 +13,31 @@ public class ClaudeMetadataInjectRequestProcessor(
     ChatModelConnectionOptions options) : IRequestProcessor
 {
 
-    public Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
+    public async Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
     {
         // 非 batches 路由
-        if (down.RelativePath.Contains("/batches", StringComparison.OrdinalIgnoreCase) || up.BodyJson == null)
+        if (down.RelativePath.Contains("/batches", StringComparison.OrdinalIgnoreCase))
         {
-            return Task.CompletedTask;
+            return;
         }
 
+        // 零分配捷径：如果底层提取池中已经包含有效的 metadata.user_id，则直接短路，完美零分配
+        if (down.ExtractedProps.TryGetValue("metadata.user_id", out var extUserId) && !string.IsNullOrWhiteSpace(extUserId))
+        {
+            return;
+        }
+
+        var clonedBody = await up.EnsureMutableBodyAsync(down);
+
         // 仅在 metadata.user_id 为空时注入
-        if (up.BodyJson.TryGetPropertyValue("metadata", out var metadataNode) &&
+        if (clonedBody.TryGetPropertyValue("metadata", out var metadataNode) &&
             metadataNode is JsonObject metadataObj &&
             metadataObj.TryGetPropertyValue("user_id", out var userIdNode) &&
             userIdNode is JsonValue userIdVal &&
             userIdVal.TryGetValue<string>(out var existingUserId) &&
             !string.IsNullOrWhiteSpace(existingUserId))
         {
-            return Task.CompletedTask;
+            return;
         }
 
         var deviceId = down.FingerprintClientId ?? "unknown";
@@ -43,12 +51,10 @@ public class ClaudeMetadataInjectRequestProcessor(
             ["session_id"] = sessionId
         };
 
-        if (!up.BodyJson.ContainsKey("metadata"))
-            up.BodyJson["metadata"] = new JsonObject();
+        if (!clonedBody.ContainsKey("metadata"))
+            clonedBody["metadata"] = new JsonObject();
 
-        if (up.BodyJson["metadata"] is JsonObject metadata)
+        if (clonedBody["metadata"] is JsonObject metadata)
             metadata["user_id"] = userIdObj.ToJsonString();
-
-        return Task.CompletedTask;
-    }
+        }
 }

@@ -3,7 +3,6 @@ using AiRelay.Domain.Shared.ExternalServices.ModelClient.Context;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Processor;
 using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Cleaning;
-using System.Text.Json.Nodes;
 
 namespace AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.Claude;
 
@@ -18,14 +17,18 @@ public class ClaudeModifyBodyRequestProcessor(
     IClaudeCodeClientDetector clientDetector) : IRequestProcessor
 {
 
-    public Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
+    public async Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
     {
-        if (down.BodyJsonNode is not JsonObject || down.BodyJsonNode == null)
+        bool needChangeModel = !string.IsNullOrEmpty(up.MappedModelId) && down.ModelId != up.MappedModelId;
+        bool isMessagesRoute = up.RelativePath.Contains("/v1/messages", StringComparison.OrdinalIgnoreCase);
+
+        // 如果既不需要改模型，又不是聊天生成接口，则无需解析 Body，直接走零分配转发
+        if (!needChangeModel && !isMessagesRoute)
         {
-            return Task.CompletedTask;
+            return;
         }
 
-        var clonedBody = down.CloneBodyJson() ?? [];
+        var clonedBody = await up.EnsureMutableBodyAsync(down);
 
         // 写入 mapped model id
         if (!string.IsNullOrEmpty(up.MappedModelId) && down.ModelId != up.MappedModelId)
@@ -47,7 +50,7 @@ public class ClaudeModifyBodyRequestProcessor(
 
             // 伪装逻辑：inject Claude Code system prompt + metadata
             bool shouldMimic = options.ShouldMimicOfficialClient;
-            bool isClaudeCodeClient = clientDetector.IsClaudeCodeClient(down, clonedBody);
+            bool isClaudeCodeClient = clientDetector.IsClaudeCodeClient(down);
             bool isHaikuModel = !string.IsNullOrEmpty(up.MappedModelId) &&
                                 up.MappedModelId.Contains("haiku", StringComparison.OrdinalIgnoreCase);
 
@@ -57,8 +60,5 @@ public class ClaudeModifyBodyRequestProcessor(
             }
 
         }
-
-        up.BodyJson = clonedBody;
-        return Task.CompletedTask;
     }
 }

@@ -4,7 +4,7 @@ using AiRelay.Api.HostedServices.Initializer;
 using AiRelay.Api.HostedServices.Workers;
 using AiRelay.Api.Middleware.SmartProxy;
 using AiRelay.Api.Middleware.SmartProxy.ErrorHandling;
-using AiRelay.Api.Middleware.SmartProxy.RequestProcessor;
+
 using AiRelay.Application;
 using AiRelay.Domain;
 using AiRelay.Domain.Auth.Options;
@@ -72,7 +72,6 @@ try
     builder.Services.AddHostedService(sp => sp.GetRequiredService<AccountUsageRecordHostedService>());
 
     // [New] Register SmartProxy Components
-    builder.Services.AddScoped<IDownstreamRequestProcessor, DownstreamRequestProcessor>();
     builder.Services.AddScoped<ProxyErrorFormatterFactory>();
     builder.Services.AddScoped<IProxyErrorFormatter, GeminiProxyErrorFormatter>();
     builder.Services.AddScoped<IProxyErrorFormatter, OpenAIProxyErrorFormatter>();

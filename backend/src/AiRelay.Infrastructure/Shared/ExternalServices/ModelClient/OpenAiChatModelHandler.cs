@@ -28,7 +28,6 @@ public class OpenAiChatModelHandler(
     {
         var processors = new List<IResponseProcessor>
         {
-
             new OpenAiParseSseResponseProcessor(),
             new UsageAccumulatorResponseProcessor()
         };
@@ -77,7 +76,7 @@ public class OpenAiChatModelHandler(
             Method = HttpMethod.Post,
             RelativePath = path,
             ModelId = modelId,
-            BodyBytes = Encoding.UTF8.GetBytes(json.ToJsonString()).AsMemory()
+            RawStream = new MemoryStream(Encoding.UTF8.GetBytes(json.ToJsonString()))
         };
     }
 
@@ -96,10 +95,7 @@ public class OpenAiChatModelHandler(
     public override void ExtractModelInfo(DownRequestContext down, Guid apiKeyId)
     {
         // 提取 ModelId
-        if (down.BodyJsonNode is JsonObject obj &&
-            obj.TryGetPropertyValue("model", out var modelProp) &&
-            modelProp is JsonValue modelValue &&
-            modelValue.TryGetValue<string>(out var modelId))
+        if (down.ExtractedProps.TryGetValue("model", out var modelId) && !string.IsNullOrWhiteSpace(modelId))
         {
             down.ModelId = modelId;
         }
@@ -126,41 +122,25 @@ public class OpenAiChatModelHandler(
             }
         }
 
-        if (down.BodyJsonNode is not JsonObject root) return;
-
         // 优先级 3: prompt_cache_key
-        if (root.TryGetPropertyValue("prompt_cache_key", out var cacheKeyNode) &&
-            cacheKeyNode is JsonValue cacheKeyValue &&
-            cacheKeyValue.TryGetValue<string>(out var key) &&
-            !string.IsNullOrWhiteSpace(key))
+        if (down.ExtractedProps.TryGetValue("prompt_cache_key", out var key) && !string.IsNullOrWhiteSpace(key))
         {
             down.SessionId = key;
             return;
         }
 
         // 优先级 4: conversation_id in body
-        if (root.TryGetPropertyValue("conversation_id", out var convIdNode) &&
-            convIdNode is JsonValue convIdValue &&
-            convIdValue.TryGetValue<string>(out var id) &&
-            !string.IsNullOrWhiteSpace(id))
+        if (down.ExtractedProps.TryGetValue("conversation_id", out var id) && !string.IsNullOrWhiteSpace(id))
         {
             down.SessionId = id;
             return;
         }
 
         // 优先级 5: 第一条消息内容
-        if (root.TryGetPropertyValue("messages", out var messagesNode) &&
-            messagesNode is JsonArray messages)
+        if (down.ExtractedProps.TryGetValue("messages[0].content", out var text) && !string.IsNullOrWhiteSpace(text))
         {
-            foreach (var messageNode in messages)
-            {
-                var text = ExtractTextFromMessage(messageNode);
-                if (!string.IsNullOrWhiteSpace(text))
-                {
-                    down.SessionId = GenerateSessionHashWithContext(text, down, apiKeyId);
-                    return;
-                }
-            }
+            down.SessionId = GenerateSessionHashWithContext(text, down, apiKeyId);
+            return;
         }
     }
 

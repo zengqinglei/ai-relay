@@ -8,7 +8,6 @@ namespace AiRelay.Domain.Shared.ExternalServices.ModelClient.Context;
 
 /// <summary>
 /// 上游请求上下文（网关 → 供应商）
-/// 可变 class，Processor 链直接写入字段
 /// </summary>
 public class UpRequestContext
 {
@@ -23,7 +22,7 @@ public class UpRequestContext
     // ── Headers（HeaderProcessor 填充）
     public Dictionary<string, string> Headers { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-    // ── Body（RequestBodyProcessor 填充）
+    // ── Body（RequestBodyProcessor / EnsureMutableBodyAsync 填充）
     public JsonObject? BodyJson { get; set; }
 
     // ── 元数据（ModelIdMappingProcessor 填充）
@@ -31,18 +30,58 @@ public class UpRequestContext
     public string? SessionId { get; set; }
 
     /// <summary>
-    /// 获取 Body 内容（使用字节级截断避免整个DOM的超大字符串分配）
+    /// 【核心状态】：请求体是否被要求修改？
+    /// 默认 false (零损耗流转发)。只有 Processor 调用 EnsureMutableBodyAsync 才会触发 true。
     /// </summary>
-    public string GetBodyPreview(int maxLength = 2000)
+    public bool RequiresMutation { get; private set; }
+
+    /// <summary>
+    /// 获取唯一可变的 JSON DOM。
+    /// 一旦任何拦截器调用此方法，即标志着流转发退化为 DOM 序列化发送模式。
+    /// </summary>
+    public async ValueTask<JsonObject> EnsureMutableBodyAsync(DownRequestContext down)
     {
-        if (BodyJson == null) return string.Empty;
+        if (BodyJson != null) return BodyJson;
+
+        RequiresMutation = true;
+
+        if (down.RawStream == null || down.RawStream == Stream.Null || !down.RawStream.CanRead)
+        {
+            BodyJson = [];
+            return BodyJson;
+        }
+
+        if (down.RawStream.CanSeek)
+        {
+            down.RawStream.Position = 0;
+        }
+
+        try
+        {
+            var node = await JsonNode.ParseAsync(down.RawStream);
+            BodyJson = node as JsonObject ?? [];
+        }
+        catch (JsonException)
+        {
+            BodyJson = [];
+        }
+
+        return BodyJson;
+    }
+
+    /// <summary>
+    /// 获取 Body 内容预览
+    /// </summary>
+    public string GetBodyPreview(string? fallbackPreview, int maxLength = 2000)
+    {
+        if (BodyJson == null) return fallbackPreview ?? string.Empty;
 
         try
         {
             var bytes = JsonSerializer.SerializeToUtf8Bytes(BodyJson);
             if (bytes.Length <= maxLength) return Encoding.UTF8.GetString(bytes);
 
-            return Encoding.UTF8.GetString(bytes.AsSpan(0, maxLength)) + "...[Truncated]";
+            return Encoding.UTF8.GetString(bytes.AsSpan(0, maxLength)) + "...";
         }
         catch
         {
@@ -51,9 +90,9 @@ public class UpRequestContext
     }
 
     /// <summary>
-    /// 统一构建 HttpRequestMessage，提升通用逻辑复用率，并彻底摒弃将大对象序列化为分配型 String 进行发送导致的高内存开销
+    /// 构建 HttpRequestMessage，支持双轨制发送（流转发 / DOM发送）
     /// </summary>
-    public HttpRequestMessage BuildHttpRequestMessage()
+    public HttpRequestMessage BuildHttpRequestMessage(DownRequestContext down)
     {
         var normalizedBase = BaseUrl.EndsWith('/') ? BaseUrl : BaseUrl + "/";
         var relativeUrl = RelativePath.TrimStart('/') + (QueryString ?? "");
@@ -64,11 +103,38 @@ public class UpRequestContext
             request.Headers.TryAddWithoutValidation(header.Key, header.Value);
         }
 
-        if (BodyJson != null)
+        // 双轨制决定逻辑
+        if (RequiresMutation && BodyJson != null)
         {
-            // 通过 HttpContent 内部进行 Json 0-copy 处理发送，不分配巨型 JSON 字符串
+            // 退化轨：DOM 序列化（零分配流式写出）
             request.Content = JsonContent.Create(BodyJson);
             request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+        }
+        else if (down.RawStream != null && down.RawStream != Stream.Null)
+        {
+            // 快速轨：网络直通流转发（重置流位置）
+            // 使用 LeaveOpenStream 包装，防止 StreamContent.Dispose 关闭底层流（Fallback 重试需要重读）
+            if (down.RawStream.CanSeek)
+            {
+                down.RawStream.Position = 0;
+            }
+            request.Content = new StreamContent(new LeaveOpenStream(down.RawStream));
+            
+            // 复制原 Content-Type
+            if (down.Headers.TryGetValue("content-type", out var contentType))
+            {
+                request.Content.Headers.ContentType = MediaTypeHeaderValue.Parse(contentType);
+            }
+            else
+            {
+                request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+            }
+
+            // 复制原 Content-Length（防止 StreamContent 降级为 Chunked 导致上游解析失败）
+            if (down.Headers.TryGetValue("content-length", out var clStr) && long.TryParse(clStr, out var cl))
+            {
+                request.Content.Headers.ContentLength = cl;
+            }
         }
 
         return request;

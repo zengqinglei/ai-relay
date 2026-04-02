@@ -44,7 +44,16 @@ public class GeminiAccountChatModelHandler(
 
     public override void ExtractModelInfo(DownRequestContext down, Guid apiKeyId)
     {
-        down.PromptIndex = ExtractPromptIndex(down.BodyJsonNode);
+        // 提取 PromptIndex：统计 contents[]/messages[] 中 user 角色数量 - 1
+        if (down.ExtractedProps.TryGetValue("user_role_count", out var countStr) &&
+            int.TryParse(countStr, out var count) && count > 0)
+        {
+            down.PromptIndex = count - 1;
+        }
+        else
+        {
+            down.PromptIndex = 0;
+        }
 
         // 1. 提取 ModelId — 优先从 URL 路径提取
         if (!string.IsNullOrEmpty(down.RelativePath) && down.RelativePath.Contains("/models/"))
@@ -66,29 +75,20 @@ public class GeminiAccountChatModelHandler(
 
         // 2. 从 Body 提取
         if (string.IsNullOrEmpty(down.ModelId) &&
-            down.BodyJsonNode is JsonObject obj &&
-            obj.TryGetPropertyValue("model", out var modelProp) &&
-            modelProp is JsonValue modelValue &&
-            modelValue.TryGetValue<string>(out var modelId))
+            down.ExtractedProps.TryGetValue("model", out var modelId) &&
+            !string.IsNullOrWhiteSpace(modelId))
         {
             down.ModelId = modelId;
         }
 
         // ========== 提取 SessionHash ==========
         // 优先级 1: Gemini CLI 专用逻辑 (从 tmp 目录提取)
-        var match = down.SearchBodyPattern(GeminiCliTmpDirRegex, maxSearchLength: 50000);
-        if (match.Success && match.Groups.Count >= 2)
+        if (down.ExtractedProps.TryGetValue("gemini_cli_tmp_hash", out var tmpDirHash) && !string.IsNullOrWhiteSpace(tmpDirHash))
         {
-            var tmpDirHash = match.Groups[1].Value;
-
-            string? sessionId = null;
-            if (down.BodyJsonNode is JsonObject body)
+            down.ExtractedProps.TryGetValue("request.session_id", out var sessionId);
+            if (string.IsNullOrWhiteSpace(sessionId))
             {
-                var payload = body.ContainsKey("request") ? body["request"] as JsonObject : body;
-                if (payload != null &&
-                    payload.TryGetPropertyValue("session_id", out var sessionIdNode) &&
-                    sessionIdNode is JsonValue sessionIdValue)
-                    sessionIdValue.TryGetValue<string>(out sessionId);
+                down.ExtractedProps.TryGetValue("session_id", out sessionId);
             }
 
             if (!string.IsNullOrWhiteSpace(sessionId))
@@ -104,22 +104,11 @@ public class GeminiAccountChatModelHandler(
             return;
         }
 
-        if (down.BodyJsonNode is JsonObject root)
+        // 优先级 2: 第一条消息内容
+        if (down.ExtractedProps.TryGetValue("messages[0].content", out var text) && !string.IsNullOrWhiteSpace(text))
         {
-            // 优先级 2: 第一条消息内容
-            if (root.TryGetPropertyValue("contents", out var contentsNode) &&
-                contentsNode is JsonArray contents)
-            {
-                foreach (var contentNode in contents)
-                {
-                    var text = ExtractTextFromParts(contentNode);
-                    if (!string.IsNullOrWhiteSpace(text))
-                    {
-                        down.SessionId = GenerateSessionHashWithContext(text, down, apiKeyId);
-                        return;
-                    }
-                }
-            }
+            down.SessionId = GenerateSessionHashWithContext(text, down, apiKeyId);
+            return;
         }
     }
 
@@ -134,10 +123,10 @@ public class GeminiAccountChatModelHandler(
         {
             Method = HttpMethod.Post,
             RelativePath = "/v1internal:retrieveUserQuota",
-            BodyBytes = Encoding.UTF8.GetBytes(body).AsMemory()
+            RawStream = new MemoryStream(Encoding.UTF8.GetBytes(body))
         };
         var up = await ProcessRequestContextAsync(down, 0, ct);
-        using var response = await SendRequestAsync(up, ct);
+        using var response = await SendRequestAsync(up, down, ct);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -221,7 +210,7 @@ public class GeminiAccountChatModelHandler(
             RelativePath = $"/v1internal:streamGenerateContent",
             QueryString = "?alt=sse",
             ModelId = modelId,
-            BodyBytes = Encoding.UTF8.GetBytes(json.ToJsonString()).AsMemory()
+            RawStream = new MemoryStream(Encoding.UTF8.GetBytes(json.ToJsonString()))
         };
     }
 

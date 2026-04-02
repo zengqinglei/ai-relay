@@ -15,19 +15,35 @@ namespace AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.O
 public class OpenAiModifyBodyRequestProcessor(ChatModelConnectionOptions options, OpenAiCodexInjector openAiCodexInjector) : IRequestProcessor
 {
 
-    public Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
+    public async Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
     {
-        if (down.BodyJsonNode is not JsonObject || down.BodyJsonNode == null)
+        up.SessionId = down.SessionId;
+
+        bool isChatRoute = up.RelativePath.Contains("/chat/completions", StringComparison.OrdinalIgnoreCase);
+        bool isOAuth = options.Platform == ProviderPlatform.OPENAI_OAUTH;
+        bool needChangeModel = !string.IsNullOrEmpty(up.MappedModelId) && up.MappedModelId != down.ModelId;
+
+        // 如果既不是聊天生成接口，又不是 OAuth 需要调整参数，且无需修改模型，则直接走零分配转发，无需解析 JSON
+        if (!isChatRoute && !isOAuth && !needChangeModel)
         {
-            return Task.CompletedTask;
+            return;
         }
 
-        var clonedBody = down.CloneBodyJson() ?? [];
+        // 零分配捷径：如果是聊天路由，非 OAuth，无改模型需求，且格式已经是目标格式 (含 input，无 messages)，则无需解析 JSON
+        bool hasMessages = down.ExtractedProps.ContainsKey("has_openai_messages");
+        bool hasInput = down.ExtractedProps.ContainsKey("has_openai_input");
+        if (isChatRoute && !isOAuth && !needChangeModel && !hasMessages && hasInput)
+        {
+            return;
+        }
+
+        var clonedBody = await up.EnsureMutableBodyAsync(down);
 
         // 格式转换：Chat Completions → Responses API
         if (ChatCompletionsConverter.IsChatCompletionsFormat(clonedBody))
         {
             clonedBody = ChatCompletionsConverter.ConvertRequestBody(clonedBody);
+            up.BodyJson = clonedBody; // 转换后必须回写，ConvertRequestBody 返回全新对象
         }
 
         // 写入 mapped model id
@@ -69,10 +85,6 @@ public class OpenAiModifyBodyRequestProcessor(ChatModelConnectionOptions options
             clonedBody["store"] = false;
             clonedBody["stream"] = true;
         }
-
-        up.BodyJson = clonedBody;
-        up.SessionId = down.SessionId;
-        return Task.CompletedTask;
     }
 
     private static bool NeedsToolContinuation(JsonObject jsonNode)

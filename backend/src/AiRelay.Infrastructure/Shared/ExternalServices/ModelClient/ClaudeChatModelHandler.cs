@@ -60,16 +60,24 @@ public class ClaudeChatModelHandler(
             var up = await ProcessRequestContextAsync(down, 0, ct);
 
             // 3. 发送请求
-            using var response = await SendRequestAsync(up, ct);
+            using var response = await SendRequestAsync(up, down, ct);
             if (!response.IsSuccessStatusCode)
             {
                 Logger.LogWarning("Claude 上游模型拉取失败: {StatusCode}", response.StatusCode);
                 return null;
             }
 
-            // 4. 解析响应
-            var json = await response.Content.ReadAsStringAsync(ct);
-            using var doc = JsonDocument.Parse(json);
+            // 4. 解析响应（处理可能的 gzip/br 压缩）
+            await using var responseStream = await response.Content.ReadAsStreamAsync(ct);
+            Stream decompressedStream = responseStream;
+
+            var contentEncoding = response.Content.Headers.ContentEncoding;
+            if (contentEncoding.Contains("gzip"))
+                decompressedStream = new System.IO.Compression.GZipStream(responseStream, System.IO.Compression.CompressionMode.Decompress);
+            else if (contentEncoding.Contains("br"))
+                decompressedStream = new System.IO.Compression.BrotliStream(responseStream, System.IO.Compression.CompressionMode.Decompress);
+
+            using var doc = await JsonDocument.ParseAsync(decompressedStream, cancellationToken: ct);
             var models = new List<ModelOption>();
 
             if (doc.RootElement.TryGetProperty("data", out var dataArray))
@@ -122,7 +130,7 @@ public class ClaudeChatModelHandler(
             Method = HttpMethod.Post,
             RelativePath = "/v1/messages",
             ModelId = modelId,
-            BodyBytes = Encoding.UTF8.GetBytes(json.ToJsonString()).AsMemory(),
+            RawStream = new MemoryStream(Encoding.UTF8.GetBytes(json.ToJsonString())),
             Headers = []
         };
     }
@@ -148,24 +156,14 @@ public class ClaudeChatModelHandler(
     public override void ExtractModelInfo(DownRequestContext down, Guid apiKeyId)
     {
         // 提取 ModelId
-        if (down.BodyJsonNode is JsonObject obj &&
-            obj.TryGetPropertyValue("model", out var modelProp) &&
-            modelProp is JsonValue modelValue &&
-            modelValue.TryGetValue<string>(out var modelId))
+        if (down.ExtractedProps.TryGetValue("model", out var modelId) && !string.IsNullOrWhiteSpace(modelId))
         {
             down.ModelId = modelId;
         }
 
         // 提取 SessionHash
-        if (down.BodyJsonNode is not JsonObject root) return;
-
         // 优先级 1: metadata.user_id（支持新格式 JSON 和旧格式 legacy string）
-        if (root.TryGetPropertyValue("metadata", out var metadataNode) &&
-            metadataNode is JsonObject metadata &&
-            metadata.TryGetPropertyValue("user_id", out var userIdNode) &&
-            userIdNode is JsonValue userIdValue &&
-            userIdValue.TryGetValue<string>(out var userIdStr) &&
-            !string.IsNullOrWhiteSpace(userIdStr))
+        if (down.ExtractedProps.TryGetValue("metadata.user_id", out var userIdStr) && !string.IsNullOrWhiteSpace(userIdStr))
         {
             userIdStr = userIdStr.Trim();
 
@@ -215,36 +213,24 @@ public class ClaudeChatModelHandler(
         }
 
         // 优先级 2: conversation_id
-        if (root.TryGetPropertyValue("conversation_id", out var convIdNode) &&
-            convIdNode is JsonValue convIdValue &&
-            convIdValue.TryGetValue<string>(out var id) &&
-            !string.IsNullOrWhiteSpace(id))
+        if (down.ExtractedProps.TryGetValue("conversation_id", out var id) && !string.IsNullOrWhiteSpace(id))
         {
             down.SessionId = id;
             return;
         }
 
-        // 优先级 3: cache_control ephemeral 内容
-        var cacheableContent = ExtractCacheableContent(root);
-        if (!string.IsNullOrWhiteSpace(cacheableContent))
+        // 优先级 3: system[] 中带 cache_control ephemeral 的文本内容
+        if (down.ExtractedProps.TryGetValue("cache_ephemeral_text", out var cacheText) && !string.IsNullOrWhiteSpace(cacheText))
         {
-            down.SessionId = GenerateSessionHashWithContext(cacheableContent, down, apiKeyId);
+            down.SessionId = GenerateSessionHashWithContext(cacheText, down, apiKeyId);
             return;
         }
 
         // 优先级 4: 第一条消息内容
-        if (root.TryGetPropertyValue("messages", out var messagesNode) &&
-            messagesNode is JsonArray messages)
+        if (down.ExtractedProps.TryGetValue("messages[0].content", out var text) && !string.IsNullOrWhiteSpace(text))
         {
-            foreach (var messageNode in messages)
-            {
-                var text = ExtractTextFromContent(messageNode);
-                if (!string.IsNullOrWhiteSpace(text))
-                {
-                    down.SessionId = GenerateSessionHashWithContext(text, down, apiKeyId);
-                    return;
-                }
-            }
+            down.SessionId = GenerateSessionHashWithContext(text, down, apiKeyId);
+            return;
         }
     }
 
@@ -299,97 +285,4 @@ public class ClaudeChatModelHandler(
         return string.Empty;
     }
 
-    /// <summary>
-    /// 提取带 cache_control: ephemeral 的内容（Prompt Caching 支持）
-    /// </summary>
-    private static string? ExtractCacheableContent(JsonNode? root)
-    {
-        if (root is not JsonObject rootObj) return null;
-
-        if (rootObj.TryGetPropertyValue("system", out var systemNode) &&
-            systemNode is JsonArray systemArray)
-        {
-            foreach (var part in systemArray)
-            {
-                if (part is not JsonObject partObj) continue;
-                if (partObj.TryGetPropertyValue("cache_control", out var cacheControlNode) &&
-                    cacheControlNode is JsonObject cacheControl &&
-                    cacheControl.TryGetPropertyValue("type", out var typeNode) &&
-                    typeNode is JsonValue typeValue &&
-                    typeValue.TryGetValue<string>(out var type) &&
-                    type == "ephemeral")
-                {
-                    if (partObj.TryGetPropertyValue("text", out var textNode) &&
-                        textNode is JsonValue textValue &&
-                        textValue.TryGetValue<string>(out var text) &&
-                        !string.IsNullOrWhiteSpace(text))
-                    {
-                        return text;
-                    }
-                }
-            }
-        }
-
-        if (rootObj.TryGetPropertyValue("messages", out var messagesNode) &&
-            messagesNode is JsonArray messagesArray)
-        {
-            foreach (var message in messagesArray)
-            {
-                if (message is not JsonObject messageObj) continue;
-                if (messageObj.TryGetPropertyValue("content", out var contentNode) &&
-                    contentNode is JsonArray contentArray)
-                {
-                    foreach (var part in contentArray)
-                    {
-                        if (part is not JsonObject partObj) continue;
-                        if (partObj.TryGetPropertyValue("cache_control", out var cacheControlNode) &&
-                            cacheControlNode is JsonObject cacheControl &&
-                            cacheControl.TryGetPropertyValue("type", out var typeNode) &&
-                            typeNode is JsonValue typeValue &&
-                            typeValue.TryGetValue<string>(out var type) &&
-                            type == "ephemeral")
-                        {
-                            return ExtractTextFromMessageContent(message);
-                        }
-                    }
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private static string? ExtractTextFromMessageContent(JsonNode? message)
-    {
-        if (message is not JsonObject messageObj ||
-            !messageObj.TryGetPropertyValue("content", out var contentNode))
-            return null;
-
-        if (contentNode is JsonValue contentValue &&
-            contentValue.TryGetValue<string>(out var contentStr))
-            return contentStr;
-
-        if (contentNode is JsonArray contentArray)
-        {
-            var builder = new StringBuilder();
-            foreach (var part in contentArray)
-            {
-                if (part is not JsonObject partObj) continue;
-                if (partObj.TryGetPropertyValue("type", out var typeNode) &&
-                    typeNode is JsonValue typeValue &&
-                    typeValue.TryGetValue<string>(out var type) &&
-                    type == "text" &&
-                    partObj.TryGetPropertyValue("text", out var textNode) &&
-                    textNode is JsonValue textValue &&
-                    textValue.TryGetValue<string>(out var text) &&
-                    !string.IsNullOrWhiteSpace(text))
-                {
-                    builder.Append(text);
-                }
-            }
-            return builder.Length > 0 ? builder.ToString() : null;
-        }
-
-        return null;
-    }
 }

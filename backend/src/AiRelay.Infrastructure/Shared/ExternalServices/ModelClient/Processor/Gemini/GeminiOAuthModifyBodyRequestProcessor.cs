@@ -25,116 +25,99 @@ public class GeminiOAuthModifyBodyRequestProcessor(
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
 
-    public Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
+    public async Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
     {
-        if (down.BodyJsonNode is not JsonObject || down.BodyJsonNode == null)
+        up.SessionId = down.SessionId;
+        
+        // 聊天接口特有处理
+        bool isChatRoute = up.RelativePath.EndsWith(":streamGenerateContent", StringComparison.OrdinalIgnoreCase) || 
+                           up.RelativePath.EndsWith(":generateContent", StringComparison.OrdinalIgnoreCase);
+
+        if (!isChatRoute)
         {
-            return Task.CompletedTask;
+            return;
         }
 
-        var clonedBody = down.CloneBodyJson() ?? [];
-        // 聊天接口特有处理
-        if (up.RelativePath.EndsWith(":streamGenerateContent") || up.RelativePath.EndsWith(":generateContent"))
+        bool hasTools = down.ExtractedProps.ContainsKey("has_tools");
+        bool isGeminiCli = IsGeminiCliClient(down);
+        bool shouldMimic = options.ShouldMimicOfficialClient;
+        bool isPackaged = down.ExtractedProps.ContainsKey("has_v1internal_request") && down.ExtractedProps.ContainsKey("has_v1internal_project");
+
+        // 零分配捷径：如果已经包装过了 (v1internal结构) 且没有 tools 参数且不需要额外包装欺诈，则跳过解析
+        if (isPackaged && !hasTools && (!shouldMimic || isGeminiCli))
         {
-            var projectId = options.ExtraProperties.TryGetValue("project_id", out var pid) ? pid : "";
-            if (!clonedBody.ContainsKey("request") || !clonedBody.ContainsKey("project"))
-            {
-                // 未包装：构建 v1internal 包装
-                var modelId = up.MappedModelId ?? down.ModelId ?? "gemini-3.0-flash-preview";
-                clonedBody.Remove("model");
-                clonedBody = new JsonObject
-                {
-                    ["model"] = modelId,
-                    ["project"] = projectId,
-                    ["request"] = clonedBody
-                };
-            }
-            // 确定内层 payload（用于 Schema 清洗和 CLI 元数据注入）
-            var payload = clonedBody["request"] as JsonObject;
-            // 清洗 JSON Schema（从内层 payload 取 tools）
-            if (payload?["tools"] is JsonArray tools)
-            {
-                foreach (var tool in tools)
-                {
-                    if (tool is not JsonObject toolObj) continue;
+            return;
+        }
 
-                    var funcs = toolObj["function_declarations"]?.AsArray()
-                             ?? toolObj["functionDeclarations"]?.AsArray();
+        var clonedBody = await up.EnsureMutableBodyAsync(down);
 
-                    if (funcs != null)
+        var projectId = options.ExtraProperties.TryGetValue("project_id", out var pid) ? pid : "";
+        if (!clonedBody.ContainsKey("request") || !clonedBody.ContainsKey("project"))
+        {
+            // 未包装：构建 v1internal 包装
+            var modelId = up.MappedModelId ?? down.ModelId ?? "gemini-3.0-flash-preview";
+            clonedBody.Remove("model");
+            clonedBody = new JsonObject
+            {
+                ["model"] = modelId,
+                ["project"] = projectId,
+                ["request"] = clonedBody
+            };
+            // ⭐ 关键：包装后必须回写到 up.BodyJson，否则 BuildHttpRequestMessage 序列化的仍是原始未包装 body
+            up.BodyJson = clonedBody;
+        }
+        // 确定内层 payload（用于 Schema 清洗和 CLI 元数据注入）
+        var payload = clonedBody["request"] as JsonObject;
+        // 清洗 JSON Schema（从内层 payload 取 tools）
+        if (payload?["tools"] is JsonArray tools)
+        {
+            foreach (var tool in tools)
+            {
+                if (tool is not JsonObject toolObj) continue;
+
+                var funcs = toolObj["function_declarations"]?.AsArray()
+                         ?? toolObj["functionDeclarations"]?.AsArray();
+
+                if (funcs != null)
+                {
+                    foreach (var func in funcs)
                     {
-                        foreach (var func in funcs)
-                        {
-                            if (func is JsonObject funcObj && funcObj["parameters"] is JsonObject paramsObj)
-                                googleJsonSchemaCleaner.Clean(paramsObj);
-                        }
+                        if (func is JsonObject funcObj && funcObj["parameters"] is JsonObject paramsObj)
+                            googleJsonSchemaCleaner.Clean(paramsObj);
                     }
                 }
             }
-
-            // CLI 伪装：未检测到真实 CLI 客户端时注入系统提示和元数据
-            bool shouldMimic = options.ShouldMimicOfficialClient;
-            bool isGeminiCli = shouldMimic && IsGeminiCliClient(down, clonedBody);
-            if (shouldMimic && !isGeminiCli)
-            {
-                geminiSystemPromptInjector.InjectGeminiCliPrompt(payload);
-                // user_prompt_id 注入到顶层 wrapper，session_id 注入到内层 clonedBody
-                InjectGeminiCliMetadata(clonedBody, payload, options, down);
-            }
         }
 
-        up.BodyJson = clonedBody;
-        up.SessionId = down.SessionId;
-        return Task.CompletedTask;
+        // CLI 伪装：未检测到真实 CLI 客户端时注入系统提示和元数据
+        if (shouldMimic && !isGeminiCli)
+        {
+            geminiSystemPromptInjector.InjectGeminiCliPrompt(payload);
+            // user_prompt_id 注入到顶层 wrapper，session_id 注入到内层 clonedBody
+            InjectGeminiCliMetadata(clonedBody, payload, options, down);
+        }
     }
 
-    private static bool IsGeminiCliClient(DownRequestContext down, JsonObject bodyJson)
+    private static bool IsGeminiCliClient(DownRequestContext down)
     {
         var userAgent = down.GetUserAgent();
         if (string.IsNullOrEmpty(userAgent) || !GeminiCliUAPattern.IsMatch(userAgent))
             return false;
 
-        // 获取内层 payload
-        var payload = bodyJson.ContainsKey("request")
-            ? bodyJson["request"] as JsonObject
-            : bodyJson;
+        if (!down.ExtractedProps.ContainsKey("is_gemini_cli_prompt"))
+            return false;
 
-        if (payload == null) return false;
-
-        // 验证 user_prompt_id 格式
-        if (!payload.TryGetPropertyValue("user_prompt_id", out var promptIdNode) ||
-            promptIdNode is not JsonValue promptIdValue ||
-            !promptIdValue.TryGetValue<string>(out var userPromptId) ||
+        // 验证 user_prompt_id 格式（顶层属性，由 ExtractEssentialProps 自动提取）
+        if (!down.ExtractedProps.TryGetValue("user_prompt_id", out var userPromptId) ||
             string.IsNullOrEmpty(userPromptId) ||
             !UserPromptIdPattern.IsMatch(userPromptId))
             return false;
 
-        // 验证 session_id 存在
-        if (!payload.TryGetPropertyValue("session_id", out var sessionIdNode) ||
-            sessionIdNode is not JsonValue sessionIdValue ||
-            !sessionIdValue.TryGetValue<string>(out var sessionId) ||
-            string.IsNullOrEmpty(sessionId))
-            return false;
+        // 验证 session_id 存在（优先从 request.session_id，其次顶层 session_id）
+        var hasSessionId = (down.ExtractedProps.TryGetValue("request.session_id", out var sid1) && !string.IsNullOrEmpty(sid1))
+                        || (down.ExtractedProps.TryGetValue("session_id", out var sid2) && !string.IsNullOrEmpty(sid2));
 
-        // 验证 systemInstruction 包含 Gemini CLI 特征
-        if (!payload.TryGetPropertyValue("systemInstruction", out var systemNode) ||
-            systemNode is not JsonObject systemObj)
-            return false;
-
-        if (systemObj.TryGetPropertyValue("parts", out var partsNode) && partsNode is JsonArray parts)
-        {
-            foreach (var part in parts)
-            {
-                if (part is JsonObject partObj &&
-                    partObj.TryGetPropertyValue("text", out var textNode) &&
-                    textNode is JsonValue textValue &&
-                    textValue.TryGetValue<string>(out var text) &&
-                    text.Contains("Gemini CLI", StringComparison.OrdinalIgnoreCase))
-                    return true;
-            }
-        }
-
-        return false;
+        return hasSessionId;
     }
 
     /// <param name="wrapper">顶层包装对象（user_prompt_id 注入此处）</param>

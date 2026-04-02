@@ -73,7 +73,7 @@ public abstract class BaseChatModelHandler : IChatModelHandler
 
     // ── SendRequestAsync（含 Fallback 重试，仅供内部及子类调用）
 
-    protected async Task<HttpResponseMessage> SendRequestAsync(UpRequestContext up, CancellationToken ct = default)
+    protected async Task<HttpResponseMessage> SendRequestAsync(UpRequestContext up, DownRequestContext down, CancellationToken ct = default)
     {
         var hasTriedFallback = false;
 
@@ -84,7 +84,7 @@ public abstract class BaseChatModelHandler : IChatModelHandler
                 using var httpClient = HttpClientFactory.CreateClient();
 
                 // 统一交由 UpRequestContext 中心化构建请求报文
-                using var request = up.BuildHttpRequestMessage();
+                using var request = up.BuildHttpRequestMessage(down);
 
                 // 发送请求
                 var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
@@ -126,7 +126,7 @@ public abstract class BaseChatModelHandler : IChatModelHandler
         bool isStreaming,
         CancellationToken ct = default)
     {
-        var response = await SendRequestAsync(up, ct);
+        var response = await SendRequestAsync(up, down, ct);
         var statusCode = (int)response.StatusCode;
         var headers = ExtractResponseHeaders(response);
 

@@ -27,49 +27,40 @@ public class ClaudeCodeClientDetector : IClaudeCodeClientDetector
         "You are an interactive CLI tool that helps users"
     ];
 
-    public bool IsClaudeCodeClient(DownRequestContext down, JsonObject? requestJson)
+    public bool IsClaudeCodeClient(DownRequestContext down)
     {
         var userAgent = down.GetUserAgent();
         if (string.IsNullOrEmpty(userAgent) || !ClaudeCodeUAPattern.IsMatch(userAgent))
             return false;
 
         var isMessagesPath = down.RelativePath?.Contains("messages", StringComparison.OrdinalIgnoreCase) == true;
-        if (!isMessagesPath || requestJson == null)
+        if (!isMessagesPath)
             return true;
 
-        return HasClaudeCodeSystemPrompt(requestJson) &&
+        return HasClaudeCodeSystemPrompt(down) &&
                !string.IsNullOrEmpty(down.Headers.GetValueOrDefault("x-app")) &&
                !string.IsNullOrEmpty(down.Headers.GetValueOrDefault("anthropic-beta")) &&
                !string.IsNullOrEmpty(down.Headers.GetValueOrDefault("anthropic-version")) &&
-               ValidateMetadataUserId(requestJson);
+               ValidateMetadataUserId(down);
     }
 
-    private static bool HasClaudeCodeSystemPrompt(JsonObject requestJson)
+    private static bool HasClaudeCodeSystemPrompt(DownRequestContext down)
     {
-        if (!requestJson.TryGetPropertyValue("system", out var systemNode) ||
-            systemNode is not JsonArray systemArray)
-            return false;
-
-        foreach (var entry in systemArray)
+        for (int i = 0; i < 5; i++)
         {
-            if (entry is JsonObject entryObj &&
-                entryObj.TryGetPropertyValue("text", out var textNode) &&
-                textNode is JsonValue textValue &&
-                textValue.TryGetValue<string>(out var text) &&
+            if (down.ExtractedProps.TryGetValue($"system_text_{i}", out var text) &&
                 !string.IsNullOrEmpty(text) &&
                 BestSimilarityScore(text) >= SystemPromptThreshold)
+            {
                 return true;
+            }
         }
         return false;
     }
 
-    private static bool ValidateMetadataUserId(JsonObject requestJson)
+    private static bool ValidateMetadataUserId(DownRequestContext down)
     {
-        return requestJson.TryGetPropertyValue("metadata", out var metadataNode) &&
-               metadataNode is JsonObject metadata &&
-               metadata.TryGetPropertyValue("user_id", out var userIdNode) &&
-               userIdNode is JsonValue userIdValue &&
-               userIdValue.TryGetValue<string>(out var userId) &&
+        return down.ExtractedProps.TryGetValue("metadata.user_id", out var userId) &&
                !string.IsNullOrEmpty(userId) &&
                UserIdPattern.IsMatch(userId);
     }

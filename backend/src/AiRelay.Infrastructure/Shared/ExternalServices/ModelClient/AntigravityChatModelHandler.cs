@@ -49,39 +49,23 @@ public sealed class AntigravityChatModelHandler(
     public override void ExtractModelInfo(DownRequestContext down, Guid apiKeyId)
     {
         // 提取 ModelId
-        if (down.BodyJsonNode is JsonObject obj &&
-            obj.TryGetPropertyValue("model", out var modelProp) &&
-            modelProp is JsonValue modelValue &&
-            modelValue.TryGetValue<string>(out var modelId))
+        if (down.ExtractedProps.TryGetValue("model", out var modelId) && !string.IsNullOrWhiteSpace(modelId))
         {
             down.ModelId = modelId;
         }
 
-        if (down.BodyJsonNode is not JsonObject root) return;
-
         // 优先级 1: conversation_id
-        if (root.TryGetPropertyValue("conversation_id", out var convIdNode) &&
-            convIdNode is JsonValue convIdValue &&
-            convIdValue.TryGetValue<string>(out var id) &&
-            !string.IsNullOrWhiteSpace(id))
+        if (down.ExtractedProps.TryGetValue("conversation_id", out var id) && !string.IsNullOrWhiteSpace(id))
         {
             down.SessionId = id;
             return;
         }
 
         // 优先级 2: 第一条消息内容
-        if (root.TryGetPropertyValue("contents", out var contentsNode) &&
-            contentsNode is JsonArray contents)
+        if (down.ExtractedProps.TryGetValue("messages[0].content", out var text) && !string.IsNullOrWhiteSpace(text))
         {
-            foreach (var contentNode in contents)
-            {
-                var text = ExtractTextFromParts(contentNode);
-                if (!string.IsNullOrWhiteSpace(text))
-                {
-                    down.SessionId = GenerateSessionHashWithContext(text, down, apiKeyId);
-                    return;
-                }
-            }
+            down.SessionId = GenerateSessionHashWithContext(text, down, apiKeyId);
+            return;
         }
     }
 
@@ -96,10 +80,10 @@ public sealed class AntigravityChatModelHandler(
         {
             Method = HttpMethod.Post,
             RelativePath = "/v1internal:fetchAvailableModels",
-            BodyBytes = Encoding.UTF8.GetBytes(body).AsMemory()
+            RawStream = new MemoryStream(Encoding.UTF8.GetBytes(body))
         };
         var up = await ProcessRequestContextAsync(down, 0, ct);
-        using var response = await SendRequestAsync(up, ct);
+        using var response = await SendRequestAsync(up, down, ct);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -179,7 +163,7 @@ public sealed class AntigravityChatModelHandler(
             RelativePath = $"/v1beta/models/{modelId}:streamGenerateContent",
             QueryString = "?alt=sse",
             ModelId = modelId,
-            BodyBytes = Encoding.UTF8.GetBytes(json.ToJsonString()).AsMemory()
+            RawStream = new MemoryStream(Encoding.UTF8.GetBytes(json.ToJsonString()))
         };
     }
 }

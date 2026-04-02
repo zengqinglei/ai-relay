@@ -43,19 +43,12 @@ public class ClaudeHeaderRequestProcessor(
         // 伪装官方客户端
         if (options.ShouldMimicOfficialClient)
         {
-            bool isOfficialClient = clientDetector.IsClaudeCodeClient(down, down.BodyJsonNode as JsonObject);
+            bool isOfficialClient = clientDetector.IsClaudeCodeClient(down);
             bool isHaikuModel = !string.IsNullOrEmpty(up.MappedModelId) &&
                                 up.MappedModelId.Contains("haiku", StringComparison.OrdinalIgnoreCase);
 
             // 解析是否为流式请求（用于 X-Stainless-Helper-Method）
-            bool isStream = false;
-            if (down.BodyJsonNode is JsonObject bodyObj &&
-                bodyObj.TryGetPropertyValue("stream", out var streamNode) &&
-                streamNode is JsonValue streamValue &&
-                streamValue.TryGetValue<bool>(out var streamBool))
-            {
-                isStream = streamBool;
-            }
+            bool isStream = down.IsStreaming;
 
             CoverCliHeaders(up.Headers, isOfficialClient, isHaikuModel, isStream);
         }
