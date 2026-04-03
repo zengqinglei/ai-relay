@@ -225,47 +225,122 @@ public class SmartReverseProxyMiddleware(
                             attemptStatus = UsageStatus.Success;
                             finalStatus = UsageStatus.Success;
 
-                            await smartProxyAppService.HandleSuccessAsync(selectResult.AccountToken.Id, context.RequestAborted);
-
-                            WriteResponseHeaders(context, proxyResponse.StatusCode, proxyResponse.Headers);
+                            bool isCheckStreamHealth = downContext.IsStreaming && selectResult.AccountToken.IsCheckStreamHealth;
+                            bool headersWritten = false;
+                            var bufferedBytes = new List<byte[]>();
 
                             var tempUpResponseBody = new StringBuilder();
                             var tempDownResponseBody = new StringBuilder();
 
                             try
                             {
-                                // 枚举事件流（ForwardBytes 直接透传给下游）
+                                if (!isCheckStreamHealth)
+                                {
+                                    // 未开启健康检查，或者非流请求，原样立即发送Headers
+                                    await smartProxyAppService.HandleSuccessAsync(selectResult.AccountToken.Id, context.RequestAborted);
+                                    WriteResponseHeaders(context, proxyResponse.StatusCode, proxyResponse.Headers);
+                                    headersWritten = true;
+                                }
+
+                                // 枚举事件流（ConvertedBytes ?? OriginalBytes 直接透传给下游）
                                 await foreach (var evt in proxyResponse.Events!.WithCancellation(context.RequestAborted))
                                 {
-                                    // 收集 Usage & ModelId
+                                    // 收集 Usage
                                     if (evt.IsComplete && evt.Usage != null)
                                     {
                                         finalUsage = evt.Usage;
                                     }
 
-                                    // 转发字节
-                                    if (evt.ForwardBytes != null)
+                                    if (isCheckStreamHealth && !headersWritten)
                                     {
-                                        if (_loggingOptions.IsBodyLoggingEnabled && tempUpResponseBody.Length < _loggingOptions.MaxBodyLength)
+                                        if (evt.Type == StreamEventType.Error)
                                         {
-                                            var maxLength = _loggingOptions.MaxBodyLength - tempUpResponseBody.Length;
-                                            var length = Math.Min(evt.ForwardBytes.Length, maxLength);
-                                            var content = Encoding.UTF8.GetString(evt.ForwardBytes[..length]);
-                                            tempUpResponseBody.Append(content);
-                                            tempDownResponseBody.Append(content);
-                                            if (evt.ForwardBytes.Length > maxLength)
+                                            isStreamCrash = true;
+                                            attemptStatusDesc = $"流健康检查到内部错误事件节点 '{evt.Content ?? "unknown"}'";
+                                            break;
+                                        }
+
+                                        if (evt.HasOutput)
+                                        {
+                                            // 实际输出产生，解除等待并放行
+                                            await smartProxyAppService.HandleSuccessAsync(selectResult.AccountToken.Id, context.RequestAborted);
+                                            WriteResponseHeaders(context, proxyResponse.StatusCode, proxyResponse.Headers);
+                                            headersWritten = true;
+
+                                            foreach (var chunk in bufferedBytes)
                                             {
-                                                tempUpResponseBody.Append("...[Truncated]");
-                                                tempDownResponseBody.Append("...[Truncated]");
+                                                await context.Response.Body.WriteAsync(chunk, context.RequestAborted);
+                                            }
+                                            bufferedBytes.Clear();
+                                            await context.Response.Body.FlushAsync(context.RequestAborted);
+                                        }
+                                    }
+
+                                    // 转发字节
+                                    var bytesToForward = evt.ConvertedBytes ?? evt.OriginalBytes;
+
+                                    if (bytesToForward != null)
+                                    {
+                                        // 记录审计日志
+                                        if (_loggingOptions.IsBodyLoggingEnabled)
+                                        {
+                                            // 记录上游原始数据（转换前）
+                                            if (evt.OriginalBytes != null && tempUpResponseBody.Length < _loggingOptions.MaxBodyLength)
+                                            {
+                                                var maxLength = _loggingOptions.MaxBodyLength - tempUpResponseBody.Length;
+                                                var length = Math.Min(evt.OriginalBytes.Length, maxLength);
+                                                var content = Encoding.UTF8.GetString(evt.OriginalBytes[..length]);
+                                                tempUpResponseBody.Append(content);
+                                                if (evt.OriginalBytes.Length > maxLength)
+                                                {
+                                                    tempUpResponseBody.Append("...[Truncated]");
+                                                }
+                                            }
+
+                                            // 记录下游转换后数据（转换后）
+                                            if (tempDownResponseBody.Length < _loggingOptions.MaxBodyLength)
+                                            {
+                                                var maxLength = _loggingOptions.MaxBodyLength - tempDownResponseBody.Length;
+                                                var length = Math.Min(bytesToForward.Length, maxLength);
+                                                var content = Encoding.UTF8.GetString(bytesToForward[..length]);
+                                                tempDownResponseBody.Append(content);
+                                                if (bytesToForward.Length > maxLength)
+                                                {
+                                                    tempDownResponseBody.Append("...[Truncated]");
+                                                }
                                             }
                                         }
-                                        await context.Response.Body.WriteAsync(evt.ForwardBytes, context.RequestAborted);
-                                        await context.Response.Body.FlushAsync(context.RequestAborted);
+
+                                        // 决定缓冲还是直接写入
+                                        if (isCheckStreamHealth && !headersWritten)
+                                        {
+                                            bufferedBytes.Add(bytesToForward);
+                                        }
+                                        else
+                                        {
+                                            await context.Response.Body.WriteAsync(bytesToForward, context.RequestAborted);
+                                            await context.Response.Body.FlushAsync(context.RequestAborted);
+                                        }
                                     }
                                 }
 
-                                // 完全成功，直接返回退出当前请求
-                                return;
+                                if (isCheckStreamHealth && !headersWritten && !isStreamCrash)
+                                {
+                                    isStreamCrash = true;
+                                    attemptStatusDesc = "流健康检查未读取到包含有效文本，判定为空流或无响应";
+                                }
+
+                                if (isStreamCrash)
+                                {
+                                    context.Response.Clear();
+                                    logger.LogWarning(attemptStatusDesc);
+                                    // 重点：不要 return，让它自然走到下面的 Phase 2 进行切号与重试
+                                }
+                                else
+                                {
+                                    // 完全成功，直接返回退出当前请求
+                                    return;
+                                }
                             }
                             catch (Exception ex) when (ex is not OperationCanceledException)
                             {
@@ -326,11 +401,11 @@ public class SmartReverseProxyMiddleware(
                                     if (retryPolicy.RequiresDowngrade)
                                     {
                                         degradationLevel++;
-                                        attemptStatusDesc = $"启用降级级别 {degradationLevel} 进行重试 (Retry {currentAccountRetryCount})";
+                                        attemptStatusDesc = $"启用降级级别 {degradationLevel} 进行重试 (Retry {currentAccountRetryCount}){(attemptStatusDesc != null ? $"：{attemptStatusDesc}" : "")}";
                                     }
                                     else
                                     {
-                                        attemptStatusDesc = $"同账号重试，延迟 {retryAfter.TotalMilliseconds}ms，重试次数: {currentAccountRetryCount}";
+                                        attemptStatusDesc = $"同账号重试，延迟 {retryAfter.TotalMilliseconds}ms，重试次数: {currentAccountRetryCount}{(attemptStatusDesc != null ? $"：{attemptStatusDesc}" : "")}";
                                     }
                                     await Task.Delay(retryAfter, context.RequestAborted);
                                     currentAccountRetryCount++;
@@ -347,11 +422,11 @@ public class SmartReverseProxyMiddleware(
 
                                     if (selectResult.AvailableAccountCount <= 1)
                                     {
-                                        attemptStatusDesc = $"账号 '{selectResult.AccountToken.Name}' 不可用 (状态码: {httpStatusCode})，且无其他可用账号";
+                                        attemptStatusDesc = $"账号 '{selectResult.AccountToken.Name}' 不可用 (状态码: {httpStatusCode})，且无其他可用账号{(attemptStatusDesc != null ? $"：{attemptStatusDesc}" : "")}";
                                         throw new ServiceUnavailableException(attemptStatusDesc);
                                     }
                                     shouldSwitchAccount = true;
-                                    attemptStatusDesc = $"账号 '{selectResult.AccountToken.Name}' 不可用 (状态码: {httpStatusCode})，切换到其他账号";
+                                    attemptStatusDesc = $"账号 '{selectResult.AccountToken.Name}' 不可用 (状态码: {httpStatusCode})，切换到其他账号{(attemptStatusDesc != null ? $"：{attemptStatusDesc}" : "")}";
                                     break;
 
                                 case FailureInstruction.Fail:

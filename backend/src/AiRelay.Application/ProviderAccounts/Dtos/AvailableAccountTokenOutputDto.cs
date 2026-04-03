@@ -15,4 +15,5 @@ public record AvailableAccountTokenOutputDto
     public List<string>? ModelWhites { get; init; }
     public Dictionary<string, string>? ModelMapping { get; init; }
     public bool AllowOfficialClientMimic { get; init; }
+    public bool IsCheckStreamHealth { get; init; }
 }

@@ -63,6 +63,11 @@ public class AccountToken : DeletionAuditedEntity<Guid>
     /// </summary>
     public bool AllowOfficialClientMimic { get; private set; }
 
+    /// <summary>
+    /// 流健康度检查 (主动拦截没有输出或是带有错误抛出的残缺数据流)
+    /// </summary>
+    public bool IsCheckStreamHealth { get; private set; }
+
     // ── 计费统计字段 ──────────────────────────────────────────────────────────
 
     /// <summary>今日调用次数（UTC 自然日，跨日自动归零）</summary>
@@ -144,7 +149,8 @@ public class AccountToken : DeletionAuditedEntity<Guid>
         Dictionary<string, string>? extraProperties = null,
         List<string>? modelWhites = null,
         Dictionary<string, string>? modelMapping = null,
-        bool allowOfficialClientMimic = false)
+        bool allowOfficialClientMimic = false,
+        bool isCheckStreamHealth = false)
     {
         Id = Guid.CreateVersion7();
         Platform = platform;
@@ -161,6 +167,7 @@ public class AccountToken : DeletionAuditedEntity<Guid>
         ModelWhites = modelWhites;
         ModelMapping = modelMapping;
         AllowOfficialClientMimic = allowOfficialClientMimic;
+        IsCheckStreamHealth = isCheckStreamHealth;
 
         if (expiresIn.HasValue)
         {
@@ -179,7 +186,7 @@ public class AccountToken : DeletionAuditedEntity<Guid>
 
     public void Update(string? name, string? baseUrl, string? description, int? maxConcurrency, Dictionary<string, string>? extraProperties = null,
         List<string>? modelWhites = null, Dictionary<string, string>? modelMapping = null, bool clearModelWhites = false, bool clearModelMapping = false,
-        bool? allowOfficialClientMimic = null)
+        bool? allowOfficialClientMimic = null, bool? isCheckStreamHealth = null)
     {
         if (!string.IsNullOrWhiteSpace(name))
         {
@@ -219,6 +226,11 @@ public class AccountToken : DeletionAuditedEntity<Guid>
         if (allowOfficialClientMimic.HasValue)
         {
             AllowOfficialClientMimic = allowOfficialClientMimic.Value;
+        }
+
+        if (isCheckStreamHealth.HasValue)
+        {
+            IsCheckStreamHealth = isCheckStreamHealth.Value;
         }
     }
 

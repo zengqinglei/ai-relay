@@ -8,11 +8,11 @@ namespace AiRelay.Api.Middleware.SmartProxy.ErrorHandling;
 /// Claude 格式代理错误格式化器
 /// 用于适配 claude-cli sdk
 /// </summary>
-public record ClaudeProxyErrorFormatter : IProxyErrorFormatter
+public class ClaudeProxyErrorFormatter : BaseProxyErrorFormatter
 {
-    public ProviderPlatform Platform => ProviderPlatform.CLAUDE_OAUTH;
+    public override ProviderPlatform Platform => ProviderPlatform.CLAUDE_OAUTH;
 
-    public ProxyErrorResponse Format(Exception exception)
+    protected override ProxyErrorResponse BuildResponse(int statusCode, string message)
     {
         var responseObj = new
         {
@@ -20,12 +20,12 @@ public record ClaudeProxyErrorFormatter : IProxyErrorFormatter
             error = new
             {
                 type = "invalid_request_error",
-                message = $"AiRelay Gateway Error: {exception.Message}"
+                message
             }
         };
 
         return new ProxyErrorResponse(
-            StatusCodes.Status400BadRequest,
+            statusCode,
             MediaTypeNames.Application.Json,
             JsonSerializer.Serialize(responseObj));
     }

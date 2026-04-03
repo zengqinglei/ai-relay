@@ -8,24 +8,24 @@ namespace AiRelay.Api.Middleware.SmartProxy.ErrorHandling;
 /// Gemini 格式代理错误格式化器
 /// 用于适配 gemini-cli sdk
 /// </summary>
-public record GeminiProxyErrorFormatter : IProxyErrorFormatter
+public class GeminiProxyErrorFormatter : BaseProxyErrorFormatter
 {
-    public ProviderPlatform Platform => ProviderPlatform.GEMINI_OAUTH;
+    public override ProviderPlatform Platform => ProviderPlatform.GEMINI_OAUTH;
 
-    public ProxyErrorResponse Format(Exception exception)
+    protected override ProxyErrorResponse BuildResponse(int statusCode, string message)
     {
         var responseObj = new
         {
             error = new
             {
-                code = 400,
-                message = $"AiRelay Gateway Error: {exception.Message}",
+                code = statusCode,
+                message,
                 status = "FAILED_PRECONDITION"
             }
         };
 
         return new ProxyErrorResponse(
-            StatusCodes.Status400BadRequest,
+            statusCode,
             MediaTypeNames.Application.Json,
             JsonSerializer.Serialize(responseObj));
     }

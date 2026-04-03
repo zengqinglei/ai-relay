@@ -8,7 +8,8 @@ namespace AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.O
 /// <summary>
 /// Responses API → Chat Completions 格式转换 Processor
 /// 仅在 down.RelativePath 包含 /chat/completions 时激活
-/// 接管 ForwardBytes 的完整控制：转换后的行各自追加 \n\n，空行及无转换结果一律不转发
+/// 保留 OriginalBytes（上游原始数据），设置 ConvertedBytes（转换后数据）
+/// 转换后的行各自追加 \n\n，空行及无转换结果一律不转发
 /// </summary>
 public class OpenAiToCompletionResponseProcessor : IResponseProcessor
 {
@@ -20,11 +21,18 @@ public class OpenAiToCompletionResponseProcessor : IResponseProcessor
     {
         if (evt.Type == StreamEventType.Error) return Task.CompletedTask;
 
-        // 转换模式下接管所有 ForwardBytes 控制：
-        // 空行、无法转换的行一律清空 ForwardBytes，不直接透传
+        // 保存原始字节（如果尚未设置）
+        if (evt.OriginalBytes == null && !string.IsNullOrEmpty(evt.SseLine))
+        {
+            evt.OriginalBytes = Encoding.UTF8.GetBytes(evt.SseLine + "\n\n");
+        }
+
+        // 转换模式下接管所有 ConvertedBytes 控制：
+        // 空行、无法转换的行一律清空 ConvertedBytes，不直接透传
         if (string.IsNullOrEmpty(evt.SseLine))
         {
-            evt.ForwardBytes = null;
+            evt.OriginalBytes = null;
+            evt.ConvertedBytes = null;
             return Task.CompletedTask;
         }
 
@@ -38,12 +46,12 @@ public class OpenAiToCompletionResponseProcessor : IResponseProcessor
                 sb.Append(line);
                 sb.Append("\n\n");
             }
-            evt.ForwardBytes = Encoding.UTF8.GetBytes(sb.ToString());
+            evt.ConvertedBytes = Encoding.UTF8.GetBytes(sb.ToString());
         }
         else
         {
-            // 无转换结果（如 event: 类行）：清空 ForwardBytes，不透传原始行
-            evt.ForwardBytes = null;
+            // 无转换结果（如 event: 类行）：清空 ConvertedBytes，不透传原始行
+            evt.ConvertedBytes = null;
         }
 
         return Task.CompletedTask;

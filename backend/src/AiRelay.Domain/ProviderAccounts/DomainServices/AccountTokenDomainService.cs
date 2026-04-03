@@ -45,6 +45,7 @@ public class AccountTokenDomainService(
         List<string>? modelWhites = null,
         Dictionary<string, string>? modelMapping = null,
         bool allowOfficialClientMimic = false,
+        bool isCheckStreamHealth = false,
         CancellationToken cancellationToken = default)
     {
         var accountToken = new AccountToken(
@@ -59,7 +60,8 @@ public class AccountTokenDomainService(
             extraProperties,
             modelWhites,
             modelMapping,
-            allowOfficialClientMimic);
+            allowOfficialClientMimic,
+            isCheckStreamHealth);
 
         // 1. 刷新 Token (针对 Account 类型)
         if (!accountToken.Platform.IsApiKeyPlatform())

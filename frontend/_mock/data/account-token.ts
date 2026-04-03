@@ -30,6 +30,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     maxConcurrency: 10,
     currentConcurrency: 3,
     allowOfficialClientMimic: true,
+    isCheckStreamHealth: true,
     modelWhites: ['gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash'],
     modelMapping: { 'gpt-4o': 'gemini-1.5-pro', 'claude-*': 'gemini-2.0-flash-exp' }
   },
@@ -55,7 +56,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     successRateTotal: 97.8,
     maxConcurrency: 5,
     currentConcurrency: 1,
-    allowOfficialClientMimic: true
+    allowOfficialClientMimic: true,
+    isCheckStreamHealth: true
   },
   {
     id: '3',
@@ -83,7 +85,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     successRateTotal: 72.3,
     maxConcurrency: 2,
     currentConcurrency: 0,
-    allowOfficialClientMimic: false
+    allowOfficialClientMimic: false,
+    isCheckStreamHealth: false
   },
   {
     id: '4',
@@ -108,6 +111,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     maxConcurrency: 0,
     currentConcurrency: 12,
     allowOfficialClientMimic: false,
+    isCheckStreamHealth: false,
     modelMapping: { 'claude-opus-*': 'claude-3-5-sonnet-20241022' }
   },
   {
@@ -132,7 +136,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     successRateTotal: 98.4,
     maxConcurrency: 20,
     currentConcurrency: 5,
-    allowOfficialClientMimic: false
+    allowOfficialClientMimic: false,
+    isCheckStreamHealth: false
   },
   {
     id: '6',
@@ -157,7 +162,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     successRateTotal: 99.6,
     maxConcurrency: 50,
     currentConcurrency: 45,
-    allowOfficialClientMimic: true
+    allowOfficialClientMimic: true,
+    isCheckStreamHealth: true
   },
   {
     id: '7',
@@ -181,7 +187,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     successRateTotal: 93.5,
     maxConcurrency: 3,
     currentConcurrency: 0,
-    allowOfficialClientMimic: false
+    allowOfficialClientMimic: false,
+    isCheckStreamHealth: false
   },
   {
     id: '8',
@@ -206,7 +213,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     successRateTotal: 98.8,
     maxConcurrency: 100,
     currentConcurrency: 15,
-    allowOfficialClientMimic: true
+    allowOfficialClientMimic: true,
+    isCheckStreamHealth: true
   },
   {
     id: '9',
@@ -231,7 +239,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     successRateTotal: 97.9,
     maxConcurrency: 100,
     currentConcurrency: 8,
-    allowOfficialClientMimic: true
+    allowOfficialClientMimic: true,
+    isCheckStreamHealth: true
   },
   {
     id: '10',
@@ -256,7 +265,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     successRateTotal: 99.1,
     maxConcurrency: 10,
     currentConcurrency: 10,
-    allowOfficialClientMimic: true
+    allowOfficialClientMimic: true,
+    isCheckStreamHealth: true
   },
   {
     id: '11',
@@ -282,7 +292,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     successRateTotal: 85.2,
     maxConcurrency: 5,
     currentConcurrency: 0,
-    allowOfficialClientMimic: true
+    allowOfficialClientMimic: true,
+    isCheckStreamHealth: true
   }
 ];
 

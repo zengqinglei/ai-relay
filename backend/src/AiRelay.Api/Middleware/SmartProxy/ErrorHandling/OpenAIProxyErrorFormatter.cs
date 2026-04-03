@@ -8,17 +8,17 @@ namespace AiRelay.Api.Middleware.SmartProxy.ErrorHandling;
 /// OpenAI 格式代理错误格式化器
 /// 多数第三方 SDK 能兼容这种格式的解析
 /// </summary>
-public record OpenAIProxyErrorFormatter : IProxyErrorFormatter
+public class OpenAIProxyErrorFormatter : BaseProxyErrorFormatter
 {
-    public ProviderPlatform Platform => ProviderPlatform.OPENAI_OAUTH;
+    public override ProviderPlatform Platform => ProviderPlatform.OPENAI_OAUTH;
 
-    public ProxyErrorResponse Format(Exception exception)
+    protected override ProxyErrorResponse BuildResponse(int statusCode, string message)
     {
         var responseObj = new
         {
             error = new
             {
-                message = $"AiRelay Gateway Error: {exception.Message}",
+                message,
                 type = "proxy_failure",
                 param = (string?)null,
                 code = "gateway_error"
@@ -26,7 +26,7 @@ public record OpenAIProxyErrorFormatter : IProxyErrorFormatter
         };
 
         return new ProxyErrorResponse(
-            StatusCodes.Status400BadRequest,
+            statusCode,
             MediaTypeNames.Application.Json,
             JsonSerializer.Serialize(responseObj));
     }

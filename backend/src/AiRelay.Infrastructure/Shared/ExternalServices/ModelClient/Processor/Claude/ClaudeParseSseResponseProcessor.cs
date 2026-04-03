@@ -52,7 +52,12 @@ public class ClaudeParseSseResponseProcessor : IResponseProcessor
                     }
                     break;
 
+                case "content_block_start":
+                    evt.HasOutput = true;
+                    break;
+
                 case "content_block_delta":
+                    evt.HasOutput = true;
                     if (root.TryGetProperty("delta", out var delta) &&
                         delta.TryGetProperty("type", out var deltaType) &&
                         deltaType.GetString() == "text_delta" &&

@@ -43,6 +43,7 @@ export interface AccountTokenOutputDto {
   modelWhites?: string[];
   modelMapping?: Record<string, string>;
   allowOfficialClientMimic: boolean;
+  isCheckStreamHealth: boolean;
 }
 
 export interface CreateAccountTokenInputDto {
@@ -58,6 +59,7 @@ export interface CreateAccountTokenInputDto {
   modelWhites?: string[];
   modelMapping?: Record<string, string>;
   allowOfficialClientMimic?: boolean;
+  isCheckStreamHealth?: boolean;
 }
 
 export interface UpdateAccountTokenInputDto {
@@ -70,6 +72,7 @@ export interface UpdateAccountTokenInputDto {
   modelWhites?: string[];
   modelMapping?: Record<string, string>;
   allowOfficialClientMimic?: boolean;
+  isCheckStreamHealth?: boolean;
 }
 
 export interface GetAuthUrlInputDto {

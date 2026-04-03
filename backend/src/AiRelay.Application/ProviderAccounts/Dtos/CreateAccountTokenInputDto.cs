@@ -83,4 +83,9 @@ public class CreateAccountTokenInputDto
     /// 是否允许伪装为官方客户端
     /// </summary>
     public bool AllowOfficialClientMimic { get; init; } = false;
+
+    /// <summary>
+    /// 流健康度检查 (主动拦截没有输出或是带有错误抛出的残缺数据流)
+    /// </summary>
+    public bool IsCheckStreamHealth { get; init; } = false;
 }

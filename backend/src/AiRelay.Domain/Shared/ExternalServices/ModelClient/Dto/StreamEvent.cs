@@ -44,14 +44,25 @@ public class StreamEvent
     [JsonIgnore] public string? SseLine { get; set; }
 
     /// <summary>
-    /// 代理透传字节（精确还原上游 SSE 协议帧，含空行定界符）
-    /// null = 无需转发（仅内部解析），non-null = 直接写入下游响应流
-    /// 由 BaseChatModelHandler 根据 SseLine 初始化，可被 ToCompletionResponseProcessor 覆写
+    /// 原始字节（上游返回的原始数据，始终保存）
+    /// 用于审计日志记录转换前的数据
     /// </summary>
-    [JsonIgnore] public byte[]? ForwardBytes { get; set; }
+    [JsonIgnore] public byte[]? OriginalBytes { get; set; }
+
+    /// <summary>
+    /// 转换后的字节（仅在经过转换处理器后才赋值，未转换时为 null）
+    /// 转发时优先使用此字段，为 null 则使用 OriginalBytes
+    /// 用于审计日志记录转换后的数据
+    /// </summary>
+    [JsonIgnore] public byte[]? ConvertedBytes { get; set; }
 
     /// <summary>解析后的 Usage（由 ParseSse Processor 填充）</summary>
     [JsonIgnore] public ResponseUsage? Usage { get; set; }
+
+    /// <summary>
+    /// 流监控探针：标记该事件是否携带真实的返回输出内容或工具意图
+    /// </summary>
+    [JsonIgnore] public bool HasOutput { get; set; }
 
     /// <summary>解析出的 ModelId</summary>
     [JsonIgnore] public string? ModelId { get; set; }

@@ -93,7 +93,8 @@ export class AccountEditDialogComponent implements OnChanges {
       credential: ['', [Validators.required, Validators.maxLength(2048)]],
       description: ['', Validators.maxLength(1000)],
       maxConcurrency: [10, [Validators.required, Validators.min(0), Validators.max(1000)]],
-      allowOfficialClientMimic: [false]
+      allowOfficialClientMimic: [false],
+      isCheckStreamHealth: [false]
     });
 
     this.form.get('platform')?.valueChanges.subscribe(val => {
@@ -154,7 +155,8 @@ export class AccountEditDialogComponent implements OnChanges {
           credential: '', // Don't fill credential
           description: this.account.description,
           maxConcurrency: this.account.maxConcurrency,
-          allowOfficialClientMimic: this.account.allowOfficialClientMimic ?? false
+          allowOfficialClientMimic: this.account.allowOfficialClientMimic ?? false,
+          isCheckStreamHealth: this.account.isCheckStreamHealth ?? false
         },
         { emitEvent: false }
       );
@@ -187,7 +189,8 @@ export class AccountEditDialogComponent implements OnChanges {
           platform: ProviderPlatform.GEMINI_OAUTH,
           credential: '',
           maxConcurrency: 10,
-          allowOfficialClientMimic: true // GEMINI_OAUTH 是 OAuth 平台，默认开启
+          allowOfficialClientMimic: true, // GEMINI_OAUTH 是 OAuth 平台，默认开启
+          isCheckStreamHealth: false
         },
         { emitEvent: false }
       );
@@ -277,7 +280,8 @@ export class AccountEditDialogComponent implements OnChanges {
         maxConcurrency: formValue.maxConcurrency,
         modelWhites: this.modelWhites,
         modelMapping: this.buildModelMapping(),
-        allowOfficialClientMimic: formValue.allowOfficialClientMimic ?? false
+        allowOfficialClientMimic: formValue.allowOfficialClientMimic ?? false,
+        isCheckStreamHealth: formValue.isCheckStreamHealth ?? false
       };
 
       if (this.showOAuthFlow) {
@@ -300,7 +304,8 @@ export class AccountEditDialogComponent implements OnChanges {
           maxConcurrency: createDto.maxConcurrency,
           modelWhites: createDto.modelWhites,
           modelMapping: createDto.modelMapping,
-          allowOfficialClientMimic: createDto.allowOfficialClientMimic
+          allowOfficialClientMimic: createDto.allowOfficialClientMimic,
+          isCheckStreamHealth: createDto.isCheckStreamHealth
         };
 
         // Only send credential if provided

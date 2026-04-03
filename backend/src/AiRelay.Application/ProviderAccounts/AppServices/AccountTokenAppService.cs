@@ -139,13 +139,44 @@ public class AccountTokenAppService(
             yield break;
         }
 
+        bool healthCheckPassed = !accountToken.IsCheckStreamHealth;
+
         await foreach (var evt in proxyResponse.Events!.WithCancellation(cancellationToken))
         {
+            if (!healthCheckPassed)
+            {
+                if (evt.Type == StreamEventType.Error)
+                {
+                    yield return new StreamEvent
+                    {
+                        Type = StreamEventType.Error,
+                        Content = $"流健康检查到内部错误事件节点 '{evt.Content ?? "unknown"}'",
+                        IsComplete = true
+                    };
+                    yield break;
+                }
+
+                if (evt.HasOutput)
+                {
+                    healthCheckPassed = true;
+                }
+            }
+
             // 在测试模式下，过滤掉 Fast-Pass 产生的纯网络分发帧，仅推送有业务文本或状态的帧给前端
             if (evt.Content != null || evt.Type == StreamEventType.Error || evt.IsComplete || evt.Usage != null)
             {
                 yield return evt;
             }
+        }
+
+        if (!healthCheckPassed)
+        {
+            yield return new StreamEvent
+            {
+                Type = StreamEventType.Error,
+                Content = "流健康检查未读取到包含有效文本，判定为空流或无响应",
+                IsComplete = true
+            };
         }
     }
 
@@ -385,6 +416,7 @@ public class AccountTokenAppService(
             input.ModelWhites,
             input.ModelMapping,
             input.AllowOfficialClientMimic,
+            input.IsCheckStreamHealth,
             cancellationToken);
 
         logger.LogInformation("创建账户成功: {Name}", accountToken.Name);
@@ -415,7 +447,8 @@ public class AccountTokenAppService(
             modelMapping: input.ModelMapping,
             clearModelWhites: input.ModelWhites != null && input.ModelWhites.Count == 0,
             clearModelMapping: input.ModelMapping != null && input.ModelMapping.Count == 0,
-            allowOfficialClientMimic: input.AllowOfficialClientMimic);
+            allowOfficialClientMimic: input.AllowOfficialClientMimic,
+            isCheckStreamHealth: input.IsCheckStreamHealth);
 
         // 更新凭证
         if (!string.IsNullOrWhiteSpace(input.Credential))

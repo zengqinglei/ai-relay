@@ -47,7 +47,11 @@ public class OpenAiParseSseResponseProcessor : IResponseProcessor
                 {
                     case "response.output_text.delta":
                         if (root.TryGetProperty("delta", out var delta))
-                            evt.Content = delta.GetString();
+                        {
+                            var text = delta.GetString();
+                            evt.Content = text;
+                            if (!string.IsNullOrEmpty(text)) evt.HasOutput = true;
+                        }
                         break;
 
                     case "response.completed":
@@ -87,11 +91,31 @@ public class OpenAiParseSseResponseProcessor : IResponseProcessor
                 if (root.TryGetProperty("choices", out var choices) && choices.GetArrayLength() > 0)
                 {
                     var choice = choices[0];
-                    if (choice.TryGetProperty("delta", out var delta) &&
-                        delta.TryGetProperty("content", out var c))
+                    if (choice.TryGetProperty("delta", out var delta))
                     {
-                        evt.Content = c.GetString();
+                        if (delta.TryGetProperty("content", out var c))
+                        {
+                            var text = c.GetString();
+                            evt.Content = text;
+                            if (!string.IsNullOrEmpty(text)) evt.HasOutput = true;
+                        }
+                        
+                        if (delta.TryGetProperty("tool_calls", out _) || delta.TryGetProperty("reasoning_content", out _))
+                        {
+                            evt.HasOutput = true;
+                        }
                     }
+                }
+                else if (root.TryGetProperty("error", out var errorProp))
+                {
+                    evt.Type = StreamEventType.Error;
+                    
+                    string? errorMsg = null;
+                    if (errorProp.TryGetProperty("message", out var msg))
+                    {
+                        errorMsg = msg.GetString();
+                    }
+                    evt.Content = errorMsg ?? errorProp.ToString();
                 }
 
                 if (root.TryGetProperty("usage", out var u)) evt.Usage = ExtractUsage(u);

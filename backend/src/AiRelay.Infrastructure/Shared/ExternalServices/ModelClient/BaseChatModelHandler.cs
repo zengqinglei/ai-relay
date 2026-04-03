@@ -157,7 +157,12 @@ public abstract class BaseChatModelHandler : IChatModelHandler
     {
         try
         {
-            if (isStreaming)
+            // 检查响应 Content-Type，如果是 SSE 流，强制按流式处理
+            var contentType = response.Content.Headers.ContentType?.MediaType;
+            var isActuallyStreaming = contentType?.Contains("text/event-stream", StringComparison.OrdinalIgnoreCase) ?? false;
+            var shouldProcessAsStream = isStreaming || isActuallyStreaming;
+
+            if (shouldProcessAsStream)
             {
                 var sseBuffer = new SseStreamBuffer();
                 await using var responseStream = await response.Content.ReadAsStreamAsync(ct);
@@ -172,9 +177,10 @@ public abstract class BaseChatModelHandler : IChatModelHandler
                     {
                         if (!requiresMutation)
                         {
-                            // 【Fast-Pass 模式】整块网络帧直接作为 ForwardBytes 转发，0 损耗 / 0 篡改
-                            // 解决 #1：帧只在此处 yield 一次，ProcessLineAsync 不再写 ForwardBytes，消除双 yield
-                            yield return new StreamEvent { ForwardBytes = buffer.AsSpan(0, bytesRead).ToArray() };
+                            // 【Fast-Pass 模式】整块网络帧直接作为 OriginalBytes 转发，0 损耗 / 0 篡改
+                            // ConvertedBytes 保持 null，表示未经过转换
+                            // 解决 #1：帧只在此处 yield 一次，ProcessLineAsync 不再写 OriginalBytes，消除双 yield
+                            yield return new StreamEvent { OriginalBytes = buffer.AsSpan(0, bytesRead).ToArray() };
                         }
 
                         // 无论 Fast-Pass 还是 Mutation 模式，行解析都要执行
@@ -207,18 +213,19 @@ public abstract class BaseChatModelHandler : IChatModelHandler
                     {
                         // Mutation 模式：空行是 SSE 事件定界符，需要转发
                         // Fast-Pass 模式：空行已包含在整块帧中，无需单独处理
-                        return requiresMutation ? new StreamEvent { ForwardBytes = "\n"u8.ToArray() } : null;
+                        return requiresMutation ? new StreamEvent { OriginalBytes = "\n"u8.ToArray() } : null;
                     }
 
-                    // ProcessLineAsync 只负责语义解析，不写 ForwardBytes
-                    // Fast-Pass 下 ForwardBytes 由外层整块帧负责
-                    // Mutation 下 ForwardBytes 由各 Processor（如 ToCompletionResponseProcessor）负责
+                    // ProcessLineAsync 只负责语义解析，设置 OriginalBytes
+                    // Fast-Pass 下 OriginalBytes 由外层整块帧负责
+                    // Mutation 下 ConvertedBytes 由各 Processor（如 ToCompletionResponseProcessor）负责
                     var evt = new StreamEvent { SseLine = line };
                     foreach (var proc in processors) await proc.ProcessAsync(evt, ct);
 
-                    // 有语义内容（Content/Usage/IsComplete/Error）或 Mutation 模式下 Processor 填充了 ForwardBytes，才 yield
+                    // 有语义内容（Content/Usage/IsComplete/Error）或 Mutation 模式下 Processor 填充了 OriginalBytes/ConvertedBytes，才 yield
                     return (evt.Content != null || evt.InlineData != null || evt.IsComplete
-                            || evt.Type == StreamEventType.Error || evt.Usage != null || evt.ForwardBytes != null)
+                            || evt.Type == StreamEventType.Error || evt.Usage != null
+                            || evt.OriginalBytes != null || evt.ConvertedBytes != null)
                         ? evt
                         : null;
                 }
