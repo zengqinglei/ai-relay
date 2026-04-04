@@ -25,4 +25,11 @@ public interface ISmartProxyAppService : IAppService
     Task HandleFailureAsync(
         HandleFailureInputDto input,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 检查账号是否在熔断期（供并发请求感知）
+    /// </summary>
+    Task<bool> IsRateLimitedAsync(
+        Guid accountId,
+        CancellationToken cancellationToken = default);
 }

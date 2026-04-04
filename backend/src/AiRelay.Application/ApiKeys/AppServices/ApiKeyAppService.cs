@@ -49,7 +49,7 @@ public class ApiKeyAppService(
 
         if (apiKey == null)
         {
-            throw new BadRequestException($"ApiKey 不存在: {id}");
+            throw new UnauthorizedException($"ApiKey 不存在: {id}");
         }
 
         var bindings = input.Bindings?.Select(b => (b.Platform, b.ProviderGroupId)).ToList();
@@ -93,7 +93,7 @@ public class ApiKeyAppService(
 
         if (apiKey == null)
         {
-            throw new BadRequestException($"API Key 不存在: {id}");
+            throw new UnauthorizedException($"API Key 不存在: {id}");
         }
 
         // 预取统计数据 (避免 Resolver 中的 Sync-over-Async)

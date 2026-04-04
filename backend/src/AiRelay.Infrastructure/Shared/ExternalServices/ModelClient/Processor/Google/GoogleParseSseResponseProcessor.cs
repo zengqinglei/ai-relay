@@ -126,6 +126,11 @@ public class GoogleParseSseResponseProcessor : IResponseProcessor
                         evt.InlineData = new InlineDataPart(mimeType, dataValue);
                 }
             }
+            else if (part.TryGetProperty("functionCall", out _))
+            {
+                // 工具调用 part 代表有输出意图
+                evt.HasOutput = true;
+            }
         }
         if (sb.Length > 0) evt.Content = sb.ToString();
     }

@@ -54,6 +54,16 @@ public class OpenAiParseSseResponseProcessor : IResponseProcessor
                         }
                         break;
 
+                    case "response.output_item.added":
+                        // 工具调用 item 开始即代表有输出意图
+                        if (root.TryGetProperty("item", out var item) &&
+                            item.TryGetProperty("type", out var itemType) &&
+                            itemType.GetString() == "function_call")
+                        {
+                            evt.HasOutput = true;
+                        }
+                        break;
+
                     case "response.completed":
                         evt.IsComplete = true;
                         if (root.TryGetProperty("response", out var response))

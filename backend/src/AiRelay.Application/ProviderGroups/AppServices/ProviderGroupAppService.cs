@@ -97,7 +97,7 @@ public class ProviderGroupAppService(
     {
         var group = await providerGroupRepository.GetByIdAsync(id, cancellationToken);
         if (group == null)
-            throw new BadRequestException($"分组不存在: {id}");
+            throw new NotFoundException($"分组不存在: {id}");
 
         return await MapToOutputDtoAsync(group, cancellationToken);
     }

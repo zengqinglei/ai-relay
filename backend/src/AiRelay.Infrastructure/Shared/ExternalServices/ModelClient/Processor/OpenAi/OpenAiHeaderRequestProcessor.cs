@@ -35,6 +35,10 @@ public class OpenAiHeaderRequestProcessor(ChatModelConnectionOptions options) : 
             up.Headers.Remove("cookie");
 
             up.Headers["authorization"] = $"Bearer {options.Credential}";
+
+            // Responses API 需要 beta 声明；若客户端已透传则保留，否则注入默认值
+            if (!up.Headers.ContainsKey("openai-beta"))
+                up.Headers["openai-beta"] = "responses=v1";
         }
 
         // 伪装官方客户端

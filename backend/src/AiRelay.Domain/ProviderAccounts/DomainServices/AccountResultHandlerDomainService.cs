@@ -8,7 +8,6 @@ namespace AiRelay.Domain.ProviderAccounts.DomainServices;
 /// </summary>
 public class AccountResultHandlerDomainService(
     AccountRateLimitDomainService rateLimitDomainService,
-    AccountUsageCacheDomainService usageCacheDomainService,
     ILogger<AccountResultHandlerDomainService> logger)
 {
     /// <summary>
@@ -44,12 +43,17 @@ public class AccountResultHandlerDomainService(
             }
             else
             {
-                var newCount = await usageCacheDomainService.IncrementBackoffCountAsync(account.Id, cancellationToken);
+                var newCount = await rateLimitDomainService.IncrementBackoffCountAsync(account.Id, cancellationToken);
 
                 if (isOfficialAccount)
                 {
-                    // 官方账号：5分钟~5小时，5小时连续3次永久禁用
-                    if (newCount > 7)
+                    // 官方账号退避策略（对齐三级恢复周期）：
+                    // count 1~2：短暂等待（5min/30min），容忍瞬时过载
+                    // count 3~5：以2小时为间隔探测5小时窗口是否恢复（共3次，累计覆盖完整5h窗口）
+                    // count 6~7：以12小时为间隔探测1天限额是否恢复（共2次，覆盖完整24h周期）
+                    // count 8：长期等待（2.5天，对齐7天领取周期的1/3）
+                    // count ≥9：永久禁用
+                    if (newCount > 8)
                     {
                         var permanentMsg = $"账号 {account.Name} 连续失败次数过多，已永久禁用，状态码: {statusCode}";
                         account.MarkAsError(permanentMsg);
@@ -58,18 +62,26 @@ public class AccountResultHandlerDomainService(
                     }
                     var backoffSeconds = newCount switch
                     {
-                        1 => 300,
-                        2 => 900,
-                        3 => 1800,
-                        4 => 3600,
-                        _ => 18000  // 第5~7次：5小时
+                        1 => 300,       // 5分钟
+                        2 => 1800,      // 30分钟
+                        3 => 7200,      // 2小时（探测5小时窗口①）
+                        4 => 7200,      // 2小时（探测5小时窗口②）
+                        5 => 7200,      // 2小时（探测5小时窗口③）
+                        6 => 43200,     // 12小时（探测1天限额①）
+                        7 => 43200,     // 12小时（探测1天限额②）
+                        _ => 216000     // 第8次：2.5天
                     };
                     lockDuration = TimeSpan.FromSeconds(backoffSeconds);
                 }
                 else
                 {
-                    // 非官方账号：30s~1小时，超过7次永久禁用
-                    if (newCount > 7)
+                    // 非官方账号退避策略（底层同为 Claude 账号，三级恢复周期一致）：
+                    // count 1~5：30分钟内密集短间隔重试，容忍非官方中转商的瞬时抖动
+                    // count 6~8：以2小时为间隔探测5小时窗口是否恢复（共3次）
+                    // count 9~10：以12小时为间隔探测1天限额是否恢复（共2次）
+                    // count 11：长期等待（2.5天，对齐7天领取周期的1/3）
+                    // count ≥12：永久禁用
+                    if (newCount > 11)
                     {
                         var permanentMsg = $"账号 {account.Name} 连续失败次数过多，已永久禁用，状态码: {statusCode}";
                         account.MarkAsError(permanentMsg);
@@ -78,13 +90,17 @@ public class AccountResultHandlerDomainService(
                     }
                     var backoffSeconds = newCount switch
                     {
-                        1 => 30,
-                        2 => 180,
-                        3 => 600,
-                        4 => 1800,
-                        5 => 3600,
-                        6 => 10800,
-                        _ => 18000  // 第7次：5小时
+                        1 => 30,        // 30秒
+                        2 => 120,       // 2分钟
+                        3 => 300,       // 5分钟
+                        4 => 900,       // 15分钟
+                        5 => 1800,      // 30分钟
+                        6 => 7200,      // 2小时（探测5小时窗口①）
+                        7 => 7200,      // 2小时（探测5小时窗口②）
+                        8 => 7200,      // 2小时（探测5小时窗口③）
+                        9 => 43200,     // 12小时（探测1天限额①）
+                        10 => 43200,    // 12小时（探测1天限额②）
+                        _ => 216000     // 第11次：2.5天
                     };
                     lockDuration = TimeSpan.FromSeconds(backoffSeconds);
                 }

@@ -53,7 +53,13 @@ public class ClaudeParseSseResponseProcessor : IResponseProcessor
                     break;
 
                 case "content_block_start":
-                    evt.HasOutput = true;
+                    // tool_use block 本身即代表有输出意图；text block 需等到 delta 才算有内容
+                    if (root.TryGetProperty("content_block", out var cb) &&
+                        cb.TryGetProperty("type", out var cbType) &&
+                        cbType.GetString() == "tool_use")
+                    {
+                        evt.HasOutput = true;
+                    }
                     break;
 
                 case "content_block_delta":

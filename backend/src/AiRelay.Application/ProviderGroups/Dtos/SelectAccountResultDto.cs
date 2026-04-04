@@ -36,4 +36,9 @@ public record SelectAccountResultDto
     /// 可用账号总数（用于判断是否还有其他账号可切换）
     /// </summary>
     public int AvailableAccountCount { get; init; }
+
+    /// <summary>
+    /// 账号当前退避计数（用于动态调整同账号重试次数）
+    /// </summary>
+    public int BackoffCount { get; init; }
 }

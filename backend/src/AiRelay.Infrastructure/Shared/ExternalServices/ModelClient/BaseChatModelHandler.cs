@@ -1,17 +1,17 @@
-using System.Buffers;
-using System.Runtime.CompilerServices;
-using System.Text;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
-using Microsoft.Extensions.Logging;
-using System.Globalization;
-using System.Security.Cryptography;
-using System.Text.RegularExpressions;
-using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Buffer;
-using AiRelay.Domain.Shared.ExternalServices.ModelProvider.Dto;
-using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Context;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Processor;
+using AiRelay.Domain.Shared.ExternalServices.ModelProvider.Dto;
+using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Buffer;
+using Microsoft.Extensions.Logging;
+using System.Buffers;
+using System.Globalization;
+using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace AiRelay.Infrastructure.Shared.ExternalServices.ModelClient;
 
@@ -137,9 +137,14 @@ public abstract class BaseChatModelHandler : IChatModelHandler
             return new ProxyResponse(false, statusCode, headers, errorBody, null);
         }
 
+        // 检查响应 Content-Type，如果是 SSE 流，强制按流式处理
+        var contentType = response.Content.Headers.ContentType?.MediaType;
+        var isActuallyStreaming = contentType?.Contains("text/event-stream", StringComparison.OrdinalIgnoreCase) ?? false;
+        var shouldProcessAsStream = isStreaming || isActuallyStreaming;
+
         // Phase 2：状态机闭包持有 response，finally 块负责 Dispose
         var processors = GetResponseProcessors(up, down);
-        var events = StreamResponseAsync(response, statusCode, headers, processors, isStreaming, ct);
+        var events = StreamResponseAsync(response, statusCode, headers, processors, shouldProcessAsStream, ct);
         return new ProxyResponse(true, statusCode, headers, null, events);
     }
 
@@ -157,12 +162,8 @@ public abstract class BaseChatModelHandler : IChatModelHandler
     {
         try
         {
-            // 检查响应 Content-Type，如果是 SSE 流，强制按流式处理
-            var contentType = response.Content.Headers.ContentType?.MediaType;
-            var isActuallyStreaming = contentType?.Contains("text/event-stream", StringComparison.OrdinalIgnoreCase) ?? false;
-            var shouldProcessAsStream = isStreaming || isActuallyStreaming;
 
-            if (shouldProcessAsStream)
+            if (isStreaming)
             {
                 var sseBuffer = new SseStreamBuffer();
                 await using var responseStream = await response.Content.ReadAsStreamAsync(ct);
@@ -222,9 +223,10 @@ public abstract class BaseChatModelHandler : IChatModelHandler
                     var evt = new StreamEvent { SseLine = line };
                     foreach (var proc in processors) await proc.ProcessAsync(evt, ct);
 
-                    // 有语义内容（Content/Usage/IsComplete/Error）或 Mutation 模式下 Processor 填充了 OriginalBytes/ConvertedBytes，才 yield
+                    // 有语义内容（Content/Usage/IsComplete/Error/HasOutput）或 Mutation 模式下 Processor 填充了 OriginalBytes/ConvertedBytes，才 yield
                     return (evt.Content != null || evt.InlineData != null || evt.IsComplete
                             || evt.Type == StreamEventType.Error || evt.Usage != null
+                            || evt.HasOutput
                             || evt.OriginalBytes != null || evt.ConvertedBytes != null)
                         ? evt
                         : null;

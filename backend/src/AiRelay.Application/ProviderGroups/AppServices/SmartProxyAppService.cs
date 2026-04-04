@@ -19,7 +19,7 @@ public class SmartProxyAppService(
     ProviderGroupDomainService providerGroupDomainService,
     AccountTokenDomainService accountTokenDomainService,
     AccountResultHandlerDomainService accountResultHandlerDomainService,
-    AccountUsageCacheDomainService usageCacheDomainService,
+    AccountRateLimitDomainService rateLimitDomainService,
     IRepository<ApiKeyProviderGroupBinding, Guid> apiKeyProviderGroupBindingRepository,
     IRepository<AccountToken, Guid> accountRepository,
     IObjectMapper objectMapper,
@@ -50,7 +50,7 @@ public class SmartProxyAppService(
 
         if (result == null || result.Value.AccountToken == null)
         {
-            throw new NotFoundException($"分组 {bindingGroup.ProviderGroup.Name} 中没有可用的 {input.Platform} 账户");
+            throw new ForbiddenException($"分组 {bindingGroup.ProviderGroup.Name} 中没有可用的 {input.Platform} 账户");
         }
 
         var (accountToken, providerGroup, isStickyBound, availableCount) = result.Value;
@@ -60,7 +60,7 @@ public class SmartProxyAppService(
 
         if (string.IsNullOrEmpty(accountToken.AccessToken) && !input.Platform.IsApiKeyPlatform()) // 仅非APIKey平台检查AccessToken
         {
-            throw new BadRequestException($"{accountToken.Platform} 账户 '{accountToken.Name}' 的凭证为空");
+            throw new UnauthorizedException($"{accountToken.Platform} 账户 '{accountToken.Name}' 的凭证为空");
         }
 
         logger.LogDebug("已选定账户: {AccountTokenName} (ProviderGroupId: {ProviderGroupId}, IsStickyBound: {IsStickyBound})",
@@ -83,6 +83,7 @@ public class SmartProxyAppService(
         };
 
         var accountTokenResult = objectMapper.Map<AccountToken, AvailableAccountTokenOutputDto>(accountToken, contextItems);
+        var backoffCount = await rateLimitDomainService.GetBackoffCountAsync(accountToken.Id, cancellationToken);
 
         return new SelectAccountResultDto
         {
@@ -91,7 +92,8 @@ public class SmartProxyAppService(
             ProviderGroupName = providerGroup.Name,
             GroupRateMultiplier = providerGroup.RateMultiplier,
             WaitPlan = waitPlan,
-            AvailableAccountCount = availableCount
+            AvailableAccountCount = availableCount,
+            BackoffCount = backoffCount
         };
     }
 
@@ -99,7 +101,7 @@ public class SmartProxyAppService(
         Guid accountId,
         CancellationToken cancellationToken = default)
     {
-        await usageCacheDomainService.ClearBackoffCountAsync(accountId, cancellationToken);
+        await rateLimitDomainService.ClearBackoffCountAsync(accountId, cancellationToken);
 
         var account = await accountRepository.GetByIdAsync(accountId, cancellationToken);
         if (account == null) return;
@@ -128,4 +130,7 @@ public class SmartProxyAppService(
 
         await accountRepository.UpdateAsync(account, cancellationToken);
     }
+
+    public Task<bool> IsRateLimitedAsync(Guid accountId, CancellationToken cancellationToken = default)
+        => rateLimitDomainService.IsRateLimitedAsync(accountId, cancellationToken);
 }

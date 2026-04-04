@@ -11,9 +11,9 @@ namespace AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.O
 /// 保留 OriginalBytes（上游原始数据），设置 ConvertedBytes（转换后数据）
 /// 转换后的行各自追加 \n\n，空行及无转换结果一律不转发
 /// </summary>
-public class OpenAiToCompletionResponseProcessor : IResponseProcessor
+public class OpenAiToCompletionResponseProcessor(bool includeUsage = false) : IResponseProcessor
 {
-    private readonly ResponsesToCompletionsConverter _converter = new();
+    private readonly ResponsesToCompletionsConverter _converter = new(includeUsage);
 
     public bool RequiresMutation => true;
 
@@ -31,8 +31,23 @@ public class OpenAiToCompletionResponseProcessor : IResponseProcessor
         // 空行、无法转换的行一律清空 ConvertedBytes，不直接透传
         if (string.IsNullOrEmpty(evt.SseLine))
         {
-            evt.OriginalBytes = null;
-            evt.ConvertedBytes = null;
+            // 合成流结束事件（IsComplete=true）：若转换器尚未完成（上游异常断流），补发 finish chunk 及 [DONE]
+            if (evt.IsComplete && !_converter.IsFinalized)
+            {
+                var sb = new StringBuilder();
+                foreach (var line in _converter.Finalize())
+                {
+                    sb.Append(line);
+                    sb.Append("\n\n");
+                }
+                sb.Append("data: [DONE]\n\n");
+                evt.ConvertedBytes = Encoding.UTF8.GetBytes(sb.ToString());
+            }
+            else
+            {
+                evt.OriginalBytes = null;
+                evt.ConvertedBytes = null;
+            }
             return Task.CompletedTask;
         }
 
@@ -50,7 +65,8 @@ public class OpenAiToCompletionResponseProcessor : IResponseProcessor
         }
         else
         {
-            // 无转换结果（如 event: 类行）：清空 ConvertedBytes，不透传原始行
+            // 无转换结果（如 event: 类行）：同时清空 OriginalBytes 和 ConvertedBytes，不透传原始行
+            evt.OriginalBytes = null;
             evt.ConvertedBytes = null;
         }
 

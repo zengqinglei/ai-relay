@@ -7,7 +7,7 @@ namespace AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.O
 /// <summary>
 /// Responses API SSE → Chat Completions SSE 响应转换器（有状态，每个请求创建一个实例）
 /// </summary>
-public class ResponsesToCompletionsConverter
+public class ResponsesToCompletionsConverter(bool includeUsage = false)
 {
     private string _id = GenerateChatCmplId();
     private string _model = string.Empty;
@@ -63,7 +63,7 @@ public class ResponsesToCompletionsConverter
                     break;
 
                 case "response.reasoning_summary_text.delta":
-                    // reasoning delta — 可选输出，当前忽略
+                    foreach (var c in HandleReasoningDelta(root)) yield return FormatChunk(c);
                     break;
 
                 case "response.completed":
@@ -105,6 +105,15 @@ public class ResponsesToCompletionsConverter
         if (string.IsNullOrEmpty(content)) yield break;
 
         yield return MakeDeltaChunk(new JsonObject { ["content"] = content });
+    }
+
+    private IEnumerable<JsonObject> HandleReasoningDelta(JsonElement root)
+    {
+        if (!root.TryGetProperty("delta", out var delta)) yield break;
+        var content = delta.GetString();
+        if (string.IsNullOrEmpty(content)) yield break;
+
+        yield return MakeDeltaChunk(new JsonObject { ["reasoning_content"] = content });
     }
 
     private IEnumerable<JsonObject> HandleOutputItemAdded(JsonElement root)
@@ -192,8 +201,8 @@ public class ResponsesToCompletionsConverter
         // finish chunk
         yield return MakeFinishChunk(finishReason);
 
-        // usage chunk（空 choices）
-        if (usage != null)
+        // usage chunk（空 choices）—— 仅当客户端请求了 stream_options.include_usage=true 时发送
+        if (includeUsage && usage != null)
         {
             yield return new JsonObject
             {
@@ -216,7 +225,9 @@ public class ResponsesToCompletionsConverter
         }
     }
 
-    private IEnumerable<JsonObject> Finalize()
+    public bool IsFinalized => _finalized;
+
+    public IEnumerable<JsonObject> Finalize()
     {
         if (_finalized) yield break;
         _finalized = true;

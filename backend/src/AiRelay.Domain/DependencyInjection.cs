@@ -22,7 +22,6 @@ public static class DependencyInjection
     {
         // 领域服务（无状态，使用 Transient 生命周期）
         services.AddTransient<AccountTokenDomainService>();
-        services.AddTransient<AccountUsageCacheDomainService>();
         services.AddTransient<AccountRateLimitDomainService>();
         services.AddTransient<AccountResultHandlerDomainService>();
         services.AddTransient<AccountFingerprintDomainService>();

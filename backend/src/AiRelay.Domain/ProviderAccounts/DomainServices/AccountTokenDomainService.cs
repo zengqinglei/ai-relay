@@ -187,7 +187,14 @@ public class AccountTokenDomainService(
                 .Any(k => requestedModel.StartsWith(k[..^1], StringComparison.OrdinalIgnoreCase));
         }
 
-        // 无白名单：用上游模型列表（带缓存）与 baseline 取交集后校验
+        // 无白名单：检查映射列表，命中则视为支持
+        var mapping = account.ModelMapping;
+        if (mapping != null && mapping.Count > 0)
+        {
+            if (ResolveMapping(requestedModel, mapping) != null) return true;
+        }
+
+        // 无白名单且无映射命中：用上游模型列表（带缓存）与 baseline 取交集后校验
         var baselineModels = modelProvider.GetAvailableModels(account.Platform);
         if (baselineModels == null || baselineModels.Count == 0) return true;
 

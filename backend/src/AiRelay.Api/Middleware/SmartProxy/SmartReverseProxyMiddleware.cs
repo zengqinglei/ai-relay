@@ -86,7 +86,7 @@ public class SmartReverseProxyMiddleware(
             {
                 if (accountSwitchCount >= MaxAccountSwitches)
                 {
-                    throw new BadRequestException($"已尝试 {MaxAccountSwitches} 个账号，均不可用");
+                    throw new ServiceUnavailableException($"已尝试 {MaxAccountSwitches} 个账号，均不可用");
                 }
 
                 // 1. 选号
@@ -123,9 +123,25 @@ public class SmartReverseProxyMiddleware(
                 var shouldSwitchAccount = false;
                 var degradationLevel = 0;
 
+                // BackoffCount=0: 3次；=1: 2次；≥2: 1次（账号历史失败越多，给予越少重试机会）
+                var maxSameAccountRetries = selectResult.BackoffCount switch
+                {
+                    0 => 3,
+                    1 => 2,
+                    _ => 1
+                };
+
                 // 内层循环：同账号重试
                 while (!shouldSwitchAccount)
                 {
+                    // 并发熔断感知：若账号已被并发请求触发熔断，立即切换，避免继续消耗重试次数
+                    if (await smartProxyAppService.IsRateLimitedAsync(selectResult.AccountToken.Id, context.RequestAborted))
+                    {
+                        shouldSwitchAccount = true;
+                        logger.LogDebug("账号 {AccountName} 已被并发请求触发熔断，跳过重试直接切换账号", selectResult.AccountToken.Name);
+                        break;
+                    }
+
                     var activeRequestId = Guid.CreateVersion7();
 
                     // 2. 获取并发槽位
@@ -137,7 +153,7 @@ public class SmartReverseProxyMiddleware(
                             var maxWait = selectResult.WaitPlan.MaxConcurrency + 20;
                             if (!await concurrencyStrategy.IncrementWaitCountAsync(selectResult.AccountToken.Id, maxWait, context.RequestAborted))
                             {
-                                throw new BadRequestException("等待队列已满，请稍后重试");
+                                throw new ServiceUnavailableException("等待队列已满，请稍后重试");
                             }
 
                             try
@@ -156,7 +172,7 @@ public class SmartReverseProxyMiddleware(
 
                             if (!acquired)
                             {
-                                throw new BadRequestException($"账号 {selectResult.AccountToken.Name} 繁忙，请稍后重试");
+                                throw new ServiceUnavailableException($"账号 {selectResult.AccountToken.Name} 繁忙，请稍后重试");
                             }
                         }
                         else
@@ -392,8 +408,7 @@ public class SmartReverseProxyMiddleware(
                                 new ModelErrorAnalysisResult() { IsCanRetry = true } : // 对于流直接断开导致的崩溃，强制视为网络异常要求重试（等效于502/504等）
                                 await accountedHandler.CheckRetryPolicyAsync(httpStatusCode.Value, proxyResponse.Headers, proxyResponse.ErrorBody);
 
-                            const int MaxSameAccountRetries = 3;
-                            var (instruction, retryAfter) = DetermineFailureInstruction(retryPolicy, currentAccountRetryCount, MaxSameAccountRetries);
+                            var (instruction, retryAfter) = DetermineFailureInstruction(retryPolicy, currentAccountRetryCount, maxSameAccountRetries);
 
                             switch (instruction)
                             {
@@ -505,10 +520,10 @@ public class SmartReverseProxyMiddleware(
 
             var formatter = errorFormatterFactory.GetFormatter(platform);
             var errorResponse = formatter.Format(ex);
+            downResponseBody = LoggingSubBody(errorResponse.Payload);
 
             context.Response.StatusCode = errorResponse.StatusCode;
             context.Response.ContentType = errorResponse.ContentType;
-            downResponseBody = LoggingSubBody(errorResponse.Payload);
             await context.Response.WriteAsync(errorResponse.Payload, Encoding.UTF8, context.RequestAborted);
         }
         finally

@@ -19,7 +19,9 @@ public class OpenAiModifyBodyRequestProcessor(ChatModelConnectionOptions options
     {
         up.SessionId = down.SessionId;
 
-        bool isChatRoute = up.RelativePath.Contains("/chat/completions", StringComparison.OrdinalIgnoreCase);
+        // 必须检查 down.RelativePath（下游原始路径），而非 up.RelativePath
+        // 因为 OpenAiUrlRequestProcessor 已将 up.RelativePath 统一改写为 /v1/responses
+        bool isChatRoute = down.RelativePath.Contains("/chat/completions", StringComparison.OrdinalIgnoreCase);
         bool isOAuth = options.Platform == ProviderPlatform.OPENAI_OAUTH;
         bool needChangeModel = !string.IsNullOrEmpty(up.MappedModelId) && up.MappedModelId != down.ModelId;
 

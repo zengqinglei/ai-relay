@@ -56,8 +56,16 @@ public class DownRequestContext
                 return true;
             }
 
-            // 3. 检查解析好的特征字典
-            if (ExtractedProps.TryGetValue("stream", out var streamStr) && 
+            // 3. 检查 Header（X-Stainless-Helper-Method: stream）
+            if (Headers.TryGetValue("X-Stainless-Helper-Method", out var helperMethod) &&
+                helperMethod.Equals("stream", StringComparison.OrdinalIgnoreCase))
+            {
+                _isStreaming = true;
+                return true;
+            }
+
+            // 4. 检查解析好的特征字典
+            if (ExtractedProps.TryGetValue("stream", out var streamStr) &&
                 bool.TryParse(streamStr, out var isStream) && isStream)
             {
                 _isStreaming = true;

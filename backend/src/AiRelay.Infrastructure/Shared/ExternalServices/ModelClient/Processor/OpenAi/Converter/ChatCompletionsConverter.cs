@@ -17,6 +17,7 @@ public static class ChatCompletionsConverter
         {
             ["model"] = chatReq["model"]?.DeepClone(),
             ["stream"] = true,
+            ["store"] = false,
             ["include"] = new JsonArray { "reasoning.encrypted_content" }
         };
 
@@ -24,11 +25,22 @@ public static class ChatCompletionsConverter
         if (chatReq.TryGetPropertyValue("messages", out var messagesNode) && messagesNode is JsonArray messages)
             req["input"] = ConvertMessages(messages);
 
-        // max_completion_tokens / max_tokens → max_output_tokens
+        // max_completion_tokens / max_tokens → max_output_tokens，最小值 128（防止极小值截断响应）
+        const int minMaxOutputTokens = 128;
         if (chatReq.TryGetPropertyValue("max_completion_tokens", out var maxComp) && maxComp != null)
-            req["max_output_tokens"] = maxComp.DeepClone();
+        {
+            var v = maxComp.DeepClone();
+            if (v is JsonValue jv && jv.TryGetValue<int>(out var iv) && iv < minMaxOutputTokens)
+                v = JsonValue.Create(minMaxOutputTokens);
+            req["max_output_tokens"] = v;
+        }
         else if (chatReq.TryGetPropertyValue("max_tokens", out var maxTok) && maxTok != null)
-            req["max_output_tokens"] = maxTok.DeepClone();
+        {
+            var v = maxTok.DeepClone();
+            if (v is JsonValue jv && jv.TryGetValue<int>(out var iv) && iv < minMaxOutputTokens)
+                v = JsonValue.Create(minMaxOutputTokens);
+            req["max_output_tokens"] = v;
+        }
 
         // temperature, top_p
         if (chatReq.TryGetPropertyValue("temperature", out var temp) && temp != null)
@@ -40,13 +52,17 @@ public static class ChatCompletionsConverter
         if (chatReq.TryGetPropertyValue("reasoning_effort", out var effort) && effort != null)
             req["reasoning"] = new JsonObject { ["effort"] = effort.DeepClone(), ["summary"] = "auto" };
 
-        // tools
+        // tools（优先使用 tools，无 tools 时再看 functions）
         if (chatReq.TryGetPropertyValue("tools", out var tools) && tools is JsonArray toolsArray)
             req["tools"] = ConvertTools(toolsArray);
+        else if (chatReq.TryGetPropertyValue("functions", out var functions) && functions is JsonArray funcArray && funcArray.Count > 0)
+            req["tools"] = ConvertFunctionsToTools(funcArray);
 
-        // tool_choice
+        // tool_choice（优先使用 tool_choice，无则看 function_call）
         if (chatReq.TryGetPropertyValue("tool_choice", out var toolChoice) && toolChoice != null)
             req["tool_choice"] = toolChoice.DeepClone();
+        else if (chatReq.TryGetPropertyValue("function_call", out var functionCall) && functionCall != null)
+            req["tool_choice"] = ConvertFunctionCallToToolChoice(functionCall);
 
         // service_tier
         if (chatReq.TryGetPropertyValue("service_tier", out var tier) && tier != null)
@@ -76,6 +92,9 @@ public static class ChatCompletionsConverter
                     break;
                 case "tool":
                     input.Add(ConvertToolMessage(msgObj));
+                    break;
+                case "function":
+                    input.Add(ConvertFunctionRoleMessage(msgObj));
                     break;
             }
         }
@@ -167,9 +186,19 @@ public static class ChatCompletionsConverter
             foreach (var part in parts)
             {
                 if (part is JsonObject partObj &&
-                    partObj.TryGetPropertyValue("type", out var t) && t?.GetValue<string>() == "text" &&
-                    partObj.TryGetPropertyValue("text", out var txt))
-                    sb.Append(txt?.GetValue<string>());
+                    partObj.TryGetPropertyValue("type", out var t))
+                {
+                    var type = t?.GetValue<string>();
+                    if ((type == "thinking" || type == "reasoning") &&
+                        partObj.TryGetPropertyValue("thinking", out var thinkingNode) &&
+                        thinkingNode?.GetValue<string>() is { Length: > 0 } thinkingText)
+                    {
+                        sb.Append("<thinking>").Append(thinkingText).Append("</thinking>");
+                    }
+                    else if (type == "text" &&
+                        partObj.TryGetPropertyValue("text", out var txt))
+                        sb.Append(txt?.GetValue<string>());
+                }
             }
             if (sb.Length > 0) textContent = sb.ToString();
         }
@@ -261,5 +290,78 @@ public static class ChatCompletionsConverter
             result.Add(converted);
         }
         return result;
+    }
+
+    /// <summary>
+    /// Legacy role=function → function_call_output，用 message.name 作 call_id（旧版无独立 call_id）
+    /// </summary>
+    private static JsonObject ConvertFunctionRoleMessage(JsonObject msg)
+    {
+        var callId = msg.TryGetPropertyValue("name", out var n) ? n?.GetValue<string>() : null;
+        string? output = null;
+        if (msg.TryGetPropertyValue("content", out var c))
+        {
+            if (c is JsonValue cv && cv.TryGetValue<string>(out var s))
+                output = s;
+            else if (c is JsonArray arr)
+            {
+                var sb = new StringBuilder();
+                foreach (var part in arr)
+                    if (part is JsonObject partObj &&
+                        partObj.TryGetPropertyValue("type", out var t) && t?.GetValue<string>() == "text" &&
+                        partObj.TryGetPropertyValue("text", out var txt))
+                        sb.Append(txt?.GetValue<string>());
+                output = sb.ToString();
+            }
+        }
+        if (string.IsNullOrEmpty(output)) output = "(empty)";
+
+        return new JsonObject
+        {
+            ["type"] = "function_call_output",
+            ["call_id"] = callId,
+            ["output"] = output
+        };
+    }
+
+    /// <summary>
+    /// Legacy functions[] → Responses API tools[]
+    /// functions[] 的每一项直接就是 {name, description, parameters, strict}，无嵌套 function 字段
+    /// </summary>
+    private static JsonArray ConvertFunctionsToTools(JsonArray functions)
+    {
+        var result = new JsonArray();
+        foreach (var func in functions)
+        {
+            if (func is not JsonObject funcObj) continue;
+            var converted = new JsonObject { ["type"] = "function" };
+            if (funcObj.TryGetPropertyValue("name", out var n) && n != null) converted["name"] = n.DeepClone();
+            if (funcObj.TryGetPropertyValue("description", out var d) && d != null) converted["description"] = d.DeepClone();
+            if (funcObj.TryGetPropertyValue("parameters", out var p) && p != null) converted["parameters"] = p.DeepClone();
+            if (funcObj.TryGetPropertyValue("strict", out var s) && s != null) converted["strict"] = s.DeepClone();
+            result.Add(converted);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Legacy function_call → tool_choice
+    /// "auto"/"none" → 原样透传；{"name":"X"} → {"type":"function","function":{"name":"X"}}
+    /// </summary>
+    private static JsonNode ConvertFunctionCallToToolChoice(JsonNode functionCall)
+    {
+        if (functionCall is JsonValue strVal && strVal.TryGetValue<string>(out var s))
+            return JsonValue.Create(s)!;
+
+        if (functionCall is JsonObject obj && obj.TryGetPropertyValue("name", out var name) && name != null)
+        {
+            return new JsonObject
+            {
+                ["type"] = "function",
+                ["function"] = new JsonObject { ["name"] = name.DeepClone() }
+            };
+        }
+
+        return functionCall.DeepClone();
     }
 }

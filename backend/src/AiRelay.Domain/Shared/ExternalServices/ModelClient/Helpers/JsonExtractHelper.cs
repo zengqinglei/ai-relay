@@ -161,6 +161,13 @@ public static partial class JsonExtractHelper
                                     result["metadata.user_id"] = reader.GetString()!;
                                 }
                             }
+                            else if (currentTopLevelPropName == "stream_options" && currentPropName == "include_usage")
+                            {
+                                if (reader.TokenType == JsonTokenType.True)
+                                {
+                                    result["stream_options.include_usage"] = "true";
+                                }
+                            }
                             else if (currentTopLevelPropName == "contents" && currentPropName == "text")
                             {
                                 if (!result.ContainsKey("messages[0].content") && reader.TokenType == JsonTokenType.String)

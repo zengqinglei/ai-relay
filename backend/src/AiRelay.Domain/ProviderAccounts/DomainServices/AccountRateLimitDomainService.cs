@@ -15,8 +15,12 @@ public class AccountRateLimitDomainService(
     IRepository<AccountToken, Guid> accountRepository,
     ILogger<AccountRateLimitDomainService> logger)
 {
-    private const int BACKOFF_BASE_SECONDS = 5;  // 指数退避基础值
-    private const int BACKOFF_MAX_SECONDS = 3600;  // 指数退避最大值（1小时）
+    private const int BACKOFF_BASE_SECONDS = 5;      // 指数退避基础值
+    private const int BACKOFF_MAX_SECONDS = 216000;  // 指数退避最大值（2.5天）
+
+    private const string BackoffCountKeyPrefix = "account:backoff:";
+
+    // ============ 限流 ============
 
     /// <summary>
     /// 锁定账号：仅写入 Redis TTL，不操作数据库。
@@ -97,7 +101,7 @@ public class AccountRateLimitDomainService(
         var keys = ids.Select(id => $"RateLimit:{id}").ToArray();
         var rateLimitedIds = new HashSet<Guid>();
 
-        // 批量查询 Redis
+        // 批量查�� Redis
         var tasks = keys.Select(key => cache.GetStringAsync(key, cancellationToken));
         var results = await Task.WhenAll(tasks);
 
@@ -127,12 +131,10 @@ public class AccountRateLimitDomainService(
     /// </summary>
     public async Task ClearAsync(AccountToken account, CancellationToken cancellationToken = default)
     {
-        var key = $"RateLimit:{account.Id}";
-        var successKey = $"RateLimit:Success:{account.Id}";
-
-        // 1. 移除 Redis 中的 Key
-        await cache.RemoveAsync(key, cancellationToken);
-        await cache.RemoveAsync(successKey, cancellationToken);
+        // 1. 移除 Redis 中的所有相关 Key
+        await cache.RemoveAsync($"RateLimit:{account.Id}", cancellationToken);
+        await cache.RemoveAsync($"RateLimit:Success:{account.Id}", cancellationToken);
+        await cache.RemoveAsync($"{BackoffCountKeyPrefix}{account.Id}", cancellationToken);
 
         // 2. 重置数据库中的状态（支持限流和异常状态）
         if (account.ResetStatus())
@@ -142,6 +144,40 @@ public class AccountRateLimitDomainService(
         }
     }
 
+    // ============ 退避计数 ============
+
+    /// <summary>
+    /// 原子递增退避计数，返回递增后的新值。
+    /// 注意：IDistributedCache 不支持原子 INCR，此处通过"先读后写"实现，
+    /// 调用方应在已持有熔断锁（IsRateLimited 检查通过后）的语义下调用，以避免并发竞态。
+    /// TTL 使用最大熔断时长（2.5天）兜底，确保计数在熔断期内不过期。
+    /// </summary>
+    public async Task<int> IncrementBackoffCountAsync(Guid accountId, CancellationToken cancellationToken = default)
+    {
+        var key = $"{BackoffCountKeyPrefix}{accountId}";
+        var currentStr = await cache.GetStringAsync(key, cancellationToken);
+        var count = string.IsNullOrEmpty(currentStr) ? 0 : int.Parse(currentStr);
+        var newCount = count + 1;
+
+        await cache.SetStringAsync(key, newCount.ToString(), new DistributedCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(BACKOFF_MAX_SECONDS)
+        }, cancellationToken);
+
+        return newCount;
+    }
+
+    public async Task<int> GetBackoffCountAsync(Guid accountId, CancellationToken cancellationToken = default)
+    {
+        var key = $"{BackoffCountKeyPrefix}{accountId}";
+        var currentStr = await cache.GetStringAsync(key, cancellationToken);
+        return string.IsNullOrEmpty(currentStr) ? 0 : int.Parse(currentStr);
+    }
+
+    public async Task ClearBackoffCountAsync(Guid accountId, CancellationToken cancellationToken = default)
+    {
+        await cache.RemoveAsync($"{BackoffCountKeyPrefix}{accountId}", cancellationToken);
+    }
 }
 
 /// <summary>

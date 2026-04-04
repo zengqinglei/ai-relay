@@ -8,6 +8,7 @@ using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.OpenA
 using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Cleaning;
 using Microsoft.Extensions.Logging;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 
 namespace AiRelay.Infrastructure.Shared.ExternalServices.ModelClient;
@@ -33,9 +34,17 @@ public class OpenAiChatModelHandler(
         };
 
         // 下游请求路径为 /chat/completions 时，上游走的是 Responses API（/v1/responses 或 /backend-api/codex/responses）
-        // 需要将 Responses API 的 SSE 格式转换为标准 Chat Completions SSE 格式
+        // 需要将 Responses API 的 SSE 格式转换回下游期望的格式：
+        //   - 流式下游：Responses SSE → Chat Completions SSE（OpenAiToCompletionResponseProcessor）
+        //   - 非流式下游：缓冲所有 SSE 事件 → 拼装单个 Chat Completions JSON（OpenAiBufferedChatResponseProcessor）
         if (down.RelativePath.Contains("/chat/completions", StringComparison.OrdinalIgnoreCase))
-            processors.Add(new OpenAiToCompletionResponseProcessor());
+        {
+            var includeUsage = down.ExtractedProps.TryGetValue("stream_options.include_usage", out var iuVal)
+                && iuVal == "true";
+            processors.Add(down.IsStreaming
+                ? new OpenAiToCompletionResponseProcessor(includeUsage)
+                : new OpenAiBufferedChatResponseProcessor());
+        }
 
         return processors;
     }
@@ -144,48 +153,39 @@ public class OpenAiChatModelHandler(
         }
     }
 
-    private static string ExtractTextFromMessage(JsonNode? message)
-    {
-        if (message is not JsonObject messageObj ||
-            !messageObj.TryGetPropertyValue("content", out var contentNode))
-            return string.Empty;
-
-        if (contentNode is JsonValue contentValue &&
-            contentValue.TryGetValue<string>(out var contentStr))
-            return contentStr ?? string.Empty;
-
-        if (contentNode is JsonArray contentArray)
-        {
-            var sb = new StringBuilder();
-            foreach (var part in contentArray)
-            {
-                if (part is JsonObject partObj &&
-                    partObj.TryGetPropertyValue("type", out var typeNode) &&
-                    typeNode is JsonValue typeValue &&
-                    typeValue.TryGetValue<string>(out var type) &&
-                    type == "text" &&
-                    partObj.TryGetPropertyValue("text", out var textNode) &&
-                    textNode is JsonValue textValue &&
-                    textValue.TryGetValue<string>(out var text))
-                {
-                    sb.Append(text);
-                }
-            }
-            return sb.ToString();
-        }
-
-        return string.Empty;
-    }
-
     protected override TimeSpan? ExtractRetryAfter(Dictionary<string, IEnumerable<string>>? headers, string? body)
     {
-        // 优先解析 OpenAI 专有 header，再 fallback 到通用解析
+        // 1. OpenAI 专有 header
         if (headers != null && headers.TryGetValue("x-ratelimit-reset-requests", out var resetValues))
         {
             var resetStr = resetValues.FirstOrDefault();
             if (!string.IsNullOrEmpty(resetStr))
                 return ParseOpenAiDuration(resetStr);
         }
+
+        // 2. OpenAI body: { "error": { "resets_in_seconds": N } } 或 { "error": { "resets_at": <unix_ts> } }
+        if (!string.IsNullOrEmpty(body))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(body);
+                if (doc.RootElement.TryGetProperty("error", out var error))
+                {
+                    if (error.TryGetProperty("resets_in_seconds", out var resetsIn) &&
+                        resetsIn.TryGetInt64(out var seconds) && seconds > 0)
+                        return TimeSpan.FromSeconds(seconds);
+
+                    if (error.TryGetProperty("resets_at", out var resetsAt) &&
+                        resetsAt.TryGetInt64(out var unixTs) && unixTs > 0)
+                    {
+                        var delta = DateTimeOffset.FromUnixTimeSeconds(unixTs).UtcDateTime - DateTime.UtcNow;
+                        return delta > TimeSpan.Zero ? delta : TimeSpan.Zero;
+                    }
+                }
+            }
+            catch { }
+        }
+
         return base.ExtractRetryAfter(headers, body);
     }
 

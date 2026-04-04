@@ -164,7 +164,7 @@ public class ProviderGroupDomainService(
         {
             if (!accountTokenMap.TryGetValue(accountId, out var accountToken))
             {
-                throw new BadRequestException($"账户不存在: {accountId}");
+                throw new NotFoundException($"账户不存在: {accountId}");
             }
 
             if (accountToken.Platform != group.Platform)
