@@ -77,4 +77,7 @@ public class UsageRecordOutputDto
 
     /// <summary>上游状态码（取最新 Attempt）</summary>
     public int? UpStatusCode { get; set; }
+
+    /// <summary>返回给下游客户端的 HTTP 状态码</summary>
+    public int? DownStatusCode { get; set; }
 }

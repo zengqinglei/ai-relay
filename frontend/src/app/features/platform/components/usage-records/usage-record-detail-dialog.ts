@@ -9,7 +9,7 @@ import { finalize } from 'rxjs/operators';
 
 import { DIALOG_CONFIGS } from '../../../../shared/constants/dialog-config.constants';
 import { UsageStatus } from '../../../../shared/models/usage-status.enum';
-import { formatTokenCount } from '../../../../shared/utils/format.utils';
+import { formatDuration, formatTokenCount } from '../../../../shared/utils/format.utils';
 import { UsageRecordDetailOutputDto, UsageRecordOutputDto } from '../../models/usage.dto';
 import { UsageRecordService } from '../../services/usage-record-service';
 
@@ -84,15 +84,15 @@ import { UsageRecordService } from '../../services/usage-record-service';
               <!-- 耗时 -->
               <div class="flex flex-col gap-1.5">
                 <span class="text-xs font-medium text-muted-color uppercase">耗时</span>
-                <span class="text-sm font-bold">{{ record()?.durationMs || 0 }} ms</span>
+                <span class="text-sm font-bold">{{ formatDuration(record()?.durationMs) }}</span>
               </div>
             </div>
 
             <!-- 第二行：详细信息 -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t border-surface-200 dark:border-surface-700">
-              <!-- 返回下游 -->
+              <!-- 返回下游状态码 -->
               <div class="flex flex-col gap-1.5">
-                <span class="text-xs font-medium text-muted-color uppercase">返回下游</span>
+                <span class="text-xs font-medium text-muted-color uppercase">返回下游状态码</span>
                 <span class="text-sm font-mono font-bold" [ngClass]="getHttpStatusColorClass(record()?.downStatusCode)">
                   {{ record()?.downStatusCode || 'N/A' }}
                 </span>
@@ -150,7 +150,7 @@ import { UsageRecordService } from '../../services/usage-record-service';
                           {{ record()?.downStatusCode }}
                         </span>
                       }
-                      <span class="text-xs text-muted-color ml-auto">{{ record()?.durationMs || 0 }} ms</span>
+                      <span class="text-xs text-muted-color ml-auto">{{ formatDuration(record()?.durationMs) }}</span>
                     </div>
                     <!-- Meta -->
                     <div
@@ -230,7 +230,7 @@ import { UsageRecordService } from '../../services/usage-record-service';
                               attempt.upStatusCode
                             }}</span>
                           }
-                          <span class="text-xs text-muted-color ml-auto">{{ attempt.durationMs }} ms</span>
+                          <span class="text-xs text-muted-color ml-auto">{{ formatDuration(attempt.durationMs) }}</span>
                         </div>
 
                         <!-- Attempt Meta -->
@@ -382,6 +382,10 @@ export class UsageRecordDetailDialog {
 
   formatTokens(count: number | undefined | null): string {
     return formatTokenCount(count || 0);
+  }
+
+  formatDuration(ms: number | undefined | null): string {
+    return formatDuration(ms);
   }
 
   getHttpStatusColorClass(statusCode: number | undefined | null): string {

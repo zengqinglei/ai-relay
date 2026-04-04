@@ -16,5 +16,7 @@ public record FinishUsageInputDto(
     int? CacheReadTokens,
     int? CacheCreationTokens,
     // 尝试次数
-    int AttemptCount
+    int AttemptCount,
+    // 返回下游状态码
+    int? DownStatusCode
 );

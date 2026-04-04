@@ -541,7 +541,8 @@ public class SmartReverseProxyMiddleware(
                 OutputTokens: finalUsage?.OutputTokens,
                 CacheReadTokens: finalUsage?.CacheReadTokens,
                 CacheCreationTokens: finalUsage?.CacheCreationTokens,
-                AttemptCount: attemptNumber
+                AttemptCount: attemptNumber,
+                DownStatusCode: context.Response.StatusCode
             ));
         }
     }

@@ -94,6 +94,7 @@ const generateRecords = (count: number): MockUsageRecord[] => {
         finalCost: finalCost,
         status: status,
         upStatusCode: status === UsageStatus.Success ? 200 : status === UsageStatus.InProgress ? undefined : 429,
+        downStatusCode: status === UsageStatus.Success ? 200 : status === UsageStatus.InProgress ? undefined : 500,
         durationMs: Math.floor(Math.random() * 10000) + 200,
         statusDescription: statusDescription,
         attemptCount: attemptCount

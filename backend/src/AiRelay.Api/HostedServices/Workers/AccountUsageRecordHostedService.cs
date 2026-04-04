@@ -102,7 +102,8 @@ public class AccountUsageRecordHostedService(
                                 end.OutputTokens,
                                 end.CacheReadTokens,
                                 end.CacheCreationTokens,
-                                end.AttemptCount
+                                end.AttemptCount,
+                                end.DownStatusCode
                             ));
                         break;
 
@@ -192,5 +193,6 @@ public record UsageRecordEndItem(
     int? OutputTokens,
     int? CacheReadTokens,
     int? CacheCreationTokens,
-    int AttemptCount
+    int AttemptCount,
+    int? DownStatusCode
 ) : IUsageRecordItem;

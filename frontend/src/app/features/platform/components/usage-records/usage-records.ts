@@ -23,7 +23,7 @@ import { ProviderPlatform } from '../../../../shared/models/provider-platform.en
 import { UsageStatus } from '../../../../shared/models/usage-status.enum';
 import { HttpStatusSeverityPipe } from '../../../../shared/pipes/http-status-severity.pipe';
 import { FilterStateService } from '../../../../shared/services/filter-state.service';
-import { formatTokenCount } from '../../../../shared/utils/format.utils';
+import { formatDuration, formatTokenCount } from '../../../../shared/utils/format.utils';
 import { ProviderGroupOutputDto } from '../../models/provider-group.dto';
 import { UsageRecordOutputDto, UsageRecordPagedInputDto } from '../../models/usage.dto';
 import { ProviderGroupService } from '../../services/provider-group-service';
@@ -263,6 +263,10 @@ export class UsageRecords implements OnInit {
    */
   formatTokenCount(num: number | null | undefined): string {
     return formatTokenCount(num || 0);
+  }
+
+  formatDuration(ms: number | undefined | null): string {
+    return formatDuration(ms);
   }
 
   /**

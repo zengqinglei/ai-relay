@@ -472,7 +472,14 @@ export class AccountEditDialogComponent implements OnChanges {
 
   private buildModelMapping(): Record<string, string> | undefined {
     const entries = this.modelMappings.filter(m => m.from.trim() && m.to.trim());
-    return entries.length > 0 ? Object.fromEntries(entries.map(m => [m.from.trim(), m.to.trim()])) : undefined;
+    if (entries.length > 0) {
+      return Object.fromEntries(entries.map(m => [m.from.trim(), m.to.trim()]));
+    }
+    // 编辑模式下原来有映射但现在已全部清除，返回空对象通知后端清除
+    if (this.isEditMode() && this.account?.modelMapping && Object.keys(this.account.modelMapping).length > 0) {
+      return {};
+    }
+    return undefined;
   }
 
   trackByIndex(index: number) {

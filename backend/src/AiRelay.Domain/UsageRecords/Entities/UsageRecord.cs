@@ -49,6 +49,9 @@ public class UsageRecord : CreationAuditedEntity<Guid>
 
     public int AttemptCount { get; private set; }
 
+    /// <summary>返回给下游客户端的 HTTP 状态码</summary>
+    public int? DownStatusCode { get; private set; }
+
     // 导航属性
     public ApiKey ApiKey { get; private set; } = null!;
     public UsageRecordDetail Detail { get; private set; } = null!;
@@ -97,7 +100,8 @@ public class UsageRecord : CreationAuditedEntity<Guid>
         int? cacheReadTokens,
         int? cacheCreationTokens,
         decimal? baseCost,
-        int attemptCount)
+        int attemptCount,
+        int? downStatusCode)
     {
         DurationMs = duration;
         Status = status;
@@ -110,6 +114,7 @@ public class UsageRecord : CreationAuditedEntity<Guid>
         CacheReadTokens = cacheReadTokens;
         CacheCreationTokens = cacheCreationTokens;
         AttemptCount = attemptCount;
+        DownStatusCode = downStatusCode;
         if (baseCost.HasValue)
         {
             BaseCost = baseCost;

@@ -34,7 +34,7 @@ import { PROVIDER_PLATFORM_OPTIONS } from '../../../../../../shared/constants/pr
 import { ProviderPlatform } from '../../../../../../shared/models/provider-platform.enum';
 import { PlatformLabelPipe } from '../../../../../../shared/pipes/platform-label-pipe';
 import { FilterStateService } from '../../../../../../shared/services/filter-state.service';
-import { formatTokenCount } from '../../../../../../shared/utils/format.utils';
+import { formatDuration, formatDurationVerbose, formatTokenCount } from '../../../../../../shared/utils/format.utils';
 import { GetAccountTokenPagedInputDto, AccountTokenOutputDto, AccountStatus } from '../../../../models/account-token.dto';
 import { ModelTestDialog } from '../model-test-dialog/model-test-dialog';
 
@@ -268,17 +268,7 @@ export class AccountTable implements OnInit {
    */
   formatRemainingTime(seconds: number): string {
     if (seconds <= 0) return '即将解除';
-    if (seconds < 60) return `${seconds}秒后解除`;
-    if (seconds < 3600) {
-      const minutes = Math.ceil(seconds / 60);
-      return `${minutes}分钟后解除`;
-    }
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.ceil((seconds % 3600) / 60);
-    if (minutes === 0) {
-      return `${hours}小时后解除`;
-    }
-    return `${hours}小时${minutes}分钟后解除`;
+    return `${formatDurationVerbose(seconds * 1000)}后解除`;
   }
 
   /**

@@ -148,6 +148,7 @@ public class UsageLifecycleAppService(
             input.CacheReadTokens,
             input.CacheCreationTokens,
             input.AttemptCount,
+            input.DownStatusCode,
             upModelId,
             cancellationToken);
 

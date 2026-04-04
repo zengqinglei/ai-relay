@@ -21,6 +21,7 @@ public class UsageRecordDomainService(
         int? cacheReadTokens,
         int? cacheCreationTokens,
         int attemptCount,
+        int? downStatusCode,
         string? upModelId,
         CancellationToken cancellationToken = default)
     {
@@ -65,7 +66,8 @@ public class UsageRecordDomainService(
             cacheReadTokens,
             cacheCreationTokens,
             baseCost,
-            attemptCount);
+            attemptCount,
+            downStatusCode);
 
         // 3. 持久化记录
         await usageRepository.UpdateAsync(record, cancellationToken);
