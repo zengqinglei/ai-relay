@@ -110,7 +110,8 @@ public class OpenAiParseSseResponseProcessor : IResponseProcessor
                             if (!string.IsNullOrEmpty(text)) evt.HasOutput = true;
                         }
                         
-                        if (delta.TryGetProperty("tool_calls", out _) || delta.TryGetProperty("reasoning_content", out _))
+                        // tool_calls 代表有输出意图；reasoning_content 为思考链，不视为有效输出
+                        if (delta.TryGetProperty("tool_calls", out _))
                         {
                             evt.HasOutput = true;
                         }

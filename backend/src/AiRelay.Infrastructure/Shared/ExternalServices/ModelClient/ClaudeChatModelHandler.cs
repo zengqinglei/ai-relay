@@ -148,7 +148,6 @@ public class ClaudeChatModelHandler(
                 claudeCacheControlCleaner,
                 claudeSystemPromptInjector,
                 clientDetector),
-            new ClaudeMetadataInjectRequestProcessor(Options),
             new ClaudeDegradationRequestProcessor(degradationLevel, claudeThinkingCleaner, Logger)
         ];
     }

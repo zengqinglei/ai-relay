@@ -50,7 +50,7 @@ public class SmartProxyAppService(
 
         if (result == null || result.Value.AccountToken == null)
         {
-            throw new ForbiddenException($"分组 {bindingGroup.ProviderGroup.Name} 中没有可用的 {input.Platform} 账户");
+            throw new ServiceUnavailableException($"分组 {bindingGroup.ProviderGroup.Name} 中没有可用的 {input.Platform} 账户");
         }
 
         var (accountToken, providerGroup, isStickyBound, availableCount) = result.Value;

@@ -285,6 +285,15 @@ public class SmartReverseProxyMiddleware(
 
                                             foreach (var chunk in bufferedBytes)
                                             {
+                                                // 缓冲字节真实写入下游时，补记 tempDownResponseBody
+                                                if (_loggingOptions.IsBodyLoggingEnabled &&
+                                                    tempDownResponseBody.Length < _loggingOptions.MaxBodyLength)
+                                                {
+                                                    var maxLength = _loggingOptions.MaxBodyLength - tempDownResponseBody.Length;
+                                                    var length = Math.Min(chunk.Length, maxLength);
+                                                    tempDownResponseBody.Append(Encoding.UTF8.GetString(chunk[..length]));
+                                                    if (chunk.Length > maxLength) tempDownResponseBody.Append("...[Truncated]");
+                                                }
                                                 await context.Response.Body.WriteAsync(chunk, context.RequestAborted);
                                             }
                                             bufferedBytes.Clear();
@@ -297,34 +306,16 @@ public class SmartReverseProxyMiddleware(
 
                                     if (bytesToForward != null)
                                     {
-                                        // 记录审计日志
-                                        if (_loggingOptions.IsBodyLoggingEnabled)
+                                        // 上游原始数据：只要收到就记录，不受健康检查状态限制
+                                        if (_loggingOptions.IsBodyLoggingEnabled &&
+                                            evt.OriginalBytes != null &&
+                                            tempUpResponseBody.Length < _loggingOptions.MaxBodyLength)
                                         {
-                                            // 记录上游原始数据（转换前）
-                                            if (evt.OriginalBytes != null && tempUpResponseBody.Length < _loggingOptions.MaxBodyLength)
-                                            {
-                                                var maxLength = _loggingOptions.MaxBodyLength - tempUpResponseBody.Length;
-                                                var length = Math.Min(evt.OriginalBytes.Length, maxLength);
-                                                var content = Encoding.UTF8.GetString(evt.OriginalBytes[..length]);
-                                                tempUpResponseBody.Append(content);
-                                                if (evt.OriginalBytes.Length > maxLength)
-                                                {
-                                                    tempUpResponseBody.Append("...[Truncated]");
-                                                }
-                                            }
-
-                                            // 记录下游转换后数据（转换后）
-                                            if (tempDownResponseBody.Length < _loggingOptions.MaxBodyLength)
-                                            {
-                                                var maxLength = _loggingOptions.MaxBodyLength - tempDownResponseBody.Length;
-                                                var length = Math.Min(bytesToForward.Length, maxLength);
-                                                var content = Encoding.UTF8.GetString(bytesToForward[..length]);
-                                                tempDownResponseBody.Append(content);
-                                                if (bytesToForward.Length > maxLength)
-                                                {
-                                                    tempDownResponseBody.Append("...[Truncated]");
-                                                }
-                                            }
+                                            var maxLength = _loggingOptions.MaxBodyLength - tempUpResponseBody.Length;
+                                            var length = Math.Min(evt.OriginalBytes.Length, maxLength);
+                                            tempUpResponseBody.Append(Encoding.UTF8.GetString(evt.OriginalBytes[..length]));
+                                            if (evt.OriginalBytes.Length > maxLength)
+                                                tempUpResponseBody.Append("...[Truncated]");
                                         }
 
                                         // 决定缓冲还是直接写入
@@ -334,6 +325,17 @@ public class SmartReverseProxyMiddleware(
                                         }
                                         else
                                         {
+                                            // 下游转发数据：只在真实写入时记录
+                                            if (_loggingOptions.IsBodyLoggingEnabled &&
+                                                tempDownResponseBody.Length < _loggingOptions.MaxBodyLength)
+                                            {
+                                                var maxLength = _loggingOptions.MaxBodyLength - tempDownResponseBody.Length;
+                                                var length = Math.Min(bytesToForward.Length, maxLength);
+                                                tempDownResponseBody.Append(Encoding.UTF8.GetString(bytesToForward[..length]));
+                                                if (bytesToForward.Length > maxLength)
+                                                    tempDownResponseBody.Append("...[Truncated]");
+                                            }
+
                                             await context.Response.Body.WriteAsync(bytesToForward, context.RequestAborted);
                                             await context.Response.Body.FlushAsync(context.RequestAborted);
                                         }

@@ -63,13 +63,15 @@ public class ClaudeParseSseResponseProcessor : IResponseProcessor
                     break;
 
                 case "content_block_delta":
-                    evt.HasOutput = true;
                     if (root.TryGetProperty("delta", out var delta) &&
-                        delta.TryGetProperty("type", out var deltaType) &&
-                        deltaType.GetString() == "text_delta" &&
-                        delta.TryGetProperty("text", out var text))
+                        delta.TryGetProperty("type", out var deltaType))
                     {
-                        evt.Content = text.GetString();
+                        var deltaTypeStr = deltaType.GetString();
+                        // thinking_delta 仅为内部思考链，不视为有效输出
+                        if (deltaTypeStr != "thinking_delta")
+                            evt.HasOutput = true;
+                        if (deltaTypeStr == "text_delta" && delta.TryGetProperty("text", out var text))
+                            evt.Content = text.GetString();
                     }
                     break;
 

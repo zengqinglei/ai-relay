@@ -132,7 +132,11 @@ public class GoogleParseSseResponseProcessor : IResponseProcessor
                 evt.HasOutput = true;
             }
         }
-        if (sb.Length > 0) evt.Content = sb.ToString();
+        if (sb.Length > 0)
+        {
+            evt.Content = sb.ToString();
+            evt.HasOutput = true;
+        }
     }
 
     private static string ExtractErrorMessage(JsonElement error)
