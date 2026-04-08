@@ -27,26 +27,13 @@ public class OpenAiChatModelHandler(
     protected override IReadOnlyList<IResponseProcessor> GetResponseProcessors(
         UpRequestContext up, DownRequestContext down)
     {
-        var processors = new List<IResponseProcessor>
-        {
+        return
+        [
             new OpenAiParseSseResponseProcessor(),
-            new UsageAccumulatorResponseProcessor()
-        };
-
-        // 下游请求路径为 /chat/completions 时，上游走的是 Responses API（/v1/responses 或 /backend-api/codex/responses）
-        // 需要将 Responses API 的 SSE 格式转换回下游期望的格式：
-        //   - 流式下游：Responses SSE → Chat Completions SSE（OpenAiToCompletionResponseProcessor）
-        //   - 非流式下游：缓冲所有 SSE 事件 → 拼装单个 Chat Completions JSON（OpenAiBufferedChatResponseProcessor）
-        if (down.RelativePath.Contains("/chat/completions", StringComparison.OrdinalIgnoreCase))
-        {
-            var includeUsage = down.ExtractedProps.TryGetValue("stream_options.include_usage", out var iuVal)
-                && iuVal == "true";
-            processors.Add(down.IsStreaming
-                ? new OpenAiToCompletionResponseProcessor(includeUsage)
-                : new OpenAiBufferedChatResponseProcessor());
-        }
-
-        return processors;
+            new UsageAccumulatorResponseProcessor(),
+            new OpenAiToCompletionResponseProcessor(down),
+            new OpenAiBufferedChatResponseProcessor(down)
+        ];
     }
 
     public override DownRequestContext CreateDebugDownContext(string modelId, string message)

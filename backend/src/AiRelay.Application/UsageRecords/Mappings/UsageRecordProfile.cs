@@ -1,26 +1,26 @@
 using AiRelay.Application.UsageRecords.Dtos.Query;
 using AiRelay.Domain.UsageRecords.Entities;
-using AutoMapper;
+using Leistd.ObjectMapping.Mapster;
 
 namespace AiRelay.Application.UsageRecords.Mappings;
 
-public class UsageRecordProfile : Profile
+public class UsageRecordProfile : MapsterProfile
 {
-    public UsageRecordProfile()
+    protected override void ConfigureMappings()
     {
         CreateMap<UsageRecord, UsageRecordOutputDto>();
 
         CreateMap<UsageRecordAttempt, UsageRecordAttemptOutputDto>()
-            .ForMember(d => d.UpRequestHeaders, opt => opt.MapFrom(s => s.Detail != null ? s.Detail.UpRequestHeaders : null))
-            .ForMember(d => d.UpRequestBody, opt => opt.MapFrom(s => s.Detail != null ? s.Detail.UpRequestBody : null))
-            .ForMember(d => d.UpResponseBody, opt => opt.MapFrom(s => s.Detail != null ? s.Detail.UpResponseBody : null));
+            .Map(d => d.UpRequestHeaders, s => s.Detail != null ? s.Detail.UpRequestHeaders : null)
+            .Map(d => d.UpRequestBody, s => s.Detail != null ? s.Detail.UpRequestBody : null)
+            .Map(d => d.UpResponseBody, s => s.Detail != null ? s.Detail.UpResponseBody : null);
 
         CreateMap<UsageRecord, UsageRecordDetailOutputDto>()
-            .ForMember(d => d.UsageRecordId, opt => opt.MapFrom(s => s.Id))
-            .ForMember(d => d.DownRequestUrl, opt => opt.MapFrom(s => s.DownRequestUrl))
-            .ForMember(d => d.DownRequestHeaders, opt => opt.MapFrom(s => s.Detail != null ? s.Detail.DownRequestHeaders : null))
-            .ForMember(d => d.DownRequestBody, opt => opt.MapFrom(s => s.Detail != null ? s.Detail.DownRequestBody : null))
-            .ForMember(d => d.DownResponseBody, opt => opt.MapFrom(s => s.Detail != null ? s.Detail.DownResponseBody : null))
-            .ForMember(d => d.Attempts, opt => opt.MapFrom(s => s.Attempts));
+            .Map(d => d.UsageRecordId, s => s.Id)
+            .Map(d => d.DownRequestUrl, s => s.DownRequestUrl)
+            .Map(d => d.DownRequestHeaders, s => s.Detail != null ? s.Detail.DownRequestHeaders : null)
+            .Map(d => d.DownRequestBody, s => s.Detail != null ? s.Detail.DownRequestBody : null)
+            .Map(d => d.DownResponseBody, s => s.Detail != null ? s.Detail.DownResponseBody : null)
+            .Map(d => d.Attempts, s => s.Attempts);
     }
 }

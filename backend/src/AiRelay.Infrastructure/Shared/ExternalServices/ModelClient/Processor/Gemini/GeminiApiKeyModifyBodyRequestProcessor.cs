@@ -27,15 +27,19 @@ public class GeminiApiKeyModifyBodyRequestProcessor(
             return;
         }
 
-        // 零分配捷径：如果无 tools 参数且（不需要伪装或本身就是 CLI），直接跳过解析
+        // 零分配捷径标记：无需 Schema 清洗和 CLI 伪装，但仍需 body 清理
         bool hasTools = down.ExtractedProps.ContainsKey("has_tools");
         bool isGeminiCli = IsGeminiCliClient(down);
-        if (!hasTools && (!shouldMimic || isGeminiCli))
-        {
-            return;
-        }
+        bool canSkipBodyModification = !hasTools && (!shouldMimic || isGeminiCli);
 
         var clonedBody = await up.EnsureMutableBodyAsync(down);
+
+        // Body 清理（始终执行，不受早退条件影响）
+        GeminiContentPartsCleaner.FilterEmptyParts(clonedBody);
+        GeminiContentPartsCleaner.EnsureFunctionCallThoughtSignatures(clonedBody, null);
+
+        // 只需清理，跳过 Schema 清洗和 CLI 伪装
+        if (canSkipBodyModification) return;
 
         // 清洗 JSON Schema
         if (clonedBody["tools"] is JsonArray tools)

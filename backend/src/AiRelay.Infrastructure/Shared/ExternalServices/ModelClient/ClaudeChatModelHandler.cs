@@ -34,7 +34,6 @@ public class ClaudeChatModelHandler(
     {
         return
         [
-
             new ClaudeParseSseResponseProcessor(),
             new UsageAccumulatorResponseProcessor()
         ];
@@ -60,24 +59,17 @@ public class ClaudeChatModelHandler(
             var up = await ProcessRequestContextAsync(down, 0, ct);
 
             // 3. 发送请求
-            using var response = await SendRequestAsync(up, down, ct);
+            using var response = await SendCoreRequestAsync(up, down, ct);
             if (!response.IsSuccessStatusCode)
             {
                 Logger.LogWarning("Claude 上游模型拉取失败: {StatusCode}", response.StatusCode);
                 return null;
             }
 
-            // 4. 解析响应（处理可能的 gzip/br 压缩）
+            // 4. 解析响应（自动解压已由 ModelProxyClient 拦截）
             await using var responseStream = await response.Content.ReadAsStreamAsync(ct);
-            Stream decompressedStream = responseStream;
 
-            var contentEncoding = response.Content.Headers.ContentEncoding;
-            if (contentEncoding.Contains("gzip"))
-                decompressedStream = new System.IO.Compression.GZipStream(responseStream, System.IO.Compression.CompressionMode.Decompress);
-            else if (contentEncoding.Contains("br"))
-                decompressedStream = new System.IO.Compression.BrotliStream(responseStream, System.IO.Compression.CompressionMode.Decompress);
-
-            using var doc = await JsonDocument.ParseAsync(decompressedStream, cancellationToken: ct);
+            using var doc = await JsonDocument.ParseAsync(responseStream, cancellationToken: ct);
             var models = new List<ModelOption>();
 
             if (doc.RootElement.TryGetProperty("data", out var dataArray))
@@ -249,39 +241,6 @@ public class ClaudeChatModelHandler(
         }
 
         return base.CheckRetryPolicyAsync(statusCode, headers, responseBody);
-    }
-
-    private static string ExtractTextFromContent(JsonNode? message)
-    {
-        if (message is not JsonObject messageObj ||
-            !messageObj.TryGetPropertyValue("content", out var contentNode))
-            return string.Empty;
-
-        if (contentNode is JsonValue contentValue &&
-            contentValue.TryGetValue<string>(out var contentStr))
-            return contentStr ?? string.Empty;
-
-        if (contentNode is JsonArray contentArray)
-        {
-            var sb = new StringBuilder();
-            foreach (var block in contentArray)
-            {
-                if (block is JsonObject blockObj &&
-                    blockObj.TryGetPropertyValue("type", out var typeNode) &&
-                    typeNode is JsonValue typeValue &&
-                    typeValue.TryGetValue<string>(out var type) &&
-                    type == "text" &&
-                    blockObj.TryGetPropertyValue("text", out var textNode) &&
-                    textNode is JsonValue textValue &&
-                    textValue.TryGetValue<string>(out var text))
-                {
-                    sb.Append(text);
-                }
-            }
-            return sb.ToString();
-        }
-
-        return string.Empty;
     }
 
 }

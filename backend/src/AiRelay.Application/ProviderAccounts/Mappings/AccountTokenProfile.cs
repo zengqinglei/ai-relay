@@ -1,26 +1,39 @@
 using AiRelay.Application.ProviderAccounts.Dtos;
 using AiRelay.Domain.ProviderAccounts.Entities;
 using AiRelay.Domain.ProviderAccounts.Extensions;
-using AutoMapper;
+using Leistd.ObjectMapping.Mapster;
+using Mapster;
 
 namespace AiRelay.Application.ProviderAccounts.Mappings;
 
-public class AccountTokenProfile : Profile
+public class AccountTokenProfile : MapsterProfile
 {
-    public AccountTokenProfile()
+    protected override void ConfigureMappings()
     {
         CreateMap<AccountToken, AvailableAccountTokenOutputDto>()
-            .ForMember(dest => dest.CurrentConcurrency, opt => opt.MapFrom<AccountTokenConcurrencyResolver>());
+            .Map(dest => dest.CurrentConcurrency, src => ResolveConcurrencyCount(src));
 
         CreateMap<AccountToken, AccountTokenOutputDto>()
-            .ForMember(dest => dest.FullToken, opt => opt.MapFrom(src =>
-                MaskToken(src.Platform.IsApiKeyPlatform() ? src.AccessToken : src.RefreshToken)))
-            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.GetEffectiveStatus()))
-            .ForMember(dest => dest.CurrentConcurrency, opt => opt.MapFrom<AccountTokenConcurrencyResolver>())
-            .ForMember(dest => dest.SuccessRateToday, opt => opt.MapFrom(src =>
-                src.UsageToday > 0 ? Math.Round(src.SuccessToday * 100m / src.UsageToday, 1) : 0m))
-            .ForMember(dest => dest.SuccessRateTotal, opt => opt.MapFrom(src =>
-                src.UsageTotal > 0 ? Math.Round(src.SuccessTotal * 100m / src.UsageTotal, 1) : 0m));
+            .Map(dest => dest.FullToken, src =>
+                MaskToken(src.Platform.IsApiKeyPlatform() ? src.AccessToken : src.RefreshToken))
+            .Map(dest => dest.Status, src => src.GetEffectiveStatus())
+            .Map(dest => dest.CurrentConcurrency, src => ResolveConcurrencyCount(src))
+            .Map(dest => dest.SuccessRateToday, src =>
+                src.UsageToday > 0 ? Math.Round(src.SuccessToday * 100m / src.UsageToday, 1) : 0m)
+            .Map(dest => dest.SuccessRateTotal, src =>
+                src.UsageTotal > 0 ? Math.Round(src.SuccessTotal * 100m / src.UsageTotal, 1) : 0m);
+    }
+
+    private static int ResolveConcurrencyCount(AccountToken source)
+    {
+        if (MapContext.Current?.Parameters.TryGetValue("ConcurrencyCounts", out var countsObj) == true &&
+            countsObj is IDictionary<Guid, int> counts &&
+            counts.TryGetValue(source.Id, out var count))
+        {
+            return count;
+        }
+
+        return 0; // 预获取已在 AppService 中完成，如果缺失则兜底返回0
     }
 
     private static string MaskToken(string? token)

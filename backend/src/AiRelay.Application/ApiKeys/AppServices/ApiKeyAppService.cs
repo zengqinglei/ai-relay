@@ -8,13 +8,16 @@ using Leistd.Exception.Core;
 using Leistd.ObjectMapping.Core;
 using Microsoft.Extensions.Logging;
 
+using AiRelay.Domain.Shared.Security.Aes;
+
 namespace AiRelay.Application.ApiKeys.AppServices;
 
 public class ApiKeyAppService(
     ApiKeyDomainService apiKeyDomainService,
     IApiKeyRepository apiKeyRepository,
     ILogger<ApiKeyAppService> logger,
-    IObjectMapper objectMapper) : BaseAppService, IApiKeyAppService
+    IObjectMapper objectMapper,
+    IAesEncryptionProvider aesEncryptionProvider) : BaseAppService, IApiKeyAppService
 {
     public async Task<ApiKeyOutputDto> CreateAsync(CreateApiKeyInputDto input, CancellationToken cancellationToken = default)
     {
@@ -36,6 +39,7 @@ public class ApiKeyAppService(
         var contextItems = new Dictionary<string, object>();
 
         var result = objectMapper.Map<ApiKey, ApiKeyOutputDto>(apiKey, contextItems);
+        result.Secret = DecryptSecret(apiKey.EncryptedSecret);
 
         logger.LogInformation("创建 ApiKey 成功 (ID: {Id})", apiKey.Id);
         return result;
@@ -100,7 +104,9 @@ public class ApiKeyAppService(
         var contextItems = new Dictionary<string, object>();
 
         // 映射 (传递统计数据)
-        return objectMapper.Map<ApiKey, ApiKeyOutputDto>(apiKey, contextItems);
+        var result = objectMapper.Map<ApiKey, ApiKeyOutputDto>(apiKey, contextItems);
+        result.Secret = DecryptSecret(apiKey.EncryptedSecret);
+        return result;
     }
 
     public async Task<PagedResultDto<ApiKeyOutputDto>> GetPagedListAsync(GetApiKeyPagedInputDto input, CancellationToken cancellationToken = default)
@@ -120,6 +126,10 @@ public class ApiKeyAppService(
 
         // 映射
         var results = objectMapper.Map<List<ApiKey>, List<ApiKeyOutputDto>>(apiKeys);
+        for (int i = 0; i < apiKeys.Count; i++)
+        {
+            results[i].Secret = DecryptSecret(apiKeys[i].EncryptedSecret);
+        }
 
         return new PagedResultDto<ApiKeyOutputDto>(totalCount, results);
     }
@@ -141,5 +151,18 @@ public class ApiKeyAppService(
         }
 
         return ApiKeyValidationResult.Success(apiKey);
+    }
+
+    private string DecryptSecret(string encryptedSecret)
+    {
+        try
+        {
+            return string.IsNullOrEmpty(encryptedSecret) ? string.Empty : aesEncryptionProvider.Decrypt(encryptedSecret);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "解密 API Key 失败");
+            return "***DECRYPT_ERROR***";
+        }
     }
 }

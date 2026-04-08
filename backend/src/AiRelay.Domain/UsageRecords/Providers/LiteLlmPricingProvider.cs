@@ -60,9 +60,6 @@ public class LiteLlmPricingProvider(
 
         // 4. 模糊匹配 (前缀匹配)
         // 例如 "gpt-4-0613" 匹配 "gpt-4"
-        // 注意：LiteLLM json 中通常包含具体版本，但也包含通用版本
-        // 倒序遍历 key，找到最长匹配的前缀？这比较慢。
-        // 简化：如果输入包含 key，且 key 长度足够长
         var bestMatch = pricingData.Keys
             .Where(k => modelName.StartsWith(k, StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(k => k.Length)
@@ -71,6 +68,26 @@ public class LiteLlmPricingProvider(
         if (bestMatch != null)
         {
             return pricingData[bestMatch];
+        }
+
+        // 5. 跨平台/提供商名称后置匹配
+        // 处理传入 "Provider/ModelName" 的情况 (如 "Qwen/Qwen3.5-35B-A3B" -> "qwen3535ba3b")
+        if (modelName.Contains('/'))
+        {
+            var parts = modelName.Split('/');
+            var modelPart = string.Join("/", parts.Skip(1)); // 取 / 之后的所有部分
+            var normalizedModelPart = NormalizeModelName(modelPart);
+
+            var suffixMatch = pricingData.Keys
+                .Where(k => NormalizeModelName(k).EndsWith(normalizedModelPart, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(k => k.Length) // 优先使用较短的 key，比如 "zai/glm-5" 而不是 "openrouter/z-ai/glm-5"
+                .FirstOrDefault();
+
+            if (suffixMatch != null)
+            {
+                logger.LogInformation("通过后缀匹配找到模型定价: {Input} -> {Match}", modelName, suffixMatch);
+                return pricingData[suffixMatch];
+            }
         }
 
         logger.LogDebug("未找到模型定价: {ModelName}", modelName);

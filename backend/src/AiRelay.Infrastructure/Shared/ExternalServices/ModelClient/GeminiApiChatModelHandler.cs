@@ -1,7 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.Gemini;
 using Microsoft.Extensions.Logging;
@@ -25,9 +24,6 @@ public class GeminiApiChatModelHandler(
     ILogger<GeminiApiChatModelHandler> logger)
     : GoogleInternalChatModelHandlerBase(options, httpClientFactory, signatureCache, logger)
 {
-    // Gemini CLI 临时目录正则匹配: .gemini/tmp/[64位哈希]
-    private static readonly Regex GeminiCliTmpDirRegex = new(@"\.gemini/tmp/([A-Fa-f0-9]{64})", RegexOptions.Compiled);
-
     public override bool Supports(ProviderPlatform platform) =>
         platform == ProviderPlatform.GEMINI_APIKEY;
 
@@ -41,7 +37,7 @@ public class GeminiApiChatModelHandler(
                 googleJsonSchemaCleaner,
                 geminiSystemPromptInjector,
                 Options.ShouldMimicOfficialClient),
-            new GeminiDegradationRequestProcessor(degradationLevel, googleSignatureCleaner, logger)
+            new GeminiDegradationRequestProcessor(degradationLevel, googleSignatureCleaner, Logger)
         ];
     }
 
@@ -117,7 +113,7 @@ public class GeminiApiChatModelHandler(
             };
 
             var up = await ProcessRequestContextAsync(down, 0, ct);
-            using var response = await SendRequestAsync(up, down, ct);
+            using var response = await SendCoreRequestAsync(up, down, ct);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -161,12 +157,12 @@ public class GeminiApiChatModelHandler(
                 }
             }
 
-            logger.LogInformation("Gemini 上游拉取成功: {Count} 个模型", models.Count);
+            Logger.LogInformation("Gemini 上游拉取成功: {Count} 个模型", models.Count);
             return models.Count > 0 ? models : null;
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Gemini 上游模型拉取异常");
+            Logger.LogWarning(ex, "Gemini 上游模型拉取异常");
             return null;
         }
     }

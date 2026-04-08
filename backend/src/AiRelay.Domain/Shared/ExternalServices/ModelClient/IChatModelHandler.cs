@@ -34,7 +34,7 @@ public interface IChatModelHandler
     /// Phase 1 - 发送请求并等待响应头，立即可读 IsSuccess / StatusCode / Headers / ErrorBody；
     /// Phase 2 - 枚举 ProxyResponse.Events 消费响应体（含 SSE 解析、ForwardBytes、UsageStats）。
     /// </summary>
-    Task<ProxyResponse> SendAsync(
+    Task<ProxyResponse> SendChatRequestAsync(
         UpRequestContext up,
         DownRequestContext down,
         bool isStreaming,

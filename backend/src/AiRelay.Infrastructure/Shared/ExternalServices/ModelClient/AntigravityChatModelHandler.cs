@@ -83,7 +83,7 @@ public sealed class AntigravityChatModelHandler(
             RawStream = new MemoryStream(Encoding.UTF8.GetBytes(body))
         };
         var up = await ProcessRequestContextAsync(down, 0, ct);
-        using var response = await SendRequestAsync(up, down, ct);
+        using var response = await SendCoreRequestAsync(up, down, ct);
 
         if (!response.IsSuccessStatusCode)
         {

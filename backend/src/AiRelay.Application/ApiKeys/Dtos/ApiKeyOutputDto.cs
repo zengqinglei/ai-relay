@@ -21,9 +21,9 @@ public record ApiKeyOutputDto
     public string? Description { get; init; }
 
     /// <summary>
-    /// 密钥（⚠️ 创建时返回明文，查询时通过 AutoMapper 解密返回）
+    /// 密钥（⚠️ 创建时返回明文，查询时显式解密返回）
     /// </summary>
-    public required string Secret { get; init; }
+    public required string Secret { get; set; }
 
     /// <summary>
     /// 是否启用

@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient.Context;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Processor;
 
@@ -13,39 +14,34 @@ namespace AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.O
 /// 逐行消费 Responses API SSE，从 response.completed 提取终态，
 /// 在流结束时拼装单个 Chat Completions JSON 响应写入 ConvertedBytes。
 /// </summary>
-public class OpenAiBufferedChatResponseProcessor : IResponseProcessor
+public class OpenAiBufferedChatResponseProcessor(DownRequestContext down) : IResponseProcessor
 {
+    private readonly bool _isActive = !down.IsStreaming
+        && down.RelativePath.Contains("/chat/completions", StringComparison.OrdinalIgnoreCase);
+
     private string _id = GenerateChatCmplId();
     private readonly long _created = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-
     private string _model = string.Empty;
     private readonly StringBuilder _content = new();
     private bool _finalized;
-
     private int _inputTokens;
     private int _outputTokens;
     private int _cachedTokens;
-
     private string _responseStatus = string.Empty;
     private string _incompleteReason = string.Empty;
     private bool _sawToolCalls;
-
-    // tool_calls 积累（流式 SSE 路径）
     private readonly List<(string CallId, string Name, StringBuilder Arguments)> _toolCallsBuffer = new();
     private readonly Dictionary<int, int> _outputIndexToToolCallIndex = new();
 
-    public bool RequiresMutation => true;
+    public bool RequiresMutation => _isActive;
 
     public Task ProcessAsync(StreamEvent evt, CancellationToken ct)
     {
+        if (!_isActive) return Task.CompletedTask;
         if (evt.Type == StreamEventType.Error) return Task.CompletedTask;
 
-        // 流式路径：每行在 evt.SseLine 中
-        // 非流式路径：整个响应体在 evt.Content 中，IsComplete=true
         if (evt.SseLine != null)
             ProcessSseLine(evt.SseLine, evt);
-        else if (evt.Content != null && evt.IsComplete)
-            ProcessFullBody(evt.Content, evt);
 
         return Task.CompletedTask;
     }
@@ -128,62 +124,6 @@ public class OpenAiBufferedChatResponseProcessor : IResponseProcessor
         catch { }
     }
 
-    private void ProcessFullBody(string body, StreamEvent evt)
-    {
-        // 非流式路径：body 为 SSE 文本，逐行解析
-        foreach (var line in body.Split('\n'))
-        {
-            var trimmed = line.Trim();
-            if (!trimmed.StartsWith("data: ") || trimmed == "data: [DONE]") continue;
-            var json = trimmed[6..].Trim();
-            try
-            {
-                using var doc = JsonDocument.Parse(json);
-                var root = doc.RootElement;
-                if (!root.TryGetProperty("type", out var typeProp)) continue;
-
-                switch (typeProp.GetString())
-                {
-                    case "response.output_text.delta":
-                        if (root.TryGetProperty("delta", out var delta) && delta.GetString() is { } text)
-                            _content.Append(text);
-                        break;
-
-                    case "response.output_item.added":
-                        if (root.TryGetProperty("item", out var item) &&
-                            item.TryGetProperty("type", out var itemType) && itemType.GetString() == "function_call")
-                        {
-                            var callId = item.TryGetProperty("call_id", out var cid) ? cid.GetString() ?? "" : "";
-                            var name = item.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-                            var outputIndex = root.TryGetProperty("output_index", out var oi) ? oi.GetInt32() : 0;
-                            _outputIndexToToolCallIndex[outputIndex] = _toolCallsBuffer.Count;
-                            _toolCallsBuffer.Add((callId, name, new StringBuilder()));
-                            _sawToolCalls = true;
-                        }
-                        break;
-
-                    case "response.function_call_arguments.delta":
-                        if (root.TryGetProperty("delta", out var argsDelta) && argsDelta.GetString() is { } argsText)
-                        {
-                            var outputIndex = root.TryGetProperty("output_index", out var oi2) ? oi2.GetInt32() : 0;
-                            if (_outputIndexToToolCallIndex.TryGetValue(outputIndex, out var tcIdx))
-                                _toolCallsBuffer[tcIdx].Arguments.Append(argsText);
-                        }
-                        break;
-
-                    case "response.completed":
-                    case "response.incomplete":
-                    case "response.failed":
-                        ExtractCompletedFields(root);
-                        break;
-                }
-            }
-            catch { }
-        }
-
-        WriteAssembledResponse(evt);
-    }
-
     private void ExtractCompletedFields(JsonElement root)
     {
         if (!root.TryGetProperty("response", out var resp)) return;
@@ -208,18 +148,27 @@ public class OpenAiBufferedChatResponseProcessor : IResponseProcessor
                 _cachedTokens = ct.GetInt32();
         }
 
-        // 非流式上游返回完整 response 时，从 output[].content 提取文本；同时检测 function_call
+        // 从 response.completed/incomplete/failed 事件的 output[] 提取内容；同时检测 function_call
         if (resp.TryGetProperty("output", out var outputs))
         {
             foreach (var output in outputs.EnumerateArray())
             {
                 if (output.TryGetProperty("type", out var outputType) && outputType.GetString() == "function_call")
                 {
-                    _sawToolCalls = true;
-                    var callId = output.TryGetProperty("call_id", out var cid) ? cid.GetString() ?? "" : "";
-                    var name = output.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-                    var arguments = output.TryGetProperty("arguments", out var a) ? a.GetString() ?? "" : "";
-                    _toolCallsBuffer.Add((callId, name, new StringBuilder(arguments)));
+                    // output[] 中的 function_call 仅在 delta 事件未能预先填充 _toolCallsBuffer 时提取，
+                    // 避免与 response.output_item.added + response.function_call_arguments.delta 的增量数据重复。
+                    if (_toolCallsBuffer.Count == 0)
+                    {
+                        _sawToolCalls = true;
+                        var callId = output.TryGetProperty("call_id", out var cid) ? cid.GetString() ?? "" : "";
+                        var name = output.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                        var arguments = output.TryGetProperty("arguments", out var a) ? a.GetString() ?? "" : "";
+                        _toolCallsBuffer.Add((callId, name, new StringBuilder(arguments)));
+                    }
+                    else
+                    {
+                        _sawToolCalls = true;
+                    }
                     continue;
                 }
                 if (_content.Length == 0 && output.TryGetProperty("content", out var contentArr))

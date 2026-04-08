@@ -9,17 +9,12 @@ using AiRelay.Application.UsageRecords.AppServices;
 using AiRelay.Application.Users.AppServices;
 using AiRelay.Domain.ApiKeys.Events;
 using Leistd.EventBus.Core.EventHandler;
-using Leistd.ObjectMapping.AutoMapper;
+using Leistd.ObjectMapping.Mapster;
 using Leistd.Ddd.Application.Permission;
 using Microsoft.Extensions.DependencyInjection;
 using AiRelay.Application.Permissions.Checker;
 using AiRelay.Application.Permissions.Provider;
 using AiRelay.Domain.ProviderAccounts.Events;
-
-using AiRelay.Application.ApiKeys.Mappings;
-using AiRelay.Application.ProviderAccounts.Mappings;
-using AiRelay.Application.ProviderGroups.Mappings;
-using AiRelay.Application.Users.Mappings;
 
 namespace AiRelay.Application;
 
@@ -27,17 +22,10 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)
     {
-        services.AddAutoMapperObjectMapper(options =>
+        services.AddMapsterObjectMapper(options =>
         {
-            options.Configurators.Add(cfg => cfg.AddMaps(typeof(DependencyInjection).Assembly));
+            options.AddProfiles(typeof(DependencyInjection).Assembly);
         });
-
-        // Register AutoMapper Resolvers
-        services.AddTransient<AccountTokenConcurrencyResolver>();
-        services.AddTransient<ApiKeySecretResolver>();
-        services.AddTransient<ApiKeyStatsMappingAction>();
-        services.AddTransient<GroupRelationConcurrencyResolver>();
-        services.AddTransient<UserRolesResolver>();
 
         services.AddTransient<ISystemInitializer, SystemInitializer>();
         services.AddTransient<IAccountTokenAppService, AccountTokenAppService>();

@@ -25,6 +25,8 @@ public abstract class GoogleInternalChatModelHandlerBase(
     ILogger logger)
     : BaseChatModelHandler(options, httpClientFactory, logger)
 {
+    protected ISignatureCache SignatureCache { get; } = signatureCache;
+
     protected override string? GetFallbackBaseUrl(int statusCode)
     {
         if (statusCode == 429 || statusCode == 408 || statusCode == 404 ||
@@ -36,14 +38,14 @@ public abstract class GoogleInternalChatModelHandlerBase(
     protected override IReadOnlyList<IResponseProcessor> GetResponseProcessors(
         UpRequestContext up, DownRequestContext down)
     {
-        var processors = new List<IResponseProcessor>
-        {
-
+        return
+        [
+            new GoogleSseCollectorResponseProcessor(down.IsStreaming, up.RelativePath),
+            new GoogleOAuthSseUnwrapResponseProcessor(down.IsStreaming, up.RelativePath),
             new GoogleParseSseResponseProcessor(),
             new UsageAccumulatorResponseProcessor(),
-            new GoogleCacheSignatureResponseProcessor(signatureCache, up.SessionId, Logger)
-        };
-        return processors;
+            new GoogleCacheSignatureResponseProcessor(SignatureCache, up.SessionId, Logger)
+        ];
     }
 
     public override async Task<ModelErrorAnalysisResult> CheckRetryPolicyAsync(
@@ -163,7 +165,7 @@ public abstract class GoogleInternalChatModelHandlerBase(
                 RawStream = new MemoryStream(Encoding.UTF8.GetBytes(body))
             };
             var up = await ProcessRequestContextAsync(down, 0, ct);
-            using var response = await SendRequestAsync(up, down, ct);
+            using var response = await SendCoreRequestAsync(up, down, ct);
             response.EnsureSuccessStatusCode();
 
             var result = await response.Content.ReadFromJsonAsync<LoadCodeAssistResponse>(
@@ -191,32 +193,6 @@ public abstract class GoogleInternalChatModelHandlerBase(
         {
             return new ConnectionValidationResult(false, $"认证失败：{ex.Message}");
         }
-    }
-
-    /// <summary>
-    /// 从 Gemini 消息的 parts 数组中提取文本
-    /// </summary>
-    protected static string ExtractTextFromParts(JsonNode? content)
-    {
-        if (content is not JsonObject contentObj ||
-            !contentObj.TryGetPropertyValue("parts", out var partsNode) ||
-            partsNode is not JsonArray parts)
-        {
-            return string.Empty;
-        }
-
-        var sb = new StringBuilder();
-        foreach (var part in parts)
-        {
-            if (part is JsonObject partObj &&
-                partObj.TryGetPropertyValue("text", out var textNode) &&
-                textNode is JsonValue textValue &&
-                textValue.TryGetValue<string>(out var text))
-            {
-                sb.Append(text);
-            }
-        }
-        return sb.ToString();
     }
 
     private sealed class LoadCodeAssistResponse

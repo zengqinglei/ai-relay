@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Context;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Processor;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient.SignatureCache;
 using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Cleaning;
 
 namespace AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.Gemini;
@@ -13,7 +14,8 @@ namespace AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.G
 public class GeminiOAuthModifyBodyRequestProcessor(
     ChatModelConnectionOptions options,
     GoogleJsonSchemaCleaner googleJsonSchemaCleaner,
-    GeminiSystemPromptInjector geminiSystemPromptInjector) : IRequestProcessor
+    GeminiSystemPromptInjector geminiSystemPromptInjector,
+    ISignatureCache signatureCache) : IRequestProcessor
 {
     // Gemini CLI user_prompt_id 格式: UUID + "########" + 数字
     private static readonly Regex UserPromptIdPattern = new(
@@ -44,18 +46,19 @@ public class GeminiOAuthModifyBodyRequestProcessor(
         bool isPackaged = down.ExtractedProps.ContainsKey("has_v1internal_request") && down.ExtractedProps.ContainsKey("has_v1internal_project");
 
         // 零分配捷径：如果已经包装过了 (v1internal结构) 且没有 tools 参数且不需要额外包装欺诈，则跳过解析
-        if (isPackaged && !hasTools && (!shouldMimic || isGeminiCli))
-        {
-            return;
-        }
+        // 注意：不能跳过 body 清理（空 parts 过滤、签名补充），否则已包装请求的内层 request 吃不到修复
+        bool canSkipBodyModification = isPackaged && !hasTools && (!shouldMimic || isGeminiCli);
 
         var clonedBody = await up.EnsureMutableBodyAsync(down);
 
-        var projectId = options.ExtraProperties.TryGetValue("project_id", out var pid) ? pid : "";
-        if (!clonedBody.ContainsKey("request") || !clonedBody.ContainsKey("project"))
+        // 是否走 v1internal（Code Assist）路径
+        bool isV1Internal = up.RelativePath.StartsWith("/v1internal", StringComparison.OrdinalIgnoreCase);
+
+        if (isV1Internal && !clonedBody.ContainsKey("request") && !clonedBody.ContainsKey("project"))
         {
             // 未包装：构建 v1internal 包装
-            var modelId = up.MappedModelId ?? down.ModelId ?? "gemini-3.0-flash-preview";
+            var projectId = options.ExtraProperties.TryGetValue("project_id", out var pid) ? pid : "";
+            var modelId = up.MappedModelId ?? down.ModelId ?? "gemini-2.5-flash";
             clonedBody.Remove("model");
             clonedBody = new JsonObject
             {
@@ -63,11 +66,25 @@ public class GeminiOAuthModifyBodyRequestProcessor(
                 ["project"] = projectId,
                 ["request"] = clonedBody
             };
-            // ⭐ 关键：包装后必须回写到 up.BodyJson，否则 BuildHttpRequestMessage 序列化的仍是原始未包装 body
+            // 关键：包装后必须回写到 up.BodyJson，否则 BuildHttpRequestMessage 序列化的仍是原始未包装 body
             up.BodyJson = clonedBody;
         }
-        // 确定内层 payload（用于 Schema 清洗和 CLI 元数据注入）
-        var payload = clonedBody["request"] as JsonObject;
+        // 确定内层 payload（v1internal 模式取 request 字段，AI Studio 模式取 clonedBody 自身）
+        var payload = isV1Internal ? clonedBody["request"] as JsonObject : clonedBody;
+
+        // ── Body 清理（作用于内层 payload，确保对已包装请求也生效） ──
+        if (payload != null)
+        {
+            GeminiContentPartsCleaner.FilterEmptyParts(payload);
+            var cachedSignature = !string.IsNullOrEmpty(up.SessionId)
+                ? signatureCache.GetSignature(up.SessionId)
+                : null;
+            GeminiContentPartsCleaner.EnsureFunctionCallThoughtSignatures(payload, cachedSignature);
+        }
+
+        // 零分配捷径：只需清理，跳过 Schema 清洗和 CLI 伪装
+        if (canSkipBodyModification) return;
+
         // 清洗 JSON Schema（从内层 payload 取 tools）
         if (payload?["tools"] is JsonArray tools)
         {
@@ -93,8 +110,11 @@ public class GeminiOAuthModifyBodyRequestProcessor(
         if (shouldMimic && !isGeminiCli)
         {
             geminiSystemPromptInjector.InjectGeminiCliPrompt(payload);
-            // user_prompt_id 注入到顶层 wrapper，session_id 注入到内层 clonedBody
-            InjectGeminiCliMetadata(clonedBody, payload, options, down);
+            // user_prompt_id 和 session_id 仅在 v1internal 模式下注入
+            if (isV1Internal)
+            {
+                InjectGeminiCliMetadata(clonedBody, payload, options, down);
+            }
         }
     }
 

@@ -11,7 +11,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 
 namespace AiRelay.Infrastructure.Shared.ExternalServices.ModelClient;
 
@@ -25,9 +24,6 @@ public class GeminiAccountChatModelHandler(
     ILogger<GeminiAccountChatModelHandler> logger)
     : GoogleInternalChatModelHandlerBase(options, httpClientFactory, signatureCache, logger)
 {
-    // Gemini CLI 临时目录正则匹配: .gemini/tmp/[64位哈希]
-    private static readonly Regex GeminiCliTmpDirRegex = new(@"\.gemini/tmp/([A-Fa-f0-9]{64})", RegexOptions.Compiled);
-
     public override bool Supports(ProviderPlatform platform) =>
         platform == ProviderPlatform.GEMINI_OAUTH;
 
@@ -37,8 +33,8 @@ public class GeminiAccountChatModelHandler(
         return [
             new GeminiOAuthUrlRequestProcessor(Options),
             new GeminiHeaderRequestProcessor(Options),
-            new GeminiOAuthModifyBodyRequestProcessor(Options, googleJsonSchemaCleaner, geminiSystemPromptInjector),
-            new GeminiDegradationRequestProcessor(degradationLevel, googleSignatureCleaner, logger)
+            new GeminiOAuthModifyBodyRequestProcessor(Options, googleJsonSchemaCleaner, geminiSystemPromptInjector, SignatureCache),
+            new GeminiDegradationRequestProcessor(degradationLevel, googleSignatureCleaner, Logger)
         ];
     }
 
@@ -126,7 +122,7 @@ public class GeminiAccountChatModelHandler(
             RawStream = new MemoryStream(Encoding.UTF8.GetBytes(body))
         };
         var up = await ProcessRequestContextAsync(down, 0, ct);
-        using var response = await SendRequestAsync(up, down, ct);
+        using var response = await SendCoreRequestAsync(up, down, ct);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -212,42 +208,5 @@ public class GeminiAccountChatModelHandler(
             ModelId = modelId,
             RawStream = new MemoryStream(Encoding.UTF8.GetBytes(json.ToJsonString()))
         };
-    }
-
-
-
-    /// <summary>
-    /// 统计 payload（通常为 contents 或 messages）中 user 角色的数量，作为递增提问索引
-    /// </summary>
-    private static int ExtractPromptIndex(JsonNode? body)
-    {
-        if (body is not JsonObject jsonObj) return 0;
-
-        var index = 0;
-
-        // 兼容 Gemini 格式
-        if (jsonObj.TryGetPropertyValue("contents", out var contentsNode) && contentsNode is JsonArray contents)
-        {
-            foreach (var item in contents)
-            {
-                if (item is JsonObject obj && obj.TryGetPropertyValue("role", out var roleNode) && roleNode is JsonValue roleVal && roleVal.TryGetValue<string>(out var role) && role == "user")
-                {
-                    index++;
-                }
-            }
-        }
-        // 兼容 OpenAI / Claude 等 messages 格式
-        else if (jsonObj.TryGetPropertyValue("messages", out var messagesNode) && messagesNode is JsonArray messages)
-        {
-            foreach (var item in messages)
-            {
-                if (item is JsonObject obj && obj.TryGetPropertyValue("role", out var roleNode) && roleNode is JsonValue roleVal && roleVal.TryGetValue<string>(out var role) && role == "user")
-                {
-                    index++;
-                }
-            }
-        }
-
-        return index > 0 ? index - 1 : 0;
     }
 }

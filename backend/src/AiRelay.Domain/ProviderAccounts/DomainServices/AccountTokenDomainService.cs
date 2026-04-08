@@ -179,19 +179,19 @@ public class AccountTokenDomainService(
     /// </summary>
     public async Task<bool> IsModelSupportedAsync(AccountToken account, string requestedModel, CancellationToken ct = default)
     {
+        // 检查映射列表，命中则视为支持
+        var mapping = account.ModelMapping;
+        if (mapping != null && mapping.Count > 0)
+        {
+            if (ResolveMapping(requestedModel, mapping) != null) return true;
+        }
+
         var whitelist = account.ModelWhites;
         if (whitelist != null && whitelist.Count > 0)
         {
             if (whitelist.Contains(requestedModel, StringComparer.OrdinalIgnoreCase)) return true;
             return whitelist.Where(k => k.EndsWith('*'))
                 .Any(k => requestedModel.StartsWith(k[..^1], StringComparison.OrdinalIgnoreCase));
-        }
-
-        // 无白名单：检查映射列表，命中则视为支持
-        var mapping = account.ModelMapping;
-        if (mapping != null && mapping.Count > 0)
-        {
-            if (ResolveMapping(requestedModel, mapping) != null) return true;
         }
 
         // 无白名单且无映射命中：用上游模型列表（带缓存）与 baseline 取交集后校验

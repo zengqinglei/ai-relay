@@ -71,62 +71,54 @@ public abstract class BaseChatModelHandler : IChatModelHandler
         return up;
     }
 
-    // ── SendRequestAsync（含 Fallback 重试，仅供内部及子类调用）
+    // ── SendCoreRequestAsync（含 Fallback 重试，仅供内部及子类调用）
 
-    protected async Task<HttpResponseMessage> SendRequestAsync(UpRequestContext up, DownRequestContext down, CancellationToken ct = default)
+    protected async Task<HttpResponseMessage> SendCoreRequestAsync(UpRequestContext up, DownRequestContext down, CancellationToken ct = default)
     {
         var hasTriedFallback = false;
 
         while (true)
         {
-            try
-            {
-                using var httpClient = HttpClientFactory.CreateClient();
+            using var httpClient = HttpClientFactory.CreateClient("ModelProxyClient");
 
-                // 统一交由 UpRequestContext 中心化构建请求报文
-                using var request = up.BuildHttpRequestMessage(down);
+            // 统一交由 UpRequestContext 中心化构建请求报文
+            using var request = up.BuildHttpRequestMessage(down);
 
-                // 发送请求
-                var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
-                if (response.IsSuccessStatusCode)
-                    return response;
-
-                // 检查是否有备用 URL 可切换
-                var fallbackUrl = GetFallbackBaseUrl((int)response.StatusCode);
-                if (fallbackUrl != null && !hasTriedFallback)
-                {
-                    Logger.LogWarning("端点异常 ({StatusCode})，切换备用端点", response.StatusCode);
-                    response.Dispose();
-                    hasTriedFallback = true;
-                    // 同步更新上下文的 BaseUrl 以供下一轮 BuildHttpRequestMessage 使用
-                    up.BaseUrl = fallbackUrl;
-                    continue;
-                }
-
+            // 发送请求
+            var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+            if (response.IsSuccessStatusCode)
                 return response;
-            }
-            catch (Exception ex)
+
+            // 检查是否有备用 URL 可切换
+            var fallbackUrl = GetFallbackBaseUrl((int)response.StatusCode);
+            if (fallbackUrl != null && !hasTriedFallback)
             {
-                Logger.LogError(ex, "HTTP 请求失败");
-                throw;
+                Logger.LogWarning("端点异常 ({StatusCode})，切换备用端点", response.StatusCode);
+                response.Dispose();
+                hasTriedFallback = true;
+                // 同步更新上下文的 BaseUrl 以供下一轮 BuildHttpRequestMessage 使用
+                up.BaseUrl = fallbackUrl;
+                continue;
             }
+
+            return response;
         }
     }
 
-    // ── SendAsync（两阶段：Phase 1 发送 + Phase 2 流式消费）
+    // ── SendChatRequestAsync（两阶段：Phase 1 发送 + Phase 2 流式消费）
 
     /// <summary>
     /// Phase 1：发送请求，等待响应头返回。
     /// 成功时 ProxyResponse.Events 携带懒加载事件流；
     /// 失败时 ProxyResponse.ErrorBody 携带错误体，HttpResponseMessage 已 Dispose。
     /// </summary>
-    public async Task<ProxyResponse> SendAsync(
+    public async Task<ProxyResponse> SendChatRequestAsync(
         UpRequestContext up,
         DownRequestContext down,
         bool isStreaming,
         CancellationToken ct = default)
     {
-        var response = await SendRequestAsync(up, down, ct);
+        var response = await SendCoreRequestAsync(up, down, ct);
         var statusCode = (int)response.StatusCode;
         var headers = ExtractResponseHeaders(response);
 
@@ -137,36 +129,16 @@ public abstract class BaseChatModelHandler : IChatModelHandler
             return new ProxyResponse(false, statusCode, headers, errorBody, null);
         }
 
-        // 检查响应 Content-Type，如果是 SSE 流，强制按流式处理
-        var contentType = response.Content.Headers.ContentType?.MediaType;
-        var isActuallyStreaming = contentType?.Contains("text/event-stream", StringComparison.OrdinalIgnoreCase) ?? false;
-        var shouldProcessAsStream = isStreaming || isActuallyStreaming;
-
         // Phase 2：状态机闭包持有 response，finally 块负责 Dispose
+        // 统一走流式路径：非流式 JSON 响应体通过 Fast-Pass 的 OriginalBytes 整块透传，与流式路径等价
         var processors = GetResponseProcessors(up, down);
-        var events = StreamResponseAsync(response, statusCode, headers, processors, shouldProcessAsStream, ct);
-        return new ProxyResponse(true, statusCode, headers, null, events);
-    }
 
-    /// <summary>
-    /// Phase 2（私有）：懒加载消费响应体，处理 SSE 解析与事件产出。
-    /// HttpResponseMessage 在 finally 块中 Dispose，由调用方（中间件）通过枚举触发。
-    /// </summary>
-    private async IAsyncEnumerable<StreamEvent> StreamResponseAsync(
-        HttpResponseMessage response,
-        int statusCode,
-        Dictionary<string, IEnumerable<string>> responseHeaders,
-        IReadOnlyList<IResponseProcessor> processors,
-        bool isStreaming,
-        [EnumeratorCancellation] CancellationToken ct)
-    {
-        try
+        async IAsyncEnumerable<StreamEvent> StreamEventsAsync([EnumeratorCancellation] CancellationToken cancellationToken)
         {
-
-            if (isStreaming)
+            try
             {
                 var sseBuffer = new SseStreamBuffer();
-                await using var responseStream = await response.Content.ReadAsStreamAsync(ct);
+                await using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
                 var buffer = ArrayPool<byte>.Shared.Rent(8192);
 
                 bool requiresMutation = processors.Any(p => p.RequiresMutation);
@@ -174,33 +146,23 @@ public abstract class BaseChatModelHandler : IChatModelHandler
                 try
                 {
                     int bytesRead;
-                    while ((bytesRead = await responseStream.ReadAsync(buffer, ct)) > 0)
+                    while ((bytesRead = await responseStream.ReadAsync(buffer, cancellationToken)) > 0)
                     {
                         if (!requiresMutation)
-                        {
-                            // 【Fast-Pass 模式】整块网络帧直接作为 OriginalBytes 转发，0 损耗 / 0 篡改
-                            // ConvertedBytes 保持 null，表示未经过转换
-                            // 解决 #1：帧只在此处 yield 一次，ProcessLineAsync 不再写 OriginalBytes，消除双 yield
                             yield return new StreamEvent { OriginalBytes = buffer.AsSpan(0, bytesRead).ToArray() };
-                        }
 
-                        // 无论 Fast-Pass 还是 Mutation 模式，行解析都要执行
-                        // 解决 #2：Fast-Pass 下仍驱动 Processor 链，UsageAccumulatorResponseProcessor 可正常累积 Usage
-                        // span 在 yield 之后创建，不跨越 yield/await 边界
-                        foreach (var line in sseBuffer.ProcessChunk(buffer.AsSpan(0, bytesRead)))
+                        var lines = sseBuffer.ProcessChunk(buffer.AsSpan(0, bytesRead));
+                        await foreach (var evt in ProcessLinesAsync(lines))
                         {
-                            var evt = await ProcessLineAsync(line);
-                            if (evt != null) yield return evt;
-                            if (evt?.IsComplete == true) yield break;
+                            yield return evt;
+                            if (evt.IsComplete) yield break;
                         }
                     }
 
-                    // 刷新 SSE 缓冲区残留
-                    foreach (var line in sseBuffer.Flush())
+                    await foreach (var evt in ProcessLinesAsync(sseBuffer.Flush()))
                     {
-                        var evt = await ProcessLineAsync(line);
-                        if (evt != null) yield return evt;
-                        if (evt?.IsComplete == true) yield break;
+                        yield return evt;
+                        if (evt.IsComplete) yield break;
                     }
                 }
                 finally
@@ -208,58 +170,42 @@ public abstract class BaseChatModelHandler : IChatModelHandler
                     ArrayPool<byte>.Shared.Return(buffer);
                 }
 
-                async ValueTask<StreamEvent?> ProcessLineAsync(string line)
+                async IAsyncEnumerable<StreamEvent> ProcessLinesAsync(IEnumerable<string> lines)
                 {
-                    if (string.IsNullOrEmpty(line))
+                    foreach (var line in lines)
                     {
-                        // Mutation 模式：空行是 SSE 事件定界符，需要转发
-                        // Fast-Pass 模式：空行已包含在整块帧中，无需单独处理
-                        return requiresMutation ? new StreamEvent { OriginalBytes = "\n"u8.ToArray() } : null;
-                    }
+                        if (string.IsNullOrEmpty(line))
+                        {
+                            if (requiresMutation) yield return new StreamEvent { OriginalBytes = "\n"u8.ToArray() };
+                            continue;
+                        }
 
-                    // ProcessLineAsync 只负责语义解析，设置 OriginalBytes
-                    // Fast-Pass 下 OriginalBytes 由外层整块帧负责
-                    // Mutation 下 ConvertedBytes 由各 Processor（如 ToCompletionResponseProcessor）负责
-                    var evt = new StreamEvent { SseLine = line };
-                    foreach (var proc in processors) await proc.ProcessAsync(evt, ct);
+                        var evt = new StreamEvent { SseLine = line };
+                        foreach (var proc in processors) await proc.ProcessAsync(evt, cancellationToken);
 
-                    // 有语义内容（Content/Usage/IsComplete/Error/HasOutput）或 Mutation 模式下 Processor 填充了 OriginalBytes/ConvertedBytes，才 yield
-                    return (evt.Content != null || evt.InlineData != null || evt.IsComplete
+                        if (evt.Content != null || evt.InlineData != null || evt.IsComplete
                             || evt.Type == StreamEventType.Error || evt.Usage != null
                             || evt.HasOutput
                             || evt.OriginalBytes != null || evt.ConvertedBytes != null)
-                        ? evt
-                        : null;
+                        {
+                            yield return evt;
+                        }
+                    }
                 }
 
-                // 补发完成事件（ForwardBytes=null，让中间件补发 [DONE]）
-                var completeEvt = new StreamEvent
-                {
-                    IsComplete = true
-                };
-                foreach (var proc in processors)
-                    await proc.ProcessAsync(completeEvt, ct);
+                // 补发完成事件（ConvertedBytes/OriginalBytes=null，让中间件补发 [DONE]）
+                var completeEvt = new StreamEvent { IsComplete = true };
+                foreach (var proc in processors) await proc.ProcessAsync(completeEvt, cancellationToken);
                 yield return completeEvt;
             }
-            else
+            finally
             {
-                // 非流式：读取完整响应体
-                var body = await response.Content.ReadAsStringAsync(ct);
-                var evt = new StreamEvent
-                {
-                    Content = body,
-                    IsComplete = true
-                };
-                foreach (var proc in processors)
-                    await proc.ProcessAsync(evt, ct);
-                yield return evt;
+                // 确保 HttpResponseMessage 在枚举完成（含取消）后正确释放
+                response.Dispose();
             }
         }
-        finally
-        {
-            // 确保 HttpResponseMessage 在枚举完成（含取消）后正确释放
-            response.Dispose();
-        }
+
+        return new ProxyResponse(true, statusCode, headers, null, StreamEventsAsync(ct));
     }
 
     // ── Retry Policy
@@ -434,7 +380,7 @@ public abstract class BaseChatModelHandler : IChatModelHandler
 
     private static Dictionary<string, IEnumerable<string>> ExtractResponseHeaders(HttpResponseMessage response)
     {
-        var headers = new Dictionary<string, IEnumerable<string>>();
+        var headers = new Dictionary<string, IEnumerable<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (var header in response.Headers)
             headers[header.Key] = header.Value;
         if (response.Content?.Headers != null)

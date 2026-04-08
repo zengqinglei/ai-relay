@@ -1,4 +1,5 @@
 using System.Text;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient.Context;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Processor;
 using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.OpenAi.Converter;
@@ -11,14 +12,18 @@ namespace AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.O
 /// 保留 OriginalBytes（上游原始数据），设置 ConvertedBytes（转换后数据）
 /// 转换后的行各自追加 \n\n，空行及无转换结果一律不转发
 /// </summary>
-public class OpenAiToCompletionResponseProcessor(bool includeUsage = false) : IResponseProcessor
+public class OpenAiToCompletionResponseProcessor(DownRequestContext down) : IResponseProcessor
 {
-    private readonly ResponsesToCompletionsConverter _converter = new(includeUsage);
+    private readonly bool _isActive = down.IsStreaming
+        && down.RelativePath.Contains("/chat/completions", StringComparison.OrdinalIgnoreCase);
+    private readonly ResponsesToCompletionsConverter _converter = new(
+        down.ExtractedProps.TryGetValue("stream_options.include_usage", out var iuVal) && iuVal == "true");
 
-    public bool RequiresMutation => true;
+    public bool RequiresMutation => _isActive;
 
     public Task ProcessAsync(StreamEvent evt, CancellationToken ct)
     {
+        if (!_isActive) return Task.CompletedTask;
         if (evt.Type == StreamEventType.Error) return Task.CompletedTask;
 
         // 保存原始字节（如果尚未设置）

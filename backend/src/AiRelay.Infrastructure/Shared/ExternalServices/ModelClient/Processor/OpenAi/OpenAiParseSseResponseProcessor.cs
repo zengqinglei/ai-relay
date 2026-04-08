@@ -20,8 +20,7 @@ public class OpenAiParseSseResponseProcessor : IResponseProcessor
             ParseChunk(evt.SseLine, evt);
         else if (evt.Content != null)
         {
-            ParseCompleteResponse(evt.Content, evt);
-            evt.IsComplete = true;
+            ParseCompleteResponse(evt);
         }
 
         return Task.CompletedTask;
@@ -135,11 +134,19 @@ public class OpenAiParseSseResponseProcessor : IResponseProcessor
         catch { }
     }
 
-    private static void ParseCompleteResponse(string responseBody, StreamEvent evt)
+    private static void ParseCompleteResponse(StreamEvent evt)
     {
+        // If the body is SSE text (upstream returned SSE without text/event-stream header),
+        // skip JSON parsing here and let OpenAiBufferedChatResponseProcessor.ProcessFullBody handle it.
+        // Attempting JsonDocument.Parse on multi-line SSE would fail and corrupt the event.
+        var trimmed = evt.Content!.AsSpan().TrimStart();
+        if (trimmed.StartsWith("data:".AsSpan(), StringComparison.Ordinal) ||
+            trimmed.StartsWith("event:".AsSpan(), StringComparison.Ordinal))
+            return;
+
         try
         {
-            using var doc = JsonDocument.Parse(responseBody);
+            using var doc = JsonDocument.Parse(evt.Content!);
             var root = doc.RootElement;
 
             if (root.TryGetProperty("model", out var modelProp)) evt.ModelId ??= modelProp.GetString();
@@ -161,6 +168,8 @@ public class OpenAiParseSseResponseProcessor : IResponseProcessor
             evt.Type = StreamEventType.Error;
             evt.Content = "Invalid JSON response";
         }
+
+        evt.IsComplete = true;
     }
 
     private static ResponseUsage ExtractUsage(JsonElement usageElement)

@@ -39,6 +39,7 @@ using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient;
 using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.SignatureCache;
 using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Cleaning;
 using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.Claude;
+using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Interceptors;
 
 namespace AiRelay.Infrastructure;
 
@@ -132,6 +133,29 @@ public static class DependencyInjection
 
         // ✅ 签名缓存服务（Singleton 确保全局唯一，用于 Thinking Block 签名链传递）
         services.AddSingleton<ISignatureCache, InMemorySignatureCache>();
+
+        // HTTP 压解拦截器及专属代理客户端
+        services.AddTransient<ManualDecompressionHandler>();
+        services.AddHttpClient("ModelProxyClient")
+                .ConfigureHttpClient(client =>
+                {
+                    // 1. SSE 流式响应使用 Infinite 超时，实际生命周期由 CancellationToken 严格控制
+                    client.Timeout = Timeout.InfiniteTimeSpan;
+                })
+                .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+                {
+                    // 2. 解决 DNS 刷新问题 (5分钟过期，不影响活跃连接)
+                    PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+
+                    // 3. 握手超时：弱网下防黑洞死等（包含 TCP + SSL 握手总时长）
+                    ConnectTimeout = TimeSpan.FromSeconds(60),
+
+                    // 4. Keep-Alive 设置：防止弱网下发生”静默断网”导致无限等待
+                    KeepAlivePingDelay = TimeSpan.FromSeconds(30),
+                    KeepAlivePingTimeout = TimeSpan.FromMinutes(1),
+                    KeepAlivePingPolicy = HttpKeepAlivePingPolicy.Always
+                })
+                .AddHttpMessageHandler<ManualDecompressionHandler>();
 
         // 聊天模型客户端工厂
         services.AddTransient<IChatModelHandlerFactory, ChatModelHandlerFactory>();

@@ -1,29 +1,42 @@
 using AiRelay.Application.ProviderGroups.Dtos;
 using AiRelay.Application.ApiKeys.Dtos;
-using AutoMapper;
 using AiRelay.Domain.ProviderGroups.Entities;
 using AiRelay.Domain.ApiKeys.Entities;
+using Leistd.ObjectMapping.Mapster;
+using Mapster;
 
 namespace AiRelay.Application.ProviderGroups.Mappings;
 
 /// <summary>
-/// 提供商分组 AutoMapper 配置
+/// 提供商分组 Mappings 配置
 /// </summary>
-public class ProviderGroupProfile : Profile
+public class ProviderGroupProfile : MapsterProfile
 {
-    public ProviderGroupProfile()
+    protected override void ConfigureMappings()
     {
         CreateMap<ProviderGroup, ProviderGroupOutputDto>()
-            .ForMember(d => d.Accounts, o => o.Ignore()); // Accounts 需要手动加载或在查询时 Include
+            .Ignore(d => d.Accounts); // Accounts 需要手动加载或在查询时 Include
 
         CreateMap<ProviderGroupAccountRelation, GroupAccountRelationOutputDto>()
-            .ForMember(d => d.AccountTokenName, o => o.MapFrom(s => s.AccountToken!.Name))
-            .ForMember(d => d.IsActive, o => o.MapFrom(s => s.AccountToken!.IsActive))
-            .ForMember(d => d.ExpiresAt, o => o.MapFrom(s => s.AccountToken!.ExpiresAt))
-            .ForMember(d => d.MaxConcurrency, o => o.MapFrom(s => s.AccountToken!.MaxConcurrency))
-            .ForMember(d => d.CurrentConcurrency, o => o.MapFrom<GroupRelationConcurrencyResolver>());
+            .Map(d => d.AccountTokenName, s => s.AccountToken!.Name)
+            .Map(d => d.IsActive, s => s.AccountToken!.IsActive)
+            .Map(d => d.ExpiresAt, s => s.AccountToken!.ExpiresAt)
+            .Map(d => d.MaxConcurrency, s => s.AccountToken!.MaxConcurrency)
+            .Map(d => d.CurrentConcurrency, s => ResolveConcurrencyCount(s));
 
         CreateMap<ApiKeyProviderGroupBinding, ApiKeyBindingOutputDto>()
-            .ForMember(d => d.ProviderGroupName, o => o.MapFrom(s => s.ProviderGroup.Name));
+            .Map(d => d.ProviderGroupName, s => s.ProviderGroup.Name);
+    }
+
+    private static int ResolveConcurrencyCount(ProviderGroupAccountRelation source)
+    {
+        if (MapContext.Current?.Parameters.TryGetValue("ConcurrencyCounts", out var countsObj) == true &&
+            countsObj is IDictionary<Guid, int> counts &&
+            counts.TryGetValue(source.AccountTokenId, out var count))
+        {
+            return count;
+        }
+
+        return 0; // 预获取已在 AppService 中完成，如果缺失则兜底返回0
     }
 }

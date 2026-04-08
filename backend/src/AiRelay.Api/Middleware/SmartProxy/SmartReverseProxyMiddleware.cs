@@ -227,7 +227,7 @@ public class SmartReverseProxyMiddleware(
                     try
                     {
                         // Phase 1: 发送请求，等待响应头（body 未消费）
-                        var proxyResponse = await accountedHandler.SendAsync(upContext, downContext, downContext.IsStreaming, context.RequestAborted);
+                        var proxyResponse = await accountedHandler.SendChatRequestAsync(upContext, downContext, downContext.IsStreaming, context.RequestAborted);
                         httpStatusCode = proxyResponse.StatusCode;
 
                         bool isStreamCrash = false;
@@ -367,7 +367,9 @@ public class SmartReverseProxyMiddleware(
                                 if (context.Response.HasStarted)
                                 {
                                     // 标记为中途坠机，避免记录成 Success
-                                    attemptStatusDesc = $"连接意外中断: {ex.Message}";
+                                    attemptStatusDesc = ex is IOException
+                                        ? $"上游流传输中途断开（已向下游转发部分数据）: {ex.Message}"
+                                        : $"流转发过程中发生意外异常: {ex.Message}";
 
                                     // 响应头或部分实体已发出，无法补救，只能向上抛出交由最外层强制 Abort 断开网络
                                     throw;
@@ -380,7 +382,9 @@ public class SmartReverseProxyMiddleware(
 
                                     // 标记流崩溃标志，使其跃迁出成功区块，平滑下落到异常重试处理分支
                                     isStreamCrash = true;
-                                    attemptStatusDesc = $"流尚未开始下发便中断异常，触发同号重试或切号重试机制: {ex.Message}";
+                                    attemptStatusDesc = ex is IOException
+                                        ? $"上游流在首包前断开，触发同号重试或切号重试机制: {ex.Message}"
+                                        : $"流尚未开始下发便中断异常，触发同号重试或切号重试机制: {ex.Message}";
                                     logger.LogWarning(ex, attemptStatusDesc);
                                 }
                             }
@@ -504,7 +508,9 @@ public class SmartReverseProxyMiddleware(
             finalStatus = UsageStatus.Failed;
             if (context.Response.HasStarted)
             {
-                finalStatusDescription = $"连接意外中断: {ex.Message}";
+                finalStatusDescription = ex is IOException
+                    ? $"上游流传输中途断开: {ex.Message}"
+                    : $"代理转发过程中发生意外异常: {ex.Message}";
                 logger.LogWarning(ex, finalStatusDescription);
 
                 // 模拟直连：遇到上游中途断开，不伪造 [DONE] 平滑结束，

@@ -126,7 +126,7 @@ public class AccountTokenAppService(
             : $"{input.ModelId} --> {upContext.MappedModelId}";
         yield return new StreamEvent { Type = StreamEventType.System, Content = $"测试模型 {mappedModel}" };
 
-        var proxyResponse = await handler.SendAsync(upContext, downContext, isStreaming: true, ct: cancellationToken);
+        var proxyResponse = await handler.SendChatRequestAsync(upContext, downContext, isStreaming: true, ct: cancellationToken);
 
         if (!proxyResponse.IsSuccess)
         {
