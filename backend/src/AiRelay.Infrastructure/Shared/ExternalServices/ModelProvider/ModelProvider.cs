@@ -22,18 +22,18 @@ public sealed class ModelProvider(ILogger<ModelProvider> logger) : IModelProvide
     private static readonly Dictionary<string, string> CustomModelMappings = new();
 
     /// <summary>
-    /// Claude 模型映射表（参考 sub2api）
+    /// Claude 模型映射表
     /// </summary>
     private static readonly Dictionary<string, string> ClaudeModelMappings = new(StringComparer.OrdinalIgnoreCase)
     {
-        // Claude 4.5 系列（仅映射 4.5，与 sub2api 保持一致）
+        // Claude 4.5 系列
         ["claude-opus-4-5"] = "claude-opus-4-5-20251101",
         ["claude-haiku-4-5"] = "claude-haiku-4-5-20251001",
         ["claude-sonnet-4-5"] = "claude-sonnet-4-5-20250929"
     };
 
     /// <summary>
-    /// OpenAI Codex 模型映射表（参考 sub2api）
+    /// OpenAI Codex 模型映射表
     /// </summary>
     private static readonly Dictionary<string, string> OpenAICodexModelMappings = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -164,8 +164,8 @@ public sealed class ModelProvider(ILogger<ModelProvider> logger) : IModelProvide
     /// </summary>
     private static readonly Dictionary<ProviderPlatform, IReadOnlyList<ModelOption>> ModelCatalog = new()
     {
-        [ProviderPlatform.ANTIGRAVITY] = new List<ModelOption>
-        {
+        [ProviderPlatform.ANTIGRAVITY] =
+        [
             // Claude 4.6 系列
             new("Claude 4.6 Opus (Thinking)", "claude-opus-4-6-thinking"),
             new("Claude 4.6 Opus", "claude-opus-4-6"),
@@ -175,44 +175,48 @@ public sealed class ModelProvider(ILogger<ModelProvider> logger) : IModelProvide
             new("Gemini 3.1 Pro Low", "gemini-3.1-pro-low"),
             new("Gemini 3.1 Flash Image", "gemini-3.1-flash-image"),
             // Gemini 3 系列
-            new("Gemini 3 Flash", "gemini-3-flash")
-        },
-        [ProviderPlatform.GEMINI_OAUTH] = new List<ModelOption>
-        {
+            new("Gemini 3 Flash", "gemini-3-flash"),
+            // Gemini 2.5 系统
+            new("Gemini 2.5 Flash Lite", "gemini-2.5-flash-lite")
+        ],
+        [ProviderPlatform.GEMINI_OAUTH] =
+        [
             new("Gemini 3.1 Pro Preview", "gemini-3.1-pro-preview"),
             new("Gemini 3.0 Pro Preview", "gemini-3-pro-preview"),
             new("Gemini 3.0 Flash Preview", "gemini-3-flash-preview"),
             new("Gemini 2.5 Pro", "gemini-2.5-pro"),
             new("Gemini 2.5 Flash", "gemini-2.5-flash"),
+            new("Gemini 2.5 Flash Lite", "gemini-2.5-flash-lite"),
             new("Gemini 2.0 Flash", "gemini-2.0-flash")
-        },
-        [ProviderPlatform.GEMINI_APIKEY] = new List<ModelOption>
-        {
+        ],
+        [ProviderPlatform.GEMINI_APIKEY] =
+        [
             new("Gemini 3.1 Pro Preview", "gemini-3.1-pro-preview"),
             new("Gemini 3.0 Pro Preview", "gemini-3-pro-preview"),
             new("Gemini 3.0 Flash Preview", "gemini-3-flash-preview"),
             new("Gemini 2.5 Pro", "gemini-2.5-pro"),
             new("Gemini 2.5 Flash", "gemini-2.5-flash"),
+            new("Gemini 2.5 Flash Lite", "gemini-2.5-flash-lite"),
             new("Gemini 2.0 Flash", "gemini-2.0-flash")
-        },
-        [ProviderPlatform.CLAUDE_OAUTH] = new List<ModelOption>
-        {
+        ],
+        [ProviderPlatform.CLAUDE_OAUTH] =
+        [
             new("Claude Opus 4.6", "claude-opus-4-6"),
             new("Claude Sonnet 4.6", "claude-sonnet-4-6"),
             new("Claude Opus 4.5", "claude-opus-4-5-20251101"),
             new("Claude Sonnet 4.5", "claude-sonnet-4-5-20250929"),
             new("Claude Haiku 4.5", "claude-haiku-4-5-20251001")
-        },
-        [ProviderPlatform.CLAUDE_APIKEY] = new List<ModelOption>
-        {
+        ],
+        [ProviderPlatform.CLAUDE_APIKEY] =
+        [
             new("Claude Opus 4.6", "claude-opus-4-6"),
             new("Claude Sonnet 4.6", "claude-sonnet-4-6"),
             new("Claude Opus 4.5", "claude-opus-4-5-20251101"),
             new("Claude Sonnet 4.5", "claude-sonnet-4-5-20250929"),
             new("Claude Haiku 4.5", "claude-haiku-4-5-20251001")
-        },
-        [ProviderPlatform.OPENAI_OAUTH] = new List<ModelOption>
-        {
+        ],
+        [ProviderPlatform.OPENAI_OAUTH] =
+        [
             new("GPT-5.4", "gpt-5.4"),
             new("GPT-5.3 Codex", "gpt-5.3-codex"),
             new("GPT-5.3 Codex Spark", "gpt-5.3-codex-spark"),
@@ -223,9 +227,9 @@ public sealed class ModelProvider(ILogger<ModelProvider> logger) : IModelProvide
             new("GPT-5.1", "gpt-5.1"),
             new("GPT-5.1 Codex Mini", "gpt-5.1-codex-mini"),
             new("GPT-5", "gpt-5")
-        },
-        [ProviderPlatform.OPENAI_APIKEY] = new List<ModelOption>
-        {
+        ],
+        [ProviderPlatform.OPENAI_APIKEY] =
+        [
             new("GPT-5.4", "gpt-5.4"),
             new("GPT-5.3 Codex", "gpt-5.3-codex"),
             new("GPT-5.3 Codex Spark", "gpt-5.3-codex-spark"),
@@ -236,7 +240,7 @@ public sealed class ModelProvider(ILogger<ModelProvider> logger) : IModelProvide
             new("GPT-5.1", "gpt-5.1"),
             new("GPT-5.1 Codex Mini", "gpt-5.1-codex-mini"),
             new("GPT-5", "gpt-5")
-        }
+        ]
     };
 
     public string GetAntigravityMappedModel(string requestedModel)

@@ -79,8 +79,10 @@ public class UsageRecordMetricAppService(
         var now = DateTime.UtcNow;
         var end = endTime ?? now;
         var start = startTime ?? now.AddHours(-24);
-        var hours = (int)Math.Ceiling((end - start).TotalHours);
-        if (hours > 168) hours = 168; // 最多7天
+        var totalHours = (end - start).TotalHours;
+        bool isDaily = totalHours > 72;
+
+        if (isDaily) start = start.Date; // 对齐到天
 
         // 使用数据库分组查询，避免全量加载
         var query = await usageRecordRepository.GetQueryableAsync(cancellationToken);
@@ -88,23 +90,16 @@ public class UsageRecordMetricAppService(
         var rawData = await asyncExecuter.ToListAsync(query
             .Where(r => r.CreationTime >= start && r.CreationTime < end)
             .GroupBy(r => new { Date = r.CreationTime.Date, Hour = r.CreationTime.Hour })
-            .Select(g => new
+            .Select(g => new TrendDataDto
             {
-                g.Key.Date,
-                g.Key.Hour,
+                Date = g.Key.Date,
+                Hour = g.Key.Hour,
                 Requests = g.Count(),
                 InputTokens = g.Sum(r => (long)(r.InputTokens ?? 0)),
                 OutputTokens = g.Sum(r => (long)(r.OutputTokens ?? 0))
             }), cancellationToken);
 
-        return FillTimeSlots(start, hours, rawData.Select(x => new
-        {
-            x.Date,
-            x.Hour,
-            x.Requests,
-            x.InputTokens,
-            x.OutputTokens
-        }).ToList());
+        return FillTimeSlots(start, end, isDaily, rawData);
     }
 
     public async Task<List<ApiKeyTrendOutputDto>> GetTopApiKeyTrendAsync(DateTime? startTime = null, DateTime? endTime = null, CancellationToken cancellationToken = default)
@@ -112,8 +107,10 @@ public class UsageRecordMetricAppService(
         var now = DateTime.UtcNow;
         var end = endTime ?? now;
         var start = startTime ?? now.AddHours(-24);
-        var hours = (int)Math.Ceiling((end - start).TotalHours);
-        if (hours > 168) hours = 168;
+        var totalHours = (end - start).TotalHours;
+        bool isDaily = totalHours > 72;
+
+        if (isDaily) start = start.Date;
 
         var query = await usageRecordRepository.GetQueryableAsync(cancellationToken);
 
@@ -144,59 +141,61 @@ public class UsageRecordMetricAppService(
         {
             var keyTrendData = trendData
                 .Where(x => x.ApiKeyName == keyName)
-                .Select(x => new { x.Date, x.Hour, Requests = x.Count, InputTokens = 0L, OutputTokens = 0L })
+                .Select(x => new TrendDataDto { Date = x.Date, Hour = x.Hour, Requests = x.Count, InputTokens = 0L, OutputTokens = 0L })
                 .ToList();
 
             result.Add(new ApiKeyTrendOutputDto
             {
                 ApiKeyName = keyName,
                 TotalRequests = topKeysData.First(x => x.ApiKeyName == keyName).Count,
-                Trend = FillTimeSlots(start, hours, keyTrendData)
+                Trend = FillTimeSlots(start, end, isDaily, keyTrendData)
             });
         }
 
         return result;
     }
 
-    private List<UsageTrendOutputDto> FillTimeSlots<T>(DateTime startOfPeriod, int hours, List<T> data) where T : class
+    private List<UsageTrendOutputDto> FillTimeSlots(DateTime startOfPeriod, DateTime endOfPeriod, bool isDaily, List<TrendDataDto> data)
     {
         var result = new List<UsageTrendOutputDto>();
-        var dataPropDate = typeof(T).GetProperty("Date");
-        var dataPropHour = typeof(T).GetProperty("Hour");
-        var dataPropRequests = typeof(T).GetProperty("Requests") ?? typeof(T).GetProperty("Count");
-        var dataPropInput = typeof(T).GetProperty("InputTokens");
-        var dataPropOutput = typeof(T).GetProperty("OutputTokens");
+        var current = startOfPeriod;
 
-        // 初始化时间槽
-        for (int i = 0; i < hours; i++)
+        while (current <= endOfPeriod)
         {
-            var hourStart = startOfPeriod.AddHours(i);
-            hourStart = new DateTime(hourStart.Year, hourStart.Month, hourStart.Day, hourStart.Hour, 0, 0, DateTimeKind.Utc);
+            DateTime slotStart;
+            int requests = 0;
+            long inputTokens = 0, outputTokens = 0;
 
-            var requests = 0;
-            long inputTokens = 0;
-            long outputTokens = 0;
-
-            foreach (var item in data)
+            if (isDaily)
             {
-                var d = (DateTime)dataPropDate!.GetValue(item)!;
-                var h = (int)dataPropHour!.GetValue(item)!;
-                if (d == hourStart.Date && h == hourStart.Hour)
+                slotStart = new DateTime(current.Year, current.Month, current.Day, 0, 0, 0, DateTimeKind.Utc);
+                var items = data.Where(x => x.Date == slotStart.Date);
+                requests = items.Sum(x => x.Requests);
+                inputTokens = items.Sum(x => x.InputTokens);
+                outputTokens = items.Sum(x => x.OutputTokens);
+            }
+            else
+            {
+                slotStart = new DateTime(current.Year, current.Month, current.Day, current.Hour, 0, 0, DateTimeKind.Utc);
+                var item = data.FirstOrDefault(x => x.Date == slotStart.Date && x.Hour == slotStart.Hour);
+                if (item != null)
                 {
-                    requests = (int)dataPropRequests!.GetValue(item)!;
-                    if (dataPropInput != null) inputTokens = (long)dataPropInput.GetValue(item)!;
-                    if (dataPropOutput != null) outputTokens = (long)dataPropOutput.GetValue(item)!;
-                    break;
+                    requests = item.Requests;
+                    inputTokens = item.InputTokens;
+                    outputTokens = item.OutputTokens;
                 }
             }
 
             result.Add(new UsageTrendOutputDto
             {
-                Time = hourStart.ToString("HH:mm"),
+                Time = slotStart.ToString("o"), // ISO 8601 标准字符串，带时区信息 (UTC)
                 Requests = requests,
                 InputTokens = inputTokens,
                 OutputTokens = outputTokens
             });
+
+            if (isDaily) current = current.AddDays(1);
+            else current = current.AddHours(1);
         }
         return result;
     }

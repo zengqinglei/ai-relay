@@ -90,7 +90,24 @@ export class ApiKeyTrendChartComponent implements OnChanges, OnInit {
     ];
 
     // 获取时间标签（从第一个API Key的趋势数据）
-    const labels = this.data[0]?.trend.map(t => t.time) || [];
+    const rawData = this.data[0]?.trend || [];
+    let isDaily = false;
+    if (rawData.length > 1) {
+      const diffHours = (new Date(rawData[rawData.length - 1].time).getTime() - new Date(rawData[0].time).getTime()) / (1000 * 60 * 60);
+      isDaily = diffHours > 72;
+    }
+
+    const labels = rawData.map(d => {
+      const date = new Date(d.time);
+      if (isNaN(date.getTime())) {
+        return d.time;
+      }
+      if (isDaily) {
+        return `${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+      } else {
+        return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+      }
+    });
 
     // 为每个API Key创建一个数据集
     const datasets = this.data.map((apiKey, index) => ({

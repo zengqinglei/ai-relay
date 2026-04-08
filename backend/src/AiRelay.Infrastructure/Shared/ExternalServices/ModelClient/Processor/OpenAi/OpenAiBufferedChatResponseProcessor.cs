@@ -52,8 +52,7 @@ public class OpenAiBufferedChatResponseProcessor(DownRequestContext down) : IRes
         if (string.IsNullOrEmpty(trimmed) || !trimmed.StartsWith("data: "))
         {
             // event: 行及空行——抑制透传
-            evt.OriginalBytes = null;
-            evt.ConvertedBytes = null;
+            evt.ConvertedBytes = Array.Empty<byte>();
             return;
         }
 
@@ -65,8 +64,7 @@ public class OpenAiBufferedChatResponseProcessor(DownRequestContext down) : IRes
         }
 
         // Mutation 模式：抑制所有中间行透传，仅在完成时输出单个 JSON
-        evt.OriginalBytes = null;
-        evt.ConvertedBytes = null;
+        evt.ConvertedBytes = Array.Empty<byte>();
 
         try
         {

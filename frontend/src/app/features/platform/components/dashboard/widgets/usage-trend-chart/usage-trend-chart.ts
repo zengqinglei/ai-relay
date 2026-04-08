@@ -77,8 +77,28 @@ export class UsageTrendChart implements OnInit {
     const greenColor = documentStyle.getPropertyValue('--p-green-500');
     const orangeColor = documentStyle.getPropertyValue('--p-orange-500');
 
+    // 动态决定时间坐标轴格式
+    let isDaily = false;
+    if (data.length > 1) {
+      const diffHours = (new Date(data[data.length - 1].time).getTime() - new Date(data[0].time).getTime()) / (1000 * 60 * 60);
+      isDaily = diffHours > 72;
+    }
+
+    const displayLabels = data.map(d => {
+      // 兼容旧的格式 (例如 "HH:mm") 或解析新的 ISO 8601 格式
+      const date = new Date(d.time);
+      if (isNaN(date.getTime())) {
+        return d.time;
+      }
+      if (isDaily) {
+        return `${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+      } else {
+        return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+      }
+    });
+
     this.chartData.set({
-      labels: data.map(d => d.time),
+      labels: displayLabels,
       datasets: [
         {
           label: '请求数',

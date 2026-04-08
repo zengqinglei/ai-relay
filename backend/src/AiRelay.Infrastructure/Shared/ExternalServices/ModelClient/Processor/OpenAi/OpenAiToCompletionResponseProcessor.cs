@@ -26,12 +26,6 @@ public class OpenAiToCompletionResponseProcessor(DownRequestContext down) : IRes
         if (!_isActive) return Task.CompletedTask;
         if (evt.Type == StreamEventType.Error) return Task.CompletedTask;
 
-        // 保存原始字节（如果尚未设置）
-        if (evt.OriginalBytes == null && !string.IsNullOrEmpty(evt.SseLine))
-        {
-            evt.OriginalBytes = Encoding.UTF8.GetBytes(evt.SseLine + "\n\n");
-        }
-
         // 转换模式下接管所有 ConvertedBytes 控制：
         // 空行、无法转换的行一律清空 ConvertedBytes，不直接透传
         if (string.IsNullOrEmpty(evt.SseLine))
@@ -50,8 +44,7 @@ public class OpenAiToCompletionResponseProcessor(DownRequestContext down) : IRes
             }
             else
             {
-                evt.OriginalBytes = null;
-                evt.ConvertedBytes = null;
+                evt.ConvertedBytes = Array.Empty<byte>();
             }
             return Task.CompletedTask;
         }
@@ -70,9 +63,8 @@ public class OpenAiToCompletionResponseProcessor(DownRequestContext down) : IRes
         }
         else
         {
-            // 无转换结果（如 event: 类行）：同时清空 OriginalBytes 和 ConvertedBytes，不透传原始行
-            evt.OriginalBytes = null;
-            evt.ConvertedBytes = null;
+            // 无转换结果（如 event: 类行）：阻止输出到下游
+            evt.ConvertedBytes = Array.Empty<byte>();
         }
 
         return Task.CompletedTask;

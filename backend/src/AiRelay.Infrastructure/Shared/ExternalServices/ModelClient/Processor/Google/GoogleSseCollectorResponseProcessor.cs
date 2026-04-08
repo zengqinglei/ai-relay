@@ -38,9 +38,30 @@ public class GoogleSseCollectorResponseProcessor : IResponseProcessor
         if (evt.Type == StreamEventType.Error) return Task.CompletedTask;
 
         if (evt.SseLine != null)
+        {
             CollectSseLine(evt);
+        }
+        else if (evt.IsComplete)
+        {
+            // 流正常终止（无 [DONE] 信号，如 Gemini v1internal 端点通过连接关闭结束流）
+            // 此时需要将已收集的 SSE 数据合并为完整 JSON 输出
+            FinalizeCollectedData(evt);
+        }
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// 在流终止时（无 [DONE]）将已收集的数据合并输出到事件上
+    /// </summary>
+    private void FinalizeCollectedData(StreamEvent evt)
+    {
+        if (_lastChunkJson == null && _collectedTextParts.Count == 0) return;
+
+        evt.ConvertedBytes = Encoding.UTF8.GetBytes(BuildMergedJson());
+        evt.Usage = _lastUsage;
+        evt.Content = string.Concat(_collectedTextParts);
+        evt.HasOutput = _collectedTextParts.Count > 0;
     }
 
     private void CollectSseLine(StreamEvent evt)
@@ -48,8 +69,8 @@ public class GoogleSseCollectorResponseProcessor : IResponseProcessor
         var trimmed = evt.SseLine!.Trim();
         if (!trimmed.StartsWith("data:"))
         {
-            evt.OriginalBytes = null;
-            evt.ConvertedBytes = null;
+            // 通过置空 ConvertedBytes 来阻止直接向客户端转发（中间件写入空字节不产生实际输出）
+            evt.ConvertedBytes = Array.Empty<byte>();
             return;
         }
 
@@ -66,7 +87,10 @@ public class GoogleSseCollectorResponseProcessor : IResponseProcessor
                 evt.Content = string.Concat(_collectedTextParts);
                 evt.HasOutput = _collectedTextParts.Count > 0;
             }
-            evt.OriginalBytes = null;
+            else
+            {
+                evt.ConvertedBytes = Array.Empty<byte>();
+            }
             return;
         }
 
@@ -109,9 +133,8 @@ public class GoogleSseCollectorResponseProcessor : IResponseProcessor
             // JSON parse failure, skip
         }
 
-        // Suppress forwarding (don't write intermediate SSE chunks to downstream)
-        evt.OriginalBytes = null;
-        evt.ConvertedBytes = null;
+        // Suppress forwarding intermediate chunks to downstream non-streaming client
+        evt.ConvertedBytes = Array.Empty<byte>();
     }
 
     private string BuildMergedJson()

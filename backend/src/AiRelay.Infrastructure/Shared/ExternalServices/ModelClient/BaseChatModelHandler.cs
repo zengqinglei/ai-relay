@@ -181,6 +181,10 @@ public abstract class BaseChatModelHandler : IChatModelHandler
                         }
 
                         var evt = new StreamEvent { SseLine = line };
+                        if (requiresMutation)
+                        {
+                            evt.OriginalBytes = System.Text.Encoding.UTF8.GetBytes(line + "\n\n");
+                        }
                         foreach (var proc in processors) await proc.ProcessAsync(evt, cancellationToken);
 
                         if (evt.Content != null || evt.InlineData != null || evt.IsComplete
