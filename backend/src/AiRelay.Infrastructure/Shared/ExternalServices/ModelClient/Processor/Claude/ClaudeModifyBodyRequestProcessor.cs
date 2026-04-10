@@ -40,7 +40,7 @@ public class ClaudeModifyBodyRequestProcessor(
         // 聊天接口特有处理
         if (isMessagesRoute)
         {
-            bool isOAuth = options.Platform == ProviderPlatform.CLAUDE_OAUTH;
+            bool isOAuth = options.AuthMethod == AuthMethod.OAuth;
             bool shouldMimic = options.ShouldMimicOfficialClient;
 
             // OAuth 专属：过滤黑名单系统提示词

@@ -64,7 +64,7 @@ internal static class ProviderEntityConfiguration
             b.Property(e => e.CostToday).HasPrecision(18, 8);
             b.Property(e => e.CostTotal).HasPrecision(18, 8);
 
-            b.HasIndex(e => new { e.Platform, e.IsActive, e.Status });
+            b.HasIndex(e => new { e.Provider, e.IsActive, e.Status });
         });
     }
 
@@ -97,7 +97,7 @@ internal static class ProviderEntityConfiguration
             b.Property(e => e.Description).HasMaxLength(1024);
             b.Property(e => e.RateMultiplier).HasPrecision(10, 4);
 
-            b.HasIndex(e => new { e.Name, e.Platform }).IsUnique();
+            b.HasIndex(e => new { e.Name, e.DeletionTime }).IsUnique();
         });
     }
 
@@ -110,16 +110,16 @@ internal static class ProviderEntityConfiguration
             b.HasIndex(e => new { e.ProviderGroupId, e.AccountTokenId, e.DeletionTime }).IsUnique();
 
             b.HasOne(e => e.ProviderGroup)
-                .WithMany()
+                .WithMany(pg => pg.Relations)
                 .HasForeignKey(e => e.ProviderGroupId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .IsRequired(false);
+                .OnDelete(DeleteBehavior.Cascade)
+                .IsRequired();
 
             b.HasOne(e => e.AccountToken)
                 .WithMany()
                 .HasForeignKey(e => e.AccountTokenId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .IsRequired(false);
+                .OnDelete(DeleteBehavior.Cascade)
+                .IsRequired();
         });
     }
 }

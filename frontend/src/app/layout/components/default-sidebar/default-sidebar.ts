@@ -31,7 +31,7 @@ export class DefaultSidebar {
   private readonly platformMenuItems: MenuItem[] = [
     { label: '仪表盘', icon: 'pi-gauge', route: '/platform' },
     { label: '渠道账户', icon: 'pi-credit-card', route: '/platform/account-tokens' },
-    { label: '渠道分组', icon: 'pi-sitemap', route: '/platform/provider-groups' },
+    { label: '资源池', icon: 'pi-sitemap', route: '/platform/provider-groups' },
     { label: '订阅管理', icon: 'pi-key', route: '/platform/subscriptions' },
     { label: '使用记录', icon: 'pi-chart-line', route: '/platform/usage-records' },
     { label: '系统设置', icon: 'pi-cog', route: '/platform/settings' }

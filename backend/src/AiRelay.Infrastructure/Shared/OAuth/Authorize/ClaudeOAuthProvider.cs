@@ -24,10 +24,10 @@ public class ClaudeOAuthProvider(
     public string GetAuthorizationUrl(string redirectUri, string state)
     {
         // 兼容旧接口，使用默认 RedirectUri
-        return GetAuthorizationUrl(ProviderPlatform.CLAUDE_OAUTH, state, "");
+        return GetAuthorizationUrl(Provider.Claude, state, "");
     }
 
-    public string GetAuthorizationUrl(ProviderPlatform platform, string state, string codeChallenge)
+    public string GetAuthorizationUrl(Provider provider, string state, string codeChallenge)
     {
         return $"{AuthorizationEndpoint}?" +
                $"client_id={ClientId}&" +
@@ -43,7 +43,7 @@ public class ClaudeOAuthProvider(
         string code,
         string? redirectUri = null,
         string? codeVerifier = null,
-        ProviderPlatform? platform = null,
+        Provider? provider = null,
         CancellationToken cancellationToken = default)
     {
         var httpClient = httpClientFactory.CreateClient();
@@ -104,7 +104,7 @@ public class ClaudeOAuthProvider(
         });
     }
 
-    public async Task<OAuthTokenInfo> RefreshTokenAsync(string refreshToken, ProviderPlatform platform, CancellationToken cancellationToken = default)
+    public async Task<OAuthTokenInfo> RefreshTokenAsync(string refreshToken, Provider provider, CancellationToken cancellationToken = default)
     {
         var httpClient = httpClientFactory.CreateClient();
 

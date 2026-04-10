@@ -12,7 +12,7 @@ import { finalize, Subscription } from 'rxjs';
 
 import { PlatformIcon } from '../../../../../../shared/components/platform-icon/platform-icon';
 import { DIALOG_CONFIGS } from '../../../../../../shared/constants/dialog-config.constants';
-import { ProviderPlatform } from '../../../../../../shared/models/provider-platform.enum';
+import { Provider } from '../../../../../../shared/models/provider.enum';
 import { AccountTokenOutputDto } from '../../../../models/account-token.dto';
 import { ChatMessageInputDto } from '../../../../models/chat-message-input.dto';
 import { ModelOptionOutputDto } from '../../../../models/model-option.dto';
@@ -99,7 +99,7 @@ export class ModelTestDialog {
     // Load models from backend API (with accountId for upstream fetch)
     this.loading.set(true);
     this.service
-      .getAvailableModels(account.platform as ProviderPlatform, account.id)
+      .getAvailableModels(account.provider, account.id)
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
         next: models => {

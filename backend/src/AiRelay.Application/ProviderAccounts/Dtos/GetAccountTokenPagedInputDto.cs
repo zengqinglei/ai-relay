@@ -17,10 +17,16 @@ public record GetAccountTokenPagedInputDto : PagedRequestDto
     public string? Keyword { get; init; }
 
     /// <summary>
-    /// 平台类型筛选
+    /// 提供商筛选
     /// </summary>
-    [Display(Name = "平台类型")]
-    public ProviderPlatform? Platform { get; init; }
+    [Display(Name = "提供商")]
+    public Provider? Provider { get; init; }
+
+    /// <summary>
+    /// 认证方式筛选
+    /// </summary>
+    [Display(Name = "认证方式")]
+    public AuthMethod? AuthMethod { get; init; }
 
     /// <summary>
     /// 启用状态筛选 (null=全部, true=已启用, false=已禁用)

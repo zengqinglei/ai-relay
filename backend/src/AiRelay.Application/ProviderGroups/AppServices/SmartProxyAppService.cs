@@ -3,7 +3,8 @@ using AiRelay.Application.ProviderGroups.Dtos;
 using AiRelay.Domain.ApiKeys.Entities;
 using AiRelay.Domain.ProviderAccounts.DomainServices;
 using AiRelay.Domain.ProviderAccounts.Entities;
-using AiRelay.Domain.ProviderAccounts.Extensions;
+using AiRelay.Domain.ProviderAccounts.ValueObjects;
+using AiRelay.Domain.ProviderGroups.Entities;
 using AiRelay.Domain.ProviderGroups.DomainServices;
 using AiRelay.Domain.ProviderGroups.DomainServices.SchedulingStrategy.AccountConcurrencyStrategy;
 using Leistd.Ddd.Application.AppService;
@@ -31,36 +32,58 @@ public class SmartProxyAppService(
         SelectProxyAccountInputDto input,
         CancellationToken cancellationToken = default)
     {
-        // 1. 获取 ApiKey 绑定的分组 ID
+        // 1. 获取 ApiKey 绑定的分组，按优先级排序
         var bindingGroupQuery = await apiKeyProviderGroupBindingRepository
             .GetQueryIncludingAsync(cancellationToken, p => p.ProviderGroup);
-        var bindingGroup = await queryableAsyncExecuter.FirstOrDefaultAsync(
-            bindingGroupQuery.Where(b => b.ApiKeyId == input.ApiKeyId && b.Platform == input.Platform))
-            ?? throw new ForbiddenException($"ApiKey '{input.ApiKeyName}' 未绑定 {input.Platform} 平台的分组，无法选择账户");
+            
+        var bindings = await queryableAsyncExecuter.ToListAsync(
+            bindingGroupQuery
+                .Where(b => b.ApiKeyId == input.ApiKeyId)
+                .OrderBy(b => b.Priority));
 
-        // 2. 从分组中选择最佳账户（同时返回分组信息和粘性绑定状态）
-        var result = await providerGroupDomainService.SelectAccountForApiKeyAsync(
-            bindingGroup.ProviderGroupId,
-            input.ApiKeyId,
-            input.ApiKeyName,
-            input.Platform,
-            input.SessionHash,
-            input.ExcludedAccountIds,
-            input.ModelId);
-
-        if (result == null || result.Value.AccountToken == null)
+        if (!bindings.Any())
         {
-            throw new ServiceUnavailableException($"分组 {bindingGroup.ProviderGroup.Name} 中没有可用的 {input.Platform} 账户");
+            throw new ForbiddenException($"ApiKey '{input.ApiKeyName}' 未绑定任何资源池，无法选择账户");
         }
 
-        var (accountToken, providerGroup, isStickyBound, availableCount) = result.Value;
+        // 2. 依次按优先级从分组中寻找可用的满足模型请求的账号 (级联穿透)
+        AccountToken? accountToken = null;
+        ProviderGroup? providerGroup = null;
+        bool isStickyBound = false;
+        int availableCount = 0;
+
+        foreach (var bindingGroup in bindings)
+        {
+            var result = await providerGroupDomainService.SelectAccountForApiKeyAsync(
+                bindingGroup.ProviderGroup,
+                input.ApiKeyId,
+                input.ApiKeyName,
+                input.SessionHash,
+                input.ExcludedAccountIds,
+                input.ModelId,
+                input.AllowedCombinations);
+
+            if (result != null && result.Value.AccountToken != null)
+            {
+                accountToken = result.Value.AccountToken;
+                providerGroup = result.Value.Group;
+                isStickyBound = result.Value.IsStickyBound;
+                availableCount = result.Value.AvailableCount;
+                break; // 找到可用账号，跳出寻址
+            }
+        }
+
+        if (accountToken == null || providerGroup == null)
+        {
+            throw new ServiceUnavailableException($"所有绑定的资源池中均没有可用的适配账户以支撑请求 (所需模型: {input.ModelId})");
+        }
 
         // 3. 刷新 Token (如果需要)
         await accountTokenDomainService.RefreshTokenIfNeededAsync(accountToken, cancellationToken);
 
-        if (string.IsNullOrEmpty(accountToken.AccessToken) && !input.Platform.IsApiKeyPlatform()) // 仅非APIKey平台检查AccessToken
+        if (string.IsNullOrEmpty(accountToken.AccessToken) && accountToken.AuthMethod != AuthMethod.ApiKey) // 仅非APIKey检查AccessToken
         {
-            throw new UnauthorizedException($"{accountToken.Platform} 账户 '{accountToken.Name}' 的凭证为空");
+            throw new UnauthorizedException($"{accountToken.Provider} 账户 '{accountToken.Name}' 的凭证为空");
         }
 
         logger.LogDebug("已选定账户: {AccountTokenName} (ProviderGroupId: {ProviderGroupId}, IsStickyBound: {IsStickyBound})",

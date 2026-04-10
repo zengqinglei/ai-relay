@@ -19,14 +19,16 @@ import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
 import { PanelModule } from 'primeng/panel';
 import { SelectModule } from 'primeng/select';
+import { SelectButtonModule } from 'primeng/selectbutton';
 import { TextareaModule } from 'primeng/textarea';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { TooltipModule } from 'primeng/tooltip';
 import { finalize } from 'rxjs/operators';
 
 import { DIALOG_CONFIGS } from '../../../../../../shared/constants/dialog-config.constants';
-import { PROVIDER_PLATFORM_OPTIONS } from '../../../../../../shared/constants/provider-platform.constants';
-import { ProviderPlatform } from '../../../../../../shared/models/provider-platform.enum';
+import { PROVIDER_OPTIONS, AUTH_METHOD_OPTIONS } from '../../../../../../shared/constants/provider.constants';
+import { AuthMethod } from '../../../../../../shared/models/auth-method.enum';
+import { Provider } from '../../../../../../shared/models/provider.enum';
 import { AccountTokenOutputDto, CreateAccountTokenInputDto, UpdateAccountTokenInputDto } from '../../../../models/account-token.dto';
 import { AccountTokenService } from '../../../../services/account-token-service';
 
@@ -46,6 +48,7 @@ import { AccountTokenService } from '../../../../services/account-token-service'
     InputNumberModule,
     AutoCompleteModule,
     PanelModule,
+    SelectButtonModule,
     ToggleSwitchModule
   ],
   templateUrl: './account-edit-dialog.html',
@@ -64,7 +67,8 @@ export class AccountEditDialogComponent implements OnChanges {
 
   form: FormGroup;
   isEditMode = signal(false);
-  platformType = signal<string>(ProviderPlatform.GEMINI_OAUTH);
+  currentProvider = signal<Provider>(Provider.Gemini);
+  currentAuthMethod = signal<AuthMethod>(AuthMethod.OAuth);
 
   // OAuth State
   authCodeInput = '';
@@ -79,7 +83,8 @@ export class AccountEditDialogComponent implements OnChanges {
   availableModels: string[] = [];
   modelMappings: Array<{ from: string; to: string }> = [];
 
-  platformOptions = PROVIDER_PLATFORM_OPTIONS;
+  providerOptions = PROVIDER_OPTIONS;
+  authMethodOptions = AUTH_METHOD_OPTIONS;
 
   // 使用小型 Dialog 配置
   dialogConfig = DIALOG_CONFIGS.SMALL;
@@ -87,7 +92,8 @@ export class AccountEditDialogComponent implements OnChanges {
   constructor() {
     this.form = this.fb.group({
       name: ['', [Validators.required, Validators.minLength(1), Validators.maxLength(256)]],
-      platform: [ProviderPlatform.GEMINI_OAUTH, Validators.required],
+      provider: [Provider.Gemini, Validators.required],
+      authMethod: [AuthMethod.OAuth, Validators.required],
       projectId: [''],
       baseUrl: ['', [Validators.maxLength(512), Validators.pattern(/^https?:\/\/.+/)]],
       credential: ['', [Validators.required, Validators.maxLength(2048)]],
@@ -97,24 +103,45 @@ export class AccountEditDialogComponent implements OnChanges {
       isCheckStreamHealth: [false]
     });
 
-    this.form.get('platform')?.valueChanges.subscribe(val => {
+    this.form.get('provider')?.valueChanges.subscribe(val => {
       if (val) {
-        this.platformType.set(val);
-        this.updateValidators(val);
+        this.currentProvider.set(val);
+        this.updateValidators();
         if (!this.isEditMode()) {
-          this.loadAvailableModels(val as ProviderPlatform);
-          // 新建模式：OAuth 平台默认开启伪装
-          this.form.get('allowOfficialClientMimic')?.setValue(this.isOAuthPlatform(val), { emitEvent: false });
+          this.loadAvailableModels(val as Provider);
+          // 新建模式：OAuth 默认开启伪装
+          this.form.get('allowOfficialClientMimic')?.setValue(this.currentAuthMethod() === AuthMethod.OAuth, { emitEvent: false });
         }
-        // Antigravity 平台：伪装强制开启且禁止编辑
-        if (val === ProviderPlatform.ANTIGRAVITY) {
+        // Antigravity 平台：认证方式强制为 OAuth，伪装强制开启且禁止编辑
+        if (val === Provider.Antigravity) {
+          this.form.get('authMethod')?.setValue(AuthMethod.OAuth);
+          this.form.get('authMethod')?.disable({ emitEvent: false });
+          
           this.form.get('allowOfficialClientMimic')?.setValue(true, { emitEvent: false });
           this.form.get('allowOfficialClientMimic')?.disable({ emitEvent: false });
         } else {
+          if (!this.isEditMode()) {
+            this.form.get('authMethod')?.enable({ emitEvent: false });
+          }
           this.form.get('allowOfficialClientMimic')?.enable({ emitEvent: false });
         }
       }
-      // Clear OAuth state when platform changes
+      // Clear OAuth state when provider changes
+      this.authCodeInput = '';
+      this.generatedAuthUrl = '';
+      this.sessionId = '';
+    });
+
+    this.form.get('authMethod')?.valueChanges.subscribe(val => {
+      if (val) {
+        this.currentAuthMethod.set(val);
+        this.updateValidators();
+        if (!this.isEditMode()) {
+          // OAuth 默认开启伪装
+          this.form.get('allowOfficialClientMimic')?.setValue(val === AuthMethod.OAuth, { emitEvent: false });
+        }
+      }
+      // Clear OAuth state when auth method changes
       this.authCodeInput = '';
       this.generatedAuthUrl = '';
       this.sessionId = '';
@@ -149,7 +176,8 @@ export class AccountEditDialogComponent implements OnChanges {
       this.form.patchValue(
         {
           name: this.account.name,
-          platform: this.account.platform,
+          provider: this.account.provider,
+          authMethod: this.account.authMethod,
           projectId: projectId,
           baseUrl: this.account.baseUrl,
           credential: '', // Don't fill credential
@@ -160,9 +188,11 @@ export class AccountEditDialogComponent implements OnChanges {
         },
         { emitEvent: false }
       );
-      this.platformType.set(this.account.platform);
+      this.currentProvider.set(this.account.provider);
+      this.currentAuthMethod.set(this.account.authMethod);
       this.form.get('name')?.disable({ emitEvent: false });
-      this.form.get('platform')?.disable({ emitEvent: false });
+      this.form.get('provider')?.disable({ emitEvent: false });
+      this.form.get('authMethod')?.disable({ emitEvent: false });
 
       // Load model configuration
       this.modelWhites = this.account.modelWhites ? [...this.account.modelWhites] : [];
@@ -172,11 +202,11 @@ export class AccountEditDialogComponent implements OnChanges {
           ? Object.entries(this.account.modelMapping).map(([from, to]) => ({ from, to }))
           : [{ from: '', to: '' }];
 
-      this.updateValidators(this.account.platform);
-      this.loadAvailableModels(this.account.platform as ProviderPlatform, this.account.id);
+      this.updateValidators();
+      this.loadAvailableModels(this.account.provider, this.account.id);
 
       // Antigravity 平台：伪装强制开启且禁止编辑
-      if (this.account.platform === ProviderPlatform.ANTIGRAVITY) {
+      if (this.account.provider === Provider.Antigravity) {
         this.form.get('allowOfficialClientMimic')?.setValue(true, { emitEvent: false });
         this.form.get('allowOfficialClientMimic')?.disable({ emitEvent: false });
       } else {
@@ -186,30 +216,33 @@ export class AccountEditDialogComponent implements OnChanges {
       this.isEditMode.set(false);
       this.form.reset(
         {
-          platform: ProviderPlatform.GEMINI_OAUTH,
+          provider: Provider.Gemini,
+          authMethod: AuthMethod.OAuth,
           credential: '',
           maxConcurrency: 10,
-          allowOfficialClientMimic: true, // GEMINI_OAUTH 是 OAuth 平台，默认开启
+          allowOfficialClientMimic: true, // OAuth 默认开启伪装
           isCheckStreamHealth: false
         },
         { emitEvent: false }
       );
-      this.platformType.set(ProviderPlatform.GEMINI_OAUTH);
+      this.currentProvider.set(Provider.Gemini);
+      this.currentAuthMethod.set(AuthMethod.OAuth);
       this.form.get('name')?.enable({ emitEvent: false });
-      this.form.get('platform')?.enable({ emitEvent: false });
+      this.form.get('provider')?.enable({ emitEvent: false });
+      this.form.get('authMethod')?.enable({ emitEvent: false });
 
       // Reset model configuration
       this.modelWhites = [];
       this.filteredModels = [];
       this.modelMappings = [{ from: '', to: '' }];
 
-      this.updateValidators(ProviderPlatform.GEMINI_OAUTH);
-      this.loadAvailableModels(ProviderPlatform.GEMINI_OAUTH);
+      this.updateValidators();
+      this.loadAvailableModels(Provider.Gemini);
     }
   }
 
-  updateValidators(platform: string) {
-    const isOAuth = this.isOAuthPlatform(platform);
+  updateValidators() {
+    const isOAuth = this.currentAuthMethod() === AuthMethod.OAuth;
 
     if (isOAuth) {
       this.form.get('credential')?.clearValidators();
@@ -224,13 +257,8 @@ export class AccountEditDialogComponent implements OnChanges {
     this.form.get('credential')?.updateValueAndValidity();
   }
 
-  isOAuthPlatform(platform: string): boolean {
-    return (
-      platform === ProviderPlatform.GEMINI_OAUTH ||
-      platform === ProviderPlatform.ANTIGRAVITY ||
-      platform === ProviderPlatform.CLAUDE_OAUTH ||
-      platform === ProviderPlatform.OPENAI_OAUTH
-    );
+  get isOAuth(): boolean {
+    return this.currentAuthMethod() === AuthMethod.OAuth;
   }
 
   onHide() {
@@ -273,7 +301,8 @@ export class AccountEditDialogComponent implements OnChanges {
 
       const createDto: CreateAccountTokenInputDto = {
         name: formValue.name,
-        platform: formValue.platform,
+        provider: formValue.provider,
+        authMethod: formValue.authMethod,
         extraProperties: Object.keys(extraProperties).length > 0 ? extraProperties : undefined,
         baseUrl: formValue.baseUrl,
         description: formValue.description,
@@ -295,7 +324,7 @@ export class AccountEditDialogComponent implements OnChanges {
       }
 
       if (this.isEditMode() && this.account) {
-        // For update, construct UpdateAccountTokenInputDto (platform is not updatable)
+        // For update, construct UpdateAccountTokenInputDto (provider/authMethod is not updatable)
         const updateDto: UpdateAccountTokenInputDto = {
           name: createDto.name,
           extraProperties: createDto.extraProperties,
@@ -326,12 +355,12 @@ export class AccountEditDialogComponent implements OnChanges {
     }
   }
 
-  get isApiKeyPlatform(): boolean {
-    return this.platformType().includes('APIKEY');
+  get isApiKeyMode(): boolean {
+    return this.currentAuthMethod() === AuthMethod.ApiKey;
   }
 
   get showOAuthFlow(): boolean {
-    return this.isOAuthPlatform(this.platformType());
+    return this.currentAuthMethod() === AuthMethod.OAuth;
   }
 
   get showOfficialMimic(): boolean {
@@ -339,17 +368,17 @@ export class AccountEditDialogComponent implements OnChanges {
   }
 
   get showProjectId(): boolean {
-    // Only show Project ID for Gemini Account (OAuth)
-    return this.platformType() === ProviderPlatform.GEMINI_OAUTH;
+    // Only show Project ID for Gemini OAuth
+    return this.currentProvider() === Provider.Gemini && this.currentAuthMethod() === AuthMethod.OAuth;
   }
 
   generateAuthUrl() {
-    const platform = this.platformType() as ProviderPlatform;
+    const provider = this.currentProvider();
     this.generatingUrl = true;
     this.cdr.markForCheck();
 
     this.accountService
-      .getAuthUrl(platform)
+      .getAuthUrl(provider)
       .pipe(
         finalize(() => {
           this.generatingUrl = false;
@@ -409,9 +438,9 @@ export class AccountEditDialogComponent implements OnChanges {
 
   // ===== Model Configuration Methods =====
 
-  loadAvailableModels(platform: ProviderPlatform, accountId?: string) {
+  loadAvailableModels(provider: Provider, accountId?: string) {
     this.availableModels = [];
-    this.accountService.getAvailableModels(platform, accountId).subscribe({
+    this.accountService.getAvailableModels(provider, accountId).subscribe({
       next: models => {
         this.availableModels = models.map(m => m.value);
         this.cdr.markForCheck();

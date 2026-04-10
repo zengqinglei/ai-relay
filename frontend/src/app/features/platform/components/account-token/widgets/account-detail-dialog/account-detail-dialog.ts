@@ -6,8 +6,9 @@ import { TooltipModule } from 'primeng/tooltip';
 
 import { PlatformIcon } from '../../../../../../shared/components/platform-icon/platform-icon';
 import { DIALOG_CONFIGS } from '../../../../../../shared/constants/dialog-config.constants';
-import { PROVIDER_PLATFORM_LABELS } from '../../../../../../shared/constants/provider-platform.constants';
-import { ProviderPlatform } from '../../../../../../shared/models/provider-platform.enum';
+import { PROVIDER_LABELS, AUTH_METHOD_LABELS, getProviderAuthLabel } from '../../../../../../shared/constants/provider.constants';
+import { AuthMethod } from '../../../../../../shared/models/auth-method.enum';
+import { Provider } from '../../../../../../shared/models/provider.enum';
 import { AccountTokenOutputDto } from '../../../../models/account-token.dto';
 
 @Component({
@@ -22,8 +23,6 @@ export class AccountDetailDialogComponent {
   @Input() account: AccountTokenOutputDto | null = null;
   @Output() readonly visibleChange = new EventEmitter<boolean>();
 
-  ProviderPlatform = ProviderPlatform;
-
   // 使用中型 Dialog 配置
   dialogConfig = DIALOG_CONFIGS.MEDIUM;
 
@@ -31,32 +30,34 @@ export class AccountDetailDialogComponent {
     this.visibleChange.emit(false);
   }
 
-  getPlatformIconClass(platform: ProviderPlatform): string {
-    switch (platform) {
-      case ProviderPlatform.GEMINI_OAUTH:
-      case ProviderPlatform.GEMINI_APIKEY:
+  getProviderIconClass(provider: Provider): string {
+    switch (provider) {
+      case Provider.Gemini:
         return 'text-primary';
-      case ProviderPlatform.CLAUDE_OAUTH:
-      case ProviderPlatform.CLAUDE_APIKEY:
+      case Provider.Claude:
         return 'text-orange-600 dark:text-orange-500';
-      case ProviderPlatform.OPENAI_OAUTH:
-      case ProviderPlatform.OPENAI_APIKEY:
+      case Provider.OpenAI:
         return 'text-emerald-600 dark:text-emerald-500';
+      case Provider.Antigravity:
+        return 'text-purple-600 dark:text-purple-400';
       default:
         return 'text-muted-color';
     }
   }
 
-  getPlatformLabel(platform: ProviderPlatform): string {
-    return PROVIDER_PLATFORM_LABELS[platform] || platform;
+  getProviderLabel(provider: Provider): string {
+    return PROVIDER_LABELS[provider] || provider;
   }
 
-  isOAuthPlatform(platform: ProviderPlatform): boolean {
-    return (
-      platform === ProviderPlatform.GEMINI_OAUTH ||
-      platform === ProviderPlatform.ANTIGRAVITY ||
-      platform === ProviderPlatform.CLAUDE_OAUTH ||
-      platform === ProviderPlatform.OPENAI_OAUTH
-    );
+  getAuthMethodLabel(authMethod: AuthMethod): string {
+    return AUTH_METHOD_LABELS[authMethod] || authMethod;
+  }
+
+  getProviderAuthLabel(provider: Provider, authMethod: AuthMethod): string {
+    return getProviderAuthLabel(provider, authMethod);
+  }
+
+  isOAuth(authMethod: AuthMethod): boolean {
+    return authMethod === AuthMethod.OAuth;
   }
 }

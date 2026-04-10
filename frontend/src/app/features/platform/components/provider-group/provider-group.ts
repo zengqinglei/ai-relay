@@ -5,7 +5,7 @@ import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { finalize } from 'rxjs/operators';
 
-import { ProviderPlatform } from '../../../../shared/models/provider-platform.enum';
+
 import {
   GetProviderGroupsInputDto,
   CreateProviderGroupInputDto,
@@ -49,7 +49,7 @@ export class ProviderGroupPage implements OnInit {
   });
 
   ngOnInit() {
-    this.layoutService.title.set('渠道分组');
+    this.layoutService.title.set('资源池');
     // Initial load will be triggered by table's onLazyLoad or we trigger manually if lazy load doesn't fire on init (PrimeNG usually fires it)
     // For safety, we can trigger it or wait for table.
     // If table [lazy]="true", it usually triggers onInit.
@@ -77,7 +77,6 @@ export class ProviderGroupPage implements OnInit {
       offset: event.offset,
       limit: event.limit,
       keyword: event.q,
-      platform: event.platform ? (event.platform as ProviderPlatform) : undefined,
       sorting: event.sorting
     };
     this.currentFilter.set(filter);
@@ -110,9 +109,8 @@ export class ProviderGroupPage implements OnInit {
     this.editDialogSaving.set(true);
 
     if (this.selectedGroup()) {
-      // Update
       this.service
-        .updateGroup(this.selectedGroup()!.id, dto as UpdateProviderGroupInputDto)
+        .updateGroup(this.selectedGroup()!.id, dto)
         .pipe(
           takeUntilDestroyed(this.destroyRef),
           finalize(() => this.editDialogSaving.set(false))
@@ -125,9 +123,8 @@ export class ProviderGroupPage implements OnInit {
           }
         });
     } else {
-      // Create
       this.service
-        .createGroup(dto as CreateProviderGroupInputDto)
+        .createGroup(dto)
         .pipe(
           takeUntilDestroyed(this.destroyRef),
           finalize(() => this.editDialogSaving.set(false))

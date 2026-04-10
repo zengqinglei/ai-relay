@@ -21,6 +21,7 @@ internal static class UsageRecordEntityConfiguration
             b.ConfigureByConvention();
 
             b.Property(e => e.CorrelationId).IsRequired().HasMaxLength(64);
+            b.Property(e => e.SessionId).HasMaxLength(128);
             b.Property(e => e.ApiKeyName).IsRequired().HasMaxLength(256);
             b.Property(e => e.DownRequestMethod).IsRequired().HasMaxLength(16);
             b.Property(e => e.DownRequestUrl).IsRequired().HasMaxLength(2048);
@@ -34,7 +35,7 @@ internal static class UsageRecordEntityConfiguration
             // 核心复合索引（覆盖高频查询场景）
             b.HasIndex(e => new { e.ApiKeyId, e.CreationTime });
             b.HasIndex(e => new { e.ApiKeyId, e.Status, e.CreationTime });
-            b.HasIndex(e => new { e.Platform, e.Status, e.CreationTime });
+            b.HasIndex(e => new { e.SessionId, e.CreationTime });
 
             b.HasOne(e => e.ApiKey)
                 .WithMany()

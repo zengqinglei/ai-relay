@@ -43,9 +43,9 @@ public class GoogleOAuthProvider(
     /// <summary>
     /// 获取授权 URL (支持 PKCE 和多平台配置)
     /// </summary>
-    public string GetAuthorizationUrl(ProviderPlatform platform, string state, string codeChallenge)
+    public string GetAuthorizationUrl(Provider provider, string state, string codeChallenge)
     {
-        var config = authConfigService.GetConfig(platform);
+        var config = authConfigService.GetConfig(provider);
 
         return $"{AuthorizationEndpoint}?" +
                $"client_id={config.ClientId}&" +
@@ -64,11 +64,11 @@ public class GoogleOAuthProvider(
         string code,
         string? redirectUri = null,
         string? codeVerifier = null,
-        ProviderPlatform? platform = null,
+        Provider? provider = null,
         CancellationToken cancellationToken = default)
     {
-        // 1. 系统登录模式 (Legacy): 提供了 redirectUri 但没有 platform
-        if (platform == null && !string.IsNullOrEmpty(redirectUri))
+        // 1. 系统登录模式 (Legacy): 提供了 redirectUri 但没有 provider
+        if (provider == null && !string.IsNullOrEmpty(redirectUri))
         {
             var sysClientId = configuration["ExternalAuth:Google:ClientId"]
                 ?? throw new NotFoundException("Google ClientId 未配置");
@@ -78,15 +78,14 @@ public class GoogleOAuthProvider(
             return await ExchangeInternalAsync(sysClientId, sysClientSecret, code, redirectUri, codeVerifier, cancellationToken);
         }
 
-        // 2. 账号绑定模式: 必须提供 Platform
-        if (platform == null)
+        // 2. 账号绑定模式: 必须提供 Provider
+        if (provider == null)
         {
-            // 默认为 Gemini OAuth 以保持兼容性？或者抛出异常
-            // 这里选择默认为 Gemini OAuth
-            platform = ProviderPlatform.GEMINI_OAUTH;
+            // 默认为 Gemini 以保持兼容性
+            provider = Provider.Gemini;
         }
 
-        var config = authConfigService.GetConfig(platform.Value);
+        var config = authConfigService.GetConfig(provider.Value);
 
         // 如果调用方没有提供 redirectUri，使用配置中的
         var effectiveRedirectUri = !string.IsNullOrEmpty(redirectUri) ? redirectUri : config.RedirectUri;
@@ -170,9 +169,9 @@ public class GoogleOAuthProvider(
         };
     }
 
-    public async Task<OAuthTokenInfo> RefreshTokenAsync(string refreshToken, ProviderPlatform platform, CancellationToken cancellationToken = default)
+    public async Task<OAuthTokenInfo> RefreshTokenAsync(string refreshToken, Provider provider, CancellationToken cancellationToken = default)
     {
-        var config = authConfigService.GetConfig(platform);
+        var config = authConfigService.GetConfig(provider);
 
         var requestBody = new Dictionary<string, string>
         {

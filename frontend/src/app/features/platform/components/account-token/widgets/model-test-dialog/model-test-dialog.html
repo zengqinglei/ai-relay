@@ -13,7 +13,7 @@
     <div class="flex items-center gap-2">
       @if (account()) {
         <div class="w-6 h-6">
-          <app-platform-icon [platform]="account()!.platform" />
+          <app-platform-icon [provider]="account()!.provider" />
         </div>
         <span class="font-bold whitespace-nowrap">模型测试 - {{ account()!.name }}</span>
       }

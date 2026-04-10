@@ -10,7 +10,7 @@ namespace AiRelay.Api.Middleware.SmartProxy.ErrorHandling;
 /// </summary>
 public class ClaudeProxyErrorFormatter : BaseProxyErrorFormatter
 {
-    public override ProviderPlatform Platform => ProviderPlatform.CLAUDE_OAUTH;
+    public override bool Supports(RouteProfile profile) => profile is RouteProfile.ClaudeMessages;
 
     protected override ProxyErrorResponse BuildResponse(int statusCode, string message)
     {

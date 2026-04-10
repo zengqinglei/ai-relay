@@ -30,10 +30,12 @@ import { Subject } from 'rxjs';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 
 import { PlatformIcon } from '../../../../../../shared/components/platform-icon/platform-icon';
-import { PROVIDER_PLATFORM_OPTIONS } from '../../../../../../shared/constants/provider-platform.constants';
-import { ProviderPlatform } from '../../../../../../shared/models/provider-platform.enum';
-import { PlatformLabelPipe } from '../../../../../../shared/pipes/platform-label-pipe';
+import { AUTH_METHOD_OPTIONS, PROVIDER_OPTIONS } from '../../../../../../shared/constants/provider.constants';
+import { Provider } from '../../../../../../shared/models/provider.enum';
+import { ProviderLabelPipe } from '../../../../../../shared/pipes/platform-label-pipe';
+import { AuthMethodLabelPipe } from '../../../../../../shared/pipes/auth-method-label.pipe';
 import { FilterStateService } from '../../../../../../shared/services/filter-state.service';
+import { AuthMethod } from '../../../../../../shared/models/auth-method.enum';
 import { formatDuration, formatDurationVerbose, formatTokenCount } from '../../../../../../shared/utils/format.utils';
 import { GetAccountTokenPagedInputDto, AccountTokenOutputDto, AccountStatus } from '../../../../models/account-token.dto';
 import { ModelTestDialog } from '../model-test-dialog/model-test-dialog';
@@ -56,7 +58,8 @@ import { ModelTestDialog } from '../model-test-dialog/model-test-dialog';
     InputIconModule,
     ConfirmPopupModule,
     MenuModule,
-    PlatformLabelPipe,
+    ProviderLabelPipe,
+    AuthMethodLabelPipe,
     ModelTestDialog,
     PlatformIcon
   ],
@@ -88,21 +91,23 @@ export class AccountTable implements OnInit {
 
   // Filter states
   searchQuery = signal('');
-  selectedPlatform = signal<ProviderPlatform | null>(null);
+  selectedProvider = signal<Provider | null>(null);
+  selectedAuthMethod = signal<AuthMethod | null>(null);
   selectedStatus = signal<'active' | 'inactive' | null>(null);
 
   // Menu
   menuItems = signal<MenuItem[]>([]);
 
   // Dropdown options
-  platformOptions = PROVIDER_PLATFORM_OPTIONS;
+  providerOptions = PROVIDER_OPTIONS;
+
+  authMethodOptions = AUTH_METHOD_OPTIONS;
 
   statusOptions = [
     { label: '已启用', value: 'active' },
     { label: '已禁用', value: 'inactive' }
   ];
 
-  ProviderPlatform = ProviderPlatform;
   AccountStatus = AccountStatus;
 
   // Pagination state
@@ -120,12 +125,16 @@ export class AccountTable implements OnInit {
   ngOnInit() {
     const saved = this.filterStateService.load<{
       keyword: string;
-      platform: ProviderPlatform | null;
-      status: 'active' | 'inactive' | null;
+      provider: Provider | null;
+      authMethod: AuthMethod | null;
+      isActive: boolean | null;
     }>(this.FILTER_KEY);
     if (saved.keyword) this.searchQuery.set(saved.keyword);
-    if (saved.platform) this.selectedPlatform.set(saved.platform);
-    if (saved.status !== undefined) this.selectedStatus.set(saved.status ?? null);
+    if (saved.provider) this.selectedProvider.set(saved.provider);
+    if (saved.authMethod) this.selectedAuthMethod.set(saved.authMethod);
+
+    if (saved.isActive === true) this.selectedStatus.set('active');
+    else if (saved.isActive === false) this.selectedStatus.set('inactive');
   }
 
   onSearchQueryChange(value: string) {
@@ -199,15 +208,17 @@ export class AccountTable implements OnInit {
 
     this.filterStateService.save(this.FILTER_KEY, {
       keyword: this.searchQuery(),
-      platform: this.selectedPlatform(),
-      status: this.selectedStatus()
+      provider: this.selectedProvider(),
+      authMethod: this.selectedAuthMethod(),
+      isActive: isActive
     });
 
     const filter: GetAccountTokenPagedInputDto = {
       offset: this.first,
       limit: this.rows,
       keyword: this.searchQuery() || undefined,
-      platform: this.selectedPlatform() || undefined,
+      provider: this.selectedProvider() || undefined,
+      authMethod: this.selectedAuthMethod() || undefined,
       isActive: isActive,
       sorting: `${this.sortField()} ${this.sortOrder() === 1 ? 'asc' : 'desc'}`
     };
@@ -219,15 +230,7 @@ export class AccountTable implements OnInit {
     if (!account.isActive) return 'forever'; // 禁用状态不展示过期警告
     if (account.expiresIn === null || account.expiresIn === undefined) return 'forever';
 
-    // 注意：后端返回的 expiresIn 是剩余秒数 (Mock中模拟的是固定值，实际应结合 tokenObtainedTime 计算)
-    // 这里假设 expiresIn 是剩余秒数。如果 mock 只是静态数据，我们需要重新计算
-
     const secondsLeft = account.expiresIn;
-
-    // 如果 mock 数据中 tokenObtainedTime 是过去的，expiresIn 应该是以此为基准的有效期时长
-    // 但 DTO 定义 expiresIn 为 "秒"，通常指"剩余有效期"或"有效期时长"。
-    // 这里为了简单，假设 DTO 中的 expiresIn 是"剩余秒数" (snapshot) 或者我们根据 obtainedTime + duration 算。
-    // 为适配 Mock 数据的简单性 (expiresIn = 3500 固定值), 我们直接用它判断
 
     if (secondsLeft <= 0) return 'expired';
     if (secondsLeft < 1800) return 'warning'; // 30min

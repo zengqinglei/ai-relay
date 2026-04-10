@@ -29,7 +29,7 @@ public class GitHubOAuthProvider(
         return $"{AuthorizationEndpoint}?client_id={clientId}&redirect_uri={Uri.EscapeDataString(redirectUri)}&state={state}&scope=user:email";
     }
 
-    public string GetAuthorizationUrl(ProviderPlatform platform, string state, string codeChallenge)
+    public string GetAuthorizationUrl(Provider provider, string state, string codeChallenge)
     {
         throw new BadRequestException("GitHub OAuth provider does not support PKCE flow.");
     }
@@ -38,7 +38,7 @@ public class GitHubOAuthProvider(
         string code,
         string? redirectUri = null,
         string? codeVerifier = null,
-        ProviderPlatform? platform = null,
+        Provider? provider = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(redirectUri))
@@ -103,7 +103,7 @@ public class GitHubOAuthProvider(
         };
     }
 
-    public Task<OAuthTokenInfo> RefreshTokenAsync(string refreshToken, ProviderPlatform platform, CancellationToken cancellationToken = default)
+    public Task<OAuthTokenInfo> RefreshTokenAsync(string refreshToken, Provider provider, CancellationToken cancellationToken = default)
     {
         throw new BadRequestException("GitHub OAuth does not support token refresh in this context.");
     }

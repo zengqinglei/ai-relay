@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.ProviderGroups.ValueObjects;
 
 namespace AiRelay.Application.ProviderGroups.Dtos;
@@ -24,12 +23,7 @@ public record CreateProviderGroupInputDto
     [MaxLength(1000, ErrorMessage = "{0}长度不能超过 {1} 个字符")]
     public string? Description { get; init; }
 
-    /// <summary>
-    /// 平台类型
-    /// </summary>
-    [Required(ErrorMessage = "{0}不能为空")]
-    [Display(Name = "平台类型")]
-    public ProviderPlatform Platform { get; init; }
+
 
     /// <summary>
     /// 调度策略

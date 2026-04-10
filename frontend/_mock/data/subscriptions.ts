@@ -1,5 +1,5 @@
 import { SubscriptionOutputDto } from '../../src/app/features/platform/models/subscription.dto';
-import { ProviderPlatform } from '../../src/app/shared/models/provider-platform.enum';
+import { RouteProfile } from '../../src/app/shared/models/route-profile.enum';
 
 export const SUBSCRIPTIONS: SubscriptionOutputDto[] = [
   {
@@ -17,10 +17,11 @@ export const SUBSCRIPTIONS: SubscriptionOutputDto[] = [
     tokensTotal: 500000,
     bindings: [
       {
-        platform: ProviderPlatform.OPENAI_APIKEY,
+        priority: 1,
         providerGroupId: 'group-002',
         providerGroupName: 'OpenAI 高优先',
-        creationTime: '2025-01-01T10:00:00Z'
+        creationTime: '2025-01-01T10:00:00Z',
+        supportedRouteProfiles: [RouteProfile.OpenAiResponses, RouteProfile.ChatCompletions]
       }
     ]
   },
@@ -41,16 +42,18 @@ export const SUBSCRIPTIONS: SubscriptionOutputDto[] = [
     tokensTotal: 25000000,
     bindings: [
       {
-        platform: ProviderPlatform.OPENAI_APIKEY,
+        priority: 1,
         providerGroupId: 'group-002',
         providerGroupName: 'OpenAI 高优先',
-        creationTime: '2025-06-15T14:30:00Z'
+        creationTime: '2025-06-15T14:30:00Z',
+        supportedRouteProfiles: [RouteProfile.OpenAiResponses, RouteProfile.ChatCompletions]
       },
       {
-        platform: ProviderPlatform.GEMINI_OAUTH,
+        priority: 2,
         providerGroupId: 'group-001',
         providerGroupName: 'Gemini 免费池',
-        creationTime: '2025-06-15T14:30:00Z'
+        creationTime: '2025-06-15T14:30:00Z',
+        supportedRouteProfiles: [RouteProfile.GeminiBeta, RouteProfile.GeminiInternal]
       }
     ]
   },

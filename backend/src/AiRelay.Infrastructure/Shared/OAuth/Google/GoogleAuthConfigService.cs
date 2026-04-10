@@ -9,11 +9,11 @@ namespace AiRelay.Infrastructure.Shared.OAuth.Google;
 /// </summary>
 public class GoogleAuthConfigService : IGoogleAuthConfigService
 {
-    public GoogleAuthConfig GetConfig(ProviderPlatform platform)
+    public GoogleAuthConfig GetConfig(Provider provider)
     {
-        return platform switch
+        return provider switch
         {
-            ProviderPlatform.ANTIGRAVITY => new GoogleAuthConfig
+            Provider.Antigravity => new GoogleAuthConfig
             {
                 ClientId = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com",
                 ClientSecret = "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",
@@ -24,7 +24,7 @@ public class GoogleAuthConfigService : IGoogleAuthConfigService
                          "https://www.googleapis.com/auth/cclog " +
                          "https://www.googleapis.com/auth/experimentsandconfigs"
             },
-            ProviderPlatform.GEMINI_OAUTH => new GoogleAuthConfig
+            Provider.Gemini => new GoogleAuthConfig
             {
                 ClientId = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com",
                 ClientSecret = "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",
@@ -33,7 +33,7 @@ public class GoogleAuthConfigService : IGoogleAuthConfigService
                          "https://www.googleapis.com/auth/userinfo.email " +
                          "https://www.googleapis.com/auth/userinfo.profile"
             },
-            _ => throw new BadRequestException($"平台 {platform} 不支持 Google OAuth 配置")
+            _ => throw new BadRequestException($"提供商 {provider} 不支持 Google OAuth 配置")
         };
     }
 }

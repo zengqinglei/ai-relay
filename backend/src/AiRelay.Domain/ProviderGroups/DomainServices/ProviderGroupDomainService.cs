@@ -1,4 +1,3 @@
-using AiRelay.Domain.ApiKeys.Entities;
 using AiRelay.Domain.ProviderAccounts.DomainServices;
 using AiRelay.Domain.ProviderAccounts.Entities;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
@@ -19,10 +18,9 @@ namespace AiRelay.Domain.ProviderGroups.DomainServices;
 /// 提供商分组领域服务
 /// </summary>
 public class ProviderGroupDomainService(
-    IRepository<ProviderGroup, Guid> providerGroupRepository,
+    IProviderGroupRepository providerGroupRepository,
     IProviderGroupAccountRelationRepository providerGroupAccountRelationRepository,
     IRepository<AccountToken, Guid> accountTokenRepository,
-    IRepository<ApiKeyProviderGroupBinding, Guid> apiKeyProviderGroupBindingRepository,
     AccountTokenDomainService accountTokenDomainService,
     GroupSchedulingStrategyFactory groupSchedulingStrategyFactory,
     AccountRateLimitDomainService accountRateLimitDomainService,
@@ -38,7 +36,6 @@ public class ProviderGroupDomainService(
     public async Task<ProviderGroup> CreateGroupWithAccountsAsync(
         string name,
         string? description,
-        ProviderPlatform platform,
         GroupSchedulingStrategy schedulingStrategy,
         bool enableStickySession,
         int stickySessionExpirationHours,
@@ -47,16 +44,15 @@ public class ProviderGroupDomainService(
         CancellationToken cancellationToken = default)
     {
         // 1. 唯一性校验
-        if (await providerGroupRepository.CountAsync(g => g.Name == name && g.Platform == platform, cancellationToken) > 0)
+        if (await providerGroupRepository.CountAsync(g => g.Name == name, cancellationToken) > 0)
         {
-            throw new BadRequestException($"平台 {platform} 下已存在同名分组: {name}");
+            throw new BadRequestException($"已存在同名分组: {name}");
         }
 
         // 2. 创建分组
         var group = new ProviderGroup(
             name,
             description,
-            platform,
             schedulingStrategy,
             enableStickySession,
             stickySessionExpirationHours,
@@ -87,32 +83,31 @@ public class ProviderGroupDomainService(
         List<(Guid AccountId, int Priority, int Weight)> accounts,
         CancellationToken cancellationToken = default)
     {
-        var group = await providerGroupRepository.GetByIdAsync(id, cancellationToken);
+        var group = await providerGroupRepository.GetWithDetailsAsync(id, cancellationToken);
         if (group == null) throw new BadRequestException($"分组不存在: {id}");
 
         // 1. 唯一性校验
         if (group.Name != name)
         {
-            if (await providerGroupRepository.CountAsync(g => g.Id != id && g.Name == name && g.Platform == group.Platform, cancellationToken) > 0)
+            if (await providerGroupRepository.CountAsync(g => g.Id != id && g.Name == name, cancellationToken) > 0)
             {
-                throw new BadRequestException($"平台 {group.Platform} 下已存在同名分组: {name}");
+                throw new BadRequestException($"已存在同名分组: {name}");
             }
         }
 
-        // 2. 更新分组
+        // 2. 更新分组主体，先单独保存避免与关联记录混入同一 SaveChanges 批次
         group.Update(name, description, schedulingStrategy, rateMultiplier);
         group.UpdateStickySession(enableStickySession, stickySessionExpirationHours);
         await providerGroupRepository.UpdateAsync(group, cancellationToken);
 
-        // 3. 更新账户关联 (全量替换)
-        // 3.1 删除旧关联
-        var existingRelations = await providerGroupAccountRelationRepository.GetListAsync(r => r.ProviderGroupId == id, cancellationToken);
-        if (existingRelations.Any())
+        // 3. 更新账户关联（全量替换，显式操作独立 SaveChanges）
+        var existing = group.Relations.ToList();
+        if (existing.Any())
         {
-            await providerGroupAccountRelationRepository.DeleteManyAsync(existingRelations, cancellationToken);
+            await providerGroupAccountRelationRepository.DeleteManyAsync(existing, cancellationToken);
+            group.Relations.Clear();
         }
 
-        // 3.2 添加新关联
         if (accounts.Any())
         {
             await ProcessAccountRelationsAsync(group, accounts, cancellationToken);
@@ -126,21 +121,14 @@ public class ProviderGroupDomainService(
     /// </summary>
     public async Task DeleteGroupAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var group = await providerGroupRepository.GetByIdAsync(id, cancellationToken);
+        // 使用 GetWithDetailsAsync 确保加载了 Relations，从而触发 EF Core 的级联删除逻辑
+        var group = await providerGroupRepository.GetWithDetailsAsync(id, cancellationToken);
         if (group == null) throw new BadRequestException($"分组不存在: {id}");
 
-        // 检查是否有 ApiKey 绑定
-        var bindings = await apiKeyProviderGroupBindingRepository.GetListAsync(b => b.ProviderGroupId == id, cancellationToken);
-        if (bindings.Any())
+        // 检查是否有 ApiKey 绑定 (利用预加载的集合)
+        if (group.ApiKeyBindings.Any())
         {
             throw new BadRequestException("分组已被 ApiKey 绑定，无法删除");
-        }
-
-        // 级联软删除分组账户关系
-        var relations = await providerGroupAccountRelationRepository.GetListAsync(r => r.ProviderGroupId == id, cancellationToken);
-        if (relations.Any())
-        {
-            await providerGroupAccountRelationRepository.DeleteManyAsync(relations, cancellationToken);
         }
 
         await providerGroupRepository.DeleteAsync(group, cancellationToken);
@@ -167,12 +155,6 @@ public class ProviderGroupDomainService(
                 throw new NotFoundException($"账户不存在: {accountId}");
             }
 
-            if (accountToken.Platform != group.Platform)
-            {
-                throw new BadRequestException(
-                    $"账户平台不匹配: {accountId} 是 {accountToken.Platform}，分组要求 {group.Platform}");
-            }
-
             var relation = new ProviderGroupAccountRelation(
                 group.Id,
                 accountId,
@@ -182,35 +164,34 @@ public class ProviderGroupDomainService(
             relationsToInsert.Add(relation);
         }
 
-        if (relationsToInsert.Any())
+        foreach (var relation in relationsToInsert)
         {
-            await providerGroupAccountRelationRepository.InsertManyAsync(relationsToInsert, cancellationToken);
+            group.Relations.Add(relation);
+            await providerGroupAccountRelationRepository.InsertAsync(relation, cancellationToken);
         }
     }
 
     /// <summary>
     /// 为 ApiKey 选择账户（返回账户和分组）
     /// </summary>
-    /// <param name="groupId">分组ID</param>
+    /// <param name="group">资源池分组实例</param>
     /// <param name="apiKeyId">API密钥ID</param>
     /// <param name="apiKeyName">API密钥名称</param>
-    /// <param name="platform">平台</param>
     /// <param name="sessionHash">会话哈希</param>
     /// <param name="excludedIds">排除的账号ID列表（用于重试时排除已失败的账号）</param>
+    /// <param name="requestedModel">可选：请求的模型</param>
+    /// <param name="allowedCombinations">可选：当前路由端点允许的 (Provider, AuthMethod) 组合，为 null 时跳过此过滤</param>
     /// <returns>选中的账户、分组信息、是否为粘性绑定、可用账号总数</returns>
     public async Task<(AccountToken? AccountToken, ProviderGroup Group, bool IsStickyBound, int AvailableCount)?> SelectAccountForApiKeyAsync(
-        Guid groupId,
+        ProviderGroup group,
         Guid apiKeyId,
         string? apiKeyName,
-        ProviderPlatform platform,
         string? sessionHash = null,
         IEnumerable<Guid>? excludedIds = null,
-        string? requestedModel = null)
+        string? requestedModel = null,
+        IReadOnlyList<(Provider Provider, AuthMethod AuthMethod)>? allowedCombinations = null)
     {
-        // 1. 获取分组信息
-        var group = await providerGroupRepository.GetByIdAsync(groupId);
-        if (group == null)
-            throw new NotFoundException($"分组不存在: {groupId}");
+        Guid groupId = group.Id;
 
         logger.LogDebug("ApiKey '{ApiKeyName}' 使用分组 '{GroupName}'", apiKeyName ?? "未知", group.Name);
 
@@ -218,14 +199,14 @@ public class ProviderGroupDomainService(
         // 只有提供了 sessionHash 且分组启用了粘性会话时才生效
         if (group.EnableStickySession && !string.IsNullOrEmpty(sessionHash))
         {
-            var stickyAccountId = await GetStickySessionAccountAsync(groupId, platform, sessionHash);
+            var stickyAccountId = await GetStickySessionAccountAsync(groupId, sessionHash);
             if (stickyAccountId.HasValue)
             {
                 // 排除列表检查
                 if (excludedIds != null && excludedIds.Contains(stickyAccountId.Value))
                 {
                     logger.LogInformation("粘性会话账户 {AccountId} 在排除列表中，跳过并清除粘性会话", stickyAccountId.Value);
-                    await RemoveStickySessionAsync(groupId, platform, sessionHash);
+                    await RemoveStickySessionAsync(groupId, sessionHash);
                 }
                 else
                 {
@@ -248,7 +229,7 @@ public class ProviderGroupDomainService(
                     }
 
                     // 缓存未命中或账户不可用：清除缓存，进入重新调度
-                    await RemoveStickySessionAsync(groupId, platform, sessionHash);
+                    await RemoveStickySessionAsync(groupId, sessionHash);
                 }
             }
         }
@@ -287,7 +268,7 @@ public class ProviderGroupDomainService(
             // 过滤3：限流检查（批量查询结果）
             if (rateLimitedIds.Contains(relation.AccountTokenId))
             {
-                logger.LogDebug("账号 {AccountId} 被限流跳过", relation.AccountTokenId);
+                logger.LogDebug("账号 {AccountName} 被限流跳过", relation.AccountToken.Name);
                 continue;
             }
 
@@ -297,8 +278,8 @@ public class ProviderGroupDomainService(
 
             if (account.MaxConcurrency > 0 && currentConcurrency >= account.MaxConcurrency)
             {
-                logger.LogDebug("账号 {AccountId} 已满载 ({Current}/{Max})，跳过",
-                    relation.AccountTokenId, currentConcurrency, account.MaxConcurrency);
+                logger.LogDebug("账号 {AccountName} 已满载 ({Current}/{Max})，跳过",
+                    relation.AccountToken.Name, currentConcurrency, account.MaxConcurrency);
                 continue;
             }
 
@@ -308,7 +289,23 @@ public class ProviderGroupDomainService(
                 var isSupported = await accountTokenDomainService.IsModelSupportedAsync(account, requestedModel);
                 if (!isSupported)
                 {
-                    logger.LogDebug("账号 {AccountId} 不支持模型 {Model}，跳过", relation.AccountTokenId, requestedModel);
+                    logger.LogDebug("账号 {AccountName} 不支持模型 {Model}，跳过", relation.AccountToken.Name, requestedModel);
+                    continue;
+                }
+            }
+
+            // 过滤6：Provider + AuthMethod 兼容性检查
+            // 确保账号的 (Provider, AuthMethod) 在当前路由端点所允许的组合范围内，
+            // 避免将账号调度至不兼容的协议 Handler 中导致请求失败。
+            if (allowedCombinations != null && allowedCombinations.Count > 0)
+            {
+                var isCompatible = allowedCombinations.Any(c =>
+                    c.Provider == account.Provider && c.AuthMethod == account.AuthMethod);
+                if (!isCompatible)
+                {
+                    logger.LogDebug(
+                        "账号 {AccountName} (Provider={Provider}, AuthMethod={AuthMethod}) 与当前路由端点不兼容，跳过",
+                        relation.AccountToken.Name, account.Provider, account.AuthMethod);
                     continue;
                 }
             }
@@ -342,7 +339,6 @@ public class ProviderGroupDomainService(
         {
             await SetStickySessionAccountAsync(
                 groupId,
-                platform,
                 selectedAccount!.Id,
                 group.StickySessionExpirationHours,
                 sessionHash);
@@ -354,9 +350,9 @@ public class ProviderGroupDomainService(
     /// <summary>
     /// 获取粘性会话中的账户ID
     /// </summary>
-    public async Task<Guid?> GetStickySessionAccountAsync(Guid groupId, ProviderPlatform platform, string sessionHash)
+    public async Task<Guid?> GetStickySessionAccountAsync(Guid groupId, string sessionHash)
     {
-        var cacheKey = $"{StickySessionKeyPrefix}{groupId}:{platform}:{sessionHash}";
+        var cacheKey = $"{StickySessionKeyPrefix}{groupId}:{sessionHash}";
         var cacheValue = await cache.GetStringAsync(cacheKey);
 
         if (string.IsNullOrEmpty(cacheValue))
@@ -378,12 +374,11 @@ public class ProviderGroupDomainService(
     /// </summary>
     private async Task SetStickySessionAccountAsync(
         Guid groupId,
-        ProviderPlatform platform,
         Guid accountId,
         int expirationHours,
         string sessionHash)
     {
-        var cacheKey = $"{StickySessionKeyPrefix}{groupId}:{platform}:{sessionHash}";
+        var cacheKey = $"{StickySessionKeyPrefix}{groupId}:{sessionHash}";
         var sessionData = new StickySessionCache
         {
             AccountId = accountId,
@@ -402,9 +397,9 @@ public class ProviderGroupDomainService(
     /// <summary>
     /// 移除粘性会话
     /// </summary>
-    private async Task RemoveStickySessionAsync(Guid groupId, ProviderPlatform platform, string sessionHash)
+    private async Task RemoveStickySessionAsync(Guid groupId, string sessionHash)
     {
-        var cacheKey = $"{StickySessionKeyPrefix}{groupId}:{platform}:{sessionHash}";
+        var cacheKey = $"{StickySessionKeyPrefix}{groupId}:{sessionHash}";
         await cache.RemoveAsync(cacheKey);
     }
 

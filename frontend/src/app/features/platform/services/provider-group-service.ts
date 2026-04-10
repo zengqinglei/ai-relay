@@ -29,8 +29,8 @@ export class ProviderGroupService {
     if (input?.keyword) {
       params = params.set('keyword', input.keyword);
     }
-    if (input?.platform) {
-      params = params.set('platform', input.platform);
+    if (input?.provider) {
+      params = params.set('provider', input.provider);
     }
     if (input?.sorting) {
       params = params.set('sorting', input.sorting);

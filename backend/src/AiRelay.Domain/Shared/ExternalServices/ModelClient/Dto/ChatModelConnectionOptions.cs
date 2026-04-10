@@ -5,11 +5,13 @@ namespace AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 /// <summary>
 /// 聊天模型连接配置
 /// </summary>
-/// <param name="Platform">提供商平台类型</param>
+/// <param name="Provider">提供商</param>
+/// <param name="AuthMethod">认证类型</param>
 /// <param name="Credential">认证凭据 (Access Token 或 API Key)</param>
 /// <param name="BaseUrl">基础 API 地址 (可选)</param>
 public record ChatModelConnectionOptions(
-    ProviderPlatform Platform,
+    Provider Provider,
+    AuthMethod AuthMethod,
     string Credential,
     string? BaseUrl = null)
 {

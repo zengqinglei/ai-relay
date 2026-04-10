@@ -6,9 +6,10 @@ namespace AiRelay.Domain.ProviderAccounts.Events;
 /// <summary>
 /// 账号配额耗尽领域事件
 /// </summary>
-public class AccountQuotaExhaustedEvent(Guid accountId, ProviderPlatform platform) : LocalEvent
+public class AccountQuotaExhaustedEvent(Guid accountId, Provider provider, AuthMethod authMethod) : LocalEvent
 {
     public Guid AccountId { get; } = accountId;
-    public ProviderPlatform Platform { get; } = platform;
+    public Provider Provider { get; } = provider;
+    public AuthMethod AuthMethod { get; } = authMethod;
 }
 

@@ -10,7 +10,7 @@ namespace AiRelay.Api.Middleware.SmartProxy.ErrorHandling;
 /// </summary>
 public class GeminiProxyErrorFormatter : BaseProxyErrorFormatter
 {
-    public override ProviderPlatform Platform => ProviderPlatform.GEMINI_OAUTH;
+    public override bool Supports(RouteProfile profile) => profile is RouteProfile.GeminiBeta or RouteProfile.GeminiInternal;
 
     protected override ProxyErrorResponse BuildResponse(int statusCode, string message)
     {

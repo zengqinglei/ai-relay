@@ -1,4 +1,4 @@
-using AiRelay.Domain.ProviderAccounts.ValueObjects;
+using AiRelay.Domain.ApiKeys.Entities;
 using AiRelay.Domain.ProviderGroups.ValueObjects;
 using Leistd.Ddd.Domain.Entities.Auditing;
 
@@ -13,7 +13,7 @@ public class ProviderGroup : FullAuditedEntity<Guid>
 
     public string? Description { get; private set; }
 
-    public ProviderPlatform Platform { get; private set; }
+
 
     public GroupSchedulingStrategy SchedulingStrategy { get; private set; }
 
@@ -22,13 +22,20 @@ public class ProviderGroup : FullAuditedEntity<Guid>
     public int StickySessionExpirationHours { get; private set; } = 1;
 
     public decimal RateMultiplier { get; private set; } = 1.0m;
+    
+    // 导航属性
+    public virtual ICollection<ProviderGroupAccountRelation> Relations { get; private set; } = new List<ProviderGroupAccountRelation>();
+
+    /// <summary>
+    /// ApiKey 绑定关系 (反向导航)
+    /// </summary>
+    public virtual ICollection<ApiKeyProviderGroupBinding> ApiKeyBindings { get; private set; } = new List<ApiKeyProviderGroupBinding>();
 
     private ProviderGroup() => Name = null!;
 
     public ProviderGroup(
         string name,
         string? description,
-        ProviderPlatform platform,
         GroupSchedulingStrategy schedulingStrategy,
         bool enableStickySession = false,
         int stickySessionExpirationHours = 1,
@@ -37,7 +44,7 @@ public class ProviderGroup : FullAuditedEntity<Guid>
         Id = Guid.CreateVersion7();
         Name = name;
         Description = description;
-        Platform = platform;
+
         SchedulingStrategy = schedulingStrategy;
         EnableStickySession = enableStickySession;
         StickySessionExpirationHours = stickySessionExpirationHours;

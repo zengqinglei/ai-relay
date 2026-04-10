@@ -70,41 +70,85 @@
       </div>
 
       <p-divider align="center">
-        <span class="text-gray-500 text-sm font-bold">路由配置 (Route Configuration)</span>
+        <span class="text-gray-500 text-sm font-bold">资源池绑定 (Resource Pools)</span>
       </p-divider>
 
       <!-- Route Configuration -->
       <div class="flex flex-col gap-3">
-        <div class="text-sm text-gray-500 mb-2">为每个平台指定一个后端服务分组。若未配置，该 ApiKey 将无法访问对应平台的服务。</div>
+        <div class="text-[13px] text-gray-500 mb-2 leading-relaxed">
+          请按寻址优先级添加资源池。当请求到达时，系统将<b>依序扫描</b>配置的资源池，自动在这之中寻找支持所请求模型（且未限流停用）的可用账号。
+        </div>
 
-        @for (platform of platformOptions; track platform.value) {
-          <div
-            class="flex items-center gap-4 p-3 bg-surface-50 dark:bg-surface-800 rounded-lg border border-surface-200 dark:border-surface-700"
-          >
-            <div
-              class="w-8 h-8 flex items-center justify-center bg-surface-0 dark:bg-surface-900 rounded border border-surface-200 dark:border-surface-700 shadow-sm p-1.5"
-            >
-              <app-platform-icon [platform]="platform.value" />
+        @for (bind of formModel().bindings; track bind; let i = $index; let last = $last) {
+          <div class="flex flex-col">
+            <div class="flex items-center gap-3">
+              <div class="flex-1">
+                <p-select
+                  [options]="getAvailableGroups(i)"
+                  [(ngModel)]="bind.providerGroupId"
+                  optionLabel="name"
+                  optionValue="id"
+                  placeholder="选择资源池"
+                  [showClear]="true"
+                  appendTo="body"
+                  class="w-full"
+                >
+                  <ng-template pTemplate="selectedItem" let-group>
+                    <div class="flex items-center gap-2">
+                       <span class="font-bold text-[10px] bg-surface-100 dark:bg-surface-800 px-1.5 py-0.5 rounded text-color border border-surface-200 dark:border-surface-700">寻址顺序 {{ i+1 }}</span>
+                       <span class="font-medium text-sm">{{ group.name }}</span>
+                    </div>
+                  </ng-template>
+                  <ng-template pTemplate="item" let-group>
+                    <div class="flex flex-col">
+                      <span class="font-medium">{{ group.name }}</span>
+                      @if (group.supportedRouteProfiles?.length > 0) {
+                        <span class="text-[10px] text-muted-color mt-0.5 flex flex-wrap gap-1">
+                           @for (p of group.supportedRouteProfiles; track p) {
+                             <span
+                               class="bg-surface-100 dark:bg-surface-800 px-1 py-[1px] rounded"
+                               [pTooltip]="getRouteProfileFullLabel(p)"
+                               tooltipPosition="top">
+                               {{ getRouteProfileLabel(p) }}
+                             </span>
+                           }
+                        </span>
+                      } @else {
+                        <span class="text-[10px] text-orange-500 mt-0.5"><i class="pi pi-exclamation-triangle text-[10px] mr-1"></i>空资源池</span>
+                      }
+                    </div>
+                  </ng-template>
+                </p-select>
+              </div>
+              <p-button icon="pi pi-trash" [text]="true" severity="danger" (onClick)="removePool(i)" pTooltip="移除该池" styleClass="w-10 h-10"></p-button>
             </div>
 
-            <div class="flex-1">
-              <div class="font-bold text-sm">{{ platform.label }}</div>
-              <div class="text-xs text-muted-color">{{ platform.value }}</div>
-            </div>
-
-            <div class="w-64">
-              <p-select
-                [options]="getGroupsForPlatform(platform.value)"
-                [(ngModel)]="bindingsMap[platform.value]"
-                optionLabel="name"
-                optionValue="id"
-                placeholder="未绑定 (默认无法访问)"
-                [showClear]="true"
-                appendTo="body"
-                class="w-full"
-              ></p-select>
+            <!-- Cascade Arrow indicator -->
+            <div class="flex justify-center my-1 relative h-6" [class.opacity-0]="last && formModel().bindings.length >= maxPools()">
+              <div class="border-l-2 border-dashed border-surface-300 dark:border-surface-600 h-full"></div>
+              @if (!last || formModel().bindings.length < maxPools()) {
+                <div class="absolute bg-surface-0 dark:bg-surface-900 !pt-2 pb-0 opacity-70 text-[10px] text-gray-500 top-1/2 -translate-y-1/2 px-2 flex flex-col items-center gap-0.5" style="transform: translate(-50%, -50%); left: 50%;">
+                  <i class="pi pi-arrow-down text-[10px]"></i>
+                  @if (!last) {
+                    <span>未匹配可用账号，则继续向下寻找</span>
+                  }
+                </div>
+              }
             </div>
           </div>
+        }
+
+        @if (formModel().bindings.length < maxPools()) {
+          <p-button 
+            [label]="formModel().bindings.length === 0 ? '分配资源池' : '添加下一个范围池'" 
+            icon="pi pi-plus" 
+            [text]="true" 
+            [outlined]="true" 
+            class="w-full border-dashed" 
+            (onClick)="addFallbackPool()"
+          ></p-button>
+        } @else {
+          <div class="text-center text-xs text-orange-500 mt-2">已达到最大资源池绑定数量 ({{ maxPools() }})</div>
         }
       </div>
     </div>

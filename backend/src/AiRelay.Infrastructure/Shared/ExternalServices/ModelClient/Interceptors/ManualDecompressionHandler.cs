@@ -1,4 +1,3 @@
-using System.Net.Http;
 using System.IO.Compression;
 
 namespace AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Interceptors;

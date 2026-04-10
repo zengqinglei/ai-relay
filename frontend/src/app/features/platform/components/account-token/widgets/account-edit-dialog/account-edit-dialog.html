@@ -17,22 +17,9 @@
     <p class="text-sm text-muted-color mt-0 mb-6">请填写账户的基本信息与鉴权凭证。</p>
 
     <!-- Responsive Grid Layout -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 md:gap-x-6 gap-y-4">
-      <!-- Platform -->
-      <div class="flex flex-col gap-2">
-        <label class="block text-sm font-medium text-color">平台类型</label>
-        <p-select
-          [options]="platformOptions"
-          formControlName="platform"
-          optionLabel="label"
-          optionValue="value"
-          appendTo="body"
-          [fluid]="true"
-        />
-      </div>
-
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-x-4 md:gap-x-6 gap-y-4">
       <!-- Name -->
-      <div class="flex flex-col gap-2">
+      <div class="md:col-span-2 flex flex-col gap-2">
         <label class="block text-sm font-medium text-color">账户名称 *</label>
         <input pInputText formControlName="name" placeholder="e.g. zengql@live.cn" class="w-full" />
         @if (form.get('name')?.invalid && form.get('name')?.touched) {
@@ -40,9 +27,35 @@
         }
       </div>
 
+      <!-- Provider -->
+      <div class="flex flex-col gap-2">
+        <label class="block text-sm font-medium text-color">服务商</label>
+        <p-select
+          [options]="providerOptions"
+          formControlName="provider"
+          optionLabel="label"
+          optionValue="value"
+          appendTo="body"
+          [fluid]="true"
+        />
+      </div>
+
+      <!-- Auth Method -->
+      <div class="flex flex-col gap-2">
+        <label class="block text-sm font-medium text-color">鉴权方式</label>
+        <p-select
+          [options]="authMethodOptions"
+          formControlName="authMethod"
+          optionLabel="label"
+          optionValue="value"
+          appendTo="body"
+          [fluid]="true"
+        />
+      </div>
+
       <!-- API Key (Hidden for OAuth Accounts) - Full Width -->
       @if (!showOAuthFlow) {
-        <div class="col-span-2 flex flex-col gap-2 animate-fadein">
+        <div class="md:col-span-4 flex flex-col gap-2 animate-fadein">
           <label class="block text-sm font-medium text-color">
             API Key
             @if (!isEditMode()) {
@@ -71,7 +84,7 @@
 
       <!-- 上游地址 (Hidden for OAuth Accounts) - Full Width -->
       @if (!showOAuthFlow) {
-        <div class="col-span-2 flex flex-col gap-2">
+        <div class="md:col-span-4 flex flex-col gap-2">
           <label class="block text-sm font-medium text-color">上游地址</label>
           <input pInputText formControlName="baseUrl" placeholder="默认官方地址，可填自定义网关..." class="w-full font-mono" />
           @if (form.get('baseUrl')?.invalid && form.get('baseUrl')?.touched) {
@@ -83,7 +96,7 @@
       <!-- OAuth Flow (for Non-API Key Platforms) - Full Width -->
       @if (showOAuthFlow) {
         <div
-          class="col-span-2 rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4 space-y-4"
+          class="md:col-span-4 rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4 space-y-4"
         >
           <h3 class="text-sm font-semibold text-color">OAuth 授权流程</h3>
 
@@ -143,7 +156,7 @@
       }
 
       <!-- Model Configuration -->
-      <div class="col-span-2">
+      <div class="md:col-span-4">
         <p-panel header="模型配置" [toggleable]="true" [collapsed]="true">
           <div class="flex flex-col gap-4">
             <!-- Model Whitelist -->
@@ -193,7 +206,7 @@
       </div>
 
       <!-- 最大并发数 + 官方伪装 同行 -->
-      <div class="flex flex-col gap-2">
+      <div class="md:col-span-2 flex flex-col gap-2">
         <label class="block text-sm font-medium text-color flex items-center gap-2">
           最大并发数 *
           <i
@@ -221,7 +234,7 @@
       </div>
 
       <!-- 官方伪装与流健康检查并排在同一个单元格内 -->
-      <div class="grid grid-cols-2 gap-4">
+      <div class="md:col-span-2 grid grid-cols-2 gap-4">
         <!-- 官方伪装 -->
         <div class="flex flex-col gap-2">
           <label class="text-sm font-medium text-color flex items-center gap-2">
@@ -254,7 +267,7 @@
       </div>
 
       <!-- Description - Full Width -->
-      <div class="col-span-2 flex flex-col gap-2">
+      <div class="md:col-span-4 flex flex-col gap-2">
         <label class="block text-sm font-medium text-color">描述说明</label>
         <textarea
           pTextarea
@@ -268,7 +281,7 @@
       <!-- Extended Fields -->
       @if (showProjectId) {
         <!-- Divider -->
-        <div class="col-span-2 relative py-2">
+        <div class="md:col-span-4 relative py-2">
           <div class="absolute inset-0 flex items-center" aria-hidden="true">
             <div class="w-full border-t border-surface-200 dark:border-surface-700"></div>
           </div>
@@ -279,7 +292,7 @@
           </div>
         </div>
 
-        <div class="col-span-2 flex flex-col gap-2 animate-fadein">
+        <div class="md:col-span-4 flex flex-col gap-2 animate-fadein">
           <label class="block text-sm font-medium text-color">项目 ID (Project ID)</label>
           <input pInputText formControlName="projectId" placeholder="请输入 Google Cloud 项目 ID (可选)" class="w-full" />
         </div>

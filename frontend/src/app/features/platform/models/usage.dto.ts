@@ -1,5 +1,6 @@
+import { AuthMethod } from '../../../shared/models/auth-method.enum';
 import { PagedRequestDto } from '../../../shared/models/paged-request.dto';
-import { ProviderPlatform } from '../../../shared/models/provider-platform.enum';
+import { Provider } from '../../../shared/models/provider.enum';
 
 export interface UsageMetricsOutputDto {
   totalRequests: number;
@@ -37,7 +38,8 @@ export interface UsageRecordOutputDto {
   id: string;
   creationTime: string;
   apiKeyName: string;
-  platform: ProviderPlatform;
+  sessionId: string;
+  provider?: Provider;
   providerGroupName?: string;
   accountTokenName?: string;
   downModelId?: string;
@@ -58,20 +60,25 @@ export interface UsageRecordOutputDto {
   durationMs?: number;
   statusDescription?: string;
   attemptCount: number;
+  authMethod?: AuthMethod;
 }
 
 export interface UsageRecordPagedInputDto extends PagedRequestDto {
   apiKeyName?: string;
   model?: string;
   accountTokenName?: string;
+  sessionId?: string;
   providerGroupId?: string;
-  platform?: ProviderPlatform;
+  provider?: Provider;
   startTime?: string;
   endTime?: string;
+  authMethod?: AuthMethod;
 }
 
 export interface UsageRecordAttemptOutputDto {
   attemptNumber: number;
+  provider: Provider;
+  authMethod: AuthMethod;
   accountTokenName: string;
   upModelId?: string;
   upUserAgent?: string;

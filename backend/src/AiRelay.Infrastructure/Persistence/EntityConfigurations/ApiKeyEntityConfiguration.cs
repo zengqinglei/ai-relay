@@ -36,19 +36,19 @@ internal static class ApiKeyEntityConfiguration
         {
             b.ConfigureByConvention();
 
-            b.HasIndex(e => new { e.ApiKeyId, e.Platform, e.DeletionTime }).IsUnique();
+            b.HasIndex(e => new { e.ApiKeyId, e.ProviderGroupId, e.DeletionTime }).IsUnique();
 
             b.HasOne(e => e.ApiKey)
                 .WithMany(ak => ak.Bindings)
                 .HasForeignKey(e => e.ApiKeyId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .IsRequired(false);
+                .OnDelete(DeleteBehavior.Cascade)
+                .IsRequired();
 
             b.HasOne(e => e.ProviderGroup)
-                .WithMany()
+                .WithMany(pg => pg.ApiKeyBindings)
                 .HasForeignKey(e => e.ProviderGroupId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .IsRequired(false);
+                .OnDelete(DeleteBehavior.Cascade)
+                .IsRequired();
         });
     }
 }

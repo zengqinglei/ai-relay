@@ -17,11 +17,18 @@ public class CreateAccountTokenInputDto
     public required string Name { get; init; }
 
     /// <summary>
-    /// 平台类型
+    /// 提供商
     /// </summary>
-    [Display(Name = "平台类型")]
+    [Display(Name = "提供商")]
     [Required(ErrorMessage = "{0}不能为空")]
-    public ProviderPlatform Platform { get; init; }
+    public Provider Provider { get; init; }
+
+    /// <summary>
+    /// 认证方式
+    /// </summary>
+    [Display(Name = "认证方式")]
+    [Required(ErrorMessage = "{0}不能为空")]
+    public AuthMethod AuthMethod { get; init; }
 
     /// <summary>
     /// 额外属性 (chatgpt_account_id, project_id)

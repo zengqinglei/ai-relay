@@ -26,8 +26,8 @@ public class ClaudeChatModelHandler(
     ILogger<ClaudeChatModelHandler> logger)
     : BaseChatModelHandler(options, httpClientFactory, logger)
 {
-    public override bool Supports(ProviderPlatform platform) =>
-        platform is ProviderPlatform.CLAUDE_OAUTH or ProviderPlatform.CLAUDE_APIKEY;
+    public override bool Supports(Provider provider, AuthMethod authMethod) =>
+        provider == Provider.Claude && (authMethod == AuthMethod.OAuth || authMethod == AuthMethod.ApiKey);
 
     protected override IReadOnlyList<IResponseProcessor> GetResponseProcessors(
         UpRequestContext up, DownRequestContext down)
@@ -42,7 +42,7 @@ public class ClaudeChatModelHandler(
     public override async Task<IReadOnlyList<ModelOption>?> GetModelsAsync(CancellationToken ct = default)
     {
         // 仅 ApiKey 支持
-        if (Options.Platform != ProviderPlatform.CLAUDE_APIKEY)
+        if (Options.AuthMethod != AuthMethod.ApiKey)
             return null;
 
         try
@@ -218,7 +218,7 @@ public class ClaudeChatModelHandler(
         }
 
         // 优先级 4: 第一条消息内容
-        if (down.ExtractedProps.TryGetValue("messages[0].content", out var text) && !string.IsNullOrWhiteSpace(text))
+        if (down.ExtractedProps.TryGetValue("session_fingerprint_text", out var text) && !string.IsNullOrWhiteSpace(text))
         {
             down.SessionId = GenerateSessionHashWithContext(text, down, apiKeyId);
             return;

@@ -21,7 +21,7 @@ public class GeminiHeaderRequestProcessor(ChatModelConnectionOptions options) : 
             }
         }
 
-        if (options.Platform == ProviderPlatform.GEMINI_OAUTH)
+        if (options.AuthMethod == AuthMethod.OAuth)
         {
             // 覆盖认证信息
             up.Headers["Authorization"] = $"Bearer {options.Credential}";
@@ -69,13 +69,13 @@ public class GeminiHeaderRequestProcessor(ChatModelConnectionOptions options) : 
         // x-goog-api-client 动态设置（按平台）
         if (!up.Headers.ContainsKey("x-goog-api-client"))
         {
-            up.Headers["x-goog-api-client"] = options.Platform == ProviderPlatform.GEMINI_OAUTH
+            up.Headers["x-goog-api-client"] = options.AuthMethod == AuthMethod.OAuth
                 ? GeminiMimicDefaults.XGoogApiClientOAuth
                 : GeminiMimicDefaults.XGoogApiClientApiKey;
         }
 
         // x-gemini-api-privileged-user-id 仅 ApiKey 平台注入
-        if (!up.Headers.ContainsKey("x-gemini-api-privileged-user-id") && options.Platform == ProviderPlatform.GEMINI_APIKEY)
+        if (!up.Headers.ContainsKey("x-gemini-api-privileged-user-id") && options.AuthMethod == AuthMethod.ApiKey)
             up.Headers["x-gemini-api-privileged-user-id"] = down.StickySessionId ?? Guid.NewGuid().ToString("D");
 
         // User-Agent 含 modelId，强制覆盖

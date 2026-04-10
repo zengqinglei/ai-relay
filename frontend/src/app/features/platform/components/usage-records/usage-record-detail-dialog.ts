@@ -12,11 +12,12 @@ import { UsageStatus } from '../../../../shared/models/usage-status.enum';
 import { formatDuration, formatTokenCount } from '../../../../shared/utils/format.utils';
 import { UsageRecordDetailOutputDto, UsageRecordOutputDto } from '../../models/usage.dto';
 import { UsageRecordService } from '../../services/usage-record-service';
+import { AuthMethodLabelPipe } from '../../../../shared/pipes/auth-method-label.pipe';
 
 @Component({
   selector: 'app-usage-record-detail-dialog',
   standalone: true,
-  imports: [CommonModule, DialogModule, ButtonModule, TabsModule, TagModule, TooltipModule],
+  imports: [CommonModule, DialogModule, ButtonModule, TabsModule, TagModule, TooltipModule, AuthMethodLabelPipe],
   template: `
     <p-dialog
       header="请求详情"
@@ -240,6 +241,10 @@ import { UsageRecordService } from '../../services/usage-record-service';
                           <span>
                             <span class="text-muted-color">账户：</span>
                             <span class="font-medium">{{ attempt.accountTokenName }}</span>
+                          </span>
+                          <span>
+                            <span class="text-muted-color">方式：</span>
+                            <span class="font-medium">{{ attempt.authMethod | authMethodLabel }}</span>
                           </span>
                           @if (attempt.upModelId) {
                             <span>

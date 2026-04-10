@@ -5,7 +5,7 @@ namespace AiRelay.Api.Middleware.SmartProxy.ErrorHandling;
 
 public abstract class BaseProxyErrorFormatter : IProxyErrorFormatter
 {
-    public abstract ProviderPlatform Platform { get; }
+    public abstract bool Supports(RouteProfile profile);
 
     public ProxyErrorResponse Format(Exception exception)
     {

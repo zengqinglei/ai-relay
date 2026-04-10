@@ -32,7 +32,7 @@ public class UsageLifecycleAppService(
         var record = new UsageRecord(
             input.UsageRecordId,
             input.CorrelationId,
-            input.Platform,
+            input.SessionId,
             input.ApiKeyId,
             input.ApiKeyName,
             input.IsStreaming,
@@ -64,6 +64,8 @@ public class UsageLifecycleAppService(
             input.AttemptNumber,
             input.AccountTokenId,
             input.AccountTokenName,
+            input.Provider,
+            input.AuthMethod,
             input.ProviderGroupId,
             input.ProviderGroupName,
             input.GroupRateMultiplier,

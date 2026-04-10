@@ -8,7 +8,7 @@ namespace AiRelay.Domain.Shared.OAuth.Google;
 public interface IGoogleAuthConfigService
 {
     /// <summary>
-    /// 获取指定平台的 Google OAuth 配置
+    /// 获取指定提供商的 Google OAuth 配置
     /// </summary>
-    GoogleAuthConfig GetConfig(ProviderPlatform platform);
+    GoogleAuthConfig GetConfig(Provider provider);
 }

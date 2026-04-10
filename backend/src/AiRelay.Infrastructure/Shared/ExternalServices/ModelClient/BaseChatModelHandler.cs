@@ -36,7 +36,7 @@ public abstract class BaseChatModelHandler : IChatModelHandler
         Logger = logger;
     }
 
-    public abstract bool Supports(ProviderPlatform platform);
+    public abstract bool Supports(Provider provider, AuthMethod authMethod);
 
     protected virtual string? GetFallbackBaseUrl(int statusCode) => null;
 

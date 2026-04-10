@@ -4,13 +4,15 @@ import {
   AccountTokenOutputDto
 } from '../../src/app/features/platform/models/account-token.dto';
 import { ModelOptionOutputDto } from '../../src/app/features/platform/models/model-option.dto';
-import { ProviderPlatform } from '../../src/app/shared/models/provider-platform.enum';
+import { AuthMethod } from '../../src/app/shared/models/auth-method.enum';
+import { Provider } from '../../src/app/shared/models/provider.enum';
 
 export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
   {
     id: '1',
     name: 'gemini-account-01@example.com',
-    platform: ProviderPlatform.GEMINI_OAUTH,
+    provider: Provider.Gemini,
+    authMethod: AuthMethod.OAuth,
     baseUrl: '',
     description: '主要测试账号，用于日常开发调试。',
     isActive: true,
@@ -37,7 +39,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
   {
     id: '2',
     name: 'gemini-account-02@example.com',
-    platform: ProviderPlatform.GEMINI_OAUTH,
+    provider: Provider.Gemini,
+    authMethod: AuthMethod.OAuth,
     baseUrl: '',
     description: '',
     isActive: true,
@@ -62,7 +65,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
   {
     id: '3',
     name: 'gemini-apikey-backup@example.com',
-    platform: ProviderPlatform.GEMINI_APIKEY,
+    provider: Provider.Gemini,
+    authMethod: AuthMethod.ApiKey,
     extraProperties: { project_id: 'example-project-101' },
     baseUrl: '',
     description: '备用 Key，流量限制较严。',
@@ -91,7 +95,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
   {
     id: '4',
     name: 'claude-relay-01',
-    platform: ProviderPlatform.CLAUDE_APIKEY,
+    provider: Provider.Claude,
+    authMethod: AuthMethod.ApiKey,
     baseUrl: 'https://api.example-relay.com/',
     description: '对接第三方聚合网关。',
     isActive: true,
@@ -117,7 +122,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
   {
     id: '5',
     name: 'claude-relay-02',
-    platform: ProviderPlatform.CLAUDE_APIKEY,
+    provider: Provider.Claude,
+    authMethod: AuthMethod.ApiKey,
     baseUrl: 'https://api.example-relay.com/',
     description: '',
     isActive: true,
@@ -142,7 +148,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
   {
     id: '6',
     name: 'openai-standard',
-    platform: ProviderPlatform.OPENAI_OAUTH,
+    provider: Provider.OpenAI,
+    authMethod: AuthMethod.OAuth,
     extraProperties: { project_id: 'org-abc12345', chatgpt_account_id: 'fake-uuid-12345' },
     baseUrl: '',
     description: '标准企业账号，用于 GPT-4 模型调用。',
@@ -168,7 +175,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
   {
     id: '7',
     name: 'openai-dev',
-    platform: ProviderPlatform.OPENAI_APIKEY,
+    provider: Provider.OpenAI,
+    authMethod: AuthMethod.ApiKey,
     baseUrl: 'https://api.openai.com/v1',
     description: '开发测试用 Key',
     isActive: true,
@@ -193,7 +201,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
   {
     id: '8',
     name: 'antigravity-prod-01',
-    platform: ProviderPlatform.ANTIGRAVITY,
+    provider: Provider.Antigravity,
+    authMethod: AuthMethod.OAuth,
     extraProperties: { project_id: 'agentrouter-main-2025' },
     baseUrl: 'https://cloudcode-pa.googleapis.com',
     description: 'Antigravity 生产主账号，支持 Gemini 3 系列和 Claude 4.5 思维模型',
@@ -219,7 +228,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
   {
     id: '9',
     name: 'antigravity-backup',
-    platform: ProviderPlatform.ANTIGRAVITY,
+    provider: Provider.Antigravity,
+    authMethod: AuthMethod.OAuth,
     extraProperties: { project_id: 'backup-project-001' },
     baseUrl: 'https://cloudcode-pa.googleapis.com',
     description: '备用账号，用于流量溢出和故障转移',
@@ -245,7 +255,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
   {
     id: '10',
     name: 'antigravity-thinking',
-    platform: ProviderPlatform.ANTIGRAVITY,
+    provider: Provider.Antigravity,
+    authMethod: AuthMethod.OAuth,
     extraProperties: { project_id: 'thinking-models-2025' },
     baseUrl: '',
     description: '专用于思维模型（Thinking Models）的账号，支持深度推理任务',
@@ -271,7 +282,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
   {
     id: '11',
     name: 'antigravity-dev',
-    platform: ProviderPlatform.ANTIGRAVITY,
+    provider: Provider.Antigravity,
+    authMethod: AuthMethod.OAuth,
     extraProperties: { project_id: 'dev-testing-env' },
     baseUrl: 'https://cloudcode-pa.googleapis.com',
     description: '开发测试环境专用账号',
@@ -312,8 +324,11 @@ export const ACCOUNT_METRICS: AccountTokenMetricsOutputDto = {
   rotationWarnings: 1 // id:11 needs token refresh
 };
 
-export const AVAILABLE_MODELS: Record<ProviderPlatform, ModelOptionOutputDto[]> = {
-  [ProviderPlatform.GEMINI_OAUTH]: [
+/**
+ * 按 Provider 索引的模型列表
+ */
+export const AVAILABLE_MODELS: Record<Provider, ModelOptionOutputDto[]> = {
+  [Provider.Gemini]: [
     { label: 'Gemini 3.1 Flash Preview', value: 'gemini-3.1-flash-preview' },
     { label: 'Gemini 3.1 Pro Preview', value: 'gemini-3.1-pro-preview' },
     { label: 'Gemini 3.0 Flash Preview', value: 'gemini-3-flash-preview' },
@@ -322,30 +337,14 @@ export const AVAILABLE_MODELS: Record<ProviderPlatform, ModelOptionOutputDto[]> 
     { label: 'Gemini 2.5 Pro', value: 'gemini-2.5-pro' },
     { label: 'Gemini 2.0 Flash', value: 'gemini-2.0-flash' }
   ],
-  [ProviderPlatform.GEMINI_APIKEY]: [
-    { label: 'Gemini 3.1 Flash Preview', value: 'gemini-3.1-flash-preview' },
-    { label: 'Gemini 3.1 Pro Preview', value: 'gemini-3.1-pro-preview' },
-    { label: 'Gemini 3.0 Flash Preview', value: 'gemini-3-flash-preview' },
-    { label: 'Gemini 3.0 Pro Preview', value: 'gemini-3-pro-preview' },
-    { label: 'Gemini 2.5 Flash', value: 'gemini-2.5-flash' },
-    { label: 'Gemini 2.5 Pro', value: 'gemini-2.5-pro' },
-    { label: 'Gemini 2.0 Flash', value: 'gemini-2.0-flash' }
-  ],
-  [ProviderPlatform.CLAUDE_OAUTH]: [
+  [Provider.Claude]: [
     { label: 'Claude Opus 4.6', value: 'claude-opus-4-6' },
     { label: 'Claude Sonnet 4.6', value: 'claude-sonnet-4-6' },
     { label: 'Claude Opus 4.5', value: 'claude-opus-4-5-20251101' },
     { label: 'Claude Sonnet 4.5', value: 'claude-sonnet-4-5-20250929' },
     { label: 'Claude Haiku 4.5', value: 'claude-haiku-4-5-20251001' }
   ],
-  [ProviderPlatform.CLAUDE_APIKEY]: [
-    { label: 'Claude Opus 4.6', value: 'claude-opus-4-6' },
-    { label: 'Claude Sonnet 4.6', value: 'claude-sonnet-4-6' },
-    { label: 'Claude Opus 4.5', value: 'claude-opus-4-5-20251101' },
-    { label: 'Claude Sonnet 4.5', value: 'claude-sonnet-4-5-20250929' },
-    { label: 'Claude Haiku 4.5', value: 'claude-haiku-4-5-20251001' }
-  ],
-  [ProviderPlatform.OPENAI_OAUTH]: [
+  [Provider.OpenAI]: [
     { label: 'GPT-5.4', value: 'gpt-5.4' },
     { label: 'GPT-5.3', value: 'gpt-5.3' },
     { label: 'GPT-5.3 Codex', value: 'gpt-5.3-codex' },
@@ -357,19 +356,7 @@ export const AVAILABLE_MODELS: Record<ProviderPlatform, ModelOptionOutputDto[]> 
     { label: 'GPT-5.1 Codex Mini', value: 'gpt-5.1-codex-mini' },
     { label: 'GPT-5', value: 'gpt-5' }
   ],
-  [ProviderPlatform.OPENAI_APIKEY]: [
-    { label: 'GPT-5.4', value: 'gpt-5.4' },
-    { label: 'GPT-5.3', value: 'gpt-5.3' },
-    { label: 'GPT-5.3 Codex', value: 'gpt-5.3-codex' },
-    { label: 'GPT-5.2', value: 'gpt-5.2' },
-    { label: 'GPT-5.2 Codex', value: 'gpt-5.2-codex' },
-    { label: 'GPT-5.1', value: 'gpt-5.1' },
-    { label: 'GPT-5.1 Codex Max', value: 'gpt-5.1-codex-max' },
-    { label: 'GPT-5.1 Codex', value: 'gpt-5.1-codex' },
-    { label: 'GPT-5.1 Codex Mini', value: 'gpt-5.1-codex-mini' },
-    { label: 'GPT-5', value: 'gpt-5' }
-  ],
-  [ProviderPlatform.ANTIGRAVITY]: [
+  [Provider.Antigravity]: [
     { label: 'Gemini 3.1 Pro High', value: 'gemini-3.1-pro-high' },
     { label: 'Gemini 3.1 Pro Low', value: 'gemini-3.1-pro-low' },
     { label: 'Gemini 3 Flash', value: 'gemini-3-flash' },

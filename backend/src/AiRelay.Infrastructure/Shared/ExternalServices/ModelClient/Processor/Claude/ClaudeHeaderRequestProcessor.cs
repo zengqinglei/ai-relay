@@ -1,4 +1,3 @@
-using System.Text.Json.Nodes;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Constants;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Context;
@@ -27,7 +26,7 @@ public class ClaudeHeaderRequestProcessor(
             }
         }
 
-        if (options.Platform == ProviderPlatform.CLAUDE_OAUTH)
+        if (options.AuthMethod == AuthMethod.OAuth)
         {
             // 覆盖认证信息
             up.Headers["Authorization"] = $"Bearer {options.Credential}";

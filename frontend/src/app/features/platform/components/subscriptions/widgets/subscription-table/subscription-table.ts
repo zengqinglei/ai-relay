@@ -1,20 +1,29 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, EventEmitter, input, Output, inject, signal } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, Component, DestroyRef, ElementRef, EventEmitter, ViewChild, input, Output, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { ConfirmPopupModule } from 'primeng/confirmpopup';
 import { DatePickerModule } from 'primeng/datepicker';
 import { DialogModule } from 'primeng/dialog';
-import { PopoverModule } from 'primeng/popover';
+import { Popover, PopoverModule } from 'primeng/popover';
 import { TableLazyLoadEvent, TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { TooltipModule } from 'primeng/tooltip';
 
-import { PlatformLabelPipe } from '../../../../../../shared/pipes/platform-label-pipe';
+import { LayoutService } from '../../../../../../layout/services/layout-service';
+import { ROUTE_PROFILE_FULL_LABELS, ROUTE_PROFILE_LABELS } from '../../../../../../shared/constants/route-profile.constants';
+import { RouteProfile } from '../../../../../../shared/models/route-profile.enum';
 import { formatTokenCount } from '../../../../../../shared/utils/format.utils';
-import { ApiKeyOutputDto, ApiKeyBindingOutputDto } from '../../../../models/subscription.dto';
+import { ApiKeyBindingOutputDto, ApiKeyOutputDto } from '../../../../models/subscription.dto';
+import {
+  RelationPopoverContentComponent,
+  RelationPopoverItem
+} from '../../../shared/widgets/relation-popover-content/relation-popover-content';
+
+type BindPopoverMode = 'details' | 'summary';
 
 export interface SubscriptionTableFilterEvent {
   offset: number;
@@ -37,13 +46,13 @@ export interface SubscriptionTableFilterEvent {
     DialogModule,
     DatePickerModule,
     PopoverModule,
-    PlatformLabelPipe
+    RelationPopoverContentComponent
   ],
   templateUrl: './subscription-table.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [ConfirmationService]
 })
-export class SubscriptionTable {
+export class SubscriptionTable implements AfterViewInit {
   subscriptions = input.required<ApiKeyOutputDto[]>();
   totalRecords = input.required<number>();
   loading = input<boolean>(false);
@@ -54,27 +63,32 @@ export class SubscriptionTable {
   @Output() readonly updateExpiryAndEnable = new EventEmitter<{ id: string; date: Date }>();
   @Output() readonly filterChange = new EventEmitter<SubscriptionTableFilterEvent>();
 
+  @ViewChild('bindingColumnContainer') bindingColumnContainer?: ElementRef<HTMLElement>;
+
   private confirmationService = inject(ConfirmationService);
   private messageService = inject(MessageService);
+  private readonly layoutService = inject(LayoutService);
+  private readonly destroyRef = inject(DestroyRef);
 
-  // Expiry Dialog State
   expiryDialogVisible = signal(false);
   selectedItemForExpiry = signal<ApiKeyOutputDto | null>(null);
   newExpiryDate = signal<Date | null>(null);
-
-  // Secret visibility state (key: item.id, value: isVisible)
   secretVisibility: Record<string, boolean> = {};
-
-  // Copy icon success state (key: item.id, value: isSuccess)
   copySuccess = signal<Record<string, boolean>>({});
-
   now = new Date();
 
-  // Pagination state
   first = 0;
   rows = 10;
   sortField = signal<string>('creationTime');
   sortOrder = signal<number>(-1);
+  activeBindings = signal<ApiKeyBindingOutputDto[]>([]);
+  bindPopoverMode = signal<BindPopoverMode>('summary');
+  visibleBindingCount = signal(3);
+  private bindingResizeObserver?: ResizeObserver;
+
+  ngAfterViewInit(): void {
+    queueMicrotask(() => this.setupBindingResizeObserver());
+  }
 
   onPage(event: TableLazyLoadEvent) {
     this.first = event.first ?? 0;
@@ -90,14 +104,90 @@ export class SubscriptionTable {
     });
   }
 
-  // Popover state for bindings overflow
-  hoveredBindings = signal<ApiKeyBindingOutputDto[]>([]);
+  private setupBindingResizeObserver(): void {
+    const element = this.bindingColumnContainer?.nativeElement;
+    if (!element || typeof ResizeObserver === 'undefined') {
+      this.updateVisibleBindingCount(this.layoutService.sidebarCollapsed() ? 18 * 16 : 15 * 16);
+      return;
+    }
+
+    this.bindingResizeObserver?.disconnect();
+    this.bindingResizeObserver = new ResizeObserver(entries => {
+      const width = entries[0]?.contentRect.width ?? element.clientWidth;
+      this.updateVisibleBindingCount(width);
+    });
+    this.bindingResizeObserver.observe(element);
+    this.destroyRef.onDestroy(() => this.bindingResizeObserver?.disconnect());
+  }
+
+  private updateVisibleBindingCount(width: number): void {
+    if (width >= 280) {
+      this.visibleBindingCount.set(3);
+      return;
+    }
+
+    if (width >= 190) {
+      this.visibleBindingCount.set(2);
+      return;
+    }
+
+    this.visibleBindingCount.set(1);
+  }
+
+  getVisibleBindings(item: ApiKeyOutputDto): ApiKeyBindingOutputDto[] {
+    return item.bindings?.slice(0, this.visibleBindingCount()) ?? [];
+  }
+
+  getHiddenBindings(item: ApiKeyOutputDto): ApiKeyBindingOutputDto[] {
+    return item.bindings?.slice(this.visibleBindingCount()) ?? [];
+  }
+
+  openBindingDetailsPopover(event: Event, popover: Popover, binding: ApiKeyBindingOutputDto) {
+    this.bindPopoverMode.set('details');
+    this.activeBindings.set([binding]);
+    popover.toggle(event);
+  }
+
+  openBindingSummaryPopover(event: Event, popover: Popover, bindings: ApiKeyBindingOutputDto[]) {
+    this.bindPopoverMode.set('summary');
+    this.activeBindings.set(bindings);
+    popover.toggle(event);
+  }
+
+  getBindingPopoverItems(): RelationPopoverItem[] {
+    if (this.bindPopoverMode() === 'details') {
+      return this.activeBindings().flatMap(binding => {
+        if (!binding.supportedRouteProfiles?.length) {
+          return [
+            {
+              id: `${binding.providerGroupId}-empty`,
+              leftText: binding.providerGroupName || '未知分组',
+              rightText: '空资源池',
+              isWarning: true
+            }
+          ];
+        }
+
+        return binding.supportedRouteProfiles.map(profile => ({
+          id: `${binding.providerGroupId}-${profile}`,
+          leftText: this.getRouteProfileLabel(profile),
+          rightText: this.getRouteProfilePath(profile)
+        }));
+      });
+    }
+
+    return this.activeBindings().map(binding => ({
+      id: binding.providerGroupId,
+      leftText: binding.providerGroupName || '未知分组',
+      rightText: this.getBindingRouteBadgeSummary(binding),
+      isWarning: !binding.supportedRouteProfiles?.length
+    }));
+  }
 
   private writeToClipboard(text: string): Promise<void> {
     if (navigator.clipboard?.writeText) {
       return navigator.clipboard.writeText(text);
     }
-    // Fallback for non-secure contexts
     const textarea = document.createElement('textarea');
     textarea.value = text;
     textarea.style.position = 'fixed';
@@ -142,6 +232,28 @@ export class SubscriptionTable {
     });
   }
 
+  getRouteProfilePath(profile: RouteProfile): string {
+    const fullLabel = this.getRouteProfileFullLabel(profile);
+    const match = /\(([^)]+)\)$/.exec(fullLabel);
+    return match?.[1] ?? fullLabel;
+  }
+
+  getBindingRouteBadgeSummary(binding: ApiKeyBindingOutputDto): string {
+    if (!binding.supportedRouteProfiles?.length) {
+      return '空资源池';
+    }
+
+    return binding.supportedRouteProfiles.map(profile => this.getRouteProfileLabel(profile)).join(' | ');
+  }
+
+  getRouteProfileLabel(profile: RouteProfile): string {
+    return ROUTE_PROFILE_LABELS[profile] || profile;
+  }
+
+  getRouteProfileFullLabel(profile: RouteProfile): string {
+    return ROUTE_PROFILE_FULL_LABELS[profile] || profile;
+  }
+
   getExpiryState(item: ApiKeyOutputDto): 'expired' | 'warning' | 'ok' | 'forever' {
     if (!item.expiresAt) return 'forever';
 
@@ -150,7 +262,7 @@ export class SubscriptionTable {
     const diff = expiry - now;
 
     if (diff <= 0) return 'expired';
-    if (diff < 3 * 24 * 3600 * 1000) return 'warning'; // Warning if < 3 days
+    if (diff < 3 * 24 * 3600 * 1000) return 'warning';
     return 'ok';
   }
 
@@ -159,13 +271,11 @@ export class SubscriptionTable {
   }
 
   confirmStatusToggle(event: Event, item: ApiKeyOutputDto) {
-    // 1. Check if expired
     if (this.getExpiryState(item) === 'expired') {
       this.openExpiryDialog(item);
       return;
     }
 
-    // 2. Normal toggle
     this.confirmationService.confirm({
       target: event.target as EventTarget,
       message: `确定要${item.isActive ? '禁用' : '启用'}该订阅吗？`,
@@ -180,7 +290,6 @@ export class SubscriptionTable {
 
   openExpiryDialog(item: ApiKeyOutputDto) {
     this.selectedItemForExpiry.set(item);
-    // Default to 1 month from now
     const date = new Date();
     date.setMonth(date.getMonth() + 1);
     this.newExpiryDate.set(date);
@@ -191,9 +300,7 @@ export class SubscriptionTable {
     const item = this.selectedItemForExpiry();
     const date = this.newExpiryDate();
     if (item && date) {
-      // Validate date > now
       if (date.getTime() <= new Date().getTime()) {
-        // Should show error, but for now just ignore or rely on minDate if set
         return;
       }
       this.updateExpiryAndEnable.emit({ id: item.id, date: date });

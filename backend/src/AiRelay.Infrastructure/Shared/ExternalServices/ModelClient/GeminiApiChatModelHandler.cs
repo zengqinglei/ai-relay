@@ -24,8 +24,8 @@ public class GeminiApiChatModelHandler(
     ILogger<GeminiApiChatModelHandler> logger)
     : GoogleInternalChatModelHandlerBase(options, httpClientFactory, signatureCache, logger)
 {
-    public override bool Supports(ProviderPlatform platform) =>
-        platform == ProviderPlatform.GEMINI_APIKEY;
+    public override bool Supports(Provider provider, AuthMethod authMethod) =>
+        provider == Provider.Gemini && authMethod == AuthMethod.ApiKey;
 
     protected override IReadOnlyList<IRequestProcessor> GetRequestProcessors(
         DownRequestContext down, int degradationLevel)
@@ -93,7 +93,7 @@ public class GeminiApiChatModelHandler(
         }
 
         // 优先级 2: 第一条消息内容
-        if (down.ExtractedProps.TryGetValue("messages[0].content", out var text) && !string.IsNullOrWhiteSpace(text))
+        if (down.ExtractedProps.TryGetValue("session_fingerprint_text", out var text) && !string.IsNullOrWhiteSpace(text))
         {
             down.SessionId = GenerateSessionHashWithContext(text, down, apiKeyId);
             return;

@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 using AiRelay.Domain.ApiKeys.Entities;
-using AiRelay.Domain.ProviderAccounts.ValueObjects;
+using AiRelay.Domain.ApiKeys.Repositories;
 using AiRelay.Domain.Shared.Security.Aes;
 using Leistd.Ddd.Domain.Repositories;
 using Leistd.Exception.Core;
@@ -12,7 +12,7 @@ namespace AiRelay.Domain.ApiKeys.DomainServices;
 /// ApiKey 领域服务
 /// </summary>
 public class ApiKeyDomainService(
-    IRepository<ApiKey, Guid> apiKeyRepository,
+    IApiKeyRepository apiKeyRepository,
     IRepository<ApiKeyProviderGroupBinding, Guid> bindingRepository,
     IAesEncryptionProvider aesEncryptionProvider,
     ILogger<ApiKeyDomainService> logger)
@@ -25,7 +25,7 @@ public class ApiKeyDomainService(
         string? description,
         string? customSecret,
         DateTime? expiresAt,
-        List<(ProviderPlatform Platform, Guid GroupId)> bindings,
+        List<(int Priority, Guid GroupId)> bindings,
         CancellationToken cancellationToken = default)
     {
         // 1. 唯一性校验（名称）
@@ -71,7 +71,7 @@ public class ApiKeyDomainService(
         string? name,
         string? description,
         DateTime? expiresAt,
-        List<(ProviderPlatform Platform, Guid GroupId)> bindings,
+        List<(int Priority, Guid GroupId)> bindings,
         CancellationToken cancellationToken = default)
     {
         // 如果名称变更，检查唯一性
@@ -86,13 +86,14 @@ public class ApiKeyDomainService(
         apiKey.Update(name ?? apiKey.Name, description);
         apiKey.UpdateExpiration(expiresAt);
 
-        // 绑定全量更新
+        // 先保存主体，避免与绑定删除/插入混入同一 SaveChanges 批次引发并发异常
+        await apiKeyRepository.UpdateAsync(apiKey, cancellationToken: cancellationToken);
+
+        // 绑定全量更新（独立 SaveChanges）
         if (bindings != null)
         {
             await UpdateBindingsAsync(apiKey, bindings, cancellationToken);
         }
-
-        await apiKeyRepository.UpdateAsync(apiKey, cancellationToken: cancellationToken);
     }
 
     /// <summary>
@@ -100,17 +101,11 @@ public class ApiKeyDomainService(
     /// </summary>
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var apiKey = await apiKeyRepository.GetByIdAsync(id, cancellationToken);
+        // 仅需加载 Bindings，供删除场景使用
+        var apiKey = await apiKeyRepository.GetWithBindingsAsync(id, cancellationToken);
         if (apiKey == null)
         {
             throw new BadRequestException($"API Key 不存在: {id}");
-        }
-
-        // 级联软删除绑定关系
-        var bindings = await bindingRepository.GetListAsync(b => b.ApiKeyId == id, cancellationToken);
-        if (bindings.Any())
-        {
-            await bindingRepository.DeleteManyAsync(bindings, cancellationToken);
         }
 
         await apiKeyRepository.DeleteAsync(apiKey, cancellationToken: cancellationToken);
@@ -221,84 +216,60 @@ public class ApiKeyDomainService(
     /// </summary>
     private async Task AddBindingsAsync(
         ApiKey apiKey,
-        List<(ProviderPlatform Platform, Guid GroupId)> bindings)
+        List<(int Priority, Guid GroupId)> bindings)
     {
         if (bindings == null || !bindings.Any())
             return;
 
-        // 校验平台唯一性
-        var duplicatePlatforms = bindings
-            .GroupBy(b => b.Platform)
+        // 校验分组唯一性
+        var duplicateGroups = bindings
+            .GroupBy(b => b.GroupId)
             .Where(g => g.Count() > 1)
             .Select(g => g.Key)
             .ToList();
 
-        if (duplicatePlatforms.Any())
+        if (duplicateGroups.Any())
         {
-            throw new BadRequestException($"每个平台只能绑定一个分组。重复平台: {string.Join(", ", duplicatePlatforms)}");
+            throw new BadRequestException("在同一层级池中绑定了重复的分组。");
         }
 
         foreach (var binding in bindings)
         {
-            apiKey.Bindings.Add(new ApiKeyProviderGroupBinding(apiKey.Id, binding.Platform, binding.GroupId));
+            apiKey.Bindings.Add(new ApiKeyProviderGroupBinding(apiKey.Id, binding.Priority, binding.GroupId));
         }
     }
 
-    /// <summary>
-    /// 更新绑定关系
-    /// </summary>
     private async Task UpdateBindingsAsync(
         ApiKey apiKey,
-        List<(ProviderPlatform Platform, Guid GroupId)> bindings,
+        List<(int Priority, Guid GroupId)> bindings,
         CancellationToken cancellationToken)
     {
-        // 校验平台唯一性
-        var duplicatePlatforms = bindings
-            .GroupBy(b => b.Platform)
+        // 校验分组唯一性
+        var duplicateGroups = bindings
+            .GroupBy(b => b.GroupId)
             .Where(g => g.Count() > 1)
             .Select(g => g.Key)
             .ToList();
 
-        if (duplicatePlatforms.Any())
+        if (duplicateGroups.Any())
         {
-            throw new BadRequestException($"每个平台只能绑定一个分组。重复平台: {string.Join(", ", duplicatePlatforms)}");
+            throw new BadRequestException("在同一层级池中绑定了重复的分组。");
         }
 
-        // 1. 找出需要删除的绑定 (只需检查 Platform)
-        var bindingsToRemove = apiKey.Bindings
-            .Where(existing =>
-                !bindings.Any(newBinding => newBinding.Platform == existing.Platform))
-            .ToList();
-
-        if (bindingsToRemove.Any())
+        // 1. 删除旧绑定（显式操作，独立于主体 SaveChanges）
+        var existing = apiKey.Bindings.ToList();
+        if (existing.Any())
         {
-            await bindingRepository.DeleteManyAsync(bindingsToRemove, cancellationToken);
-            foreach (var binding in bindingsToRemove)
-            {
-                apiKey.Bindings.Remove(binding);
-            }
+            await bindingRepository.DeleteManyAsync(existing, cancellationToken);
+            apiKey.Bindings.Clear();
         }
 
-        // 2. 找出需要添加或更新的绑定
-        foreach (var (platform, groupId) in bindings)
+        // 2. 插入新绑定
+        foreach (var (priority, groupId) in bindings)
         {
-            var existingBinding = apiKey.Bindings.FirstOrDefault(b => b.Platform == platform);
-            if (existingBinding != null)
-            {
-                // 如果已存在该平台的绑定，检查是否需要更新分组
-                if (existingBinding.ProviderGroupId != groupId)
-                {
-                    existingBinding.UpdateGroup(groupId);
-                }
-            }
-            else
-            {
-                // 添加新绑定
-                var newBinding = new ApiKeyProviderGroupBinding(apiKey.Id, platform, groupId);
-                apiKey.Bindings.Add(newBinding);
-                // 显式插入以确保 EF Core 将其标记为 Added，防止带有初值的 Guid 被误认为是已存在的数据
-                await bindingRepository.InsertAsync(newBinding, cancellationToken);
-            }
+            var newBinding = new ApiKeyProviderGroupBinding(apiKey.Id, priority, groupId);
+            apiKey.Bindings.Add(newBinding);
+            await bindingRepository.InsertAsync(newBinding, cancellationToken);
         }
     }
 }

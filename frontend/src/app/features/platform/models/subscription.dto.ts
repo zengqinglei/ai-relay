@@ -1,11 +1,11 @@
 import { PagedRequestDto } from '../../../shared/models/paged-request.dto';
-import { ProviderPlatform } from '../../../shared/models/provider-platform.enum';
+import { RouteProfile } from '../../../shared/models/route-profile.enum';
 
 /**
- * ApiKey 绑定分组输入 DTO
+ * ApiKey 绑定分组输入 DTO — 维度改为 RouteProfile
  */
 export interface ApiKeyBindGroupInputDto {
-  platform: ProviderPlatform;
+  priority: number;
   providerGroupId: string;
 }
 
@@ -14,10 +14,11 @@ export interface ApiKeyBindGroupInputDto {
  */
 export interface ApiKeyBindingOutputDto {
   id?: string;
-  platform: ProviderPlatform;
+  priority: number;
   providerGroupId: string;
   providerGroupName: string;
   creationTime: string;
+  supportedRouteProfiles: RouteProfile[];
 }
 
 /**
@@ -40,7 +41,7 @@ export type CreateSubscriptionInputDto = CreateApiKeyInputDto;
  * 更新 ApiKey 输入 DTO
  */
 export interface UpdateApiKeyInputDto {
-  name?: string; // Update logic might allow name change? If not, optional or remove
+  name?: string;
   description?: string;
   expiresAt?: string;
   bindings: ApiKeyBindGroupInputDto[];

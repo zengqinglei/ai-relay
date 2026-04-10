@@ -4,5 +4,5 @@ namespace AiRelay.Application.ProviderAccounts.Dtos;
 
 public class GetAuthUrlInputDto
 {
-    public ProviderPlatform Platform { get; set; }
+    public Provider Provider { get; set; }
 }

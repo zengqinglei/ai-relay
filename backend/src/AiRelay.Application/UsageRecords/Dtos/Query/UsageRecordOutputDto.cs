@@ -16,8 +16,11 @@ public class UsageRecordOutputDto
     /// <summary>API KEY 名称</summary>
     public string ApiKeyName { get; set; } = string.Empty;
 
-    /// <summary>平台类型</summary>
-    public ProviderPlatform Platform { get; set; }
+    /// <summary>会话ID</summary>
+    public string? SessionId { get; set; }
+
+    /// <summary>供应商</summary>
+    public Provider? Provider { get; set; }
 
     /// <summary>下游请求模型ID</summary>
     public string? DownModelId { get; set; }
@@ -80,4 +83,7 @@ public class UsageRecordOutputDto
 
     /// <summary>返回给下游客户端的 HTTP 状态码</summary>
     public int? DownStatusCode { get; set; }
+
+    /// <summary>认证方式（取最新 Attempt）</summary>
+    public AuthMethod? AuthMethod { get; set; }
 }

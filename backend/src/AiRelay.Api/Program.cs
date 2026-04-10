@@ -229,33 +229,26 @@ try
     var proxyHandler = (HttpContext context) =>
         context.RequestServices.GetRequiredService<SmartReverseProxyMiddleware>().InvokeAsync(context);
 
-    app.Map("/gemini/{**catch-all}", proxyHandler)
-       .WithMetadata(new PlatformMetadata(ProviderPlatform.GEMINI_OAUTH))
-       .RequireAuthorization(AuthorizationPolicies.AiProxyPolicy);
+    // Unified Routing based on RouteProfile definitions
+    foreach (var profile in RouteProfileRegistry.Profiles)
+    {
+        // 允许带和不带后续路径
+        // 对于包含冒号分隔符的路径（如 /v1internal），使用冒号连接 catch-all
+        // 对于普通路径，使用斜杠连接 catch-all
+        string routePattern;
+        if (profile.Value.PathPrefix.Contains(':'))
+        {
+            routePattern = $"{profile.Value.PathPrefix}:{{**catch-all}}";
+        }
+        else
+        {
+            routePattern = $"{profile.Value.PathPrefix}/{{**catch-all}}";
+        }
 
-    app.Map("/gemini-api/{**catch-all}", proxyHandler)
-       .WithMetadata(new PlatformMetadata(ProviderPlatform.GEMINI_APIKEY))
-       .RequireAuthorization(AuthorizationPolicies.AiProxyPolicy);
-
-    app.Map("/claude/{**catch-all}", proxyHandler)
-       .WithMetadata(new PlatformMetadata(ProviderPlatform.CLAUDE_OAUTH))
-       .RequireAuthorization(AuthorizationPolicies.AiProxyPolicy);
-
-    app.Map("/claude-api/{**catch-all}", proxyHandler)
-       .WithMetadata(new PlatformMetadata(ProviderPlatform.CLAUDE_APIKEY))
-       .RequireAuthorization(AuthorizationPolicies.AiProxyPolicy);
-
-    app.Map("/openai/{**catch-all}", proxyHandler)
-       .WithMetadata(new PlatformMetadata(ProviderPlatform.OPENAI_OAUTH))
-       .RequireAuthorization(AuthorizationPolicies.AiProxyPolicy);
-
-    app.Map("/openai-api/{**catch-all}", proxyHandler)
-       .WithMetadata(new PlatformMetadata(ProviderPlatform.OPENAI_APIKEY))
-       .RequireAuthorization(AuthorizationPolicies.AiProxyPolicy);
-
-    app.Map("/antigravity/{**catch-all}", proxyHandler)
-       .WithMetadata(new PlatformMetadata(ProviderPlatform.ANTIGRAVITY))
-       .RequireAuthorization(AuthorizationPolicies.AiProxyPolicy);
+        app.Map(routePattern, proxyHandler)
+            .WithMetadata(new PlatformMetadata(profile.Key))
+            .RequireAuthorization(AuthorizationPolicies.AiProxyPolicy);
+    }
 
     // 兜底路由，指向前端的 index.html (SPA 支持)
     app.MapFallbackToFile("index.html");

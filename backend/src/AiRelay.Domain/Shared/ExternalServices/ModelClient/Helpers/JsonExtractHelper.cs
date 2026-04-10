@@ -5,7 +5,7 @@ namespace AiRelay.Domain.Shared.ExternalServices.ModelClient.Helpers;
 
 public static partial class JsonExtractHelper
 {
-    [GeneratedRegex(@"\.gemini/tmp/([A-Fa-f0-9]{64})", RegexOptions.Compiled)]
+    [GeneratedRegex(@"\.gemini[/\\]tmp[/\\]([A-Fa-f0-9]{64})", RegexOptions.Compiled)]
     private static partial Regex GeminiCliTmpDirRegex();
 
     /// <summary>
@@ -61,6 +61,9 @@ public static partial class JsonExtractHelper
                 // user role count for PromptIndex (Gemini ExtractPromptIndex)
                 int userRoleCount = 0;
                 int systemTextIdx = 0;
+                bool isNextUserContent = false;
+                bool hasSetFingerprint = false;
+                bool hasSavedDefault = false;
 
                 // Gemini CLI prompt detection: track if we're inside systemInstruction
                 bool insideSystemInstruction = false;
@@ -147,11 +150,21 @@ public static partial class JsonExtractHelper
                                         : GetRawString(reader);
                                 }
                             }
-                            else if (currentTopLevelPropName == "messages" && currentPropName == "content")
+                            else if ((currentTopLevelPropName is "messages" or "contents" or "input") && (currentPropName is "content" or "text"))
                             {
-                                if (!result.ContainsKey("messages[0].content") && reader.TokenType == JsonTokenType.String)
+                                if (!hasSetFingerprint && reader.TokenType == JsonTokenType.String)
                                 {
-                                    result["messages[0].content"] = reader.GetString()!;
+                                    var contentValue = reader.GetString()!;
+                                    if (isNextUserContent)
+                                    {
+                                        result["session_fingerprint_text"] = contentValue;
+                                        hasSetFingerprint = true; // 锁定 User 内容
+                                    }
+                                    else if (!hasSavedDefault)
+                                    {
+                                        result["session_fingerprint_text"] = contentValue;
+                                        hasSavedDefault = true; // 暂存第一条内容做保底
+                                    }
                                 }
                             }
                             else if (currentTopLevelPropName == "metadata" && currentPropName == "user_id")
@@ -168,19 +181,13 @@ public static partial class JsonExtractHelper
                                     result["stream_options.include_usage"] = "true";
                                 }
                             }
-                            else if (currentTopLevelPropName == "contents" && currentPropName == "text")
-                            {
-                                if (!result.ContainsKey("messages[0].content") && reader.TokenType == JsonTokenType.String)
-                                {
-                                    result["messages[0].content"] = reader.GetString()!;
-                                }
-                            }
-                            // Count user roles in contents[]/messages[] for PromptIndex
-                            else if ((currentTopLevelPropName is "contents" or "messages") && currentPropName == "role"
+                            // Count user roles in contents[]/messages[]/input[] for PromptIndex
+                            else if ((currentTopLevelPropName is "contents" or "messages" or "input") && currentPropName == "role"
                                      && depth == 3 && reader.TokenType == JsonTokenType.String
                                      && reader.ValueTextEquals("user"u8))
                             {
                                 userRoleCount++;
+                                isNextUserContent = true;
                             }
                             else if (currentTopLevelPropName == "request" && currentPropName == "session_id")
                             {
@@ -220,8 +227,8 @@ public static partial class JsonExtractHelper
                             if (reader.TokenType == JsonTokenType.String && !result.ContainsKey("gemini_cli_tmp_hash"))
                             {
                                 var valSpan = reader.ValueSpan;
-                                // 查找 ".gemini/tmp/"，SIMD 加速的 Span<byte> IndexOf
-                                if (valSpan.IndexOf(".gemini/tmp/"u8) >= 0)
+                                // 查找 ".gemini" 关键字，支持 Windows (\) 和 Linux (/) 路径
+                                if (valSpan.IndexOf(".gemini"u8) >= 0)
                                 {
                                     var strVal = reader.GetString();
                                     if (strVal != null)

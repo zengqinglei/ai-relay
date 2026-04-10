@@ -5,7 +5,7 @@ import { Observable } from 'rxjs';
 import { AuthService } from '../../../core/services/auth-service';
 import { NativeFetchService } from '../../../core/services/native-fetch-service';
 import { PagedResultDto } from '../../../shared/models/paged-result.dto';
-import { ProviderPlatform } from '../../../shared/models/provider-platform.enum';
+import { Provider } from '../../../shared/models/provider.enum';
 import {
   CreateAccountTokenInputDto,
   GetAccountTokenPagedInputDto,
@@ -28,7 +28,8 @@ export class AccountTokenService {
   getAccounts(params?: GetAccountTokenPagedInputDto): Observable<PagedResultDto<AccountTokenOutputDto>> {
     let httpParams = new HttpParams();
     if (params?.keyword) httpParams = httpParams.set('keyword', params.keyword);
-    if (params?.platform) httpParams = httpParams.set('platform', params.platform);
+    if (params?.provider) httpParams = httpParams.set('provider', params.provider);
+    if (params?.authMethod) httpParams = httpParams.set('authMethod', params.authMethod);
     if (params?.isActive !== undefined) httpParams = httpParams.set('isActive', params.isActive.toString());
     if (params?.offset !== undefined) httpParams = httpParams.set('offset', params.offset.toString());
     if (params?.limit !== undefined) httpParams = httpParams.set('limit', params.limit.toString());
@@ -78,16 +79,16 @@ export class AccountTokenService {
   }
 
   // OAuth Methods
-  getAuthUrl(platform: ProviderPlatform): Observable<{ authUrl: string; sessionId: string }> {
+  getAuthUrl(provider: Provider): Observable<{ authUrl: string; sessionId: string }> {
     return this.http.get<{ authUrl: string; sessionId: string }>(`${this.baseUrl}/oauth-url`, {
-      params: { platform }
+      params: { provider }
     });
   }
 
   // Debug Methods
 
-  getAvailableModels(platform: ProviderPlatform, accountId?: string): Observable<ModelOptionOutputDto[]> {
-    return this.http.get<ModelOptionOutputDto[]>(`${this.baseUrl}/platform/${platform}/models`, {
+  getAvailableModels(provider: Provider, accountId?: string): Observable<ModelOptionOutputDto[]> {
+    return this.http.get<ModelOptionOutputDto[]>(`${this.baseUrl}/provider/${provider}/models`, {
       ...(accountId && { params: { accountId } })
     });
   }

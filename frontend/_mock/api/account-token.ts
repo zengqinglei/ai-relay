@@ -1,6 +1,7 @@
 import { AccountStatus } from '../../src/app/features/platform/models/account-token.dto';
 import { PagedResultDto } from '../../src/app/shared/models/paged-result.dto';
-import { ProviderPlatform } from '../../src/app/shared/models/provider-platform.enum';
+import { AuthMethod } from '../../src/app/shared/models/auth-method.enum';
+import { Provider } from '../../src/app/shared/models/provider.enum';
 import { MockRequest, MockException } from '../core/models';
 import { SSE_MOCK_REGISTRY } from '../core/sse-mock-registry';
 import { ACCOUNT_TOKENS, AVAILABLE_MODELS, MOCK_CHAT_STREAM_CHUNKS } from '../data/account-token';
@@ -15,7 +16,7 @@ function maskToken(token: string | undefined): string {
 
 // Helper to simulate detail fields
 function enrichAccount(account: any) {
-  const isOAuth = ['GEMINI_OAUTH', 'ANTIGRAVITY', 'CLAUDE_OAUTH', 'OPENAI_OAUTH'].includes(account.platform);
+  const isOAuth = account.authMethod === AuthMethod.OAuth;
   if (isOAuth) {
     return {
       ...account,
@@ -26,7 +27,7 @@ function enrichAccount(account: any) {
 }
 
 function getAccounts(req: MockRequest) {
-  const { keyword, platform, isActive, offset = 0, limit = 10 } = req.queryParams;
+  const { keyword, provider, authMethod, isActive, offset = 0, limit = 10 } = req.queryParams;
 
   let items = accounts.map(enrichAccount);
 
@@ -35,9 +36,14 @@ function getAccounts(req: MockRequest) {
     items = items.filter(a => a.name.toLowerCase().includes(query));
   }
 
-  if (platform) {
-    const targetPlatform = String(platform).trim();
-    items = items.filter(a => String(a.platform) === targetPlatform);
+  if (provider) {
+    const targetProvider = String(provider).trim();
+    items = items.filter(a => String(a.provider) === targetProvider);
+  }
+
+  if (authMethod) {
+    const targetAuthMethod = String(authMethod).trim();
+    items = items.filter(a => String(a.authMethod) === targetAuthMethod);
   }
 
   if (isActive !== undefined && isActive !== null && isActive !== '') {
@@ -64,22 +70,22 @@ function getAccount(req: MockRequest) {
 }
 
 // Helper to simulate token exchange (internal use)
-function simulateTokenExchange(platform: string) {
-  const platformUpper = String(platform || 'unknown').toUpperCase();
+function simulateTokenExchange(provider: string) {
+  const providerStr = String(provider || 'unknown');
   const accessToken = `mock_access_token_${Date.now()}`;
-  const refreshToken = `mock_refresh_token_for_${platformUpper}_${Date.now()}`;
+  const refreshToken = `mock_refresh_token_for_${providerStr}_${Date.now()}`;
   const expiresIn = 3600;
   const email = 'mock-user@example.com';
   let scope = 'https://www.googleapis.com/auth/cloud-platform';
   let extra = {};
 
-  if (platformUpper === 'CLAUDE_OAUTH') {
+  if (providerStr === 'Claude') {
     scope = 'org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers';
     extra = {
       organization: { uuid: 'mock-org-uuid' },
       account: { uuid: 'mock-account-uuid', email_address: email }
     };
-  } else if (platformUpper === 'OPENAI_OAUTH') {
+  } else if (providerStr === 'OpenAI') {
     scope = 'openid profile email offline_access';
     extra = {
       id_token: 'mock_id_token_jwt',
@@ -105,7 +111,7 @@ function createAccount(req: MockRequest) {
 
   if (body.authCode) {
     console.log('[Mock] Auto-exchanging code for new account:', body.authCode);
-    const tokenInfo = simulateTokenExchange(body.platform);
+    const tokenInfo = simulateTokenExchange(body.provider);
     credential = tokenInfo.fullToken;
     expiresIn = tokenInfo.expiresIn;
   }
@@ -145,7 +151,7 @@ function updateAccount(req: MockRequest) {
 
   if (body.authCode) {
     console.log('[Mock] Auto-exchanging code for account update:', body.authCode);
-    const tokenInfo = simulateTokenExchange(accounts[index].platform);
+    const tokenInfo = simulateTokenExchange(accounts[index].provider);
     credential = tokenInfo.fullToken;
     expiresIn = tokenInfo.expiresIn;
   }
@@ -198,14 +204,13 @@ function resetStatus(req: MockRequest) {
 }
 
 function getOAuthUrl(req: MockRequest) {
-  const { platform } = req.queryParams;
-  console.log('[Mock] Generate Auth URL for:', platform);
+  const { provider } = req.queryParams;
+  console.log('[Mock] Generate Auth URL for:', provider);
 
   const sessionId = crypto.randomUUID();
   let authUrl = '';
 
-  if (String(platform).toUpperCase() === 'ANTIGRAVITY') {
-    // Antigravity OAuth Configuration
+  if (String(provider) === 'Antigravity') {
     const clientId = '1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com';
     const redirectUri = 'http://localhost:8085/callback';
     const scopes = [
@@ -230,8 +235,7 @@ function getOAuthUrl(req: MockRequest) {
     });
 
     authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-  } else if (String(platform).toUpperCase() === 'CLAUDE_OAUTH') {
-    // Claude OAuth Configuration
+  } else if (String(provider) === 'Claude') {
     const clientId = '9d1c250a-e61b-44d9-88ed-5944d1962f5e';
     const redirectUri = 'https://platform.claude.com/oauth/code/callback';
     const scopes = 'org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers';
@@ -248,10 +252,9 @@ function getOAuthUrl(req: MockRequest) {
     });
 
     authUrl = `https://claude.ai/oauth/authorize?${params.toString()}`;
-  } else if (String(platform).toUpperCase() === 'OPENAI_OAUTH') {
-    // OpenAI OAuth Configuration
+  } else if (String(provider) === 'OpenAI') {
     const clientId = 'app_EMoamEEZ73f0CkXaXp7hrann';
-    const redirectUri = 'http://localhost:1455/auth/callback'; // Default Mock Redirect URI
+    const redirectUri = 'http://localhost:1455/auth/callback';
     const scopes = 'openid profile email offline_access';
 
     const params = new URLSearchParams({
@@ -262,14 +265,13 @@ function getOAuthUrl(req: MockRequest) {
       state: `mock_state_${Date.now()}`,
       code_challenge: 'mock_code_challenge_string_for_pkce_very_long_string_123',
       code_challenge_method: 'S256',
-      // OpenAI specific parameters
       id_token_add_organizations: 'true',
       codex_cli_simplified_flow: 'true'
     });
 
     authUrl = `https://auth.openai.com/oauth/authorize?${params.toString()}`;
   } else {
-    // Default to Gemini (Code Assist) OAuth Configuration
+    // Default to Gemini OAuth
     const clientId = '681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com';
     const redirectUri = 'https://codeassist.google.com/authcode';
     const scopes = [
@@ -287,7 +289,7 @@ function getOAuthUrl(req: MockRequest) {
       prompt: 'consent',
       include_granted_scopes: 'true',
       state: `mock_state_${Date.now()}`,
-      code_challenge: 'mock_code_challenge_string_for_pkce_very_long_string_123', // Mock PKCE challenge (must be long enough)
+      code_challenge: 'mock_code_challenge_string_for_pkce_very_long_string_123',
       code_challenge_method: 'S256'
     });
 
@@ -303,22 +305,19 @@ function getOAuthUrl(req: MockRequest) {
 /**
  * POST /api/v1/account-tokens/:id/model-test
  * 账户令牌模型测试（SSE 流式响应）
- *
- * 由于 SSE 端点使用原生 fetch() API，无法被 Angular HTTP 拦截器拦截，
- * 因此在 SSE_MOCK_REGISTRY 中注册 mock handler。
  */
 SSE_MOCK_REGISTRY.register('POST', /\/api\/v1\/account-tokens\/[^/]+\/model-test$/, (body?: unknown) => {
   console.log('[SSE Mock] Account token model test:', body);
   return MOCK_CHAT_STREAM_CHUNKS;
 });
 
-function getAvailableModelsForPlatform(req: MockRequest) {
-  const platform = req.params['platform'] as ProviderPlatform;
+function getAvailableModelsForProvider(req: MockRequest) {
+  const provider = req.params['provider'] as Provider;
   const accountId = req.params['accountId'] as string | undefined;
 
   // 无 accountId → 返回静态列表
   if (!accountId) {
-    return AVAILABLE_MODELS[platform] ?? [];
+    return AVAILABLE_MODELS[provider] ?? [];
   }
 
   // 有 accountId → 模拟上游拉取
@@ -328,23 +327,23 @@ function getAvailableModelsForPlatform(req: MockRequest) {
   }
 
   // 模拟上游拉取：ApiKey 类账户返回扩展列表，OAuth 类返回静态
-  if (platform === ProviderPlatform.CLAUDE_APIKEY) {
-    return [...(AVAILABLE_MODELS[platform] ?? []), { label: 'Claude Opus 4.7 (Upstream)', value: 'claude-opus-4-7-preview' }];
+  if (account.provider === Provider.Claude && account.authMethod === AuthMethod.ApiKey) {
+    return [...(AVAILABLE_MODELS[provider] ?? []), { label: 'Claude Opus 4.7 (Upstream)', value: 'claude-opus-4-7-preview' }];
   }
 
-  if (platform === ProviderPlatform.GEMINI_APIKEY) {
-    return [...(AVAILABLE_MODELS[platform] ?? []), { label: 'Gemini 3.2 Flash (Upstream)', value: 'gemini-3.2-flash-preview' }];
+  if (account.provider === Provider.Gemini && account.authMethod === AuthMethod.ApiKey) {
+    return [...(AVAILABLE_MODELS[provider] ?? []), { label: 'Gemini 3.2 Flash (Upstream)', value: 'gemini-3.2-flash-preview' }];
   }
 
   // OAuth 类降级静态
-  return AVAILABLE_MODELS[platform] ?? [];
+  return AVAILABLE_MODELS[provider] ?? [];
 }
 
 export const ACCOUNT_TOKEN_API = {
   'GET /api/v1/account-tokens': (req: MockRequest) => getAccounts(req),
   'GET /api/v1/account-tokens/oauth-url': (req: MockRequest) => getOAuthUrl(req),
   'GET /api/v1/account-tokens/:id': (req: MockRequest) => getAccount(req),
-  'GET /api/v1/account-tokens/platform/:platform/models': (req: MockRequest) => getAvailableModelsForPlatform(req),
+  'GET /api/v1/account-tokens/provider/:provider/models': (req: MockRequest) => getAvailableModelsForProvider(req),
   'POST /api/v1/account-tokens': (req: MockRequest) => createAccount(req),
   'PUT /api/v1/account-tokens/:id': (req: MockRequest) => updateAccount(req),
   'DELETE /api/v1/account-tokens/:id': (req: MockRequest) => deleteAccount(req),

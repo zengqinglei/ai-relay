@@ -6,7 +6,9 @@ namespace AiRelay.Domain.ProviderAccounts.Entities;
 
 public class AccountToken : DeletionAuditedEntity<Guid>
 {
-    public ProviderPlatform Platform { get; private set; }
+    public Provider Provider { get; private set; }
+
+    public AuthMethod AuthMethod { get; private set; }
 
     public string Name { get; private set; } = null!;
 
@@ -138,7 +140,8 @@ public class AccountToken : DeletionAuditedEntity<Guid>
     }
 
     public AccountToken(
-        ProviderPlatform platform,
+        Provider provider,
+        AuthMethod authMethod,
         string name,
         int maxConcurrency,
         string? accessToken = null,
@@ -153,7 +156,8 @@ public class AccountToken : DeletionAuditedEntity<Guid>
         bool isCheckStreamHealth = false)
     {
         Id = Guid.CreateVersion7();
-        Platform = platform;
+        Provider = provider;
+        AuthMethod = authMethod;
         Name = name;
         MaxConcurrency = maxConcurrency;
         AccessToken = accessToken;

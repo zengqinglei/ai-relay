@@ -18,9 +18,14 @@ public class AccountTokenOutputDto
     public string Name { get; init; } = string.Empty;
 
     /// <summary>
-    /// 平台类型
+    /// 提供商
     /// </summary>
-    public ProviderPlatform Platform { get; init; }
+    public Provider Provider { get; init; }
+
+    /// <summary>
+    /// 认证方式
+    /// </summary>
+    public AuthMethod AuthMethod { get; init; }
 
     /// <summary>
     /// 额外属性

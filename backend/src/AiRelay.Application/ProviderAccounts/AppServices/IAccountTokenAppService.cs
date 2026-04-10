@@ -16,10 +16,10 @@ public interface IAccountTokenAppService : IAppService
     /// <summary>
     /// 获取指定平台的可用模型列表
     /// </summary>
-    /// <param name="platform">平台类型</param>
+    /// <param name="provider">提供商</param>
     /// <param name="accountId">可选：账户ID（提供时尝试上游拉取）</param>
     Task<IReadOnlyList<ModelOptionOutputDto>> GetAvailableModelsAsync(
-        ProviderPlatform platform,
+        Provider provider,
         Guid? accountId = null,
         CancellationToken cancellationToken = default);
 

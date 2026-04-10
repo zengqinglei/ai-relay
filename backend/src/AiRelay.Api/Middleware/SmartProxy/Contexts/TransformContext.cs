@@ -10,7 +10,7 @@ public class TransformContext
 {
     // 业务标识
     public Guid RequestId { get; init; }
-    public ProviderPlatform Platform { get; init; }
+    public RouteProfile RouteProfile { get; init; }
     public Guid ApiKeyId { get; init; }
     public string ApiKeyName { get; init; } = string.Empty;
     public Guid AccountTokenId { get; init; }

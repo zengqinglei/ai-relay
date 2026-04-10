@@ -12,14 +12,15 @@ import { SelectModule } from 'primeng/select';
 import { TableLazyLoadEvent, TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
+import { AuthMethod } from '../../../../shared/models/auth-method.enum';
 import { Subject } from 'rxjs';
 import { debounceTime, finalize } from 'rxjs/operators';
 
 import { UsageRecordDetailDialog } from './usage-record-detail-dialog';
 import { LayoutService } from '../../../../layout/services/layout-service';
-import { PROVIDER_PLATFORM_LABELS } from '../../../../shared/constants/provider-platform.constants';
+import { PROVIDER_OPTIONS } from '../../../../shared/constants/provider.constants';
 import { PagedResultDto } from '../../../../shared/models/paged-result.dto';
-import { ProviderPlatform } from '../../../../shared/models/provider-platform.enum';
+import { Provider } from '../../../../shared/models/provider.enum';
 import { UsageStatus } from '../../../../shared/models/usage-status.enum';
 import { HttpStatusSeverityPipe } from '../../../../shared/pipes/http-status-severity.pipe';
 import { FilterStateService } from '../../../../shared/services/filter-state.service';
@@ -28,6 +29,8 @@ import { ProviderGroupOutputDto } from '../../models/provider-group.dto';
 import { UsageRecordOutputDto, UsageRecordPagedInputDto } from '../../models/usage.dto';
 import { ProviderGroupService } from '../../services/provider-group-service';
 import { UsageRecordService } from '../../services/usage-record-service';
+import { ProviderLabelPipe } from '../../../../shared/pipes/platform-label-pipe';
+import { AuthMethodLabelPipe } from '../../../../shared/pipes/auth-method-label.pipe';
 
 @Component({
   selector: 'app-usage-records',
@@ -46,7 +49,9 @@ import { UsageRecordService } from '../../services/usage-record-service';
     InputIconModule,
     PaginatorModule,
     UsageRecordDetailDialog,
-    HttpStatusSeverityPipe
+    HttpStatusSeverityPipe,
+    ProviderLabelPipe,
+    AuthMethodLabelPipe
   ],
   templateUrl: './usage-records.html',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -69,17 +74,23 @@ export class UsageRecords implements OnInit {
   // Filter Options
   groups = signal<ProviderGroupOutputDto[]>([]);
 
-  platforms = Object.values(ProviderPlatform).map(value => ({
-    label: PROVIDER_PLATFORM_LABELS[value],
-    value: value
+  providers = Object.values(PROVIDER_OPTIONS).map(p => ({
+    label: p.label,
+    value: p.value
   }));
+
+  authMethodOptions = [
+    { label: 'OAuth', value: AuthMethod.OAuth },
+    { label: 'API Key', value: AuthMethod.ApiKey }
+  ];
 
   // Filters
   filterApiKeyName = signal<string>('');
   filterModel = signal<string>('');
   filterAccountTokenName = signal<string>('');
   filterProviderGroupId = signal<string | null>(null);
-  filterPlatform = signal<ProviderPlatform | null>(null);
+  filterProvider = signal<Provider | null>(null);
+  filterAuthMethod = signal<AuthMethod | null>(null);
   filterStartTime = signal<Date | null>(null);
   filterEndTime = signal<Date | null>(null);
 
@@ -97,8 +108,8 @@ export class UsageRecords implements OnInit {
     this.layoutService.title.set('使用记录');
     this.loadFilterOptions();
 
-    const saved = this.filterStateService.load<{ platform: ProviderPlatform | null; providerGroupId: string | null }>(this.FILTER_KEY);
-    if (saved.platform !== undefined) this.filterPlatform.set(saved.platform ?? null);
+    const saved = this.filterStateService.load<{ provider: Provider | null; providerGroupId: string | null }>(this.FILTER_KEY);
+    if (saved.provider !== undefined) this.filterProvider.set(saved.provider ?? null);
     if (saved.providerGroupId !== undefined) this.filterProviderGroupId.set(saved.providerGroupId ?? null);
 
     this.textFilterSubject.pipe(debounceTime(300), takeUntilDestroyed(this.destroyRef)).subscribe(() => {
@@ -113,7 +124,7 @@ export class UsageRecords implements OnInit {
 
   onSelectFilterChange() {
     this.filterStateService.save(this.FILTER_KEY, {
-      platform: this.filterPlatform(),
+      provider: this.filterProvider(),
       providerGroupId: this.filterProviderGroupId()
     });
     this.first.set(0);
@@ -137,7 +148,8 @@ export class UsageRecords implements OnInit {
       model: this.filterModel() || undefined,
       accountTokenName: this.filterAccountTokenName() || undefined,
       providerGroupId: this.filterProviderGroupId() || undefined,
-      platform: this.filterPlatform() || undefined,
+      provider: this.filterProvider() || undefined,
+      authMethod: this.filterAuthMethod() ?? undefined,
       startTime: this.filterStartTime() ? this.filterStartTime()!.toISOString() : undefined,
       endTime: this.filterEndTime() ? this.filterEndTime()!.toISOString() : undefined
     };
@@ -168,7 +180,8 @@ export class UsageRecords implements OnInit {
     this.filterModel.set('');
     this.filterAccountTokenName.set('');
     this.filterProviderGroupId.set(null);
-    this.filterPlatform.set(null);
+    this.filterProvider.set(null);
+    this.filterAuthMethod.set(null);
     this.filterStartTime.set(null);
     this.filterEndTime.set(null);
 
@@ -241,10 +254,6 @@ export class UsageRecords implements OnInit {
       default:
         return '未知';
     }
-  }
-
-  getPlatformLabel(platform: ProviderPlatform): string {
-    return PROVIDER_PLATFORM_LABELS[platform] || `Unknown (${platform})`;
   }
 
   getHttpStatusCode(record: UsageRecordOutputDto): string {

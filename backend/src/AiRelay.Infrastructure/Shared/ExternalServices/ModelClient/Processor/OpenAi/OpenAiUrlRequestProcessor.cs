@@ -12,10 +12,10 @@ public class OpenAiUrlRequestProcessor(ChatModelConnectionOptions options) : IRe
     {
         up.BaseUrl = !string.IsNullOrEmpty(options.BaseUrl)
             ? options.BaseUrl
-            : options.Platform == ProviderPlatform.OPENAI_OAUTH ? "https://chatgpt.com" : "https://api.openai.com";
+            : options.AuthMethod == AuthMethod.OAuth ? "https://chatgpt.com" : "https://api.openai.com";
 
         // 统一转换为 Responses API 路径
-        var relativePath = options.Platform == ProviderPlatform.OPENAI_OAUTH
+        var relativePath = options.AuthMethod == AuthMethod.OAuth
             ? "/backend-api/codex/responses"
             : "/v1/responses";
 

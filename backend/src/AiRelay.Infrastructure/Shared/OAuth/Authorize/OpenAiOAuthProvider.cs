@@ -52,10 +52,10 @@ public class OpenAiOAuthProvider(
 
     public string GetAuthorizationUrl(string redirectUri, string state)
     {
-        return GetAuthorizationUrl(ProviderPlatform.OPENAI_OAUTH, state, "");
+        return GetAuthorizationUrl(Provider.OpenAI, state, "");
     }
 
-    public string GetAuthorizationUrl(ProviderPlatform platform, string state, string codeChallenge)
+    public string GetAuthorizationUrl(Provider provider, string state, string codeChallenge)
     {
         return $"{AuthorizationEndpoint}?" +
                $"client_id={ClientId}&" +
@@ -71,7 +71,7 @@ public class OpenAiOAuthProvider(
         string code,
         string? redirectUri = null,
         string? codeVerifier = null,
-        ProviderPlatform? platform = null,
+        Provider? provider = null,
         CancellationToken cancellationToken = default)
     {
         var httpClient = httpClientFactory.CreateClient();
@@ -145,7 +145,7 @@ public class OpenAiOAuthProvider(
         });
     }
 
-    public async Task<OAuthTokenInfo> RefreshTokenAsync(string refreshToken, ProviderPlatform platform, CancellationToken cancellationToken = default)
+    public async Task<OAuthTokenInfo> RefreshTokenAsync(string refreshToken, Provider provider, CancellationToken cancellationToken = default)
     {
         var httpClient = httpClientFactory.CreateClient();
 

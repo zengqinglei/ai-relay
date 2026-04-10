@@ -150,10 +150,8 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
-                    b.Property<string>("Platform")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                    b.Property<int>("Priority")
+                        .HasColumnType("integer");
 
                     b.Property<Guid>("ProviderGroupId")
                         .HasColumnType("uuid");
@@ -162,7 +160,7 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ProviderGroupId");
 
-                    b.HasIndex("ApiKeyId", "Platform", "DeletionTime")
+                    b.HasIndex("ApiKeyId", "ProviderGroupId", "DeletionTime")
                         .IsUnique();
 
                     b.ToTable("ApiKeyProviderGroupBindings");
@@ -373,6 +371,11 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
                     b.Property<bool>("AllowOfficialClientMimic")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("AuthMethod")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<string>("BaseUrl")
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)");
@@ -449,7 +452,7 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
-                    b.Property<string>("Platform")
+                    b.Property<string>("Provider")
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
@@ -493,7 +496,7 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Platform", "IsActive", "Status");
+                    b.HasIndex("Provider", "IsActive", "Status");
 
                     b.ToTable("AccountTokens");
                 });
@@ -540,11 +543,6 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
-                    b.Property<string>("Platform")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
                     b.Property<decimal>("RateMultiplier")
                         .HasPrecision(10, 4)
                         .HasColumnType("numeric(10,4)");
@@ -559,7 +557,7 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Name", "Platform")
+                    b.HasIndex("Name", "DeletionTime")
                         .IsUnique();
 
                     b.ToTable("ProviderGroups");
@@ -700,10 +698,9 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
                     b.Property<int?>("OutputTokens")
                         .HasColumnType("integer");
 
-                    b.Property<string>("Platform")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                    b.Property<string>("SessionId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -718,9 +715,9 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ApiKeyId", "CreationTime");
 
-                    b.HasIndex("ApiKeyId", "Status", "CreationTime");
+                    b.HasIndex("SessionId", "CreationTime");
 
-                    b.HasIndex("Platform", "Status", "CreationTime");
+                    b.HasIndex("ApiKeyId", "Status", "CreationTime");
 
                     b.ToTable("UsageRecords");
                 });
@@ -742,12 +739,25 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
                     b.Property<int>("AttemptNumber")
                         .HasColumnType("integer");
 
+                    b.Property<string>("AuthMethod")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<long>("DurationMs")
                         .HasColumnType("bigint");
+
+                    b.Property<DateTime>("EndTime")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<decimal?>("GroupRateMultiplier")
                         .HasPrecision(10, 4)
                         .HasColumnType("numeric(10,4)");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<Guid?>("ProviderGroupId")
                         .HasColumnType("uuid");
@@ -755,6 +765,9 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
                     b.Property<string>("ProviderGroupName")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
+
+                    b.Property<DateTime>("StartTime")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -1050,12 +1063,14 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
                     b.HasOne("AiRelay.Domain.ApiKeys.Entities.ApiKey", "ApiKey")
                         .WithMany("Bindings")
                         .HasForeignKey("ApiKeyId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.HasOne("AiRelay.Domain.ProviderGroups.Entities.ProviderGroup", "ProviderGroup")
-                        .WithMany()
+                        .WithMany("ApiKeyBindings")
                         .HasForeignKey("ProviderGroupId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("ApiKey");
 
@@ -1077,12 +1092,14 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
                     b.HasOne("AiRelay.Domain.ProviderAccounts.Entities.AccountToken", "AccountToken")
                         .WithMany()
                         .HasForeignKey("AccountTokenId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.HasOne("AiRelay.Domain.ProviderGroups.Entities.ProviderGroup", "ProviderGroup")
-                        .WithMany()
+                        .WithMany("Relations")
                         .HasForeignKey("ProviderGroupId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("AccountToken");
 
@@ -1146,6 +1163,13 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("AiRelay.Domain.ApiKeys.Entities.ApiKey", b =>
                 {
                     b.Navigation("Bindings");
+                });
+
+            modelBuilder.Entity("AiRelay.Domain.ProviderGroups.Entities.ProviderGroup", b =>
+                {
+                    b.Navigation("ApiKeyBindings");
+
+                    b.Navigation("Relations");
                 });
 
             modelBuilder.Entity("AiRelay.Domain.UsageRecords.Entities.UsageRecord", b =>

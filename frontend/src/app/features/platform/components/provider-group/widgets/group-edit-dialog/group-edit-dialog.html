@@ -29,20 +29,7 @@
           <input pInputText [(ngModel)]="formModel().name" placeholder="请输入分组名称" [disabled]="readonly" />
         </div>
 
-        <div class="flex flex-col gap-2">
-          <label class="font-bold">平台类型</label>
-          <p-select
-            [options]="platformOptions"
-            [(ngModel)]="formModel().platform"
-            optionLabel="label"
-            optionValue="value"
-            [disabled]="isEditMode() || readonly"
-            (onChange)="onPlatformChange()"
-            placeholder="选择平台"
-            appendTo="body"
-            [fluid]="true"
-          />
-        </div>
+
 
         <div class="flex flex-col gap-2">
           <label class="font-bold">费率倍数</label>
@@ -152,34 +139,90 @@
 
       <!-- Account Configuration -->
       <div class="flex flex-col gap-4">
-        <div class="flex justify-between items-center">
+        <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
           <span class="text-sm text-gray-600">
             当前关联账号: <span class="font-bold text-blue-600">{{ formModel().accounts.length }}</span>
           </span>
 
           @if (!readonly) {
-            <div class="flex gap-2 items-center">
+            <div class="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
               <p-multiselect
-                [options]="unaddedAccounts()"
+                [options]="groupedUnaddedAccounts()"
                 [(ngModel)]="selectedAccountsToAdd"
+                optionGroupLabel="label"
+                optionGroupChildren="items"
+                [group]="true"
                 optionLabel="name"
                 optionValue="id"
                 placeholder="选择要添加的账号"
                 display="chip"
                 [filter]="true"
-                filterBy="name"
-                [disabled]="!formModel().platform"
+                filterBy="name,label"
+                [disabled]="readonly"
                 appendTo="body"
-                [panelStyle]="{'width': '18rem'}"
+                [panelStyle]="{'width': '24rem'}"
                 [maxSelectedLabels]="3"
                 selectedItemsLabel="{0} 个账号已选"
-                class="w-72"
-              />
+                class="w-full sm:w-96"
+              >
+                <ng-template #group let-group>
+                  <div class="flex items-center gap-2 px-1 py-1 w-full min-w-0">
+                    <div class="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        class="text-[10px] font-medium text-primary hover:underline cursor-pointer border-none bg-transparent px-0 py-0 whitespace-nowrap"
+                        (click)="$event.preventDefault(); $event.stopPropagation(); toggleGroupSelection(group)"
+                      >
+                        {{ getGroupToggleLabel(group) }}
+                      </button>
+                      <span class="text-[10px] text-muted-color whitespace-nowrap">{{ group.items.length }} 个</span>
+                    </div>
+                    <div class="flex items-center gap-2 min-w-0 flex-1">
+                      <i class="pi pi-folder text-[10px] shrink-0"></i>
+                      <span
+                        class="font-semibold text-xs text-muted-color uppercase tracking-wide truncate min-w-0"
+                        [pTooltip]="group.label"
+                        tooltipPosition="top"
+                        tooltipStyleClass="max-w-none whitespace-nowrap">
+                        {{ group.label }}
+                      </span>
+                    </div>
+                    @if (group.routeLabels.length) {
+                      <span
+                        class="text-[10px] text-muted-color truncate min-w-0 flex-1 text-right"
+                        [pTooltip]="getGroupRouteLabelSummary(group)"
+                        tooltipPosition="top"
+                        tooltipStyleClass="max-w-none whitespace-nowrap">
+                        {{ getGroupRouteLabelSummary(group) }}
+                      </span>
+                    }
+                  </div>
+                </ng-template>
+                <ng-template #item let-account>
+                  <div class="flex items-center gap-3 w-full min-w-0 py-1">
+                    <span
+                      class="truncate min-w-0 flex-1 font-medium"
+                      [pTooltip]="account.name"
+                      tooltipPosition="top"
+                      tooltipStyleClass="max-w-none whitespace-nowrap">
+                      {{ account.name }}
+                    </span>
+                    <span
+                      class="text-[10px] text-muted-color truncate min-w-0 flex-1 text-right"
+                      [pTooltip]="getAccountRouteLabelSummary(account)"
+                      tooltipPosition="top"
+                      tooltipStyleClass="max-w-none whitespace-nowrap">
+                      {{ getAccountRouteLabelSummary(account) }}
+                    </span>
+                  </div>
+                </ng-template>
+              </p-multiselect>
               <p-button
                 label="添加"
                 icon="pi pi-plus"
                 [disabled]="!selectedAccountsToAdd.length"
                 (onClick)="addAccount()"
+                styleClass="w-full sm:w-auto"
               />
             </div>
           }
@@ -188,14 +231,14 @@
         <p-table [value]="formModel().accounts" styleClass="p-datatable-sm" [scrollable]="true" scrollHeight="300px">
           <ng-template pTemplate="header">
             <tr>
-              <th style="width: 35%">账号名称</th>
-              <th style="width: 50%">
+              <th style="width: 55%">账号名称</th>
+              <th style="width: 30%" class="hidden md:table-cell">
                 @if (showWeight) {
-                  权重配置 (1-1000)
+                  权重 (1-1000)
                 } @else if (showPriority) {
-                  优先级配置 (0-100)
+                  优先级 (0-100)
                 } @else {
-                  策略配置
+                  调度策略
                 }
               </th>
               <th style="width: 15%" class="text-center">操作</th>
@@ -203,8 +246,55 @@
           </ng-template>
           <ng-template pTemplate="body" let-account let-i="rowIndex">
             <tr>
-              <td>{{ getAccountName(account.accountTokenId) }}</td>
               <td>
+                <div class="flex flex-col gap-2 min-w-0">
+                  <div class="flex items-center gap-2 min-w-0 flex-wrap">
+                    <span class="truncate"
+                          [pTooltip]="getAccountName(account.accountTokenId)"
+                          tooltipPosition="top"
+                          tooltipStyleClass="max-w-none whitespace-nowrap">{{ getAccountName(account.accountTokenId) }}</span>
+                    @if (getAccountPlatformLabel(account.accountTokenId)) {
+                      <p-tag [value]="getAccountPlatformLabel(account.accountTokenId)" severity="secondary" styleClass="text-xs shrink-0" />
+                    }
+                  </div>
+                  @if (getAccountRouteSummary(account.accountTokenId)) {
+                    <div class="text-[10px] text-muted-color truncate">{{ getAccountRouteSummary(account.accountTokenId) }}</div>
+                  }
+                  <div class="md:hidden">
+                    @if (showWeight) {
+                      <p-inputnumber
+                        [(ngModel)]="account.weight"
+                        [min]="1"
+                        [max]="1000"
+                        [showButtons]="true"
+                        buttonLayout="horizontal"
+                        [step]="1"
+                        inputStyleClass="w-14 text-center"
+                        [disabled]="readonly"
+                      >
+                        <ng-template pTemplate="incrementbuttonicon"><span class="pi pi-plus"></span></ng-template>
+                        <ng-template pTemplate="decrementbuttonicon"><span class="pi pi-minus"></span></ng-template>
+                      </p-inputnumber>
+                    } @else if (showPriority) {
+                      <p-inputnumber
+                        [(ngModel)]="account.priority"
+                        [min]="0"
+                        [max]="100"
+                        [showButtons]="true"
+                        buttonLayout="horizontal"
+                        inputStyleClass="w-14 text-center"
+                        [disabled]="readonly"
+                      >
+                        <ng-template pTemplate="incrementbuttonicon"><span class="pi pi-plus"></span></ng-template>
+                        <ng-template pTemplate="decrementbuttonicon"><span class="pi pi-minus"></span></ng-template>
+                      </p-inputnumber>
+                    } @else {
+                      <p-tag severity="info" value="自动" />
+                    }
+                  </div>
+                </div>
+              </td>
+              <td class="hidden md:table-cell">
                 @if (showWeight) {
                   <p-inputnumber
                     [(ngModel)]="account.weight"
@@ -213,16 +303,11 @@
                     [showButtons]="true"
                     buttonLayout="horizontal"
                     [step]="1"
-                    inputStyleClass="w-16 text-center"
-                    class="w-full"
+                    inputStyleClass="w-14 text-center"
                     [disabled]="readonly"
                   >
-                    <ng-template pTemplate="incrementbuttonicon">
-                      <span class="pi pi-plus"></span>
-                    </ng-template>
-                    <ng-template pTemplate="decrementbuttonicon">
-                      <span class="pi pi-minus"></span>
-                    </ng-template>
+                    <ng-template pTemplate="incrementbuttonicon"><span class="pi pi-plus"></span></ng-template>
+                    <ng-template pTemplate="decrementbuttonicon"><span class="pi pi-minus"></span></ng-template>
                   </p-inputnumber>
                 } @else if (showPriority) {
                   <p-inputnumber
@@ -231,19 +316,14 @@
                     [max]="100"
                     [showButtons]="true"
                     buttonLayout="horizontal"
-                    inputStyleClass="w-16 text-center"
-                    class="w-full"
+                    inputStyleClass="w-14 text-center"
                     [disabled]="readonly"
                   >
-                    <ng-template pTemplate="incrementbuttonicon">
-                      <span class="pi pi-plus"></span>
-                    </ng-template>
-                    <ng-template pTemplate="decrementbuttonicon">
-                      <span class="pi pi-minus"></span>
-                    </ng-template>
+                    <ng-template pTemplate="incrementbuttonicon"><span class="pi pi-plus"></span></ng-template>
+                    <ng-template pTemplate="decrementbuttonicon"><span class="pi pi-minus"></span></ng-template>
                   </p-inputnumber>
                 } @else {
-                  <p-tag severity="info" value="自动调度 (无需配置)" class="w-full block text-center"></p-tag>
+                  <p-tag severity="info" value="自动" />
                 }
               </td>
               <td class="text-center">

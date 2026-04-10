@@ -1,6 +1,6 @@
 using AiRelay.Application.ProviderAccounts.Dtos;
 using AiRelay.Domain.ProviderAccounts.Entities;
-using AiRelay.Domain.ProviderAccounts.Extensions;
+
 using Leistd.ObjectMapping.Mapster;
 using Mapster;
 
@@ -15,7 +15,7 @@ public class AccountTokenProfile : MapsterProfile
 
         CreateMap<AccountToken, AccountTokenOutputDto>()
             .Map(dest => dest.FullToken, src =>
-                MaskToken(src.Platform.IsApiKeyPlatform() ? src.AccessToken : src.RefreshToken))
+                MaskToken(src.AuthMethod == AiRelay.Domain.ProviderAccounts.ValueObjects.AuthMethod.ApiKey ? src.AccessToken : src.RefreshToken))
             .Map(dest => dest.Status, src => src.GetEffectiveStatus())
             .Map(dest => dest.CurrentConcurrency, src => ResolveConcurrencyCount(src))
             .Map(dest => dest.SuccessRateToday, src =>

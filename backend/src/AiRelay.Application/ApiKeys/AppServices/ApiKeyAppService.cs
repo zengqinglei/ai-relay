@@ -23,8 +23,8 @@ public class ApiKeyAppService(
     {
         logger.LogInformation("开始创建 API Key {Name}...", input.Name);
 
-        var bindings = input.Bindings?.Select(b => (b.Platform, b.ProviderGroupId)).ToList()
-                       ?? new List<(Domain.ProviderAccounts.ValueObjects.ProviderPlatform, Guid)>();
+        var bindings = input.Bindings?.Select(b => (b.Priority, b.ProviderGroupId)).ToList()
+                       ?? new List<(int, Guid)>();
 
         // 如果 CustomSecret 为空则自动生成，否则使用自定义值
         var apiKey = await apiKeyDomainService.CreateWithKeyAsync(
@@ -56,7 +56,7 @@ public class ApiKeyAppService(
             throw new UnauthorizedException($"ApiKey 不存在: {id}");
         }
 
-        var bindings = input.Bindings?.Select(b => (b.Platform, b.ProviderGroupId)).ToList();
+        var bindings = input.Bindings?.Select(b => (b.Priority, b.ProviderGroupId)).ToList();
 
         await apiKeyDomainService.UpdateAsync(
             apiKey,

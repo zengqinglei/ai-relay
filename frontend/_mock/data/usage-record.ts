@@ -2,10 +2,12 @@ import { ACCOUNT_TOKENS } from './account-token';
 import { PROVIDER_GROUPS } from './provider-group';
 import { UsageRecordOutputDto } from '../../src/app/features/platform/models/usage.dto';
 import { UsageStatus } from '../../src/app/shared/models/usage-status.enum';
+import { AuthMethod } from '../../src/app/shared/models/auth-method.enum';
 
 export interface MockUsageRecord extends UsageRecordOutputDto {
   accountTokenId: string;
   providerGroupId: string;
+  authMethod: AuthMethod;
 }
 
 const MODELS = [
@@ -74,11 +76,12 @@ const generateRecords = (count: number): MockUsageRecord[] => {
         id: `rec-${Date.now()}-${i}`,
         creationTime: new Date(Date.now() - Math.floor(Math.random() * 7 * 24 * 3600 * 1000)).toISOString(),
         apiKeyName: API_KEYS[Math.floor(Math.random() * API_KEYS.length)],
-        platform: account.platform,
+        sessionId: `sess-${Math.random().toString(36).substring(2, 10)}`,
         providerGroupName: group.name,
         providerGroupId: group.id,
-        accountTokenName: account.name, // UsageRecordOutputDto.accountTokenName
+        accountTokenName: account.name,
         accountTokenId: account.id,
+        provider: account.provider,
         downModelId: model,
         upModelId: model,
         downRequestUrl: PATHS[Math.floor(Math.random() * PATHS.length)],
@@ -97,7 +100,8 @@ const generateRecords = (count: number): MockUsageRecord[] => {
         downStatusCode: status === UsageStatus.Success ? 200 : status === UsageStatus.InProgress ? undefined : 500,
         durationMs: Math.floor(Math.random() * 10000) + 200,
         statusDescription: statusDescription,
-        attemptCount: attemptCount
+        attemptCount: attemptCount,
+        authMethod: account.authMethod
       };
     })
     .sort((a, b) => new Date(b.creationTime).getTime() - new Date(a.creationTime).getTime());
@@ -114,6 +118,8 @@ export const getUsageRecordDetail = (id: string) => {
     const attemptStatus = isLast ? record.status : UsageStatus.Failed;
     return {
       attemptNumber: i + 1,
+      provider: record.provider!,
+      authMethod: record.authMethod,
       accountTokenName: record.accountTokenName ?? '',
       upModelId: record.downModelId,
       upUserAgent: 'AiRelay/1.0',

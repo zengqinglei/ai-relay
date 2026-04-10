@@ -162,9 +162,12 @@ public sealed class ModelProvider(ILogger<ModelProvider> logger) : IModelProvide
     /// <summary>
     /// 各平台可用模型目录
     /// </summary>
-    private static readonly Dictionary<ProviderPlatform, IReadOnlyList<ModelOption>> ModelCatalog = new()
+    /// <summary>
+    /// 各平台可用模型目录
+    /// </summary>
+    private static readonly Dictionary<Provider, IReadOnlyList<ModelOption>> ModelCatalog = new()
     {
-        [ProviderPlatform.ANTIGRAVITY] =
+        [Provider.Antigravity] =
         [
             // Claude 4.6 系列
             new("Claude 4.6 Opus (Thinking)", "claude-opus-4-6-thinking"),
@@ -179,7 +182,7 @@ public sealed class ModelProvider(ILogger<ModelProvider> logger) : IModelProvide
             // Gemini 2.5 系统
             new("Gemini 2.5 Flash Lite", "gemini-2.5-flash-lite")
         ],
-        [ProviderPlatform.GEMINI_OAUTH] =
+        [Provider.Gemini] =
         [
             new("Gemini 3.1 Pro Preview", "gemini-3.1-pro-preview"),
             new("Gemini 3.0 Pro Preview", "gemini-3-pro-preview"),
@@ -189,17 +192,7 @@ public sealed class ModelProvider(ILogger<ModelProvider> logger) : IModelProvide
             new("Gemini 2.5 Flash Lite", "gemini-2.5-flash-lite"),
             new("Gemini 2.0 Flash", "gemini-2.0-flash")
         ],
-        [ProviderPlatform.GEMINI_APIKEY] =
-        [
-            new("Gemini 3.1 Pro Preview", "gemini-3.1-pro-preview"),
-            new("Gemini 3.0 Pro Preview", "gemini-3-pro-preview"),
-            new("Gemini 3.0 Flash Preview", "gemini-3-flash-preview"),
-            new("Gemini 2.5 Pro", "gemini-2.5-pro"),
-            new("Gemini 2.5 Flash", "gemini-2.5-flash"),
-            new("Gemini 2.5 Flash Lite", "gemini-2.5-flash-lite"),
-            new("Gemini 2.0 Flash", "gemini-2.0-flash")
-        ],
-        [ProviderPlatform.CLAUDE_OAUTH] =
+        [Provider.Claude] =
         [
             new("Claude Opus 4.6", "claude-opus-4-6"),
             new("Claude Sonnet 4.6", "claude-sonnet-4-6"),
@@ -207,28 +200,7 @@ public sealed class ModelProvider(ILogger<ModelProvider> logger) : IModelProvide
             new("Claude Sonnet 4.5", "claude-sonnet-4-5-20250929"),
             new("Claude Haiku 4.5", "claude-haiku-4-5-20251001")
         ],
-        [ProviderPlatform.CLAUDE_APIKEY] =
-        [
-            new("Claude Opus 4.6", "claude-opus-4-6"),
-            new("Claude Sonnet 4.6", "claude-sonnet-4-6"),
-            new("Claude Opus 4.5", "claude-opus-4-5-20251101"),
-            new("Claude Sonnet 4.5", "claude-sonnet-4-5-20250929"),
-            new("Claude Haiku 4.5", "claude-haiku-4-5-20251001")
-        ],
-        [ProviderPlatform.OPENAI_OAUTH] =
-        [
-            new("GPT-5.4", "gpt-5.4"),
-            new("GPT-5.3 Codex", "gpt-5.3-codex"),
-            new("GPT-5.3 Codex Spark", "gpt-5.3-codex-spark"),
-            new("GPT-5.2", "gpt-5.2"),
-            new("GPT-5.2 Codex", "gpt-5.2-codex"),
-            new("GPT-5.1 Codex Max", "gpt-5.1-codex-max"),
-            new("GPT-5.1 Codex", "gpt-5.1-codex"),
-            new("GPT-5.1", "gpt-5.1"),
-            new("GPT-5.1 Codex Mini", "gpt-5.1-codex-mini"),
-            new("GPT-5", "gpt-5")
-        ],
-        [ProviderPlatform.OPENAI_APIKEY] =
+        [Provider.OpenAI] =
         [
             new("GPT-5.4", "gpt-5.4"),
             new("GPT-5.3 Codex", "gpt-5.3-codex"),
@@ -332,9 +304,9 @@ public sealed class ModelProvider(ILogger<ModelProvider> logger) : IModelProvide
         return requestedModel;
     }
 
-    public IReadOnlyList<ModelOption> GetAvailableModels(ProviderPlatform platform)
+    public IReadOnlyList<ModelOption> GetAvailableModels(Provider provider)
     {
-        return ModelCatalog.TryGetValue(platform, out var models)
+        return ModelCatalog.TryGetValue(provider, out var models)
             ? models
             : Array.Empty<ModelOption>();
     }

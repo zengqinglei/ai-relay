@@ -37,11 +37,11 @@ public class SmartReverseProxyMiddleware(
 
     public async Task InvokeAsync(HttpContext context)
     {
-        var (platform, apiKeyId, apiKeyName) = ValidateAndGetContext(context);
+        var (routeProfile, apiKeyId, apiKeyName) = ValidateAndGetContext(context);
         var correlationId = correlationIdProvider.Get() ?? correlationIdProvider.Create();
 
-        var chatModelHandler = chatModelHandlerFactory.CreateHandler(platform);
-        var downContext = await ProcessDownstreamRequestAsync(context, chatModelHandler, apiKeyId);
+        var chatModelHandler = chatModelHandlerFactory.CreateHandler(routeProfile);
+        var downContext = await ProcessDownstreamRequestAsync(context, routeProfile, chatModelHandler, apiKeyId);
 
         // 请求级变量
         var usageRecordId = Guid.CreateVersion7();
@@ -63,7 +63,7 @@ public class SmartReverseProxyMiddleware(
         usageRecordHostedService.TryEnqueue(new UsageRecordStartItem(
             UsageRecordId: usageRecordId,
             CorrelationId: correlationId,
-            Platform: platform,
+            SessionId: downContext.SessionId,
             ApiKeyId: apiKeyId,
             ApiKeyName: apiKeyName,
             IsStreaming: downContext.IsStreaming,
@@ -93,12 +93,14 @@ public class SmartReverseProxyMiddleware(
                 var selectResult = await smartProxyAppService.SelectAccountAsync(
                         new SelectProxyAccountInputDto
                         {
-                            Platform = platform,
                             ApiKeyId = apiKeyId,
                             ApiKeyName = apiKeyName,
                             SessionHash = downContext.SessionId,
                             ExcludedAccountIds = excludedAccountIds,
-                            ModelId = downContext.ModelId
+                            ModelId = downContext.ModelId,
+                            AllowedCombinations = RouteProfileRegistry.Profiles.TryGetValue(routeProfile, out var profileDef)
+                                ? profileDef.SupportedCombinations
+                                : null
                         },
                         context.RequestAborted);
 
@@ -183,8 +185,9 @@ public class SmartReverseProxyMiddleware(
                     }
 
                     var accountedHandler = chatModelHandlerFactory.CreateHandler(
-                        platform,
-                        selectResult.AccountToken.AccessToken,
+                        selectResult.AccountToken.Provider,
+                        selectResult.AccountToken.AuthMethod,
+                        selectResult.AccountToken.AccessToken!,
                         selectResult.AccountToken.BaseUrl,
                         selectResult.AccountToken.ExtraProperties,
                         selectResult.AccountToken.AllowOfficialClientMimic,
@@ -214,6 +217,8 @@ public class SmartReverseProxyMiddleware(
                         AttemptNumber: attemptNumber,
                         AccountTokenId: selectResult.AccountToken.Id,
                         AccountTokenName: selectResult.AccountToken.Name,
+                        Provider: selectResult.AccountToken.Provider,
+                        AuthMethod: selectResult.AccountToken.AuthMethod,
                         ProviderGroupId: selectResult.ProviderGroupId,
                         ProviderGroupName: selectResult.ProviderGroupName,
                         GroupRateMultiplier: selectResult.GroupRateMultiplier,
@@ -526,7 +531,7 @@ public class SmartReverseProxyMiddleware(
                 logger.LogWarning(ex, finalStatusDescription);
             }
 
-            var formatter = errorFormatterFactory.GetFormatter(platform);
+            var formatter = errorFormatterFactory.GetFormatter(routeProfile);
             var errorResponse = formatter.Format(ex);
             downResponseBody = LoggingSubBody(errorResponse.Payload);
 
@@ -571,7 +576,7 @@ public class SmartReverseProxyMiddleware(
         return sourceStr.Length > _loggingOptions.MaxBodyLength ? content + "...[Truncated]" : content;
     }
 
-    private async Task<DownRequestContext> ProcessDownstreamRequestAsync(HttpContext context, IChatModelHandler chatModelHandler, Guid apiKeyId)
+    private async Task<DownRequestContext> ProcessDownstreamRequestAsync(HttpContext context, RouteProfile routeProfile, IChatModelHandler chatModelHandler, Guid apiKeyId)
     {
         var request = context.Request;
         var contentType = request.ContentType ?? "";
@@ -590,10 +595,19 @@ public class SmartReverseProxyMiddleware(
             request.EnableBuffering(MaxBodySize);
         }
 
-        var relativePath = "";
+        var pathPrefix = RouteProfileRegistry.Profiles.TryGetValue(routeProfile, out var profileDef)
+            ? profileDef.PathPrefix
+            : string.Empty;
+
+        var relativePath = pathPrefix;
         if (context.Request.RouteValues.TryGetValue("catch-all", out var catchAll) && catchAll != null)
         {
-            relativePath = "/" + catchAll.ToString()!.TrimStart('/');
+            var catchAllPath = catchAll.ToString()!;
+            // 根据 PathPrefix 是否包含冒号来决定分隔符（冒号分隔用于 Google 特殊路径格式）
+            var separator = pathPrefix.Contains(':') ? ":" : "/";
+            relativePath = string.IsNullOrEmpty(catchAllPath)
+                ? pathPrefix
+                : $"{pathPrefix}{separator}{catchAllPath}";
         }
 
         var rawStream = (hasBody && !isMultipart) ? request.Body : null;
@@ -635,7 +649,7 @@ public class SmartReverseProxyMiddleware(
         return result;
     }
 
-    private static (ProviderPlatform Platform, Guid ApiKeyId, string ApiKeyName) ValidateAndGetContext(HttpContext context)
+    private static (RouteProfile Profile, Guid ApiKeyId, string ApiKeyName) ValidateAndGetContext(HttpContext context)
     {
         var metadata = context.GetEndpoint()?.Metadata.GetMetadata<PlatformMetadata>();
         if (metadata == null) throw new NotFoundException("平台路由未配置");
@@ -649,7 +663,7 @@ public class SmartReverseProxyMiddleware(
             throw new UnauthorizedException("请求未经认证");
         }
 
-        return (metadata.Platform, apiKeyId, apiKeyNameClaim.Value);
+        return (metadata.Profile, apiKeyId, apiKeyNameClaim.Value);
     }
 
 
@@ -667,7 +681,7 @@ public class SmartReverseProxyMiddleware(
         foreach (var header in headers)
         {
             if (!IsHopByHopHeader(header.Key))
-                context.Response.Headers.Append(header.Key, new Microsoft.Extensions.Primitives.StringValues(header.Value.ToArray()));
+                context.Response.Headers.Append(header.Key, new StringValues(header.Value.ToArray()));
         }
     }
 

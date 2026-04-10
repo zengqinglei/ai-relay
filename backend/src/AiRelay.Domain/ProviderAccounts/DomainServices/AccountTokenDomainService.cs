@@ -1,5 +1,5 @@
 using AiRelay.Domain.ProviderAccounts.Entities;
-using AiRelay.Domain.ProviderAccounts.Extensions;
+
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient;
 using AiRelay.Domain.Shared.ExternalServices.ModelProvider;
@@ -33,7 +33,8 @@ public class AccountTokenDomainService(
     /// 创建并准备账户
     /// </summary>
     public async Task<AccountToken> CreateAndPrepareAsync(
-        ProviderPlatform platform,
+        Provider provider,
+        AuthMethod authMethod,
         string name,
         Dictionary<string, string>? extraProperties = null,
         string? accessToken = null,
@@ -49,7 +50,8 @@ public class AccountTokenDomainService(
         CancellationToken cancellationToken = default)
     {
         var accountToken = new AccountToken(
-            platform,
+            provider,
+            authMethod,
             name,
             maxConcurrency ?? 10,
             accessToken,
@@ -63,8 +65,8 @@ public class AccountTokenDomainService(
             allowOfficialClientMimic,
             isCheckStreamHealth);
 
-        // 1. 刷新 Token (针对 Account 类型)
-        if (!accountToken.Platform.IsApiKeyPlatform())
+        // 1. 刷新 Token (针对 OAuth 类型)
+        if (accountToken.AuthMethod == AuthMethod.OAuth)
         {
             try
             {
@@ -79,10 +81,10 @@ public class AccountTokenDomainService(
         // 2. 获取/验证 Project ID (针对 Gemini OAuth 和 Antigravity)
         var projectId = accountToken.ExtraProperties.TryGetValue("project_id", out var pid) ? pid : null;
 
-        if ((accountToken.Platform == ProviderPlatform.GEMINI_OAUTH || accountToken.Platform == ProviderPlatform.ANTIGRAVITY) &&
+        if (((accountToken.Provider == Provider.Gemini && accountToken.AuthMethod == AuthMethod.OAuth) || accountToken.Provider == Provider.Antigravity) &&
             string.IsNullOrEmpty(projectId))
         {
-            var handler = chatModelHandlerFactory.CreateHandler(accountToken.Platform, accountToken.AccessToken!, accountToken.BaseUrl, accountToken.ExtraProperties);
+            var handler = chatModelHandlerFactory.CreateHandler(accountToken.Provider, accountToken.AuthMethod, accountToken.AccessToken!, accountToken.BaseUrl, accountToken.ExtraProperties);
             var result = await handler.ValidateConnectionAsync(cancellationToken);
 
             if (result.IsSuccess)
@@ -149,11 +151,11 @@ public class AccountTokenDomainService(
             if (string.IsNullOrEmpty(accountToken.RefreshToken))
                 throw new BadRequestException($"账户 '{accountToken.Name}' 无可用的 RefreshToken");
 
-            var authProvider = serviceProvider.GetKeyedService<IOAuthProvider>(accountToken.Platform);
+            var authProvider = serviceProvider.GetKeyedService<IOAuthProvider>(accountToken.Provider);
             if (authProvider == null)
-                throw new NotFoundException($"未找到 {accountToken.Platform} Token 刷新服务");
+                throw new NotFoundException($"未找到 {accountToken.Provider} Token 刷新服务");
 
-            var tokenInfo = await authProvider.RefreshTokenAsync(accountToken.RefreshToken, accountToken.Platform, cancellationToken);
+            var tokenInfo = await authProvider.RefreshTokenAsync(accountToken.RefreshToken, accountToken.Provider, cancellationToken);
 
             accountToken.UpdateTokens(
                 tokenInfo.AccessToken,
@@ -195,7 +197,7 @@ public class AccountTokenDomainService(
         }
 
         // 无白名单且无映射命中：用上游模型列表（带缓存）与 baseline 取交集后校验
-        var baselineModels = modelProvider.GetAvailableModels(account.Platform);
+        var baselineModels = modelProvider.GetAvailableModels(account.Provider);
         if (baselineModels == null || baselineModels.Count == 0) return true;
 
         IReadOnlyList<string>? upstreamModelIds = null;
@@ -301,7 +303,8 @@ public class AccountTokenDomainService(
         try
         {
             var handler = chatModelHandlerFactory.CreateHandler(
-                account.Platform,
+                account.Provider,
+                account.AuthMethod,
                 account.AccessToken!,
                 account.BaseUrl,
                 account.ExtraProperties,

@@ -1,3 +1,5 @@
+using AiRelay.Domain.ProviderAccounts.ValueObjects;
+
 namespace AiRelay.Application.ProviderGroups.Dtos;
 
 /// <summary>
@@ -9,6 +11,9 @@ public class GroupAccountRelationOutputDto
     public Guid ProviderGroupId { get; set; }
     public Guid AccountTokenId { get; set; }
     public string AccountTokenName { get; set; } = string.Empty;
+    public Provider Provider { get; set; }
+    public AuthMethod AuthMethod { get; set; }
+    public List<RouteProfile> SupportedRouteProfiles { get; set; } = new();
     public int Priority { get; set; }
     public int Weight { get; set; }
     public bool IsActive { get; set; }

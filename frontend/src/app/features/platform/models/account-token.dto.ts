@@ -1,5 +1,6 @@
+import { AuthMethod } from '../../../shared/models/auth-method.enum';
 import { PagedRequestDto } from '../../../shared/models/paged-request.dto';
-import { ProviderPlatform } from '../../../shared/models/provider-platform.enum';
+import { Provider } from '../../../shared/models/provider.enum';
 
 // ✅ 使用字符串枚举以匹配后端 JSON 序列化
 export enum AccountStatus {
@@ -11,7 +12,8 @@ export enum AccountStatus {
 export interface AccountTokenOutputDto {
   id: string;
   name: string;
-  platform: ProviderPlatform;
+  provider: Provider;
+  authMethod: AuthMethod;
   extraProperties?: Record<string, string>;
   baseUrl?: string;
   description?: string;
@@ -48,7 +50,8 @@ export interface AccountTokenOutputDto {
 
 export interface CreateAccountTokenInputDto {
   name: string;
-  platform: ProviderPlatform;
+  provider: Provider;
+  authMethod: AuthMethod;
   extraProperties?: Record<string, string>;
   baseUrl?: string;
   description?: string;
@@ -76,7 +79,7 @@ export interface UpdateAccountTokenInputDto {
 }
 
 export interface GetAuthUrlInputDto {
-  platform: ProviderPlatform;
+  provider: Provider;
 }
 
 export interface GetAuthUrlOutputDto {
@@ -85,7 +88,7 @@ export interface GetAuthUrlOutputDto {
 }
 
 export interface ExchangeCodeInputDto {
-  platform: ProviderPlatform;
+  provider: Provider;
   code: string;
   redirectUri?: string;
   session_id?: string;
@@ -100,7 +103,8 @@ export interface ExchangeCodeOutputDto {
 
 export interface GetAccountTokenPagedInputDto extends PagedRequestDto {
   keyword?: string;
-  platform?: ProviderPlatform;
+  provider?: Provider;
+  authMethod?: AuthMethod;
   isActive?: boolean;
 }
 

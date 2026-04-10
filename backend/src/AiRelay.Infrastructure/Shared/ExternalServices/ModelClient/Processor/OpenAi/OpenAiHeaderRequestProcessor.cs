@@ -22,7 +22,7 @@ public class OpenAiHeaderRequestProcessor(ChatModelConnectionOptions options) : 
             }
         }
 
-        if (options.Platform == ProviderPlatform.OPENAI_OAUTH)
+        if (options.AuthMethod == AuthMethod.OAuth)
         {
             // 覆盖认证信息
             up.Headers["authorization"] = $"Bearer {options.Credential}";
@@ -75,7 +75,7 @@ public class OpenAiHeaderRequestProcessor(ChatModelConnectionOptions options) : 
             headers["session_id"] = sessionId;
 
         // chatgpt_account_id 始终注入（账号绑定信息，非伪装字段）
-        if (options.Platform == ProviderPlatform.OPENAI_OAUTH
+        if (options.AuthMethod == AuthMethod.OAuth
             && options.ExtraProperties.TryGetValue("chatgpt_account_id", out var accountId)
             && !string.IsNullOrWhiteSpace(accountId))
         {

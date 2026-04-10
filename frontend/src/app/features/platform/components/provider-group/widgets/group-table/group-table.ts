@@ -1,37 +1,40 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, EventEmitter, inject, input, OnInit, Output, signal } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, Component, DestroyRef, ElementRef, EventEmitter, inject, input, OnInit, Output, signal, ViewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
+import { Popover, PopoverModule } from 'primeng/popover';
 import { RippleModule } from 'primeng/ripple';
-import { SelectModule } from 'primeng/select';
 import { TableLazyLoadEvent, TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
 import { Subject } from 'rxjs';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 
-import { PlatformIcon } from '../../../../../../shared/components/platform-icon/platform-icon';
-import { PROVIDER_PLATFORM_OPTIONS } from '../../../../../../shared/constants/provider-platform.constants';
-import { PlatformLabelPipe } from '../../../../../../shared/pipes/platform-label-pipe';
+import { getProviderAuthLabel } from '../../../../../../shared/constants/provider.constants';
+import { ROUTE_PROFILE_FULL_LABELS, ROUTE_PROFILE_LABELS } from '../../../../../../shared/constants/route-profile.constants';
+import { RouteProfile } from '../../../../../../shared/models/route-profile.enum';
 import { SchedulingStrategyLabelPipe } from '../../../../../../shared/pipes/scheduling-strategy-label-pipe';
 import { SchedulingStrategySeverityPipe } from '../../../../../../shared/pipes/scheduling-strategy-severity-pipe';
 import { FilterStateService } from '../../../../../../shared/services/filter-state.service';
 import {
-  ProviderGroupOutputDto,
   GroupSchedulingStrategy,
-  ProviderGroupAccountRelationDto,
+  GroupAccountRelationOutputDto,
+  ProviderGroupOutputDto,
   SCHEDULING_STRATEGY_DESCRIPTIONS
 } from '../../../../models/provider-group.dto';
+import {
+  RelationPopoverContentComponent,
+  RelationPopoverItem
+} from '../../../shared/widgets/relation-popover-content/relation-popover-content';
 
 export interface GroupTableFilterEvent {
   offset: number;
   limit: number;
   q?: string;
-  platform?: string;
   sorting?: string;
 }
 
@@ -44,21 +47,20 @@ export interface GroupTableFilterEvent {
     TableModule,
     ButtonModule,
     InputTextModule,
-    SelectModule,
     TagModule,
     TooltipModule,
     IconFieldModule,
     InputIconModule,
     RippleModule,
-    PlatformLabelPipe,
+    PopoverModule,
+    RelationPopoverContentComponent,
     SchedulingStrategyLabelPipe,
-    SchedulingStrategySeverityPipe,
-    PlatformIcon
+    SchedulingStrategySeverityPipe
   ],
   templateUrl: './group-table.html',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class GroupTable implements OnInit {
+export class GroupTable implements OnInit, AfterViewInit {
   groups = input.required<ProviderGroupOutputDto[]>();
   totalRecords = input.required<number>();
   loading = input<boolean>(false);
@@ -68,26 +70,22 @@ export class GroupTable implements OnInit {
   @Output() readonly edit = new EventEmitter<string>();
   @Output() readonly delete = new EventEmitter<string>();
 
-  // Filter states
   searchQuery = signal('');
-  selectedPlatform = signal<string | null>(null);
-
-  // Dropdown options
-  platformOptions = PROVIDER_PLATFORM_OPTIONS.map(o => ({ label: o.label, value: o.value }));
-
   GroupSchedulingStrategy = GroupSchedulingStrategy;
-
-  // Pagination state
   first = 0;
   rows = 10;
   sortField = signal<string>('creationTime');
   sortOrder = signal<number>(-1);
+  activeRouteProfiles = signal<RouteProfile[]>([]);
+  visibleRouteCount = signal(3);
 
-  private destroyRef = inject(DestroyRef);
-  private filterStateService = inject(FilterStateService);
-  private searchSubject = new Subject<string>();
+  @ViewChild('routeColumnContainer') routeColumnContainer?: ElementRef<HTMLElement>;
 
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly filterStateService = inject(FilterStateService);
+  private readonly searchSubject = new Subject<string>();
   private readonly FILTER_KEY = 'provider-group';
+  private routeResizeObserver?: ResizeObserver;
 
   constructor() {
     this.searchSubject
@@ -96,9 +94,40 @@ export class GroupTable implements OnInit {
   }
 
   ngOnInit() {
-    const saved = this.filterStateService.load<{ keyword: string; platform: string | null }>(this.FILTER_KEY);
+    const saved = this.filterStateService.load<{ keyword: string }>(this.FILTER_KEY);
     if (saved.keyword) this.searchQuery.set(saved.keyword);
-    if (saved.platform !== undefined) this.selectedPlatform.set(saved.platform ?? null);
+  }
+
+  ngAfterViewInit(): void {
+    queueMicrotask(() => this.setupRouteResizeObserver());
+  }
+
+  private setupRouteResizeObserver(): void {
+    const element = this.routeColumnContainer?.nativeElement;
+    if (!element || typeof ResizeObserver === 'undefined') {
+      return;
+    }
+
+    this.routeResizeObserver?.disconnect();
+    this.routeResizeObserver = new ResizeObserver(entries => {
+      const width = entries[0]?.contentRect.width ?? element.clientWidth;
+      this.updateVisibleRouteCount(width);
+    });
+    this.routeResizeObserver.observe(element);
+    this.destroyRef.onDestroy(() => this.routeResizeObserver?.disconnect());
+  }
+
+  private updateVisibleRouteCount(width: number): void {
+    // 根据宽度动态计算可容纳的标签数 (每个标签约 60-80px)
+    if (width >= 280) {
+      this.visibleRouteCount.set(4);
+    } else if (width >= 200) {
+      this.visibleRouteCount.set(3);
+    } else if (width >= 120) {
+      this.visibleRouteCount.set(2);
+    } else {
+      this.visibleRouteCount.set(1);
+    }
   }
 
   onSearchQueryChange(value: string) {
@@ -106,12 +135,8 @@ export class GroupTable implements OnInit {
     this.searchSubject.next(value);
   }
 
-  onSelectChange() {
-    this.onFilter();
-  }
-
   onFilter() {
-    this.first = 0; // Reset to first page
+    this.first = 0;
     this.emitFilterChange();
   }
 
@@ -127,14 +152,12 @@ export class GroupTable implements OnInit {
 
   private emitFilterChange() {
     this.filterStateService.save(this.FILTER_KEY, {
-      keyword: this.searchQuery(),
-      platform: this.selectedPlatform()
+      keyword: this.searchQuery()
     });
     this.filterChange.emit({
       offset: this.first,
       limit: this.rows,
       q: this.searchQuery(),
-      platform: this.selectedPlatform() ?? undefined,
       sorting: `${this.sortField()} ${this.sortOrder() === 1 ? 'asc' : 'desc'}`
     });
   }
@@ -147,24 +170,62 @@ export class GroupTable implements OnInit {
     return group.schedulingStrategy === GroupSchedulingStrategy.Priority;
   }
 
-  getAccountValidity(account: ProviderGroupAccountRelationDto): string {
-    if (!account.expiresIn || !account.tokenObtainedTime) return '永久有效';
+  getAccountExpiryState(account: GroupAccountRelationOutputDto): 'expired' | 'warning' | 'ok' | 'forever' {
+    if (!account.expiresAt) return 'forever';
+    // 借鉴 AccountTable 逻辑：如果账户已禁用，不触发过期警告状态（降级显示）
+    if (account.isActive === false) return 'forever';
 
-    const obtained = new Date(account.tokenObtainedTime);
-    const expiresAt = new Date(obtained.getTime() + account.expiresIn * 1000);
+    const expiry = new Date(account.expiresAt).getTime();
+    if (isNaN(expiry)) return 'forever';
 
-    // Check if expired
-    if (expiresAt < new Date()) {
-      return '已过期';
-    }
+    const now = Date.now();
+    const diff = expiry - now;
 
-    return expiresAt.toLocaleString();
+    if (diff <= 0) return 'expired';
+    if (diff < 3 * 24 * 3600 * 1000) return 'warning'; // 3天内预警
+    return 'ok';
   }
 
-  /**
-   * 获取调度策略详细说明
-   */
+  getAccountValidity(account: GroupAccountRelationOutputDto): string {
+    if (!account.expiresAt) return '永久有效';
+    return new Date(account.expiresAt).toLocaleString();
+  }
+
   getStrategyDescription(strategy: GroupSchedulingStrategy): string {
     return SCHEDULING_STRATEGY_DESCRIPTIONS[strategy] || '';
+  }
+
+  toggleRouteProfilesPopover(event: Event, popover: Popover, profiles: RouteProfile[]) {
+    this.activeRouteProfiles.set(profiles);
+    popover.toggle(event);
+  }
+
+  getRoutePopoverItems(profiles: RouteProfile[]): RelationPopoverItem[] {
+    return profiles.map(profile => ({
+      id: profile,
+      leftText: this.getRouteProfileLabel(profile),
+      rightText: this.getRouteProfilePath(profile)
+    }));
+  }
+
+  getProviderAuthLabel(
+    provider: GroupAccountRelationOutputDto['provider'],
+    authMethod: GroupAccountRelationOutputDto['authMethod']
+  ): string {
+    return getProviderAuthLabel(provider, authMethod);
+  }
+
+  getRouteProfilePath(profile: RouteProfile): string {
+    const fullLabel = this.getRouteProfileFullLabel(profile);
+    const match = /\(([^)]+)\)$/.exec(fullLabel);
+    return match?.[1] ?? fullLabel;
+  }
+
+  getRouteProfileLabel(profile: RouteProfile): string {
+    return ROUTE_PROFILE_LABELS[profile] || profile;
+  }
+
+  getRouteProfileFullLabel(profile: RouteProfile): string {
+    return ROUTE_PROFILE_FULL_LABELS[profile] || profile;
   }
 }

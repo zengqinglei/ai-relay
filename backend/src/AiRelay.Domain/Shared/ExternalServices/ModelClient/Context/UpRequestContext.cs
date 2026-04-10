@@ -94,10 +94,10 @@ public class UpRequestContext
     /// </summary>
     public HttpRequestMessage BuildHttpRequestMessage(DownRequestContext down)
     {
-        var normalizedBase = BaseUrl.EndsWith('/') ? BaseUrl : BaseUrl + "/";
+        var normalizedBase = BaseUrl.TrimEnd('/');
         var relativeUrl = RelativePath.TrimStart('/') + (QueryString ?? "");
 
-        var request = new HttpRequestMessage(Method, normalizedBase + relativeUrl);
+        var request = new HttpRequestMessage(Method, normalizedBase + "/" + relativeUrl);
         foreach (var header in Headers)
         {
             request.Headers.TryAddWithoutValidation(header.Key, header.Value);

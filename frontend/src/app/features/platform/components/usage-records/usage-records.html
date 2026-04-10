@@ -2,225 +2,146 @@
   <div class="flex-1 overflow-y-auto p-6 custom-scrollbar">
     <!-- Action Bar / Filters -->
     <div class="flex flex-col lg:flex-row justify-between items-stretch lg:items-end gap-4 mb-6">
-      <div class="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-3">
-        <!-- Platform -->
-        <div class="flex flex-col gap-1.5">
-          <label for="platform" class="text-xs font-medium text-muted-color">平台</label>
-          <p-select
-            id="platform"
-            [options]="platforms"
-            [ngModel]="filterPlatform()"
-            (ngModelChange)="filterPlatform.set($event)"
-            (onChange)="onSelectFilterChange()"
-            optionLabel="label"
-            optionValue="value"
-            placeholder="全部平台"
-            [showClear]="true"
-            styleClass="w-full"
-          ></p-select>
-        </div>
+        <div class="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-3">
+          <!-- Platform -->
+          <div class="flex flex-col gap-1.5">
+            <label for="provider" class="text-xs font-medium text-muted-color">供应商</label>
+            <p-select id="provider" [options]="providers" [ngModel]="filterProvider()"
+              (ngModelChange)="filterProvider.set($event)" (onChange)="onSelectFilterChange()" optionLabel="label"
+              optionValue="value" placeholder="全部平台" [showClear]="true" styleClass="w-full"></p-select>
+          </div>
+
+          <!-- Auth Method -->
+          <div class="flex flex-col gap-1.5">
+            <label for="authMethod" class="text-xs font-medium text-muted-color">认证方式</label>
+            <p-select id="authMethod" [options]="authMethodOptions" [ngModel]="filterAuthMethod()"
+              (ngModelChange)="filterAuthMethod.set($event)" (onChange)="onSelectFilterChange()" optionLabel="label"
+              optionValue="value" placeholder="全部方式" [showClear]="true" styleClass="w-full"></p-select>
+          </div>
 
         <!-- Group -->
         <div class="flex flex-col gap-1.5">
           <label for="group" class="text-xs font-medium text-muted-color">分组</label>
-          <p-select
-            id="group"
-            [options]="groups()"
-            [ngModel]="filterProviderGroupId()"
-            (ngModelChange)="filterProviderGroupId.set($event)"
-            (onChange)="onSelectFilterChange()"
-            optionLabel="name"
-            optionValue="id"
-            placeholder="全部分组"
-            [showClear]="true"
-            styleClass="w-full"
-          ></p-select>
+          <p-select id="group" [options]="groups()" [ngModel]="filterProviderGroupId()"
+            (ngModelChange)="filterProviderGroupId.set($event)" (onChange)="onSelectFilterChange()" optionLabel="name"
+            optionValue="id" placeholder="全部分组" [showClear]="true" styleClass="w-full"></p-select>
         </div>
 
         <!-- Account -->
         <div class="flex flex-col gap-1.5">
           <label for="account" class="text-xs font-medium text-muted-color">供应商账户</label>
-          <input
-            pInputText
-            id="account"
-            [ngModel]="filterAccountTokenName()"
-            (ngModelChange)="filterAccountTokenName.set($event); onTextFilterChange()"
-            placeholder="搜索账户名"
-            class="w-full"
-          />
+          <input pInputText id="account" [ngModel]="filterAccountTokenName()"
+            (ngModelChange)="filterAccountTokenName.set($event); onTextFilterChange()" placeholder="搜索账户名"
+            class="w-full" />
         </div>
 
         <!-- Model -->
         <div class="flex flex-col gap-1.5">
           <label for="model" class="text-xs font-medium text-muted-color">模型</label>
-          <input
-            pInputText
-            id="model"
-            [ngModel]="filterModel()"
-            (ngModelChange)="filterModel.set($event); onTextFilterChange()"
-            placeholder="搜索模型"
-            class="w-full"
-          />
+          <input pInputText id="model" [ngModel]="filterModel()"
+            (ngModelChange)="filterModel.set($event); onTextFilterChange()" placeholder="搜索模型" class="w-full" />
         </div>
 
         <!-- API Key -->
         <div class="flex flex-col gap-1.5">
           <label for="apiKeyName" class="text-xs font-medium text-muted-color">API KEY 名</label>
-          <input
-            pInputText
-            id="apiKeyName"
-            [ngModel]="filterApiKeyName()"
-            (ngModelChange)="filterApiKeyName.set($event); onTextFilterChange()"
-            placeholder="搜索 API KEY 名"
-            class="w-full"
-          />
+          <input pInputText id="apiKeyName" [ngModel]="filterApiKeyName()"
+            (ngModelChange)="filterApiKeyName.set($event); onTextFilterChange()" placeholder="搜索 API KEY 名"
+            class="w-full" />
         </div>
 
         <!-- Date Range -->
-        <div class="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-3 xl:col-span-2">
+        <div class="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-2 xl:col-span-2">
           <label class="text-xs font-medium text-muted-color">时间范围</label>
           <div class="flex flex-col sm:flex-row items-stretch gap-2">
-            <p-datepicker
-              #startDatePicker
-              [ngModel]="filterStartTime()"
-              (ngModelChange)="filterStartTime.set($event); onSelectFilterChange()"
-              [showTime]="true"
-              [showIcon]="true"
-              [showClear]="true"
-              dateFormat="yy-mm-dd"
-              hourFormat="24"
-              placeholder="开始时间"
-              styleClass="w-full"
-              inputStyleClass="w-full"
-              [readonlyInput]="true"
-              appendTo="body"
-              class="flex-1"
-            >
+            <p-datepicker #startDatePicker [ngModel]="filterStartTime()"
+              (ngModelChange)="filterStartTime.set($event); onSelectFilterChange()" [showTime]="true" [showIcon]="true"
+              [showClear]="true" dateFormat="yy-mm-dd" hourFormat="24" placeholder="开始时间" styleClass="w-full"
+              inputStyleClass="w-full" [readonlyInput]="true" appendTo="body" class="flex-1">
               <ng-template pTemplate="footer">
                 <div class="p-2 border-t border-surface-200 dark:border-surface-700 flex gap-2 justify-center">
-                  <p-button label="今日" [text]="true" (onClick)="setDateRange('today'); startDatePicker.hideOverlay()"></p-button>
-                  <p-button label="近7天" [text]="true" (onClick)="setDateRange('week'); startDatePicker.hideOverlay()"></p-button>
-                  <p-button label="近30天" [text]="true" (onClick)="setDateRange('month'); startDatePicker.hideOverlay()"></p-button>
+                  <p-button label="今日" [text]="true"
+                    (onClick)="setDateRange('today'); startDatePicker.hideOverlay()"></p-button>
+                  <p-button label="近7天" [text]="true"
+                    (onClick)="setDateRange('week'); startDatePicker.hideOverlay()"></p-button>
+                  <p-button label="近30天" [text]="true"
+                    (onClick)="setDateRange('month'); startDatePicker.hideOverlay()"></p-button>
                 </div>
               </ng-template>
             </p-datepicker>
             <span class="text-muted-color self-center hidden sm:inline">-</span>
-            <p-datepicker
-              [ngModel]="filterEndTime()"
-              (ngModelChange)="filterEndTime.set($event); onSelectFilterChange()"
-              [showTime]="true"
-              [showIcon]="true"
-              [showClear]="true"
-              dateFormat="yy-mm-dd"
-              hourFormat="24"
-              placeholder="结束时间"
-              styleClass="w-full"
-              inputStyleClass="w-full"
-              [readonlyInput]="true"
-              appendTo="body"
-              class="flex-1"
-            ></p-datepicker>
+            <p-datepicker [ngModel]="filterEndTime()"
+              (ngModelChange)="filterEndTime.set($event); onSelectFilterChange()" [showTime]="true" [showIcon]="true"
+              [showClear]="true" dateFormat="yy-mm-dd" hourFormat="24" placeholder="结束时间" styleClass="w-full"
+              inputStyleClass="w-full" [readonlyInput]="true" appendTo="body" class="flex-1"></p-datepicker>
           </div>
         </div>
       </div>
 
       <!-- Buttons -->
       <div class="flex gap-3 shrink-0">
-        <p-button
-          icon="pi pi-refresh"
-          label="刷新"
-          (onClick)="loadData()"
-          styleClass="w-full sm:w-auto"
-          pTooltip="刷新"
-          tooltipPosition="top"
-        >
+        <p-button icon="pi pi-refresh" label="刷新" (onClick)="loadData()" styleClass="w-full sm:w-auto" pTooltip="刷新"
+          tooltipPosition="top">
         </p-button>
-        <p-button
-          icon="pi pi-refresh"
-          label="重置"
-          severity="secondary"
-          [outlined]="true"
-          styleClass="w-full sm:w-auto"
-          (onClick)="resetFilters()"
-          pTooltip="重置"
-          tooltipPosition="top"
-        >
+        <p-button icon="pi pi-refresh" label="重置" severity="secondary" [outlined]="true" styleClass="w-full sm:w-auto"
+          (onClick)="resetFilters()" pTooltip="重置" tooltipPosition="top">
         </p-button>
       </div>
     </div>
 
     <!-- Table Container -->
-    <div class="bg-surface-0 dark:bg-surface-900 rounded-xl shadow-sm border border-surface-200 dark:border-surface-700 overflow-hidden">
-      <p-table
-        [value]="records()"
-        [lazy]="true"
-        (onLazyLoad)="onLazyLoad($event)"
-        [paginator]="true"
-        [first]="first()"
-        [rows]="rows()"
-        [totalRecords]="totalRecords()"
-        [loading]="loading()"
-        [rowsPerPageOptions]="[10, 20, 50, 100]"
-        [showCurrentPageReport]="true"
-        currentPageReportTemplate="共 {totalRecords} 条"
-        [showJumpToPageInput]="true"
-        styleClass="w-full"
-        responsiveLayout="scroll"
-        [breakpoint]="'960px'"
-        [sortField]="sortField()"
-        [sortOrder]="sortOrder()"
-      >
+    <div
+      class="bg-surface-0 dark:bg-surface-900 rounded-xl shadow-sm border border-surface-200 dark:border-surface-700 overflow-hidden">
+      <p-table [value]="records()" [lazy]="true" (onLazyLoad)="onLazyLoad($event)" [paginator]="true" [first]="first()"
+        [rows]="rows()" [totalRecords]="totalRecords()" [loading]="loading()" [rowsPerPageOptions]="[10, 20, 50, 100]"
+        [showCurrentPageReport]="true" currentPageReportTemplate="共 {totalRecords} 条" [showJumpToPageInput]="true"
+        styleClass="w-full" responsiveLayout="scroll" [breakpoint]="'960px'" [sortField]="sortField()"
+        [sortOrder]="sortOrder()">
         <ng-template pTemplate="header">
           <tr class="bg-surface-50 dark:bg-surface-800 text-muted-color text-xs uppercase font-medium backdrop-blur-sm">
             <!-- Column 1: Time / Status -->
-            <th
-              class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3"
-              pSortableColumn="creationTime"
-            >
+            <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3"
+              pSortableColumn="creationTime">
               <div class="flex items-center gap-1"> 请求时间 <p-sortIcon field="creationTime"></p-sortIcon> </div>
             </th>
 
             <!-- Column 2: API Key / Model -->
             <th
-              class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden md:table-cell"
-            >
+              class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden md:table-cell">
               API KEY 名 / 模型
             </th>
 
             <!-- Column 3: Group / Account -->
             <th
-              class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden lg:table-cell"
-            >
+              class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden lg:table-cell">
               上游账户 / 分组
             </th>
 
             <!-- Column 4: Request Info -->
             <th
               class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden xl:table-cell"
-              style="width: 22rem; max-width: 22rem;"
-              pSortableColumn="durationMs"
-            >
+              style="width: 22rem; max-width: 22rem;" pSortableColumn="durationMs">
               <div class="flex items-center gap-1"> 下游请求信息 <p-sortIcon field="durationMs"></p-sortIcon> </div>
             </th>
 
             <!-- Column 5: Client Info -->
             <th
               class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden 2xl:table-cell"
-              style="width: 14rem; max-width: 14rem;"
-            >
+              style="width: 14rem; max-width: 14rem;">
               客户端来源
             </th>
 
             <!-- Column 6: Cost / Token -->
             <th
               class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 text-right"
-              pSortableColumn="finalCost"
-            >
-              <div class="flex items-center justify-end gap-1"> 金额 / Token <p-sortIcon field="finalCost"></p-sortIcon> </div>
+              pSortableColumn="finalCost">
+              <div class="flex items-center justify-end gap-1"> 金额 / Token <p-sortIcon field="finalCost"></p-sortIcon>
+              </div>
             </th>
 
             <!-- Column 7: Operation -->
-            <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 w-24 text-center">
+            <th
+              class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 w-24 text-center">
               操作
             </th>
           </tr>
@@ -228,143 +149,120 @@
 
         <ng-template pTemplate="body" let-record>
           <tr
-            class="transition-colors group border-b border-transparent hover:border-surface hover:bg-surface-50 dark:hover:bg-surface-800/50 text-sm text-color-secondary"
-          >
+            class="transition-colors group border-b border-transparent hover:border-surface hover:bg-surface-50 dark:hover:bg-surface-800/50 text-sm text-color-secondary">
             <!-- Column 1: Time / Status -->
             <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-2">
               <div class="flex flex-col gap-1.5">
                 <div class="flex items-center gap-1.5">
-                  <span class="text-sm text-color font-mono whitespace-nowrap">{{ record.creationTime | date: 'yyyy-MM-dd HH:mm:ss' }}</span>
+                  <span class="text-sm font-semibold text-surface-900 dark:text-surface-0 font-mono whitespace-nowrap">{{ record.creationTime | date:
+                    'yyyy-MM-dd HH:mm:ss' }}</span>
                 </div>
                 <div class="flex items-center gap-1.5">
-                  <p-tag
-                    [severity]="getStatusSeverity(record.status)"
-                    [value]="getStatusLabel(record.status)"
-                    styleClass="text-[10px] px-1.5 py-0.5 h-5"
-                  ></p-tag>
+                  <p-tag [severity]="getStatusSeverity(record.status)" [value]="getStatusLabel(record.status)"
+                    styleClass="text-[10px] px-1.5 py-0.5 h-4.5"></p-tag>
                   @if (record.attemptCount > 1) {
-                    <p-tag
-                      [value]="'重试×' + (record.attemptCount - 1)"
-                      severity="warn"
-                      styleClass="text-[10px] px-1.5 py-0.5 h-5"
-                    ></p-tag>
+                  <p-tag [value]="'重试×' + (record.attemptCount - 1)" severity="warn"
+                    styleClass="text-[10px] px-1.5 py-0.5 h-5"></p-tag>
                   }
                   @if (shouldShowFailureDetail(record)) {
-                    <i
-                      class="pi pi-question-circle text-sm text-orange-500 cursor-help"
-                      [pTooltip]="record.statusDescription"
-                      tooltipPosition="right"
-                      [escape]="false"
-                      tooltipStyleClass="max-w-md"
-                    ></i>
+                  <i class="pi pi-question-circle text-sm text-orange-500 cursor-help"
+                    [pTooltip]="record.statusDescription" tooltipPosition="right" [escape]="false"
+                    tooltipStyleClass="max-w-md"></i>
                   }
                 </div>
               </div>
             </td>
 
             <!-- Column 2: API Key / Model -->
-            <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-2 hidden md:table-cell">
+            <td
+              class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-2 hidden md:table-cell">
               <div class="flex flex-col gap-1.5">
                 <div class="flex items-center gap-1.5">
-                  <i class="pi pi-key text-sm text-primary/70"></i>
-                  <span
-                    class="text-sm font-medium text-color truncate"
-                    [pTooltip]="record.apiKeyName"
-                    tooltipPosition="top"
-                    tooltipStyleClass="max-w-md"
-                    >{{ record.apiKeyName }}</span
-                  >
+                  <i class="pi pi-key text-xs text-primary/70"></i>
+                  <span class="text-sm font-semibold text-surface-900 dark:text-surface-0 truncate" [pTooltip]="record.apiKeyName"
+                    tooltipPosition="top" tooltipStyleClass="max-w-md">{{ record.apiKeyName }}</span>
                 </div>
-                <div class="flex items-center gap-1.5">
-                  <span class="text-[10px] text-muted-color truncate max-w-[180px]" [pTooltip]="getModelDisplay(record)" tooltipPosition="top" tooltipStyleClass="max-w-md">
-                    <span class="text-muted-color">模型：</span>
-                    <span class="font-medium text-muted-color">{{ getModelDisplay(record) }}</span>
+                <div class="flex items-center gap-1.5 overflow-hidden">
+                  <span class="text-[11px] text-surface-500 dark:text-surface-400 font-medium truncate" [pTooltip]="record.sessionId" tooltipPosition="top">
+                    <span class="opacity-70 font-normal">SessionId:</span> {{ record.sessionId }}
                   </span>
                 </div>
               </div>
             </td>
 
             <!-- Column 3: Group / Account -->
-            <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-2 hidden lg:table-cell">
+            <td
+              class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-2 hidden lg:table-cell">
               <div class="flex flex-col gap-1.5">
-                <div class="flex items-center gap-1.5">
-                  <span class="text-sm text-muted-color whitespace-nowrap">账户：</span>
+                <div class="flex items-center gap-1.5 overflow-hidden">
+                  @if (record.provider) {
                   <span
-                    class="text-sm text-color font-mono truncate"
-                    [pTooltip]="record.accountTokenName"
-                    tooltipPosition="top"
-                    tooltipStyleClass="max-w-md"
-                    >{{ record.accountTokenName }}</span
-                  >
-                </div>
-                <div class="flex items-center gap-1.5">
-                  <span
-                    class="text-[10px] bg-surface-100 dark:bg-surface-800 px-1.5 py-0.5 rounded text-muted-color border border-surface-200 dark:border-surface-700 shrink-0"
-                  >
-                    {{ getPlatformLabel(record.platform) }}
+                    class="text-[10px] bg-surface-100 dark:bg-surface-800 px-1.5 py-0.5 rounded text-muted-color border border-surface-200 dark:border-surface-700 shrink-0">
+                    {{ record.provider | providerLabel }}
                   </span>
-                  <span class="text-[10px] text-surface-300 dark:text-surface-600">|</span>
+                  }
+                  @if (record.authMethod !== undefined) {
                   <span
-                    class="text-[10px] text-muted-color truncate"
-                    [pTooltip]="record.providerGroupName"
-                    tooltipPosition="top"
-                    tooltipStyleClass="max-w-md"
-                  >
-                    <span class="text-muted-color">分组：</span>
-                    <span class="font-medium text-muted-color">{{ record.providerGroupName }}</span>
+                    class="text-[10px] bg-surface-100 dark:bg-surface-800 px-1.5 py-0.5 rounded text-muted-color border border-surface-200 dark:border-surface-700 shrink-0">
+                    {{ record.authMethod | authMethodLabel }}
+                  </span>
+                  }
+                  <span class="text-sm font-semibold text-surface-900 dark:text-surface-0 font-mono truncate" [pTooltip]="record.accountTokenName"
+                    tooltipPosition="top" tooltipStyleClass="max-w-md">
+                    {{ record.accountTokenName }}
+                  </span>
+                </div>
+                <div class="flex items-center gap-1.5 overflow-hidden">
+                  <span class="text-[11px] text-surface-500 dark:text-surface-400 font-medium truncate"
+                    [pTooltip]="'资源池: ' + (record.providerGroupName || '无') + ' | 模型: ' + getModelDisplay(record)"
+                    tooltipPosition="top" tooltipStyleClass="max-w-md">
+                    <span class="opacity-70 font-normal">资源池:</span> {{ record.providerGroupName || '无' }}
+                    <span class="text-surface-300 dark:text-surface-600 mx-1">|</span>
+                    <span class="opacity-70 font-normal">模型:</span> {{ getModelDisplay(record) }}
                   </span>
                 </div>
               </div>
             </td>
 
             <!-- Column 4: Request Info -->
-            <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-2 hidden xl:table-cell overflow-hidden" style="width: 22rem; max-width: 22rem;">
+            <td
+              class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-2 hidden xl:table-cell overflow-hidden"
+              style="width: 22rem; max-width: 22rem;">
               <div class="flex flex-col gap-1.5">
                 <div class="flex items-center gap-1.5 min-w-0">
-                  <span class="text-sm font-bold text-surface-500 shrink-0">{{ record.downRequestMethod }}</span>
-                  <span
-                    class="text-sm text-color font-mono truncate min-w-0"
-                    [pTooltip]="record.downRequestUrl"
-                    tooltipPosition="top"
-                    tooltipStyleClass="max-w-md"
-                    >{{ record.downRequestUrl }}</span
-                  >
+                  <span class="text-sm font-bold text-surface-400 shrink-0 uppercase">{{ record.downRequestMethod }}</span>
+                  <span class="text-sm font-semibold text-surface-900 dark:text-surface-0 font-mono truncate min-w-0" [pTooltip]="record.downRequestUrl"
+                    tooltipPosition="top" tooltipStyleClass="max-w-md">{{ record.downRequestUrl }}</span>
                 </div>
                 <div class="flex items-center gap-1.5">
                   @if (record.isStreaming) {
-                    <p-tag value="流式" severity="info" styleClass="text-[10px] px-1.5 py-0.5"></p-tag>
+                  <p-tag value="流式" severity="info" styleClass="text-[10px] px-1.5 py-0.5"></p-tag>
                   } @else {
-                    <p-tag value="同步" severity="secondary" styleClass="text-[10px] px-1.5 py-0.5"></p-tag>
+                  <p-tag value="同步" severity="secondary" styleClass="text-[10px] px-1.5 py-0.5"></p-tag>
                   }
                   <span class="text-[10px] text-surface-300 dark:text-surface-600">|</span>
-                  <p-tag
-                    [value]="getHttpStatusCode(record)"
-                    [severity]="record.upStatusCode | httpStatusSeverity"
-                    styleClass="text-[10px] px-1.5 py-0.5 font-mono"
-                  ></p-tag>
-                  <span class="text-[10px] text-muted-color">
-                    <span class="text-muted-color">耗时：</span>
-                    <span class="font-medium text-muted-color">{{ formatDuration(record.durationMs) }}</span>
+                  <p-tag [value]="getHttpStatusCode(record)" [severity]="record.upStatusCode | httpStatusSeverity"
+                    styleClass="text-[10px] px-1.5 py-0.5 font-mono"></p-tag>
+                  <span class="text-[11px] text-surface-500 dark:text-surface-400 font-medium whitespace-nowrap">
+                    <span class="opacity-70 font-normal">耗时:</span> {{ formatDuration(record.durationMs) }}
                   </span>
                 </div>
               </div>
             </td>
 
             <!-- Column 5: Client Info -->
-            <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-2 hidden 2xl:table-cell overflow-hidden" style="width: 14rem; max-width: 14rem;">
+            <td
+              class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-2 hidden 2xl:table-cell overflow-hidden"
+              style="width: 14rem; max-width: 14rem;">
               <div class="flex flex-col gap-1.5">
                 <div class="flex items-center gap-1.5">
-                  <i class="pi pi-globe text-sm text-muted-color shrink-0"></i>
-                  <span class="text-sm text-color font-mono truncate min-w-0">{{ record.downClientIp }}</span>
+                  <i class="pi pi-globe text-xs text-muted-color shrink-0"></i>
+                  <span class="text-sm font-semibold text-surface-900 dark:text-surface-0 font-mono truncate min-w-0">{{ record.downClientIp }}</span>
                 </div>
                 <div class="flex items-center gap-1.5 min-w-0">
-                  <span
-                    class="text-[10px] text-muted-color truncate min-w-0 cursor-help"
-                    [pTooltip]="record.downUserAgent"
-                    tooltipPosition="top"
-                    tooltipStyleClass="max-w-md"
-                  >
-                    <span>UserAgent：</span>{{ record.downUserAgent }}
+                  <span class="text-[11px] text-surface-500 dark:text-surface-400 font-medium truncate min-w-0 cursor-help" [pTooltip]="record.downUserAgent"
+                    tooltipPosition="top" tooltipStyleClass="max-w-md">
+                    <span class="opacity-70 font-normal">UA:</span> {{ record.downUserAgent }}
                   </span>
                 </div>
               </div>
@@ -374,13 +272,15 @@
             <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-2">
               <div class="flex flex-col gap-1.5">
                 <div class="flex items-center justify-end gap-1.5">
-                  <span class="text-sm font-mono text-color font-medium whitespace-nowrap">$ {{ record.finalCost | number: '1.4-6' }}</span>
+                  <span class="text-sm font-semibold text-surface-900 dark:text-surface-0 font-mono whitespace-nowrap">$ {{ record.finalCost |
+                    number: '1.4-6' }}</span>
                 </div>
                 <div class="flex items-center justify-end gap-1.5">
-                  <span class="text-[10px] text-blue-600 dark:text-blue-400" pTooltip="Input" tooltipPosition="left">
+                  <span class="text-[11px] font-medium text-blue-600 dark:text-blue-400" pTooltip="Input" tooltipPosition="left">
                     <i class="pi pi-arrow-up text-[10px]"></i> {{ formatTokenCount(record.inputTokens) }}
                   </span>
-                  <span class="text-[10px] text-purple-600 dark:text-purple-400" pTooltip="Output" tooltipPosition="left">
+                  <span class="text-[11px] font-medium text-purple-600 dark:text-purple-400" pTooltip="Output"
+                    tooltipPosition="left">
                     <i class="pi pi-arrow-down text-[10px]"></i> {{ formatTokenCount(record.outputTokens) }}
                   </span>
                 </div>
@@ -390,16 +290,8 @@
             <!-- Column 7: Operation -->
             <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-2 text-center">
               <div class="flex justify-center gap-2">
-                <p-button
-                  icon="pi pi-eye"
-                  [rounded]="true"
-                  [text]="true"
-                  severity="secondary"
-                  pTooltip="查看详情"
-                  tooltipPosition="top"
-                  (onClick)="openDetail(record)"
-                  styleClass="w-8 h-8 !p-0"
-                >
+                <p-button icon="pi pi-eye" [rounded]="true" [text]="true" severity="secondary" pTooltip="查看详情"
+                  tooltipPosition="top" (onClick)="openDetail(record)" styleClass="w-8 h-8 !p-0">
                 </p-button>
               </div>
             </td>
@@ -422,4 +314,5 @@
   </div>
 </div>
 
-<app-usage-record-detail-dialog [(visible)]="detailDialogVisible" [record]="selectedRecord()"></app-usage-record-detail-dialog>
+<app-usage-record-detail-dialog [(visible)]="detailDialogVisible"
+  [record]="selectedRecord()"></app-usage-record-detail-dialog>

@@ -24,14 +24,14 @@ public record UsageRecordPagedInputDto : PagedRequestDto
     public string? AccountTokenName { get; init; }
 
     /// <summary>
+    /// 供应商
+    /// </summary>
+    public Provider? Provider { get; init; }
+
+    /// <summary>
     /// 分组 ID
     /// </summary>
     public Guid? ProviderGroupId { get; init; }
-
-    /// <summary>
-    /// 平台类型
-    /// </summary>
-    public ProviderPlatform? Platform { get; init; }
 
     /// <summary>
     /// 开始时间
@@ -42,4 +42,9 @@ public record UsageRecordPagedInputDto : PagedRequestDto
     /// 结束时间
     /// </summary>
     public DateTime? EndTime { get; init; }
+
+    /// <summary>
+    /// 认证方式
+    /// </summary>
+    public AuthMethod? AuthMethod { get; init; }
 }

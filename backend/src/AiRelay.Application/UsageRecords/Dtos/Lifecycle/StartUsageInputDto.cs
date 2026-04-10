@@ -1,11 +1,9 @@
-using AiRelay.Domain.ProviderAccounts.ValueObjects;
-
 namespace AiRelay.Application.UsageRecords.Dtos.Lifecycle;
 
 public record StartUsageInputDto(
     Guid UsageRecordId,
     string CorrelationId,
-    ProviderPlatform Platform,
+    string? SessionId,
     Guid ApiKeyId,
     string ApiKeyName,
     // 下游请求信息

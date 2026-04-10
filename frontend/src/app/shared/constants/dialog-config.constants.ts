@@ -29,7 +29,7 @@ export const DIALOG_CONFIGS = {
 
   /**
    * 中型对话框 - 适用于复杂表单或一般详情
-   * 例如：渠道分组编辑、模型测试、账户详情
+   * 例如：资源池编辑、模型测试、账户详情
    */
   MEDIUM: {
     breakpoints: { '1199px': '80vw', '575px': '95vw' },

@@ -11,12 +11,11 @@ import { SelectModule } from 'primeng/select';
 import { TextareaModule } from 'primeng/textarea';
 import { TooltipModule } from 'primeng/tooltip';
 
-import { PlatformIcon } from '../../../../../../shared/components/platform-icon/platform-icon';
 import { DIALOG_CONFIGS } from '../../../../../../shared/constants/dialog-config.constants';
-import { PROVIDER_PLATFORM_OPTIONS } from '../../../../../../shared/constants/provider-platform.constants';
-import { ProviderPlatform } from '../../../../../../shared/models/provider-platform.enum';
+import { ROUTE_PROFILE_FULL_LABELS, ROUTE_PROFILE_LABELS } from '../../../../../../shared/constants/route-profile.constants';
+import { RouteProfile } from '../../../../../../shared/models/route-profile.enum';
 import { ProviderGroupOutputDto } from '../../../../models/provider-group.dto';
-import { ApiKeyOutputDto, ApiKeyBindGroupInputDto } from '../../../../models/subscription.dto';
+import { ApiKeyBindGroupInputDto, ApiKeyOutputDto } from '../../../../models/subscription.dto';
 import { ProviderGroupService } from '../../../../services/provider-group-service';
 
 @Component({
@@ -33,15 +32,14 @@ import { ProviderGroupService } from '../../../../services/provider-group-servic
     SelectModule,
     DividerModule,
     ProgressSpinnerModule,
-    TooltipModule,
-    PlatformIcon
+    TooltipModule
   ],
   templateUrl: './subscription-edit-dialog.html'
 })
 export class SubscriptionEditDialogComponent {
   @Input() visible = false;
-  @Input() loading = false; // Loading for fetching subscription details
-  @Input() saving = false; // Loading for saving operation
+  @Input() loading = false;
+  @Input() saving = false;
   @Input() set subscription(value: ApiKeyOutputDto | null) {
     if (value) {
       this.isEditMode.set(true);
@@ -49,43 +47,36 @@ export class SubscriptionEditDialogComponent {
         name: value.name,
         description: value.description,
         expiresAt: value.expiresAt,
-        customSecret: '', // Not editable in edit mode
-        bindings: [] // Will be handled via map
+        customSecret: '',
+        bindings: []
       });
-      // Parse Date
       this.expiryDate = value.expiresAt ? new Date(value.expiresAt) : null;
-      // Parse Bindings
-      this.initializeBindingsMap(value.bindings);
+      this.formModel.update(m => {
+        m.bindings = [...(value.bindings || [])].sort((a, b) => a.priority - b.priority).map(b => ({
+          providerGroupId: b.providerGroupId,
+          priority: b.priority
+        }));
+        return m;
+      });
     } else {
       this.isEditMode.set(false);
       this.formModel.set(this.createEmptyModel());
       this.expiryDate = null;
-      this.bindingsMap = {};
     }
   }
   @Output() readonly visibleChange = new EventEmitter<boolean>();
-  @Output() readonly saved = new EventEmitter<any>(); // CreateApiKeyInputDto | UpdateApiKeyInputDto
+  @Output() readonly saved = new EventEmitter<any>();
 
   private groupService = inject(ProviderGroupService);
 
   isEditMode = signal(false);
   formModel = signal<any>(this.createEmptyModel());
-
   expiryDate: Date | null = null;
-
-  // Platform -> GroupId
-  bindingsMap: { [key: string]: string } = {};
-
-  // Cache for groups options
+  maxPools = signal(5);
   allGroups = signal<ProviderGroupOutputDto[]>([]);
-
-  platformOptions = PROVIDER_PLATFORM_OPTIONS;
-
-  // 使用小型 Dialog 配置
   dialogConfig = DIALOG_CONFIGS.SMALL;
 
   constructor() {
-    // Load groups on init (simple strategy)
     this.groupService.getGroups({ offset: 0, limit: 1000 }).subscribe(result => this.allGroups.set(result.items));
   }
 
@@ -99,17 +90,40 @@ export class SubscriptionEditDialogComponent {
     };
   }
 
-  initializeBindingsMap(bindings: any[]) {
-    this.bindingsMap = {};
-    if (bindings) {
-      bindings.forEach(b => {
-        this.bindingsMap[b.platform] = b.providerGroupId;
-      });
-    }
+  addFallbackPool() {
+    this.formModel.update(m => {
+      if (m.bindings.length < this.maxPools()) {
+        m.bindings.push({ providerGroupId: null, priority: m.bindings.length + 1 });
+      }
+      return m;
+    });
   }
 
-  getGroupsForPlatform(platform: string) {
-    return this.allGroups().filter(g => g.platform === platform);
+  removePool(index: number) {
+    this.formModel.update(m => {
+      m.bindings.splice(index, 1);
+      return m;
+    });
+  }
+
+  getAvailableGroups(currentIndex: number): ProviderGroupOutputDto[] {
+    const currentId = this.formModel().bindings[currentIndex]?.providerGroupId;
+    const selectedIds = new Set(
+      this.formModel().bindings
+        .filter((_: { providerGroupId: string | null }, index: number) => index !== currentIndex)
+        .map((binding: { providerGroupId: string | null }) => binding.providerGroupId)
+        .filter((id: string | null): id is string => !!id)
+    );
+
+    return this.allGroups().filter(group => group.id === currentId || !selectedIds.has(group.id));
+  }
+
+  getRouteProfileLabel(profile: RouteProfile): string {
+    return ROUTE_PROFILE_LABELS[profile] || profile;
+  }
+
+  getRouteProfileFullLabel(profile: RouteProfile): string {
+    return ROUTE_PROFILE_FULL_LABELS[profile] || profile;
   }
 
   onHide() {
@@ -117,37 +131,30 @@ export class SubscriptionEditDialogComponent {
     this.visibleChange.emit(false);
     this.formModel.set(this.createEmptyModel());
     this.expiryDate = null;
-    this.bindingsMap = {};
   }
 
   isValid(): boolean {
     if (!this.formModel().name) return false;
-
-    // If customSecret is provided, validate it
     if (this.formModel().customSecret && !this.isSecretValid()) {
       return false;
     }
-
     return true;
   }
 
   isSecretValid(): boolean {
     const secret = this.formModel().customSecret;
-    if (!secret) return true; // Empty is valid (will auto-generate)
-
-    // Regex: 6-48 characters, must contain numbers and letters, can contain underscore or hyphen
+    if (!secret) return true;
     const regex = /^(?=.*[0-9])(?=.*[a-zA-Z])[a-zA-Z0-9_-]{6,48}$/;
     return regex.test(secret);
   }
 
   save() {
     if (this.isValid()) {
-      // Convert Map to Array
-      const bindings: ApiKeyBindGroupInputDto[] = Object.keys(this.bindingsMap)
-        .filter(key => !!this.bindingsMap[key])
-        .map(key => ({
-          platform: key as ProviderPlatform,
-          providerGroupId: this.bindingsMap[key]
+      const bindings: ApiKeyBindGroupInputDto[] = this.formModel().bindings
+        .filter((b: any) => !!b.providerGroupId)
+        .map((b: any, index: number) => ({
+          priority: index + 1,
+          providerGroupId: b.providerGroupId
         }));
 
       const payload = {

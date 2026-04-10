@@ -1,15 +1,15 @@
 import { Pipe, PipeTransform } from '@angular/core';
 
-import { PROVIDER_PLATFORM_LABELS } from '../constants/provider-platform.constants';
-import { ProviderPlatform } from '../models/provider-platform.enum';
+import { PROVIDER_LABELS } from '../constants/provider.constants';
+import { Provider } from '../models/provider.enum';
 
 @Pipe({
-  name: 'platformLabel',
+  name: 'providerLabel',
   standalone: true
 })
-export class PlatformLabelPipe implements PipeTransform {
-  transform(value: ProviderPlatform | string): string {
-    const platform = value as ProviderPlatform;
-    return PROVIDER_PLATFORM_LABELS[platform] || value;
+export class ProviderLabelPipe implements PipeTransform {
+  transform(value: Provider | string): string {
+    const provider = value as Provider;
+    return PROVIDER_LABELS[provider] || value;
   }
 }

@@ -1,5 +1,6 @@
 using AiRelay.Application.ProviderGroups.Dtos;
 using AiRelay.Application.ApiKeys.Dtos;
+using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.ProviderGroups.Entities;
 using AiRelay.Domain.ApiKeys.Entities;
 using Leistd.ObjectMapping.Mapster;
@@ -19,6 +20,9 @@ public class ProviderGroupProfile : MapsterProfile
 
         CreateMap<ProviderGroupAccountRelation, GroupAccountRelationOutputDto>()
             .Map(d => d.AccountTokenName, s => s.AccountToken!.Name)
+            .Map(d => d.Provider, s => s.AccountToken!.Provider)
+            .Map(d => d.AuthMethod, s => s.AccountToken!.AuthMethod)
+            .Map(d => d.SupportedRouteProfiles, s => ResolveRouteProfiles(s))
             .Map(d => d.IsActive, s => s.AccountToken!.IsActive)
             .Map(d => d.ExpiresAt, s => s.AccountToken!.ExpiresAt)
             .Map(d => d.MaxConcurrency, s => s.AccountToken!.MaxConcurrency)
@@ -38,5 +42,18 @@ public class ProviderGroupProfile : MapsterProfile
         }
 
         return 0; // 预获取已在 AppService 中完成，如果缺失则兜底返回0
+    }
+
+    private static List<RouteProfile> ResolveRouteProfiles(ProviderGroupAccountRelation source)
+    {
+        var account = source.AccountToken;
+        if (account == null)
+            return [];
+
+        return RouteProfileRegistry.Profiles
+            .Where(p => p.Value.SupportedCombinations.Any(c => c.Provider == account.Provider && c.AuthMethod == account.AuthMethod))
+            .Select(p => p.Key)
+            .OrderBy(p => p)
+            .ToList();
     }
 }

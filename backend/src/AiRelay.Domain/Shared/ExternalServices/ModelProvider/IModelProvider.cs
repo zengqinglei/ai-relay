@@ -19,7 +19,7 @@ public interface IModelProvider
     /// <param name="requestedModel">客户端请求的模型名称</param>
     /// <returns>Antigravity 实际调用的模型名称</returns>
     /// <remarks>
-    /// 仅适用于 ProviderPlatform.ANTIGRAVITY 平台
+    /// 仅适用于 Provider.Antigravity 提供商
     /// </remarks>
     string GetAntigravityMappedModel(string requestedModel);
 
@@ -29,7 +29,7 @@ public interface IModelProvider
     /// <param name="requestedModel">客户端请求的模型名称</param>
     /// <returns>OpenAI Codex 实际调用的模型名称</returns>
     /// <remarks>
-    /// 适用于 ProviderPlatform.OPENAI_OAUTH 和 OPENAI_APIKEY 平台
+    /// 适用于 Provider.OpenAI 提供商
     /// </remarks>
     string GetOpenAIMappedModel(string requestedModel);
 
@@ -39,14 +39,14 @@ public interface IModelProvider
     /// <param name="requestedModel">客户端请求的模型名称</param>
     /// <returns>Claude 实际调用的模型名称</returns>
     /// <remarks>
-    /// 适用于 ProviderPlatform.CLAUDE_OAUTH 和 CLAUDE_APIKEY 平台
+    /// 适用于 Provider.Claude 提供商
     /// </remarks>
     string GetClaudeMappedModel(string requestedModel);
 
     /// <summary>
     /// 获取指定平台的可用模型列表
     /// </summary>
-    /// <param name="platform">平台类型</param>
+    /// <param name="provider">提供商</param>
     /// <returns>模型选项列表</returns>
-    IReadOnlyList<ModelOption> GetAvailableModels(ProviderPlatform platform);
+    IReadOnlyList<ModelOption> GetAvailableModels(Provider provider);
 }

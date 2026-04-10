@@ -9,7 +9,7 @@ namespace AiRelay.Domain.UsageRecords.Entities;
 /// </summary>
 public class UsageRecord : CreationAuditedEntity<Guid>
 {
-    public ProviderPlatform Platform { get; private set; }
+    public string? SessionId { get; private set; }
 
     public string CorrelationId { get; private set; }
 
@@ -62,7 +62,7 @@ public class UsageRecord : CreationAuditedEntity<Guid>
     public UsageRecord(
         Guid usageRecordId,
         string correlationId,
-        ProviderPlatform platform,
+        string? sessionId,
         Guid apiKeyId,
         string apiKeyName,
         bool isStreaming,
@@ -76,7 +76,7 @@ public class UsageRecord : CreationAuditedEntity<Guid>
     {
         Id = usageRecordId;
         CorrelationId = correlationId;
-        Platform = platform;
+        SessionId = sessionId;
         ApiKeyId = apiKeyId;
         ApiKeyName = apiKeyName;
         IsStreaming = isStreaming;

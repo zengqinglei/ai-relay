@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using Leistd.Ddd.Application.Contracts.Dtos;
 
 namespace AiRelay.Application.ProviderGroups.Dtos;
@@ -16,9 +15,5 @@ public record GetProviderGroupPagedInputDto : PagedRequestDto
     [MaxLength(256, ErrorMessage = "{0}长度不能超过 {1} 个字符")]
     public string? Keyword { get; init; }
 
-    /// <summary>
-    /// 平台类型
-    /// </summary>
-    [Display(Name = "平台类型")]
-    public ProviderPlatform? Platform { get; init; }
+
 }

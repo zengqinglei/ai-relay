@@ -34,9 +34,23 @@ public class UsageRecordAttempt : Entity<Guid>
 
     public UsageStatus Status { get; private set; }
 
+    public Provider Provider { get; private set; }
+
+    public AuthMethod AuthMethod { get; private set; }
+
     public string? StatusDescription { get; private set; }
 
     public UsageRecordAttemptDetail Detail { get; private set; } = null!;
+
+    /// <summary>
+    /// 开始时间
+    /// </summary>
+    public DateTime StartTime { get; private set; }
+    
+    /// <summary>
+    /// 结束时间
+    /// </summary>
+    public DateTime EndTime { get; private set; }
 
     /// <summary>
     /// 创建进行中的尝试记录（选号成功后立即调用）
@@ -46,6 +60,8 @@ public class UsageRecordAttempt : Entity<Guid>
         int attemptNumber,
         Guid accountTokenId,
         string accountTokenName,
+        Provider provider,
+        AuthMethod authMethod,
         Guid? providerGroupId,
         string? providerGroupName,
         decimal? groupRateMultiplier,
@@ -60,6 +76,8 @@ public class UsageRecordAttempt : Entity<Guid>
         AttemptNumber = attemptNumber;
         AccountTokenId = accountTokenId;
         AccountTokenName = accountTokenName;
+        Provider = provider;
+        AuthMethod = authMethod;
         ProviderGroupId = providerGroupId;
         ProviderGroupName = providerGroupName;
         GroupRateMultiplier = groupRateMultiplier;
@@ -67,6 +85,7 @@ public class UsageRecordAttempt : Entity<Guid>
         UpUserAgent = upUserAgent;
         UpRequestUrl = upRequestUrl;
         Status = UsageStatus.InProgress;
+        StartTime = DateTime.UtcNow;
         Detail = new UsageRecordAttemptDetail(Id, upRequestHeaders, upRequestBody, null);
     }
 
@@ -86,6 +105,7 @@ public class UsageRecordAttempt : Entity<Guid>
         StatusDescription = statusDescription?.Length > 2048
             ? statusDescription[..2045] + "..."
             : statusDescription;
+        EndTime = DateTime.UtcNow;
         Detail.CompleteAttempt(upResponseBody);
     }
 

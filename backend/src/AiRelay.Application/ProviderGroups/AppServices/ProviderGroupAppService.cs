@@ -3,7 +3,6 @@ using AiRelay.Application.ProviderGroups.Dtos;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.ProviderGroups.DomainServices;
 using AiRelay.Domain.ProviderGroups.Entities;
-using AiRelay.Domain.ProviderGroups.ValueObjects;
 using Leistd.Ddd.Application.AppService;
 using Leistd.Ddd.Application.Contracts.Dtos;
 using Leistd.Ddd.Domain.Repositories;
@@ -31,10 +30,7 @@ public class ProviderGroupAppService(
 
     public async Task<ProviderGroupOutputDto> CreateAsync(CreateProviderGroupInputDto input, CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("开始创建分组 {Name}... 平台：{Platform}", input.Name, input.Platform);
-
-        // 验证策略兼容性
-        ValidateStrategyCompatibility(input.SchedulingStrategy, input.Platform);
+        logger.LogInformation("开始创建分组 {Name}...", input.Name);
 
         var accounts = input.Accounts?.Select(a => (a.AccountTokenId, a.Priority, a.Weight)).ToList()
                        ?? new List<(Guid AccountId, int Priority, int Weight)>();
@@ -42,7 +38,6 @@ public class ProviderGroupAppService(
         var group = await providerGroupDomainService.CreateGroupWithAccountsAsync(
             input.Name,
             input.Description,
-            input.Platform,
             input.SchedulingStrategy,
             input.EnableStickySession,
             input.StickySessionExpirationHours,
@@ -58,13 +53,9 @@ public class ProviderGroupAppService(
     {
         logger.LogInformation("开始更新分组 {Id}...", id);
 
-        // 获取当前分组以验证平台
         var existingGroup = await providerGroupRepository.GetByIdAsync(id, cancellationToken);
         if (existingGroup == null)
             throw new NotFoundException($"分组不存在: {id}");
-
-        // 验证策略兼容性
-        ValidateStrategyCompatibility(input.SchedulingStrategy, existingGroup.Platform);
 
         var accounts = input.Accounts?.Select(a => (a.AccountTokenId, a.Priority, a.Weight)).ToList()
                        ?? new List<(Guid AccountId, int Priority, int Weight)>();
@@ -110,9 +101,7 @@ public class ProviderGroupAppService(
         if (!string.IsNullOrWhiteSpace(input.Keyword))
             query = query.Where(g => g.Name.Contains(input.Keyword));
 
-        // 平台筛选
-        if (input.Platform.HasValue)
-            query = query.Where(g => g.Platform == input.Platform.Value);
+
 
         // 动态排序
         var sorting = input.Sorting ?? $"{nameof(ProviderGroup.CreationTime)} desc";
@@ -151,6 +140,7 @@ public class ProviderGroupAppService(
                 if (relationsByGroup.TryGetValue(groupDto.Id, out var relations))
                 {
                     groupDto.Accounts = objectMapper.Map<List<ProviderGroupAccountRelation>, List<GroupAccountRelationOutputDto>>(relations, contextItems);
+                    groupDto.SupportedRouteProfiles = ResolveRouteProfiles(groupDto.Accounts);
                 }
             }
         }
@@ -182,29 +172,31 @@ public class ProviderGroupAppService(
             };
 
             result.Accounts = objectMapper.Map<List<ProviderGroupAccountRelation>, List<GroupAccountRelationOutputDto>>(relations, contextItems);
+            result.SupportedRouteProfiles = ResolveRouteProfiles(result.Accounts);
         }
         else
         {
             result.Accounts = [];
+            result.SupportedRouteProfiles = [];
         }
 
         return result;
     }
 
     /// <summary>
-    /// 验证调度策略与平台的兼容性
+    /// 从账号的 (Provider, AuthMethod) 组合反查 RouteProfileRegistry，得出该分组能响应的路由协议列表
     /// </summary>
-    private static void ValidateStrategyCompatibility(GroupSchedulingStrategy strategy, ProviderPlatform platform)
+    private static List<RouteProfile> ResolveRouteProfiles(List<GroupAccountRelationOutputDto> accounts)
     {
-        if (strategy == GroupSchedulingStrategy.QuotaPriority)
-        {
-            var supportedPlatforms = new[] { ProviderPlatform.ANTIGRAVITY, ProviderPlatform.GEMINI_OAUTH };
-            if (!supportedPlatforms.Contains(platform))
-            {
-                throw new BadRequestException(
-                    $"QuotaPriority 策略仅支持 ANTIGRAVITY 和 GEMINI_OAUTH 平台，当前平台: {platform}");
-            }
-        }
+        var combinations = accounts
+            .Select(a => (a.Provider, a.AuthMethod))
+            .ToHashSet();
+
+        return RouteProfileRegistry.Profiles
+            .Where(p => p.Value.SupportedCombinations.Any(c => combinations.Contains((c.Provider, c.AuthMethod))))
+            .Select(p => p.Key)
+            .OrderBy(p => p)
+            .ToList();
     }
 
     #endregion

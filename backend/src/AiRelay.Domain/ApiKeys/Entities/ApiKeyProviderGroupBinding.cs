@@ -1,4 +1,3 @@
-using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.ProviderGroups.Entities;
 using Leistd.Ddd.Domain.Entities.Auditing;
 
@@ -15,9 +14,9 @@ public class ApiKeyProviderGroupBinding : DeletionAuditedEntity<Guid>
     public Guid ApiKeyId { get; private set; }
 
     /// <summary>
-    /// 平台类型
+    /// 优先级 (数值越小优先级越高，如 1 为首选资源池)
     /// </summary>
-    public ProviderPlatform Platform { get; private set; }
+    public int Priority { get; private set; }
 
     /// <summary>
     /// 分组ID
@@ -36,12 +35,12 @@ public class ApiKeyProviderGroupBinding : DeletionAuditedEntity<Guid>
     /// </summary>
     public ApiKeyProviderGroupBinding(
         Guid apiKeyId,
-        ProviderPlatform platform,
+        int priority,
         Guid providerGroupId)
     {
         Id = Guid.CreateVersion7();
         ApiKeyId = apiKeyId;
-        Platform = platform;
+        Priority = priority;
         ProviderGroupId = providerGroupId;
     }
 

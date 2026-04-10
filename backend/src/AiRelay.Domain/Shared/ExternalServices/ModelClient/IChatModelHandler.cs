@@ -13,7 +13,7 @@ public interface IChatModelHandler
     /// <summary>
     /// 是否支持平台
     /// </summary>
-    bool Supports(ProviderPlatform platform);
+    bool Supports(Provider provider, AuthMethod authMethod);
 
     /// <summary>
     /// 元数据提取（由 Middleware 在 DownstreamRequestProcessor 之后单独调用）

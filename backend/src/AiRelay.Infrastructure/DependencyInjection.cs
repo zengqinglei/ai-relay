@@ -99,6 +99,7 @@ public static class DependencyInjection
 
         // 注册具体的 Repository
         services.AddScoped<IApiKeyRepository, ApiKeyRepository>();
+        services.AddScoped<IProviderGroupRepository, ProviderGroupRepository>();
         services.AddScoped<IProviderGroupAccountRelationRepository, ProviderGroupAccountRelationRepository>();
 
         // ... (Rest of the method) ...
@@ -203,14 +204,13 @@ public static class DependencyInjection
         // 注册 OAuth 提供商服务 (Keyed 模式)
         // 1. Google 系 (同时支持 "google" 字符串用于系统登录)
         services.AddKeyedTransient<IOAuthProvider, GoogleOAuthProvider>("google");
-        services.AddKeyedTransient<IOAuthProvider, GoogleOAuthProvider>(ProviderPlatform.GEMINI_OAUTH);
-        services.AddKeyedTransient<IOAuthProvider, GoogleOAuthProvider>(ProviderPlatform.ANTIGRAVITY);
+        services.AddKeyedTransient<IOAuthProvider, GoogleOAuthProvider>(Provider.Gemini);
 
         // 2. Claude 系
-        services.AddKeyedTransient<IOAuthProvider, ClaudeOAuthProvider>(ProviderPlatform.CLAUDE_OAUTH);
+        services.AddKeyedTransient<IOAuthProvider, ClaudeOAuthProvider>(Provider.Claude);
 
         // 3. OpenAI 系
-        services.AddKeyedTransient<IOAuthProvider, OpenAiOAuthProvider>(ProviderPlatform.OPENAI_OAUTH);
+        services.AddKeyedTransient<IOAuthProvider, OpenAiOAuthProvider>(Provider.OpenAI);
 
         // 4. GitHub (用于系统登录 "github" 字符串 Key)
         services.AddKeyedTransient<IOAuthProvider, GitHubOAuthProvider>("github");

@@ -2,8 +2,11 @@
 <div class="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 mb-6">
   <div class="flex flex-col sm:flex-row flex-1 gap-3 items-stretch sm:items-center">
     <!-- Filters -->
-    <p-select [options]="platformOptions" [ngModel]="selectedPlatform()" (ngModelChange)="selectedPlatform.set($event)" (onChange)="onSelectChange()" optionLabel="label"
-      optionValue="value" placeholder="全部平台" [showClear]="true" appendTo="body" styleClass="w-full sm:w-48" />
+    <p-select [options]="providerOptions" [ngModel]="selectedProvider()" (ngModelChange)="selectedProvider.set($event)" (onChange)="onSelectChange()" optionLabel="label"
+      optionValue="value" placeholder="全部平台" [showClear]="true" appendTo="body" styleClass="w-full sm:w-40" />
+
+    <p-select [options]="authMethodOptions" [ngModel]="selectedAuthMethod()" (ngModelChange)="selectedAuthMethod.set($event)" (onChange)="onSelectChange()" optionLabel="label"
+      optionValue="value" placeholder="全部方式" [showClear]="true" appendTo="body" styleClass="w-full sm:w-40" />
 
     <p-select [options]="statusOptions" [ngModel]="selectedStatus()" (ngModelChange)="selectedStatus.set($event)" (onChange)="onSelectChange()" optionLabel="label"
       optionValue="value" placeholder="全部状态" [showClear]="true" appendTo="body" styleClass="w-full sm:w-48" />
@@ -73,7 +76,7 @@
           <div class="flex items-center gap-3 min-w-0">
             <div
               class="w-10 h-10 shrink-0 rounded-lg bg-surface-100 dark:bg-surface-800 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform p-2">
-              <app-platform-icon [platform]="acc.platform" />
+              <app-platform-icon [provider]="acc.provider" />
             </div>
             <div class="min-w-0 flex-1">
               <p class="font-semibold text-color text-sm group-hover:text-primary transition-colors m-0 truncate"
@@ -81,7 +84,11 @@
               <div class="flex items-center gap-2 mt-0.5">
                 <span
                   class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-surface-100 dark:bg-surface-800 text-muted-color border border-surface-200 dark:border-surface-700 whitespace-nowrap">
-                  {{ acc.platform | platformLabel }}
+                  {{ acc.provider | providerLabel }}
+                </span>
+                <span
+                  class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-surface-100 dark:bg-surface-800 text-muted-color border border-surface-200 dark:border-surface-700 whitespace-nowrap">
+                  {{ acc.authMethod | authMethodLabel }}
                 </span>
               </div>
             </div>

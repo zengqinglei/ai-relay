@@ -21,8 +21,8 @@ public class OpenAiChatModelHandler(
     ILogger<OpenAiChatModelHandler> logger)
     : BaseChatModelHandler(options, httpClientFactory, logger)
 {
-    public override bool Supports(ProviderPlatform platform) =>
-        platform is ProviderPlatform.OPENAI_OAUTH or ProviderPlatform.OPENAI_APIKEY;
+    public override bool Supports(Provider provider, AuthMethod authMethod) =>
+        provider == Provider.OpenAI && (authMethod == AuthMethod.OAuth || authMethod == AuthMethod.ApiKey);
 
     protected override IReadOnlyList<IResponseProcessor> GetResponseProcessors(
         UpRequestContext up, DownRequestContext down)
@@ -60,10 +60,9 @@ public class OpenAiChatModelHandler(
             ["instructions"] = "You are a helpful AI assistant."
         };
 
-        if (Options.Platform == ProviderPlatform.OPENAI_OAUTH)
+        if (Options.AuthMethod == AuthMethod.OAuth)
             json["store"] = false;
-
-        string path = Options.Platform == ProviderPlatform.OPENAI_OAUTH
+        string path = Options.AuthMethod == AuthMethod.OAuth
             ? "/backend-api/codex/responses"
             : "/v1/responses";
 
@@ -132,10 +131,10 @@ public class OpenAiChatModelHandler(
             return;
         }
 
-        // 优先级 5: 第一条消息内容
-        if (down.ExtractedProps.TryGetValue("messages[0].content", out var text) && !string.IsNullOrWhiteSpace(text))
+        // 优先级 5: 第一条消息内容（包含智能筛选的 User 内容或保底首条消息）
+        if (down.ExtractedProps.TryGetValue("session_fingerprint_text", out var fingerprint) && !string.IsNullOrWhiteSpace(fingerprint))
         {
-            down.SessionId = GenerateSessionHashWithContext(text, down, apiKeyId);
+            down.SessionId = GenerateSessionHashWithContext(fingerprint, down, apiKeyId);
             return;
         }
     }

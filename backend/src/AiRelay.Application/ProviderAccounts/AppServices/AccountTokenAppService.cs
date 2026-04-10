@@ -2,7 +2,7 @@ using System.Linq.Dynamic.Core;
 using AiRelay.Application.ProviderAccounts.Dtos;
 using AiRelay.Domain.ProviderAccounts.DomainServices;
 using AiRelay.Domain.ProviderAccounts.Entities;
-using AiRelay.Domain.ProviderAccounts.Extensions;
+
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.ProviderGroups.DomainServices.SchedulingStrategy.AccountConcurrencyStrategy;
 using AiRelay.Domain.ProviderGroups.Entities;
@@ -43,9 +43,9 @@ public class AccountTokenAppService(
     public async Task<OAuthUrlOutputDto> GetOAuthUrlAsync(GetAuthUrlInputDto input, CancellationToken cancellationToken = default)
     {
         // 1. 获取 OAuth Provider
-        var provider = serviceProvider.GetKeyedService<IOAuthProvider>(input.Platform);
+        var provider = serviceProvider.GetKeyedService<IOAuthProvider>(input.Provider);
         if (provider == null)
-            throw new NotFoundException($"平台 {input.Platform} 不支持 OAuth");
+            throw new NotFoundException($"提供商 {input.Provider} 不支持 OAuth");
 
         // 2. 生成 PKCE 参数
         var session = new OAuthSession
@@ -61,7 +61,7 @@ public class AccountTokenAppService(
         var codeChallenge = GenerateCodeChallenge(session.CodeVerifier);
 
         // 5. 生成授权 URL
-        var authUrl = provider.GetAuthorizationUrl(input.Platform, session.State, codeChallenge);
+        var authUrl = provider.GetAuthorizationUrl(input.Provider, session.State, codeChallenge);
 
         return new OAuthUrlOutputDto
         {
@@ -104,13 +104,14 @@ public class AccountTokenAppService(
         yield return new StreamEvent
         {
             Type = StreamEventType.System,
-            Content = $"开始测试 {accountToken.Platform} 平台账户 {accountToken.Name} ..."
+            Content = $"开始测试 {accountToken.Provider}-{accountToken.AuthMethod} 账户 {accountToken.Name} ..."
         };
 
         await accountTokenDomainService.RefreshTokenIfNeededAsync(accountToken, cancellationToken);
 
         var handler = chatModelHandlerFactory.CreateHandler(
-            accountToken.Platform,
+            accountToken.Provider,
+            accountToken.AuthMethod,
             accountToken.AccessToken!,
             accountToken.BaseUrl,
             accountToken.ExtraProperties,
@@ -181,12 +182,12 @@ public class AccountTokenAppService(
     }
 
     public async Task<IReadOnlyList<ModelOptionOutputDto>> GetAvailableModelsAsync(
-        ProviderPlatform platform,
+        Provider provider,
         Guid? accountId = null,
         CancellationToken cancellationToken = default)
     {
         // 1. 加载静态基准模型
-        var baselineModels = modelProvider.GetAvailableModels(platform);
+        var baselineModels = modelProvider.GetAvailableModels(provider);
 
         AccountToken? accountToken = null;
         if (accountId.HasValue)
@@ -226,8 +227,8 @@ public class AccountTokenAppService(
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "上游模型拉取失败，降级静态: AccountId={AccountId}, Platform={Platform}",
-                    accountId, platform);
+                logger.LogWarning(ex, "上游模型拉取失败，降级静态: AccountId={AccountId}, Provider={Provider}",
+                    accountId, provider);
             }
         }
 
@@ -259,8 +260,11 @@ public class AccountTokenAppService(
             accountQuery = accountQuery.Where(a => a.Name.Contains(input.Keyword));
 
         // 平台筛选
-        if (input.Platform.HasValue)
-            accountQuery = accountQuery.Where(a => a.Platform == input.Platform.Value);
+        if (input.Provider.HasValue)
+            accountQuery = accountQuery.Where(a => a.Provider == input.Provider.Value);
+
+        if (input.AuthMethod.HasValue)
+            accountQuery = accountQuery.Where(a => a.AuthMethod == input.AuthMethod.Value);
 
         // 状态筛选
         if (input.IsActive.HasValue)
@@ -322,10 +326,10 @@ public class AccountTokenAppService(
         CreateAccountTokenInputDto input,
         CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("开始创建账户: {Name} - {Platform}", input.Name, input.Platform);
+        logger.LogInformation("开始创建账户: {Name} - {Provider}-{AuthMethod}", input.Name, input.Provider, input.AuthMethod);
 
         // 验证输入参数
-        if (input.Platform.IsOAuthPlatform())
+        if (input.AuthMethod == AuthMethod.OAuth)
         {
             if (string.IsNullOrWhiteSpace(input.AuthCode) || string.IsNullOrWhiteSpace(input.SessionId))
             {
@@ -342,11 +346,11 @@ public class AccountTokenAppService(
 
         // 检查同名账户
         var existingAccounts = await accountTokenRepository.GetListAsync(
-            a => a.Name == input.Name && a.Platform == input.Platform,
+            a => a.Name == input.Name && a.Provider == input.Provider && a.AuthMethod == input.AuthMethod,
             cancellationToken);
 
         if (existingAccounts.Any())
-            throw new BadRequestException($"平台 {input.Platform} 下已存在同名账户: {input.Name}");
+            throw new BadRequestException($"提供商 {input.Provider}({input.AuthMethod}) 下已存在同名账户: {input.Name}");
 
         // 判断凭证类型
         string? accessToken = null;
@@ -357,7 +361,7 @@ public class AccountTokenAppService(
             : new Dictionary<string, string>();
 
         // OAuth 流程处理
-        if (input.Platform.IsOAuthPlatform())
+        if (input.AuthMethod == AuthMethod.OAuth)
         {
             // 1. 获取 Session
             var session = await oauthSessionManager.GetAndRemoveSessionAsync(input.SessionId!, cancellationToken);
@@ -365,15 +369,15 @@ public class AccountTokenAppService(
                 throw new BadRequestException("OAuth 会话无效或已过期");
 
             // 2. 获取对应的 OAuth Provider
-            var provider = serviceProvider.GetKeyedService<IOAuthProvider>(input.Platform);
+            var provider = serviceProvider.GetKeyedService<IOAuthProvider>(input.Provider);
             if (provider == null)
-                throw new BadRequestException($"平台 {input.Platform} 不支持 OAuth 自动交换");
+                throw new BadRequestException($"提供商 {input.Provider} 不支持 OAuth 自动交换");
 
             // 3. 交换 Token (使用 IOAuthProvider 统一接口)
             var tokenResponse = await provider.ExchangeCodeForTokenAsync(
                 input.AuthCode!,
                 codeVerifier: session.CodeVerifier,
-                platform: input.Platform,
+                provider: input.Provider,
                 cancellationToken: cancellationToken);
 
             refreshToken = tokenResponse.RefreshToken;
@@ -390,7 +394,7 @@ public class AccountTokenAppService(
                 }
             }
         }
-        else if (input.Platform.IsApiKeyPlatform())
+        else if (input.AuthMethod == AuthMethod.ApiKey)
         {
             // API Key 平台，credential 作为 AccessToken
             accessToken = input.Credential;
@@ -404,7 +408,8 @@ public class AccountTokenAppService(
 
         // 创建账户，领域服务预热 (刷新Token + 获取ProjectId)
         var accountToken = await accountTokenDomainService.CreateAndPrepareAsync(
-            input.Platform,
+            input.Provider,
+            input.AuthMethod,
             input.Name,
             mergedExtraProperties,
             accessToken,
@@ -453,7 +458,7 @@ public class AccountTokenAppService(
         // 更新凭证
         if (!string.IsNullOrWhiteSpace(input.Credential))
         {
-            if (accountToken.Platform.IsApiKeyPlatform())
+            if (accountToken.AuthMethod == AuthMethod.ApiKey)
             {
                 // 对于API Key平台，更新Access Token（expiresIn 传 null 表示保持原值，因为 APIKEY 通常永久有效）
                 accountToken.UpdateTokens(input.Credential, null, null);

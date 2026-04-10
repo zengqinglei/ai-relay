@@ -56,15 +56,21 @@ public class UsageRecordAppService(
             query = query.Where(r => r.Attempts.Any(a => a.AccountTokenName.Contains(input.AccountTokenName)));
         }
 
+        if (input.Provider.HasValue)
+        {
+            query = query.Where(r => r.Attempts.Any(a => a.Provider == input.Provider.Value));
+        }
+
         if (input.ProviderGroupId.HasValue)
         {
             query = query.Where(r => r.Attempts.Any(a => a.ProviderGroupId == input.ProviderGroupId.Value));
         }
 
-        if (input.Platform.HasValue)
+        if (input.AuthMethod.HasValue)
         {
-            query = query.Where(r => r.Platform == input.Platform.Value);
+            query = query.Where(r => r.Attempts.Any(a => a.AuthMethod == input.AuthMethod.Value));
         }
+
 
         if (input.StartTime.HasValue)
         {
@@ -110,6 +116,8 @@ public class UsageRecordAppService(
             dto.AccountTokenName = x.LatestAttempt?.AccountTokenName;
             dto.UpModelId = x.LatestAttempt?.UpModelId;
             dto.UpStatusCode = x.LatestAttempt?.UpStatusCode;
+            dto.Provider = x.LatestAttempt?.Provider;
+            dto.AuthMethod = x.LatestAttempt?.AuthMethod;
             return dto;
         }).ToList();
 

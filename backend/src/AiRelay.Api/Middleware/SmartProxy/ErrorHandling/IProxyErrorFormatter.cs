@@ -12,10 +12,7 @@ public record ProxyErrorResponse(int StatusCode, string ContentType, string Payl
 /// </summary>
 public interface IProxyErrorFormatter
 {
-    /// <summary>
-    /// 支持序列化错误数据的目标平台
-    /// </summary>
-    ProviderPlatform Platform { get; }
+    bool Supports(RouteProfile profile);
 
     /// <summary>
     /// 将内部异常格式化为指定平台的 HTTP 响应载荷

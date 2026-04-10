@@ -10,13 +10,15 @@ function getPagedList(req: any): PagedResultDto<UsageRecordOutputDto> {
     model,
     accountTokenName,
     providerGroupId,
-    platform,
+    provider,
     startTime,
     endTime,
-    sorting
+    sorting,
+    authMethod
   } = req.queryParams;
 
   let filteredRecords = USAGE_RECORDS;
+
 
   // Filter: API Key Name (substring, case-insensitive)
   if (apiKeyName && String(apiKeyName) !== 'undefined') {
@@ -43,9 +45,14 @@ function getPagedList(req: any): PagedResultDto<UsageRecordOutputDto> {
     filteredRecords = filteredRecords.filter(r => r.providerGroupId === String(providerGroupId));
   }
 
-  // Filter: Platform (exact)
-  if (platform && String(platform) !== 'undefined') {
-    filteredRecords = filteredRecords.filter(r => r.platform === String(platform));
+  // Filter: Provider (exact)
+  if (provider && String(provider) !== 'undefined') {
+    filteredRecords = filteredRecords.filter(r => r.provider === String(provider));
+  }
+
+  // Filter: Auth Method (exact)
+  if (authMethod) {
+    filteredRecords = filteredRecords.filter(r => r.authMethod === String(authMethod));
   }
 
   // Filter: Time Range

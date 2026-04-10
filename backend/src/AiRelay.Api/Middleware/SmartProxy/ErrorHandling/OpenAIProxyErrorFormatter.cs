@@ -10,7 +10,7 @@ namespace AiRelay.Api.Middleware.SmartProxy.ErrorHandling;
 /// </summary>
 public class OpenAIProxyErrorFormatter : BaseProxyErrorFormatter
 {
-    public override ProviderPlatform Platform => ProviderPlatform.OPENAI_OAUTH;
+    public override bool Supports(RouteProfile profile) => profile is RouteProfile.ChatCompletions or RouteProfile.OpenAiResponses or RouteProfile.OpenAiCodex;
 
     protected override ProxyErrorResponse BuildResponse(int statusCode, string message)
     {

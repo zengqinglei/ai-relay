@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using AiRelay.Domain.ProviderAccounts.ValueObjects;
 
 namespace AiRelay.Application.ApiKeys.Dtos;
 
@@ -9,11 +8,11 @@ namespace AiRelay.Application.ApiKeys.Dtos;
 public class ApiKeyBindGroupInputDto
 {
     /// <summary>
-    /// 平台类型
+    /// 优先级 (数值越小优先级越高，如 1 为首选资源池)
     /// </summary>
     [Required(ErrorMessage = "{0}不能为空")]
-    [Display(Name = "平台类型")]
-    public ProviderPlatform Platform { get; set; }
+    [Display(Name = "优先级")]
+    public int Priority { get; set; }
 
     /// <summary>
     /// 分组ID

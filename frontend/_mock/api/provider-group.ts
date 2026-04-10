@@ -10,18 +10,13 @@ export function findGroupById(id: string) {
 }
 
 function getGroups(req: MockRequest) {
-  const { keyword, platform, offset = 0, limit = 10 } = req.queryParams;
+  const { keyword, offset = 0, limit = 10 } = req.queryParams;
 
   let list = [...groups];
 
   if (keyword) {
     const query = String(keyword).trim().toLowerCase();
     list = list.filter(g => g.name.toLowerCase().includes(query) || g.description?.toLowerCase().includes(query));
-  }
-
-  if (platform) {
-    const targetPlatform = String(platform).trim();
-    list = list.filter(g => String(g.platform) === targetPlatform);
   }
 
   const totalCount = list.length;
@@ -54,7 +49,7 @@ function createGroup(req: MockRequest) {
     ...body,
     id: `group-${Date.now()}`,
     creationTime: new Date().toISOString(),
-    // Mock filling account names roughly if not provided
+    supportedRouteProfiles: body.supportedRouteProfiles || [],
     accounts: (body.accounts || []).map((a: any) => ({
       ...a,
       accountTokenName: a.accountTokenName || `Mock Account ${a.accountTokenId}`
@@ -77,8 +72,8 @@ function updateGroup(req: MockRequest) {
   const updatedGroup = {
     ...groups[index],
     ...body,
-    // Preserve creation time
     creationTime: groups[index].creationTime,
+    supportedRouteProfiles: body.supportedRouteProfiles || groups[index].supportedRouteProfiles || [],
     accounts: (body.accounts || []).map((a: any) => ({
       ...a,
       accountTokenName: a.accountTokenName || `Mock Account ${a.accountTokenId}`
@@ -113,6 +108,9 @@ function addAccountToGroup(req: MockRequest) {
     id: `relation-${Date.now()}`,
     accountTokenId: body.accountId,
     accountTokenName: body.accountTokenName || `Mock Account ${body.accountId}`,
+    provider: body.provider,
+    authMethod: body.authMethod,
+    supportedRouteProfiles: body.supportedRouteProfiles || [],
     weight: body.weight || 1,
     priority: body.priority || 0,
     isActive: true
