@@ -306,12 +306,38 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     currentConcurrency: 0,
     allowOfficialClientMimic: true,
     isCheckStreamHealth: true
+  },
+  {
+    id: '12',
+    name: 'deepseek-api-01',
+    provider: Provider.OpenAICompatible,
+    authMethod: AuthMethod.ApiKey,
+    baseUrl: 'https://api.deepseek.com/v1',
+    description: 'DeepSeek 官方 API 账户',
+    isActive: true,
+    status: AccountStatus.Normal,
+    expiresIn: null,
+    tokenObtainedTime: '2024-05-01T10:00:00Z',
+    creationTime: '2024-05-01T10:00:00Z',
+    usageToday: 5600,
+    usageTotal: 89000,
+    costToday: 1.2,
+    costTotal: 45.6,
+    tokensToday: 560000,
+    tokensTotal: 8900000,
+    fullToken: 'sk-ds-...abcd',
+    successRateToday: 99.5,
+    successRateTotal: 98.9,
+    maxConcurrency: 100,
+    currentConcurrency: 2,
+    allowOfficialClientMimic: false,
+    isCheckStreamHealth: true
   }
 ];
 
 export const ACCOUNT_METRICS: AccountTokenMetricsOutputDto = {
-  totalAccounts: 11,
-  activeAccounts: 9,
+  totalAccounts: 12,
+  activeAccounts: 10,
   disabledAccounts: 2, // id:3 (RateLimited), id:11 (Error)
   expiringAccounts: 1, // id:11 token expired
 
@@ -364,6 +390,12 @@ export const AVAILABLE_MODELS: Record<Provider, ModelOptionOutputDto[]> = {
     { label: 'Claude 4.6 Opus (Thinking)', value: 'claude-opus-4-6-thinking' },
     { label: 'Claude 4.6 Sonnet', value: 'claude-sonnet-4-6' },
     { label: 'Claude 4.6 Sonnet (Thinking)', value: 'claude-sonnet-4-6-thinking' }
+  ],
+  [Provider.OpenAICompatible]: [
+    { label: 'DeepSeek V3', value: 'deepseek-chat' },
+    { label: 'DeepSeek R1', value: 'deepseek-reasoner' },
+    { label: 'Llama 3.3 70B (Groq)', value: 'llama-3.3-70b-versatile' },
+    { label: 'Mixtral 8x7B (Groq)', value: 'mixtral-8x7b-32768' }
   ]
 };
 

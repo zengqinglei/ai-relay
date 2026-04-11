@@ -102,69 +102,61 @@ public class GeminiApiChatModelHandler(
 
     public override async Task<IReadOnlyList<ModelOption>?> GetModelsAsync(CancellationToken ct = default)
     {
-        try
+        // Gemini API Key 通过 URL 参数传递，Processor 会自动处理
+        var down = new DownRequestContext
         {
-            // Gemini API Key 通过 URL 参数传递，Processor 会自动处理
-            var down = new DownRequestContext
+            Method = HttpMethod.Get,
+            RelativePath = "/v1beta/models",
+            Headers = []
+        };
+
+        var up = await ProcessRequestContextAsync(down, 0, ct);
+        using var response = await SendCoreRequestAsync(up, down, ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            Logger.LogWarning("Gemini 上游模型拉取失败: {StatusCode}", response.StatusCode);
+            return null;
+        }
+
+        var json = await response.Content.ReadAsStringAsync(ct);
+        using var doc = JsonDocument.Parse(json);
+        var models = new List<ModelOption>();
+
+        if (doc.RootElement.TryGetProperty("models", out var modelsArray))
+        {
+            foreach (var item in modelsArray.EnumerateArray())
             {
-                Method = HttpMethod.Get,
-                RelativePath = "/v1beta/models",
-                Headers = []
-            };
-
-            var up = await ProcessRequestContextAsync(down, 0, ct);
-            using var response = await SendCoreRequestAsync(up, down, ct);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                Logger.LogWarning("Gemini 上游模型拉取失败: {StatusCode}", response.StatusCode);
-                return null;
-            }
-
-            var json = await response.Content.ReadAsStringAsync(ct);
-            using var doc = JsonDocument.Parse(json);
-            var models = new List<ModelOption>();
-
-            if (doc.RootElement.TryGetProperty("models", out var modelsArray))
-            {
-                foreach (var item in modelsArray.EnumerateArray())
+                if (item.TryGetProperty("name", out var nameProp))
                 {
-                    if (item.TryGetProperty("name", out var nameProp))
+                    var fullName = nameProp.GetString(); // "models/gemini-2.5-pro"
+                    if (!string.IsNullOrEmpty(fullName) && fullName.StartsWith("models/"))
                     {
-                        var fullName = nameProp.GetString(); // "models/gemini-2.5-pro"
-                        if (!string.IsNullOrEmpty(fullName) && fullName.StartsWith("models/"))
+                        var modelIdStr = fullName[7..];
+
+                        // 过滤：仅保留 generateContent 支持的模型
+                        if (item.TryGetProperty("supportedGenerationMethods", out var methodsArray))
                         {
-                            var modelIdStr = fullName[7..];
+                            var methods = methodsArray.EnumerateArray()
+                                .Select(m => m.GetString())
+                                .Where(m => m != null)
+                                .ToList();
 
-                            // 过滤：仅保留 generateContent 支持的模型
-                            if (item.TryGetProperty("supportedGenerationMethods", out var methodsArray))
+                            if (methods.Contains("generateContent"))
                             {
-                                var methods = methodsArray.EnumerateArray()
-                                    .Select(m => m.GetString())
-                                    .Where(m => m != null)
-                                    .ToList();
-
-                                if (methods.Contains("generateContent"))
-                                {
-                                    var displayName = item.TryGetProperty("displayName", out var dispProp)
-                                        ? dispProp.GetString() ?? modelIdStr
-                                        : modelIdStr;
-                                    models.Add(new ModelOption(displayName, modelIdStr));
-                                }
+                                var displayName = item.TryGetProperty("displayName", out var dispProp)
+                                    ? dispProp.GetString() ?? modelIdStr
+                                    : modelIdStr;
+                                models.Add(new ModelOption(displayName, modelIdStr));
                             }
                         }
                     }
                 }
             }
+        }
 
-            Logger.LogInformation("Gemini 上游拉取成功: {Count} 个模型", models.Count);
-            return models.Count > 0 ? models : null;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Gemini 上游模型拉取异常");
-            return null;
-        }
+        Logger.LogInformation("Gemini 上游拉取成功: {Count} 个模型", models.Count);
+        return models.Count > 0 ? models : null;
     }
 
     public override DownRequestContext CreateDebugDownContext(string modelId, string message)

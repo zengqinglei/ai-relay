@@ -218,15 +218,21 @@ public class AccountTokenDomainService(
         }
         else
         {
+            // 如果上游没拉取到且没有白名单，降级仅使用 baseline 模型
             effectiveModels = baselineModels.Where(m => !m.Value.Contains('*')).Select(m => m.Value);
         }
 
         var effectiveList = effectiveModels.ToList();
-        if (effectiveList.Count == 0) return true;
-
+        
+        // 检查精确匹配（含有效模型列表中的项）
         if (effectiveList.Any(v => v.Equals(requestedModel, StringComparison.OrdinalIgnoreCase))) return true;
-        return baselineModels.Where(m => m.Value.EndsWith('*'))
-            .Any(m => requestedModel.StartsWith(m.Value[..^1], StringComparison.OrdinalIgnoreCase));
+        
+        // 检查 Baseline 中的通配符匹配（支持如 gpt-4-*）
+        if (baselineModels.Where(m => m.Value.EndsWith('*'))
+            .Any(m => requestedModel.StartsWith(m.Value[..^1], StringComparison.OrdinalIgnoreCase))) return true;
+
+        // 最后：如果整个系统没有任何该 Provider 的 Baseline 配置，才允许通过（极少数情况）
+        return baselineModels.Count == 0;
     }
 
     /// <summary>

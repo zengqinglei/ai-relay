@@ -169,6 +169,7 @@
                 (completeMethod)="filterModels($event)"
                 [multiple]="true"
                 [dropdown]="true"
+                [fluid]="true"
                 placeholder="输入或选择模型名称"
                 styleClass="w-full"
               />
@@ -183,10 +184,10 @@
               </div>
               <div class="flex flex-col gap-2">
                 @for (mapping of modelMappings; track trackByIndex($index); let i = $index) {
-                  <div class="flex items-center gap-2">
-                    <input pInputText [(ngModel)]="mapping.from" [ngModelOptions]="{standalone: true}" placeholder="源模型（支持 * 通配）" class="flex-1" />
+                  <div class="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2">
+                    <input pInputText [(ngModel)]="mapping.from" [ngModelOptions]="{standalone: true}" placeholder="源模型（支持 * 通配）" class="w-full min-w-0" />
                     <i class="pi pi-arrow-right text-muted-color shrink-0"></i>
-                    <input pInputText [(ngModel)]="mapping.to" [ngModelOptions]="{standalone: true}" placeholder="目标模型" class="flex-1" />
+                    <input pInputText [(ngModel)]="mapping.to" [ngModelOptions]="{standalone: true}" placeholder="目标模型" class="w-full min-w-0" />
                     <p-button icon="pi pi-trash" [text]="true" severity="danger" size="small" (onClick)="removeMappingRow(i)" />
                   </div>
                 }

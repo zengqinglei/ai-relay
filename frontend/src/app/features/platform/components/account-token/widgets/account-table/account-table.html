@@ -41,7 +41,8 @@
   <p-table [value]="accounts()" [lazy]="true" (onLazyLoad)="onPage($event)" [totalRecords]="totalRecords()"
     [loading]="loading()" [first]="first" [rows]="rows" [paginator]="true" [rowHover]="true"
     [rowsPerPageOptions]="[10, 20, 50, 100]" [showCurrentPageReport]="true"
-    currentPageReportTemplate="共 {totalRecords} 条" [showJumpToPageInput]="true" styleClass="w-full"
+    currentPageReportTemplate="共 {totalRecords} 条" [showJumpToPageInput]="true" paginatorDropdownAppendTo="body"
+    styleClass="w-full"
     responsiveLayout="scroll" [breakpoint]="'960px'"
     [sortField]="sortField()" [sortOrder]="sortOrder()">
     <ng-template pTemplate="header">

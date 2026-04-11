@@ -45,59 +45,51 @@ public class ClaudeChatModelHandler(
         if (Options.AuthMethod != AuthMethod.ApiKey)
             return null;
 
-        try
+        // 1. 构造 DownRequestContext（GET /v1/models）
+        var down = new DownRequestContext
         {
-            // 1. 构造 DownRequestContext（GET /v1/models）
-            var down = new DownRequestContext
+            Method = HttpMethod.Get,
+            RelativePath = "/v1/models",
+            Headers = []
+        };
+
+        // 2. 通过 Processor 链处理（复用 Header 处理逻辑）
+        var up = await ProcessRequestContextAsync(down, 0, ct);
+
+        // 3. 发送请求
+        using var response = await SendCoreRequestAsync(up, down, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            Logger.LogWarning("Claude 上游模型拉取失败: {StatusCode}", response.StatusCode);
+            return null;
+        }
+
+        // 4. 解析响应（自动解压已由 ModelProxyClient 拦截）
+        await using var responseStream = await response.Content.ReadAsStreamAsync(ct);
+
+        using var doc = await JsonDocument.ParseAsync(responseStream, cancellationToken: ct);
+        var models = new List<ModelOption>();
+
+        if (doc.RootElement.TryGetProperty("data", out var dataArray))
+        {
+            foreach (var item in dataArray.EnumerateArray())
             {
-                Method = HttpMethod.Get,
-                RelativePath = "/v1/models",
-                Headers = []
-            };
-
-            // 2. 通过 Processor 链处理（复用 Header 处理逻辑）
-            var up = await ProcessRequestContextAsync(down, 0, ct);
-
-            // 3. 发送请求
-            using var response = await SendCoreRequestAsync(up, down, ct);
-            if (!response.IsSuccessStatusCode)
-            {
-                Logger.LogWarning("Claude 上游模型拉取失败: {StatusCode}", response.StatusCode);
-                return null;
-            }
-
-            // 4. 解析响应（自动解压已由 ModelProxyClient 拦截）
-            await using var responseStream = await response.Content.ReadAsStreamAsync(ct);
-
-            using var doc = await JsonDocument.ParseAsync(responseStream, cancellationToken: ct);
-            var models = new List<ModelOption>();
-
-            if (doc.RootElement.TryGetProperty("data", out var dataArray))
-            {
-                foreach (var item in dataArray.EnumerateArray())
+                if (item.TryGetProperty("id", out var idProp))
                 {
-                    if (item.TryGetProperty("id", out var idProp))
+                    var id = idProp.GetString();
+                    if (!string.IsNullOrEmpty(id) && id.StartsWith("claude-"))
                     {
-                        var id = idProp.GetString();
-                        if (!string.IsNullOrEmpty(id) && id.StartsWith("claude-"))
-                        {
-                            var displayName = item.TryGetProperty("display_name", out var nameProp)
-                                ? nameProp.GetString() ?? id
-                                : id;
-                            models.Add(new ModelOption(displayName, id));
-                        }
+                        var displayName = item.TryGetProperty("display_name", out var nameProp)
+                            ? nameProp.GetString() ?? id
+                            : id;
+                        models.Add(new ModelOption(displayName, id));
                     }
                 }
             }
+        }
 
-            Logger.LogInformation("Claude 上游拉取成功: {Count} 个模型", models.Count);
-            return models.Count > 0 ? models : null;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Claude 上游模型拉取异常");
-            return null;
-        }
+        Logger.LogInformation("Claude 上游拉取成功: {Count} 个模型", models.Count);
+        return models.Count > 0 ? models : null;
     }
 
     public override DownRequestContext CreateDebugDownContext(string modelId, string message)

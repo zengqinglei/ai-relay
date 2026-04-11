@@ -232,12 +232,28 @@ public class AccountTokenAppService(
             }
         }
 
-        // 4. 以基准模型过滤上游模型（保持基准顺序），排除通配符项
+        // 4. 合并模型列表
         IReadOnlyList<ModelOption> finalModels;
         if (upstreamModelIds != null && upstreamModelIds.Count > 0)
         {
-            var upstreamIds = upstreamModelIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
-            finalModels = baselineModels.Where(m => !m.Value.Contains('*') && upstreamIds.Contains(m.Value)).ToList();
+            var upstreamIdSet = upstreamModelIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            if (baselineModels.Count > 0)
+            {
+                // 情况 A：存在基准模型（官方渠道，如 OpenAI/Claude）
+                // 采用严格过滤逻辑：仅展现基准列表中且上游也存在的模型，确保 UI 简洁且经过验证
+                finalModels = baselineModels
+                    .Where(m => !m.Value.Contains('*') && upstreamIdSet.Contains(m.Value))
+                    .ToList();
+            }
+            else
+            {
+                // 情况 B：无基准模型（动态渠道，如 OpenAICompatible）
+                // 采用全量透传逻辑：直接展示上游回传的所有模型
+                finalModels = upstreamModelIds
+                    .Select(id => new ModelOption(id, id))
+                    .ToList();
+            }
         }
         else
         {

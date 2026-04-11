@@ -8,5 +8,6 @@ public enum Provider
     Gemini,
     Claude,
     OpenAI,
-    Antigravity
+    Antigravity,
+    OpenAICompatible
 }

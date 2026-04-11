@@ -151,5 +151,32 @@ export const PROVIDER_GROUPS: ProviderGroupOutputDto[] = [
         currentConcurrency: 0
       }
     ]
+  },
+  {
+    id: 'group-004',
+    name: 'OpenAI 兼容中转池',
+    description: '接入 DeepSeek / Groq 等兼容接口',
+    schedulingStrategy: GroupSchedulingStrategy.WeightedRandom,
+    enableStickySession: false,
+    stickySessionExpirationHours: 0,
+    rateMultiplier: 0.5,
+    creationTime: new Date(Date.now() - 3600000).toISOString(),
+    supportedRouteProfiles: [RouteProfile.ChatCompletions],
+    accounts: [
+      {
+        id: 'rel-008',
+        accountTokenId: '兼容-01',
+        accountTokenName: 'DeepSeek-Pro',
+        provider: Provider.OpenAICompatible,
+        authMethod: AuthMethod.ApiKey,
+        supportedRouteProfiles: [RouteProfile.ChatCompletions],
+        weight: 10,
+        priority: 0,
+        isActive: true,
+        expiresAt: null,
+        maxConcurrency: 100,
+        currentConcurrency: 5
+      }
+    ]
   }
 ];

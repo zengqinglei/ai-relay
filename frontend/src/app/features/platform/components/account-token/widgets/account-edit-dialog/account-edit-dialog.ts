@@ -116,9 +116,15 @@ export class AccountEditDialogComponent implements OnChanges {
         if (val === Provider.Antigravity) {
           this.form.get('authMethod')?.setValue(AuthMethod.OAuth);
           this.form.get('authMethod')?.disable({ emitEvent: false });
-          
+
           this.form.get('allowOfficialClientMimic')?.setValue(true, { emitEvent: false });
           this.form.get('allowOfficialClientMimic')?.disable({ emitEvent: false });
+        } else if (val === Provider.OpenAICompatible) {
+          // OpenAI Compatible：认证方式强制为 ApiKey（且 BaseUrl 必填在 updateValidators 中处理）
+          this.form.get('authMethod')?.setValue(AuthMethod.ApiKey);
+          this.form.get('authMethod')?.disable({ emitEvent: false });
+
+          this.form.get('allowOfficialClientMimic')?.enable({ emitEvent: false });
         } else {
           if (!this.isEditMode()) {
             this.form.get('authMethod')?.enable({ emitEvent: false });
@@ -255,6 +261,15 @@ export class AccountEditDialogComponent implements OnChanges {
       }
     }
     this.form.get('credential')?.updateValueAndValidity();
+
+    // Base URL 校验：OpenAICompatible 为必填
+    const baseUrlControl = this.form.get('baseUrl');
+    if (this.currentProvider() === Provider.OpenAICompatible) {
+      baseUrlControl?.setValidators([Validators.required, Validators.maxLength(512), Validators.pattern(/^https?:\/\/.+/)]);
+    } else {
+      baseUrlControl?.setValidators([Validators.maxLength(512), Validators.pattern(/^https?:\/\/.+/)]);
+    }
+    baseUrlControl?.updateValueAndValidity();
   }
 
   get isOAuth(): boolean {

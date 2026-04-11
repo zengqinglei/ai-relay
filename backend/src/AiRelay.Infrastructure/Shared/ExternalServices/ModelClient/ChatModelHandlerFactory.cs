@@ -17,6 +17,7 @@ public class ChatModelHandlerFactory(IServiceProvider serviceProvider) : IChatMo
         [(Provider.Antigravity, AuthMethod.OAuth)]   = typeof(AntigravityChatModelHandler),
         [(Provider.Gemini, AuthMethod.OAuth)]  = typeof(GeminiAccountChatModelHandler),
         [(Provider.Gemini, AuthMethod.ApiKey)] = typeof(GeminiApiChatModelHandler),
+        [(Provider.OpenAICompatible, AuthMethod.ApiKey)] = typeof(OpenAiCompatibleChatModelHandler),
     };
 
     /// <summary>

@@ -5,7 +5,8 @@ export const PROVIDER_LABELS: Record<Provider, string> = {
   [Provider.Gemini]: 'Gemini',
   [Provider.Claude]: 'Claude',
   [Provider.OpenAI]: 'OpenAI',
-  [Provider.Antigravity]: 'Antigravity'
+  [Provider.Antigravity]: 'Antigravity',
+  [Provider.OpenAICompatible]: 'OpenAI Compatible'
 };
 
 export const PROVIDER_OPTIONS = Object.entries(PROVIDER_LABELS).map(([value, label]) => ({

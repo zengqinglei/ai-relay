@@ -99,7 +99,6 @@
           <div class="flex items-center gap-4 h-10 flex-wrap">
             <div class="flex items-center gap-2 whitespace-nowrap">
               <p-toggleswitch [(ngModel)]="formModel().enableStickySession" [disabled]="readonly" />
-              <span class="text-sm text-gray-500">{{ formModel().enableStickySession ? '已开启' : '已关闭' }}</span>
             </div>
 
             @if (formModel().enableStickySession) {
@@ -231,30 +230,30 @@
         <p-table [value]="formModel().accounts" styleClass="p-datatable-sm" [scrollable]="true" scrollHeight="300px">
           <ng-template pTemplate="header">
             <tr>
-              <th style="width: 55%">账号名称</th>
-              <th style="width: 30%" class="hidden md:table-cell">
+              <th class="min-w-0">账号名称</th>
+              <th style="width: 120px" class="hidden md:table-cell text-center">
                 @if (showWeight) {
-                  权重 (1-1000)
+                  权重
                 } @else if (showPriority) {
-                  优先级 (0-100)
+                  优先级
                 } @else {
                   调度策略
                 }
               </th>
-              <th style="width: 15%" class="text-center">操作</th>
+              <th style="width: 80px" class="text-center">操作</th>
             </tr>
           </ng-template>
           <ng-template pTemplate="body" let-account let-i="rowIndex">
             <tr>
               <td>
-                <div class="flex flex-col gap-2 min-w-0">
-                  <div class="flex items-center gap-2 min-w-0 flex-wrap">
+                <div class="flex flex-col gap-1 min-w-0 overflow-hidden">
+                  <div class="flex items-center gap-2 min-w-0">
                     <span class="truncate"
                           [pTooltip]="getAccountName(account.accountTokenId)"
                           tooltipPosition="top"
                           tooltipStyleClass="max-w-none whitespace-nowrap">{{ getAccountName(account.accountTokenId) }}</span>
                     @if (getAccountPlatformLabel(account.accountTokenId)) {
-                      <p-tag [value]="getAccountPlatformLabel(account.accountTokenId)" severity="secondary" styleClass="text-xs shrink-0" />
+                      <p-tag [value]="getAccountPlatformLabel(account.accountTokenId)" severity="secondary" styleClass="text-[10px] shrink-0" />
                     }
                   </div>
                   @if (getAccountRouteSummary(account.accountTokenId)) {

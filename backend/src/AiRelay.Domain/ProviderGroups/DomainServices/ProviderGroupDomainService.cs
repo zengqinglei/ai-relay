@@ -192,159 +192,120 @@ public class ProviderGroupDomainService(
         IReadOnlyList<(Provider Provider, AuthMethod AuthMethod)>? allowedCombinations = null)
     {
         Guid groupId = group.Id;
+        var excludedIdList = excludedIds?.ToList() ?? [];
 
         logger.LogDebug("ApiKey '{ApiKeyName}' 使用分组 '{GroupName}'", apiKeyName ?? "未知", group.Name);
 
-        // 2. 检查粘性会话
-        // 只有提供了 sessionHash 且分组启用了粘性会话时才生效
-        if (group.EnableStickySession && !string.IsNullOrEmpty(sessionHash))
-        {
-            var stickyAccountId = await GetStickySessionAccountAsync(groupId, sessionHash);
-            if (stickyAccountId.HasValue)
-            {
-                // 排除列表检查
-                if (excludedIds != null && excludedIds.Contains(stickyAccountId.Value))
-                {
-                    logger.LogInformation("粘性会话账户 {AccountId} 在排除列表中，跳过并清除粘性会话", stickyAccountId.Value);
-                    await RemoveStickySessionAsync(groupId, sessionHash);
-                }
-                else
-                {
-                    // 检查该账户是否在当前分组的关联关系中，且状态正常
-                    // Cache First 策略：如果缓存的账户不可用，立即失效并重新调度
-                    var relation = await providerGroupAccountRelationRepository.GetFirstAsync(r =>
-                        r.ProviderGroupId == groupId &&
-                        r.AccountTokenId == stickyAccountId.Value &&
-                        r.IsActive);
-
-                    if (relation != null)
-                    {
-                        var stickyAccount = await accountTokenRepository.GetByIdAsync(stickyAccountId.Value);
-                        // 添加限流检查
-                        var isRateLimited = await accountRateLimitDomainService.IsRateLimitedAsync(stickyAccountId.Value);
-                        if (stickyAccount != null && stickyAccount.IsActive && stickyAccount.IsAvailable() && !isRateLimited)
-                        {
-                            return (stickyAccount, group, true, 1); // 粘性绑定，可用数量设为1（因为粘性会话只用这个账号）
-                        }
-                    }
-
-                    // 缓存未命中或账户不可用：清除缓存，进入重新调度
-                    await RemoveStickySessionAsync(groupId, sessionHash);
-                }
-            }
-        }
-
-        // 3. 使用自定义仓储方法获取有效的分组关联及账户 (包含 AccountToken)
-        // 这个方法已经在仓储层封装了 Include(AccountToken) 和 Where(IsActive) 逻辑
-        var relations = await providerGroupAccountRelationRepository.GetListByGroupIdWithAccountsAsync(groupId);
+        // 1. SQL 下压过滤：获取符合协议、排除列表且活跃的原始账号列表
+        var relations = await providerGroupAccountRelationRepository.GetCandidatesAsync(
+            groupId, 
+            allowedCombinations?.ToList(), 
+            excludedIdList);
 
         if (!relations.Any())
+        {
+            logger.LogWarning("分组 {GroupId} 中没有符合协议或排除条件的活跃账号", groupId);
             return (null, group, false, 0);
+        }
 
-        // 4. 批量获取并发数和限流状态（提前获取，避免在循环中多次查询）
-        var candidateIds = relations.Select(r => r.AccountTokenId).Distinct().ToList();
-        var concurrencyTask = concurrencyStrategy.GetConcurrencyCountsAsync(candidateIds);
-        var rateLimitTask = accountRateLimitDomainService.GetRateLimitedAccountIdsAsync(candidateIds);
-
+        // 2. 批量获取动态状态量（提高并发检查与限流检查效率）
+        var accountIds = relations.Select(r => r.AccountTokenId).Distinct().ToList();
+        var concurrencyTask = concurrencyStrategy.GetConcurrencyCountsAsync(accountIds);
+        var rateLimitTask = accountRateLimitDomainService.GetRateLimitedAccountIdsAsync(accountIds);
         await Task.WhenAll(concurrencyTask, rateLimitTask);
 
         var concurrencyCounts = concurrencyTask.Result;
         var rateLimitedIds = rateLimitTask.Result;
 
-        // 5. 一次性过滤：排除列表 + 可用性 + 限流 + 并发控制
-        var excludedIdSet = excludedIds?.ToHashSet() ?? [];
-        var availableRelations = new List<ProviderGroupAccountRelation>();
-
+        // 3. 应用层流水线过滤：提取符合“硬性合规性”的候选人列表 (Qualified Candidates)
+        // 包含：基础状态检查、复杂的模型支持性检查。
+        var qualifiedRelations = new List<ProviderGroupAccountRelation>();
         foreach (var relation in relations)
         {
-            // 过滤1：排除列表
-            if (excludedIdSet.Contains(relation.AccountTokenId))
-                continue;
+            var account = relation.AccountToken!;
+            
+            // 基础可用性检查 (Status != Error)
+            if (!account.IsAvailable()) continue;
 
-            // 过滤2：可用性检查
-            if (relation.AccountToken == null || !relation.AccountToken.IsAvailable())
-                continue;
-
-            // 过滤3：限流检查（批量查询结果）
-            if (rateLimitedIds.Contains(relation.AccountTokenId))
-            {
-                logger.LogDebug("账号 {AccountName} 被限流跳过", relation.AccountToken.Name);
-                continue;
-            }
-
-            // 过滤4：并发控制
-            var account = relation.AccountToken;
-            var currentConcurrency = concurrencyCounts.TryGetValue(relation.AccountTokenId, out var count) ? count : 0;
-
-            if (account.MaxConcurrency > 0 && currentConcurrency >= account.MaxConcurrency)
-            {
-                logger.LogDebug("账号 {AccountName} 已满载 ({Current}/{Max})，跳过",
-                    relation.AccountToken.Name, currentConcurrency, account.MaxConcurrency);
-                continue;
-            }
-
-            // 过滤5：模型支持检查
+            // 模型支持检查 (包含白名单与通配符逻辑)
             if (!string.IsNullOrEmpty(requestedModel))
             {
-                var isSupported = await accountTokenDomainService.IsModelSupportedAsync(account, requestedModel);
-                if (!isSupported)
+                if (!await accountTokenDomainService.IsModelSupportedAsync(account, requestedModel))
                 {
-                    logger.LogDebug("账号 {AccountName} 不支持模型 {Model}，跳过", relation.AccountToken.Name, requestedModel);
+                    logger.LogDebug("账号 {AccountName} 不支持模型 {Model}，跳过", account.Name, requestedModel);
                     continue;
                 }
             }
 
-            // 过滤6：Provider + AuthMethod 兼容性检查
-            // 确保账号的 (Provider, AuthMethod) 在当前路由端点所允许的组合范围内，
-            // 避免将账号调度至不兼容的协议 Handler 中导致请求失败。
-            if (allowedCombinations != null && allowedCombinations.Count > 0)
-            {
-                var isCompatible = allowedCombinations.Any(c =>
-                    c.Provider == account.Provider && c.AuthMethod == account.AuthMethod);
-                if (!isCompatible)
-                {
-                    logger.LogDebug(
-                        "账号 {AccountName} (Provider={Provider}, AuthMethod={AuthMethod}) 与当前路由端点不兼容，跳过",
-                        relation.AccountToken.Name, account.Provider, account.AuthMethod);
-                    continue;
-                }
-            }
-
-            availableRelations.Add(relation);
+            qualifiedRelations.Add(relation);
         }
 
-        // 如果所有账号都不可用（被排除、限流、满载等），返回 null
-        if (availableRelations.Count == 0)
+        if (qualifiedRelations.Count == 0)
         {
-            logger.LogWarning("分组 {GroupId} 中没有可用账号（总数: {Total}）", groupId, relations.Count);
+            logger.LogWarning("分组 {GroupId} 中没有合规账号支持模型 {Model}", groupId, requestedModel);
             return (null, group, false, 0);
         }
 
-        logger.LogDebug("从 {Count} 个可用账户中选择", availableRelations.Count);
-
-        // 6. 使用调度策略选择账户
-        var strategy = groupSchedulingStrategyFactory.CreateStrategy(group.SchedulingStrategy);
-        var selectedRelation = await strategy.SelectAccountAsync(
-            availableRelations,
-            concurrencyCounts);
-
-        if (selectedRelation == null)
-            return (null, group, false, availableRelations.Count);
-
-        // 从选中的关系中直接获取已填充的账户对象
-        var selectedAccount = selectedRelation.AccountToken;
-
-        // 7. 设置粘性会话（选中的账号一定是非满载的，可以安全设置）
+        // 4. 决策分流：
+        
+        // 4.1 分支 A: 粘性优先
         if (group.EnableStickySession && !string.IsNullOrEmpty(sessionHash))
         {
-            await SetStickySessionAccountAsync(
-                groupId,
-                selectedAccount!.Id,
-                group.StickySessionExpirationHours,
-                sessionHash);
+            var stickyAccountId = await GetStickySessionAccountAsync(groupId, sessionHash);
+            if (stickyAccountId.HasValue)
+            {
+                var stickyRel = qualifiedRelations.FirstOrDefault(r => r.AccountTokenId == stickyAccountId.Value);
+                if (stickyRel != null)
+                {
+                    // 检查状态：如果被熔断则清除粘性；若仅是并发满载，则允许返回（由中间件处理等待）
+                    if (rateLimitedIds.Contains(stickyRel.AccountTokenId))
+                    {
+                        logger.LogInformation("粘性账号 {AccountName} 已进入限流锁，清除粘性", stickyRel.AccountToken.Name);
+                        await RemoveStickySessionAsync(groupId, sessionHash);
+                    }
+                    else
+                    {
+                        return (stickyRel.AccountToken, group, true, qualifiedRelations.Count);
+                    }
+                }
+                else
+                {
+                    // 已粘性的账号不符合当前请求要求（如模型/协议不一致），清除粘性介入重调
+                    await RemoveStickySessionAsync(groupId, sessionHash);
+                }
+            }
         }
 
-        return (selectedAccount, group, false, availableRelations.Count); // 非粘性绑定（新选出的账号）
+        // 4.2 分支 B: 动态调度选择
+        // 过滤掉当前不可调用的账号（限流中、并发已满）
+        var readyToUseRelations = qualifiedRelations
+            .Where(r => !rateLimitedIds.Contains(r.AccountTokenId))
+            .Where(r => r.AccountToken.MaxConcurrency <= 0 || 
+                       concurrencyCounts.GetValueOrDefault(r.AccountTokenId) < r.AccountToken.MaxConcurrency)
+            .ToList();
+
+        if (readyToUseRelations.Count > 0)
+        {
+            var strategy = groupSchedulingStrategyFactory.CreateStrategy(group.SchedulingStrategy);
+            var selectedRelation = await strategy.SelectAccountAsync(readyToUseRelations, concurrencyCounts);
+
+            if (selectedRelation != null)
+            {
+                var selectedAccount = selectedRelation.AccountToken;
+                
+                // 设置粘性会话
+                if (group.EnableStickySession && !string.IsNullOrEmpty(sessionHash))
+                {
+                    await SetStickySessionAccountAsync(groupId, selectedAccount.Id, group.StickySessionExpirationHours, sessionHash);
+                }
+
+                return (selectedAccount, group, false, qualifiedRelations.Count);
+            }
+        }
+
+        // 如果没有立即可以使用的账号，返回 null，上层将根据是否重试进行后续处理
+        logger.LogWarning("分组 {GroupId} 中当前无立立即（可用状态）的有效账号", groupId);
+        return (null, group, false, qualifiedRelations.Count);
     }
 
     /// <summary>

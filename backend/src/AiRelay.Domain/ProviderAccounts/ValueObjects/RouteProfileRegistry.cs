@@ -42,7 +42,8 @@ public static class RouteProfileRegistry
         [RouteProfile.ChatCompletions] = new RouteProfileDefinition("/v1/chat/completions",
             [
                 (Provider.OpenAI, AuthMethod.OAuth),
-                (Provider.OpenAI, AuthMethod.ApiKey)
+                (Provider.OpenAI, AuthMethod.ApiKey),
+                (Provider.OpenAICompatible, AuthMethod.ApiKey)
             ]),
 
         [RouteProfile.ClaudeMessages] = new RouteProfileDefinition("/v1/messages",

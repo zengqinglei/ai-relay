@@ -446,13 +446,8 @@ public class SmartReverseProxyMiddleware(
                                             retryPolicy),
                                         context.RequestAborted);
 
-                                    if (selectResult.AvailableAccountCount <= 1)
-                                    {
-                                        attemptStatusDesc = $"账号 '{selectResult.AccountToken.Name}' 不可用 (状态码: {httpStatusCode})，且无其他可用账号{(attemptStatusDesc != null ? $"：{attemptStatusDesc}" : "")}";
-                                        throw new ServiceUnavailableException(attemptStatusDesc);
-                                    }
                                     shouldSwitchAccount = true;
-                                    attemptStatusDesc = $"账号 '{selectResult.AccountToken.Name}' 不可用 (状态码: {httpStatusCode})，切换到其他账号{(attemptStatusDesc != null ? $"：{attemptStatusDesc}" : "")}";
+                                    attemptStatusDesc = $"账号 '{selectResult.AccountToken.Name}' 不可用 (状态码: {httpStatusCode})，尝试切换至其他资源进行重试{(attemptStatusDesc != null ? $"：{attemptStatusDesc}" : "")}";
                                     break;
 
                                 case FailureInstruction.Fail:

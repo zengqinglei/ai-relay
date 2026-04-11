@@ -2,5 +2,6 @@ export enum Provider {
   Gemini = 'Gemini',
   Claude = 'Claude',
   OpenAI = 'OpenAI',
-  Antigravity = 'Antigravity'
+  Antigravity = 'Antigravity',
+  OpenAICompatible = 'OpenAICompatible'
 }

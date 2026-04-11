@@ -95,6 +95,7 @@
       <p-table [value]="records()" [lazy]="true" (onLazyLoad)="onLazyLoad($event)" [paginator]="true" [first]="first()"
         [rows]="rows()" [totalRecords]="totalRecords()" [loading]="loading()" [rowsPerPageOptions]="[10, 20, 50, 100]"
         [showCurrentPageReport]="true" currentPageReportTemplate="共 {totalRecords} 条" [showJumpToPageInput]="true"
+        paginatorDropdownAppendTo="body"
         styleClass="w-full" responsiveLayout="scroll" [breakpoint]="'960px'" [sortField]="sortField()"
         [sortOrder]="sortOrder()">
         <ng-template pTemplate="header">
