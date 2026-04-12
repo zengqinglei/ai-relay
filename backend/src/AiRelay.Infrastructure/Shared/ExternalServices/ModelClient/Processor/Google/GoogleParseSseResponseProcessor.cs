@@ -123,7 +123,10 @@ public class GoogleParseSseResponseProcessor : IResponseProcessor
                     var mimeType = mime.GetString();
                     var dataValue = data.GetString();
                     if (!string.IsNullOrEmpty(mimeType) && !string.IsNullOrEmpty(dataValue))
-                        evt.InlineData = new InlineDataPart(mimeType, dataValue);
+                    {
+                        evt.InlineData ??= new List<InlineDataPart>();
+                        evt.InlineData.Add(new InlineDataPart(mimeType, dataValue));
+                    }
                 }
             }
             else if (part.TryGetProperty("functionCall", out _))

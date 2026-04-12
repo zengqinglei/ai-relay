@@ -181,13 +181,14 @@ public class AccountTokenDomainService(
     /// </summary>
     public async Task<bool> IsModelSupportedAsync(AccountToken account, string requestedModel, CancellationToken ct = default)
     {
-        // 检查映射列表，命中则视为支持
+        // 1. 检查映射列表 (Mapping)
         var mapping = account.ModelMapping;
         if (mapping != null && mapping.Count > 0)
         {
             if (ResolveMapping(requestedModel, mapping) != null) return true;
         }
 
+        // 2. 检查白名单 (Whitelist)
         var whitelist = account.ModelWhites;
         if (whitelist != null && whitelist.Count > 0)
         {
@@ -196,10 +197,7 @@ public class AccountTokenDomainService(
                 .Any(k => requestedModel.StartsWith(k[..^1], StringComparison.OrdinalIgnoreCase));
         }
 
-        // 无白名单且无映射命中：用上游模型列表（带缓存）与 baseline 取交集后校验
-        var baselineModels = modelProvider.GetAvailableModels(account.Provider);
-        if (baselineModels == null || baselineModels.Count == 0) return true;
-
+        // 3. 获取上游模型列表 (Upstream)
         IReadOnlyList<string>? upstreamModelIds = null;
         try
         {
@@ -207,32 +205,32 @@ public class AccountTokenDomainService(
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "IsModelSupportedAsync 上游模型拉取失败，降级用 baseline: AccountId={AccountId}", account.Id);
+            logger.LogWarning(ex, "IsModelSupportedAsync 上游模型拉取失败，将回退到基准配置：AccountId={AccountId}", account.Id);
         }
 
-        IEnumerable<string> effectiveModels;
+        // 4. 上游优先判断 (严格模式)
+        // 如果上游列表获取成功且不为空，则基于上游列表进行判词（事实证明原则）
         if (upstreamModelIds != null && upstreamModelIds.Count > 0)
         {
-            var upstreamSet = upstreamModelIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
-            effectiveModels = baselineModels.Where(m => !m.Value.Contains('*') && upstreamSet.Contains(m.Value)).Select(m => m.Value);
-        }
-        else
-        {
-            // 如果上游没拉取到且没有白名单，降级仅使用 baseline 模型
-            effectiveModels = baselineModels.Where(m => !m.Value.Contains('*')).Select(m => m.Value);
+            return upstreamModelIds.Contains(requestedModel, StringComparer.OrdinalIgnoreCase);
         }
 
-        var effectiveList = effectiveModels.ToList();
-        
-        // 检查精确匹配（含有效模型列表中的项）
-        if (effectiveList.Any(v => v.Equals(requestedModel, StringComparison.OrdinalIgnoreCase))) return true;
-        
-        // 检查 Baseline 中的通配符匹配（支持如 gpt-4-*）
+        // 5. 基准模型兜底 (Baseline)
+        // 仅在上游列表获取失败或结果为空时，使用系统内置基准检测
+        var baselineModels = modelProvider.GetAvailableModels(account.Provider);
+        if (baselineModels == null || baselineModels.Count == 0) return true;
+
+        // 检查基准中的精确匹配
+        if (baselineModels.Any(m => !m.Value.Contains('*') && m.Value.Equals(requestedModel, StringComparison.OrdinalIgnoreCase))) 
+            return true;
+
+        // 检查基准中的通配符匹配 (如 gpt-4-*)
         if (baselineModels.Where(m => m.Value.EndsWith('*'))
-            .Any(m => requestedModel.StartsWith(m.Value[..^1], StringComparison.OrdinalIgnoreCase))) return true;
+            .Any(m => requestedModel.StartsWith(m.Value[..^1], StringComparison.OrdinalIgnoreCase))) 
+            return true;
 
-        // 最后：如果整个系统没有任何该 Provider 的 Baseline 配置，才允许通过（极少数情况）
-        return baselineModels.Count == 0;
+        // 最后：如果系统定义了该 Provider 的基准但未命中，则返回 false；若基准根本没定义，则返回 true
+        return false;
     }
 
     /// <summary>

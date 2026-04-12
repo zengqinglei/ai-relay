@@ -118,7 +118,25 @@ public abstract class BaseChatModelHandler : IChatModelHandler
         bool isStreaming,
         CancellationToken ct = default)
     {
-        var response = await SendCoreRequestAsync(up, down, ct);
+        HttpResponseMessage response;
+        try
+        {
+            response = await SendCoreRequestAsync(up, down, ct);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            // 非客户端主动取消，则视为上游响应超时
+            return new ProxyResponse(false, 504, new(), "上游请求超时 (Gateway Timeout)", null);
+        }
+        catch (Exception ex) when (ex is HttpRequestException || ex is IOException || ex is System.Net.Sockets.SocketException)
+        {
+            // 捕获网络传输层异常（如 SSL 握手失败、DNS 失败、连接重置）
+            // 将其转译为 502，触发中间件的重试/切号逻辑
+            var errorMsg = $"网络传输层异常 ({ex.GetType().Name}): {ex.Message}";
+            Logger.LogWarning(ex, errorMsg);
+            return new ProxyResponse(false, 502, new(), errorMsg, null);
+        }
+
         var statusCode = (int)response.StatusCode;
         var headers = ExtractResponseHeaders(response);
 

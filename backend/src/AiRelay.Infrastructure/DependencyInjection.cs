@@ -205,6 +205,7 @@ public static class DependencyInjection
         // 1. Google 系 (同时支持 "google" 字符串用于系统登录)
         services.AddKeyedTransient<IOAuthProvider, GoogleOAuthProvider>("google");
         services.AddKeyedTransient<IOAuthProvider, GoogleOAuthProvider>(Provider.Gemini);
+        services.AddKeyedTransient<IOAuthProvider, GoogleOAuthProvider>(Provider.Antigravity);
 
         // 2. Claude 系
         services.AddKeyedTransient<IOAuthProvider, ClaudeOAuthProvider>(Provider.Claude);

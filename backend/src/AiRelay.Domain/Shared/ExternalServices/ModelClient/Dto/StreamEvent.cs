@@ -32,8 +32,8 @@ public class StreamEvent
     /// <summary>是否完成</summary>
     public bool IsComplete { get; set; }
 
-    /// <summary>内联数据（如图片）</summary>
-    public InlineDataPart? InlineData { get; set; }
+    /// <summary>内联数据列表（如多张图片）</summary>
+    public List<InlineDataPart>? InlineData { get; set; }
 
     // ── 传输层字段（[JsonIgnore] 不序列化） ──
 
@@ -75,7 +75,8 @@ public class StreamEvent
 /// </summary>
 public record InlineDataPart(
     string MimeType,
-    string Data
+    string? Data = null, // Base64 原始内容
+    string? Url = null   // 外部访问链接
 );
 
 /// <summary>

@@ -122,7 +122,7 @@
           } @else if (block.type === 'image') {
             <div class="block my-2">
               <p-image
-                [src]="'data:' + block.mimeType + ';base64,' + block.data"
+                [src]="block.url || ('data:' + block.mimeType + ';base64,' + block.data)"
                 alt="Generated image"
                 width="200"
                 [preview]="true"

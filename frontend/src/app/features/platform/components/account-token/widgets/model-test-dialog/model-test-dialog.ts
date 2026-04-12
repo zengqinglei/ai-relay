@@ -18,7 +18,7 @@ import { ChatMessageInputDto } from '../../../../models/chat-message-input.dto';
 import { ModelOptionOutputDto } from '../../../../models/model-option.dto';
 import { AccountTokenService } from '../../../../services/account-token-service';
 
-export type ContentBlock = { type: 'text'; text: string } | { type: 'image'; mimeType: string; data: string };
+export type ContentBlock = { type: 'text'; text: string } | { type: 'image'; mimeType: string; data?: string; url?: string };
 
 @Component({
   selector: 'app-model-test-dialog',
@@ -156,10 +156,17 @@ export class ModelTestDialog {
                   }
                   return [...blocks, { type: 'text' as const, text: event.content! }];
                 });
-              } else if (event.inlineData) {
+              }
+
+              if (event.inlineData && event.inlineData.length > 0) {
                 this.contentBlocks.update(blocks => [
                   ...blocks,
-                  { type: 'image', mimeType: event.inlineData!.mimeType, data: event.inlineData!.data }
+                  ...event.inlineData!.map(part => ({
+                    type: 'image' as const,
+                    mimeType: part.mimeType,
+                    data: part.data,
+                    url: part.url
+                  }))
                 ]);
               }
               break;

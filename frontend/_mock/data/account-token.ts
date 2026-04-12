@@ -400,15 +400,16 @@ export const AVAILABLE_MODELS: Record<Provider, ModelOptionOutputDto[]> = {
 };
 
 // Mock streaming chat responses for model test
-// 格式对齐 ChatStreamEvent 接口：{ type, content?, isComplete? }
+// 格式对齐 ChatStreamEvent 接口：{ type, content?, isComplete?, inlineData? }
 export const MOCK_CHAT_STREAM_CHUNKS = [
   { type: 'System', content: '开始测试模型...' },
-  { type: 'Content', content: 'Hello! ' },
-  { type: 'Content', content: 'I am a ' },
-  { type: 'Content', content: 'mock AI ' },
-  { type: 'Content', content: 'assistant. ' },
-  { type: 'Content', content: 'This is a ' },
-  { type: 'Content', content: 'simulated ' },
-  { type: 'Content', content: 'streaming response.' },
+  { type: 'Content', content: 'Hello! I am a mock assistant. ' },
+  { type: 'Content', content: 'Here is a sample generated image for you:\n\n' },
+  {
+    type: 'Content',
+    content: '![sample_image](https://picsum.photos/seed/antigravity/400/300)',
+    inlineData: [{ mimeType: 'image/png', url: 'https://picsum.photos/seed/antigravity/400/300' }]
+  },
+  { type: 'Content', content: '\n\nHope you like it!' },
   { type: 'Content', isComplete: true }
 ];

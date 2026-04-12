@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Processor;
 
@@ -10,6 +11,8 @@ namespace AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.O
 /// </summary>
 public class OpenAiParseSseResponseProcessor : IResponseProcessor
 {
+    private static readonly Regex ImageMarkdownRegex = new(@"!\[.*?\]\((.*?)\)", RegexOptions.Compiled);
+
     public bool RequiresMutation => false;
 
     public Task ProcessAsync(StreamEvent evt, CancellationToken ct)
@@ -106,7 +109,11 @@ public class OpenAiParseSseResponseProcessor : IResponseProcessor
                         {
                             var text = c.GetString();
                             evt.Content = text;
-                            if (!string.IsNullOrEmpty(text)) evt.HasOutput = true;
+                            if (!string.IsNullOrEmpty(text))
+                            {
+                                evt.HasOutput = true;
+                                ExtractInlineData(evt);
+                            }
                         }
                         
                         // tool_calls 代表有输出意图；reasoning_content 为思考链，不视为有效输出
@@ -158,6 +165,7 @@ public class OpenAiParseSseResponseProcessor : IResponseProcessor
                     message.TryGetProperty("content", out var c))
                 {
                     evt.Content = c.GetString();
+                    ExtractInlineData(evt);
                 }
             }
 
@@ -170,6 +178,25 @@ public class OpenAiParseSseResponseProcessor : IResponseProcessor
         }
 
         evt.IsComplete = true;
+    }
+
+    private static void ExtractInlineData(StreamEvent evt)
+    {
+        if (string.IsNullOrEmpty(evt.Content)) return;
+
+        var matches = ImageMarkdownRegex.Matches(evt.Content);
+        if (matches.Count == 0) return;
+
+        evt.InlineData ??= new List<InlineDataPart>();
+        foreach (Match match in matches)
+        {
+            var url = match.Groups[1].Value;
+            if (!string.IsNullOrEmpty(url))
+            {
+                // 默认探测图片 MIME 类型，通用可设为 image/png 或由前端探测
+                evt.InlineData.Add(new InlineDataPart("image/png", Url: url));
+            }
+        }
     }
 
     private static ResponseUsage ExtractUsage(JsonElement usageElement)

@@ -309,7 +309,7 @@ public class AccountToken : DeletionAuditedEntity<Guid>
     {
         Status = AccountStatus.Error;
         RateLimitDurationSeconds = null;
-        StatusDescription = description?.Length > 512 ? description.Substring(0, 512) : description;
+        StatusDescription = description?.Length > 512 ? description[..512] : description;
     }
 
     public bool ResetStatus()

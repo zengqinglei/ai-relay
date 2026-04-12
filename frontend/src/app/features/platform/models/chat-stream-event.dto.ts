@@ -4,10 +4,11 @@ export interface ChatStreamEvent {
   type?: ChatStreamEventType;
   content?: string;
   isComplete?: boolean;
-  inlineData?: InlineDataPart;
+  inlineData?: InlineDataPart[];
 }
 
 export interface InlineDataPart {
   mimeType: string;
-  data: string;
+  data?: string;
+  url?: string;
 }
