@@ -134,7 +134,7 @@ public abstract class BaseChatModelHandler : IChatModelHandler
             // 将其转译为 502，触发中间件的重试/切号逻辑
             var errorMsg = $"网络传输层异常 ({ex.GetType().Name}): {ex.Message}";
             Logger.LogWarning(ex, errorMsg);
-            return new ProxyResponse(false, 502, new(), errorMsg, null);
+            return new ProxyResponse(false, 502, [], errorMsg, null);
         }
 
         var statusCode = (int)response.StatusCode;

@@ -113,11 +113,16 @@ export const getUsageRecordDetail = (id: string) => {
   const record = USAGE_RECORDS.find(r => r.id === id);
   if (!record) return null;
 
+  let currentStartTime = new Date(record.creationTime);
   const attempts = Array.from({ length: record.attemptCount }).map((_, i) => {
     const isLast = i === record.attemptCount - 1;
     const attemptStatus = isLast ? record.status : UsageStatus.Failed;
-    return {
+    const duration = Math.floor((record.durationMs ?? 1000) / record.attemptCount);
+    
+    const attempt = {
       attemptNumber: i + 1,
+      startTime: currentStartTime.toISOString(),
+      endTime: new Date(currentStartTime.getTime() + duration).toISOString(),
       provider: record.provider!,
       authMethod: record.authMethod,
       accountTokenName: record.accountTokenName ?? '',
@@ -125,7 +130,7 @@ export const getUsageRecordDetail = (id: string) => {
       upUserAgent: 'AiRelay/1.0',
       upRequestUrl: `https://api.openai.com${record.downRequestUrl}`,
       upStatusCode: isLast && record.status === UsageStatus.Success ? 200 : 429,
-      durationMs: Math.floor((record.durationMs ?? 1000) / record.attemptCount),
+      durationMs: duration,
       status: attemptStatus,
       statusDescription: !isLast ? 'Rate limit exceeded, switching account' : record.statusDescription,
       upRequestHeaders: '{"Authorization": "Bearer sk-proj-...", "Content-Type": "application/json"}',
@@ -134,6 +139,10 @@ export const getUsageRecordDetail = (id: string) => {
         ? '{"id": "chatcmpl-123", "object": "chat.completion", "created": 1677652288, "model": "gpt-4o", "choices": [{"index": 0, "message": {"role": "assistant", "content": "Hello there!"}, "finish_reason": "stop"}]}'
         : '{"error": {"message": "Rate limit exceeded", "type": "rate_limit_error"}}'
     };
+
+    // 为下一次尝试更新时间（本次开始时间 + 本次耗时 + 随机网络延迟）
+    currentStartTime = new Date(currentStartTime.getTime() + duration + 500);
+    return attempt;
   });
 
   return {

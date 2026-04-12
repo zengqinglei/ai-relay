@@ -77,6 +77,8 @@ export interface UsageRecordPagedInputDto extends PagedRequestDto {
 
 export interface UsageRecordAttemptOutputDto {
   attemptNumber: number;
+  startTime: string;
+  endTime: string;
   provider: Provider;
   authMethod: AuthMethod;
   accountTokenName: string;

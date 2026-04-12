@@ -220,32 +220,42 @@ import { AuthMethodLabelPipe } from '../../../../shared/pipes/auth-method-label.
                         <div
                           class="flex items-center gap-3 px-4 py-2.5 bg-surface-50 dark:bg-surface-800 border-b border-surface-200 dark:border-surface-700"
                         >
-                          <span class="text-xs font-bold text-muted-color uppercase">尝试 #{{ attempt.attemptNumber }}</span>
-                          <p-tag
-                            [value]="getStatusLabel(attempt.status)"
-                            [severity]="getStatusSeverity(attempt.status)"
-                            styleClass="text-[10px] px-1.5 py-0.5 h-5"
-                          ></p-tag>
-                          @if (attempt.upStatusCode) {
-                            <span class="text-xs font-mono font-bold" [ngClass]="getHttpStatusColorClass(attempt.upStatusCode)">{{
-                              attempt.upStatusCode
-                            }}</span>
-                          }
-                          <span class="text-xs text-muted-color ml-auto">{{ formatDuration(attempt.durationMs) }}</span>
+                           <div class="flex items-center gap-3">
+                             <span class="text-xs font-bold text-muted-color uppercase">尝试 #{{ attempt.attemptNumber }}</span>
+                             <span class="text-[10px] font-mono text-muted-color opacity-70">
+                               {{ attempt.startTime | date: 'HH:mm:ss.SSS' }}
+                               <i class="pi pi-arrow-right text-[8px] mx-1"></i>
+                               {{ attempt.endTime | date: 'HH:mm:ss.SSS' }}
+                             </span>
+                           </div>
+                           <p-tag
+                             [value]="getStatusLabel(attempt.status)"
+                             [severity]="getStatusSeverity(attempt.status)"
+                             styleClass="text-[10px] px-1.5 py-0.5 h-5"
+                           ></p-tag>
+                           @if (attempt.upStatusCode) {
+                             <span class="text-xs font-mono font-bold" [ngClass]="getHttpStatusColorClass(attempt.upStatusCode)">{{
+                               attempt.upStatusCode
+                             }}</span>
+                           }
+                           <span class="text-xs text-muted-color ml-auto">{{ formatDuration(attempt.durationMs) }}</span>
                         </div>
 
                         <!-- Attempt Meta -->
                         <div
                           class="px-4 py-2 flex flex-wrap gap-x-6 gap-y-1 text-xs border-b border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900"
                         >
-                          <span>
-                            <span class="text-muted-color">账户：</span>
-                            <span class="font-medium">{{ attempt.accountTokenName }}</span>
-                          </span>
-                          <span>
-                            <span class="text-muted-color">方式：</span>
-                            <span class="font-medium">{{ attempt.authMethod | authMethodLabel }}</span>
-                          </span>
+                           <span>
+                             <span class="text-muted-color">平台：</span>
+                             <span class="font-medium">
+                               {{ attempt.provider }}
+                               <span class="text-xs text-muted-color ml-1">({{ attempt.authMethod | authMethodLabel }})</span>
+                             </span>
+                           </span>
+                           <span>
+                             <span class="text-muted-color">账户：</span>
+                             <span class="font-medium">{{ attempt.accountTokenName }}</span>
+                           </span>
                           @if (attempt.upModelId) {
                             <span>
                               <span class="text-muted-color">模型：</span>

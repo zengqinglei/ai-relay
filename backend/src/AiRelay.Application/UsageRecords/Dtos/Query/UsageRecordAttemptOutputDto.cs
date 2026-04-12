@@ -22,6 +22,14 @@ public class UsageRecordAttemptOutputDto
 
     public string? StatusDescription { get; set; }
 
+    public DateTime StartTime { get; set; }
+
+    public DateTime EndTime { get; set; }
+
+    public Provider Provider { get; set; }
+
+    public AuthMethod AuthMethod { get; set; }
+
     public string? UpRequestHeaders { get; set; }
 
     public string? UpRequestBody { get; set; }
