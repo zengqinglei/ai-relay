@@ -37,7 +37,7 @@ public class GeminiApiChatModelHandler(
                 googleJsonSchemaCleaner,
                 geminiSystemPromptInjector,
                 Options.ShouldMimicOfficialClient),
-            new GeminiDegradationRequestProcessor(degradationLevel, googleSignatureCleaner, Logger)
+            new GeminiDegradationRequestProcessor(degradationLevel, googleSignatureCleaner)
         ];
     }
 

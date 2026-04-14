@@ -262,8 +262,11 @@ public class ProviderGroupDomainService(
                     if (rateLimitedIds.Contains(stickyRel.AccountTokenId))
                     {
                         var stickyAcc = stickyRel.AccountToken;
-                        logger.LogInformation("粘性账号 '{Name}'({Provider}-{AuthMethod}) 已进入限流锁，清除粘性", 
-                            stickyAcc.Name, stickyAcc.Provider, stickyAcc.AuthMethod);
+                        if (stickyAcc != null)
+                        {
+                            logger.LogInformation("粘性账号 '{Name}'({Provider}-{AuthMethod}) 已进入限流锁，清除粘性", 
+                                stickyAcc.Name, stickyAcc.Provider, stickyAcc.AuthMethod);
+                        }
                         await RemoveStickySessionAsync(groupId, sessionHash);
                     }
                     else
@@ -282,8 +285,8 @@ public class ProviderGroupDomainService(
         // 4.2 分支 B: 动态调度选择
         // 过滤掉当前不可调用的账号（限流中、并发已满）
         var readyToUseRelations = qualifiedRelations
-            .Where(r => !rateLimitedIds.Contains(r.AccountTokenId))
-            .Where(r => r.AccountToken.MaxConcurrency <= 0 || 
+            .Where(r => r.AccountToken != null && !rateLimitedIds.Contains(r.AccountTokenId))
+            .Where(r => r.AccountToken!.MaxConcurrency <= 0 || 
                        concurrencyCounts.GetValueOrDefault(r.AccountTokenId) < r.AccountToken.MaxConcurrency)
             .ToList();
 
@@ -297,7 +300,7 @@ public class ProviderGroupDomainService(
                 var selectedAccount = selectedRelation.AccountToken;
                 
                 // 设置粘性会话
-                if (group.EnableStickySession && !string.IsNullOrEmpty(sessionHash))
+                if (group.EnableStickySession && !string.IsNullOrEmpty(sessionHash) && selectedAccount != null)
                 {
                     await SetStickySessionAccountAsync(groupId, selectedAccount.Id, group.StickySessionExpirationHours, sessionHash);
                 }

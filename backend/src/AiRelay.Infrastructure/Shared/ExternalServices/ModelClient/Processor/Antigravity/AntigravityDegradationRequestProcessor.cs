@@ -13,8 +13,7 @@ namespace AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.A
 /// </summary>
 public class AntigravityDegradationRequestProcessor(
     int degradationLevel,
-    GoogleSignatureCleaner googleSignatureCleaner,
-    ILogger logger) : IRequestProcessor
+    GoogleSignatureCleaner googleSignatureCleaner) : IRequestProcessor
 {
 
     public Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)

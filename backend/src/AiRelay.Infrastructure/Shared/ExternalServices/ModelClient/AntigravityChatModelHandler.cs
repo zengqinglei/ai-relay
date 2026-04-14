@@ -42,7 +42,7 @@ public sealed class AntigravityChatModelHandler(
             new AntigravityModifyBodyRequestProcessor(
                 Options, antigravityIdentityInjector,
                 googleJsonSchemaCleaner, Logger),
-            new AntigravityDegradationRequestProcessor(degradationLevel, googleSignatureCleaner, Logger),
+            new AntigravityDegradationRequestProcessor(degradationLevel, googleSignatureCleaner),
         ];
     }
 

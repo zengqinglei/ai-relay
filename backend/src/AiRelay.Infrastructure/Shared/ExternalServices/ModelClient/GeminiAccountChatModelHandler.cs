@@ -34,7 +34,7 @@ public class GeminiAccountChatModelHandler(
             new GeminiOAuthUrlRequestProcessor(Options),
             new GeminiHeaderRequestProcessor(Options),
             new GeminiOAuthModifyBodyRequestProcessor(Options, googleJsonSchemaCleaner, geminiSystemPromptInjector, SignatureCache),
-            new GeminiDegradationRequestProcessor(degradationLevel, googleSignatureCleaner, Logger)
+            new GeminiDegradationRequestProcessor(degradationLevel, googleSignatureCleaner)
         ];
     }
 
