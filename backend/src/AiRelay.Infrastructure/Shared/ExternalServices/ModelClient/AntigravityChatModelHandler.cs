@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json.Nodes;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.Antigravity;
+using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.Common;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using AiRelay.Domain.Shared.ExternalServices.ModelProvider;
@@ -36,7 +37,7 @@ public sealed class AntigravityChatModelHandler(
     {
         return
         [
-            new AntigravityModelIdMappingRequestProcessor(modelProvider, Options),
+            new ModelIdMappingRequestProcessor(modelProvider, Options.Provider, Options),
             new AntigravityUrlRequestProcessor(Options),
             new AntigravityHeaderRequestProcessor(Options),
             new AntigravityModifyBodyRequestProcessor(

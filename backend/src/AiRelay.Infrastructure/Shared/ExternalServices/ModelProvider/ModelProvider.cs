@@ -215,7 +215,16 @@ public sealed class ModelProvider(ILogger<ModelProvider> logger) : IModelProvide
         ]
     };
 
-    public string GetAntigravityMappedModel(string requestedModel)
+    public string GetMappedModel(Provider provider, string requestedModel) => provider switch
+    {
+        Provider.Antigravity     => GetAntigravityMappedModel(requestedModel),
+        Provider.Claude          => GetClaudeMappedModel(requestedModel),
+        Provider.OpenAI          => GetOpenAIMappedModel(requestedModel),
+        Provider.OpenAICompatible => GetOpenAIMappedModel(requestedModel), // 协议相同，复用 OpenAI 映射
+        _                        => requestedModel // Gemini 等无需平台映射的提供商透传
+    };
+
+    private string GetAntigravityMappedModel(string requestedModel)
     {
         // 合并映射表（用户自定义 + 系统内置）
         var allMappings = new Dictionary<string, string>(CustomModelMappings);
@@ -262,7 +271,7 @@ public sealed class ModelProvider(ILogger<ModelProvider> logger) : IModelProvide
         return ApplyDefaultMapping(requestedModel);
     }
 
-    public string GetOpenAIMappedModel(string requestedModel)
+    private string GetOpenAIMappedModel(string requestedModel)
     {
         if (string.IsNullOrWhiteSpace(requestedModel))
             return "gpt-5.1";
@@ -288,7 +297,7 @@ public sealed class ModelProvider(ILogger<ModelProvider> logger) : IModelProvide
         return requestedModel;
     }
 
-    public string GetClaudeMappedModel(string requestedModel)
+    private string GetClaudeMappedModel(string requestedModel)
     {
         if (string.IsNullOrWhiteSpace(requestedModel))
             return requestedModel;

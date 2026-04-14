@@ -37,7 +37,7 @@ public class OpenAiCompatibleChatModelHandler(
         [
             new OpenAiCompatibleUrlRequestProcessor(Options),
             new OpenAiCompatibleHeaderRequestProcessor(Options),
-            new OpenAiCompatibleModelIdMappingRequestProcessor(modelProvider, Options),
+            new ModelIdMappingRequestProcessor(modelProvider, Options.Provider, Options),
             new OpenAiCompatibleModifyBodyRequestProcessor(Options)
         ];
     }

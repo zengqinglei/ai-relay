@@ -82,7 +82,7 @@ public class OpenAiChatModelHandler(
         [
             new OpenAiUrlRequestProcessor(Options),
             new OpenAiHeaderRequestProcessor(Options),
-            new OpenAiModelIdMappingRequestProcessor(modelProvider, Options),
+            new ModelIdMappingRequestProcessor(modelProvider, Options.Provider, Options),
             new OpenAiModifyBodyRequestProcessor(Options, openAiCodexInjector)
         ];
     }

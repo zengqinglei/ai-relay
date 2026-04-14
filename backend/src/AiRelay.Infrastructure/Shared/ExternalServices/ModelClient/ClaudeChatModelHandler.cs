@@ -123,7 +123,7 @@ public class ClaudeChatModelHandler(
         DownRequestContext down, int degradationLevel)
     {
         return [
-            new ClaudeModelIdMappingRequestProcessor(modelProvider, Options),
+            new ModelIdMappingRequestProcessor(modelProvider, Options.Provider, Options),
             new ClaudeUrlRequestProcessor(Options),
             new ClaudeHeaderRequestProcessor(Options, clientDetector),
             new ClaudeModifyBodyRequestProcessor(
