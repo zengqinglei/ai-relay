@@ -37,15 +37,9 @@ public class AntigravityDegradationRequestProcessor(
             if (!string.IsNullOrEmpty(down.SessionId))
                 googleSignatureCleaner.InjectCachedSignature(payload, down.SessionId);
         }
-        else if (degradationLevel == 1)
+        else
         {
-            googleSignatureCleaner.RemoveThoughtSignatures(payload);
-            logger.LogWarning("应用降级级别 1: 移除 thoughtSignature");
-        }
-        else if (degradationLevel >= 2)
-        {
-            googleSignatureCleaner.RemoveFunctionDeclarations(payload);
-            logger.LogWarning("应用降级级别 2: 移除所有 FunctionDeclaration");
+            googleSignatureCleaner.DeepCleanForDegradation(payload, degradationLevel);
         }
 
         return Task.CompletedTask;

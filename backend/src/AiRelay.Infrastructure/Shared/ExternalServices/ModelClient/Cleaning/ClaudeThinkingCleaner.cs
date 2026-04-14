@@ -10,207 +10,199 @@ namespace AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Cleaning;
 public class ClaudeThinkingCleaner(ILogger<ClaudeThinkingCleaner> logger)
 {
     /// <summary>
-    /// 第一阶段降级：转换 thinking/redacted_thinking 块
-    /// - thinking → text（保留思考内容）
-    /// - redacted_thinking → 删除（无法转换加密内容）
-    /// - 移除顶层 thinking 配置
+    /// 第一阶段降级：处理 thinking/redacted_thinking 和签名
     /// </summary>
     public bool FilterThinkingBlocks(JsonObject requestJson)
     {
         try
         {
-            bool modified = false;
-
-            // 1. 移除顶层 thinking 字段
-            if (requestJson.ContainsKey("thinking"))
-            {
-                requestJson.Remove("thinking");
-                logger.LogDebug("移除顶层 thinking 配置");
-                modified = true;
-            }
-
-            // 2. 转换消息中的 thinking 块
-            if (requestJson.TryGetPropertyValue("messages", out var messagesNode) &&
-                messagesNode is JsonArray messages)
-            {
-                foreach (var message in messages)
-                {
-                    if (message is not JsonObject messageObj) continue;
-
-                    if (messageObj.TryGetPropertyValue("content", out var contentNode))
-                    {
-                        if (contentNode is JsonArray contentArray)
-                        {
-                            var newContent = new JsonArray();
-                            bool contentModified = false;
-
-                            foreach (var block in contentArray)
-                            {
-                                if (block is not JsonObject blockObj)
-                                {
-                                    newContent.Add(block?.DeepClone());
-                                    continue;
-                                }
-
-                                var blockType = blockObj.TryGetPropertyValue("type", out var typeNode)
-                                    ? typeNode?.GetValue<string>()
-                                    : null;
-
-                                if (blockType == "thinking")
-                                {
-                                    // 转换为 text 块
-                                    var thinkingText = blockObj.TryGetPropertyValue("thinking", out var thinkingNode)
-                                        ? thinkingNode?.GetValue<string>() ?? ""
-                                        : "";
-
-                                    if (!string.IsNullOrWhiteSpace(thinkingText))
-                                    {
-                                        newContent.Add(new JsonObject
-                                        {
-                                            ["type"] = "text",
-                                            ["text"] = thinkingText
-                                        });
-                                        logger.LogDebug("转换 thinking 块为 text 块");
-                                        contentModified = true;
-                                    }
-                                }
-                                else if (blockType == "redacted_thinking")
-                                {
-                                    // 删除 redacted_thinking 块（无法转换加密内容）
-                                    logger.LogDebug("删除 redacted_thinking 块");
-                                    contentModified = true;
-                                }
-                                else
-                                {
-                                    // 保留其他块
-                                    newContent.Add(block.DeepClone());
-                                }
-                            }
-
-                            // 确保消息内容不为空
-                            if (contentModified && newContent.Count > 0)
-                            {
-                                messageObj["content"] = newContent;
-                                modified = true;
-                            }
-                        }
-                    }
-                }
-            }
-
-            return modified;
+            return DeepCleanClaudePayload(requestJson, 1);
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "FilterThinkingBlocks 失败");
+            logger.LogWarning(ex, "ClaudeThinkingCleaner: FilterThinkingBlocks 失败");
             return false;
         }
     }
 
     /// <summary>
-    /// 第二阶段降级：在第一阶段基础上，转换 tool_use/tool_result 块
-    /// 用于签名错误后的深度降级
-    /// - tool_use → text（格式化为文本描述）
-    /// - tool_result → text（格式化为文本描述）
+    /// 第二阶段降级：在第一阶段基础上，转换工具调用为文本描述
     /// </summary>
     public bool FilterSignatureSensitiveBlocks(JsonObject requestJson)
     {
         try
         {
-            // 先执行第一阶段降级
-            bool modified = FilterThinkingBlocks(requestJson);
-
-            // 转换消息中的 tool_use/tool_result 块
-            if (requestJson.TryGetPropertyValue("messages", out var messagesNode) &&
-                messagesNode is JsonArray messages)
-            {
-                foreach (var message in messages)
-                {
-                    if (message is not JsonObject messageObj) continue;
-
-                    if (messageObj.TryGetPropertyValue("content", out var contentNode))
-                    {
-                        if (contentNode is JsonArray contentArray)
-                        {
-                            var newContent = new JsonArray();
-                            bool contentModified = false;
-
-                            foreach (var block in contentArray)
-                            {
-                                if (block is not JsonObject blockObj)
-                                {
-                                    newContent.Add(block?.DeepClone());
-                                    continue;
-                                }
-
-                                var blockType = blockObj.TryGetPropertyValue("type", out var typeNode)
-                                    ? typeNode?.GetValue<string>()
-                                    : null;
-
-                                if (blockType == "tool_use")
-                                {
-                                    // 转换为 text 块
-                                    var toolName = blockObj.TryGetPropertyValue("name", out var nameNode)
-                                        ? nameNode?.GetValue<string>() ?? "unknown"
-                                        : "unknown";
-                                    var toolInput = blockObj.TryGetPropertyValue("input", out var inputNode)
-                                        ? inputNode?.ToJsonString() ?? "{}"
-                                        : "{}";
-
-                                    var textRepresentation = $"[Tool Use: {toolName}]\nInput: {toolInput}";
-
-                                    newContent.Add(new JsonObject
-                                    {
-                                        ["type"] = "text",
-                                        ["text"] = textRepresentation
-                                    });
-                                    logger.LogDebug("转换 tool_use 块为 text 块: {ToolName}", toolName);
-                                    contentModified = true;
-                                }
-                                else if (blockType == "tool_result")
-                                {
-                                    // 转换为 text 块
-                                    var toolUseId = blockObj.TryGetPropertyValue("tool_use_id", out var idNode)
-                                        ? idNode?.GetValue<string>() ?? "unknown"
-                                        : "unknown";
-                                    var resultContent = blockObj.TryGetPropertyValue("content", out var resultNode)
-                                        ? resultNode?.ToJsonString() ?? ""
-                                        : "";
-
-                                    var textRepresentation = $"[Tool Result: {toolUseId}]\n{resultContent}";
-
-                                    newContent.Add(new JsonObject
-                                    {
-                                        ["type"] = "text",
-                                        ["text"] = textRepresentation
-                                    });
-                                    logger.LogDebug("转换 tool_result 块为 text 块: {ToolUseId}", toolUseId);
-                                    contentModified = true;
-                                }
-                                else
-                                {
-                                    // 保留其他块
-                                    newContent.Add(block.DeepClone());
-                                }
-                            }
-
-                            // 确保消息内容不为空
-                            if (contentModified && newContent.Count > 0)
-                            {
-                                messageObj["content"] = newContent;
-                                modified = true;
-                            }
-                        }
-                    }
-                }
-            }
-
-            return modified;
+            return DeepCleanClaudePayload(requestJson, 2);
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "FilterSignatureSensitiveBlocks 失败");
+            logger.LogWarning(ex, "ClaudeThinkingCleaner: FilterSignatureSensitiveBlocks 失败");
             return false;
+        }
+    }
+
+    /// <summary>
+    /// 核心逻辑：深度递归清理 Claude 请求体
+    /// </summary>
+    private bool DeepCleanClaudePayload(JsonObject requestJson, int level)
+    {
+        bool modified = false;
+
+        // 1. 移除顶层配置
+        if (requestJson.Remove("thinking"))
+        {
+            logger.LogDebug("已移除顶层 thinking 配置");
+            modified = true;
+        }
+
+        // 2. 处理消息数组
+        if (requestJson.TryGetPropertyValue("messages", out var messagesNode) && messagesNode is JsonArray messages)
+        {
+            foreach (var message in messages)
+            {
+                if (message is not JsonObject messageObj) continue;
+                if (DeepCleanContentArray(messageObj, level)) modified = true;
+            }
+        }
+
+        return modified;
+    }
+
+    private bool DeepCleanContentArray(JsonObject messageObj, int level)
+    {
+        if (!messageObj.TryGetPropertyValue("content", out var contentNode)) return false;
+
+        // 处理字符串格式的内容（直接跳过，没啥好清理的）
+        if (contentNode is not JsonArray contentArray) return false;
+
+        bool contentModified = false;
+        var finalContent = new JsonArray();
+        JsonObject? primaryTextBlock = null;
+
+        // 第一次遍历：识别或确保有一个主文本块，用于合并内容
+        foreach (var block in contentArray)
+        {
+            if (block is JsonObject b && b.TryGetPropertyValue("type", out var t) && t?.GetValue<string>() == "text")
+            {
+                primaryTextBlock = b.DeepClone().AsObject();
+                break;
+            }
+        }
+
+        foreach (var block in contentArray)
+        {
+            if (block is not JsonObject blockObj)
+            {
+                finalContent.Add(block?.DeepClone());
+                continue;
+            }
+
+            var type = blockObj["type"]?.GetValue<string>();
+
+            // 1. 处理签名（全级别清理）
+            if (blockObj.Remove("signature"))
+            {
+                logger.LogDebug("已从 content 块中移除残留的 signature 字段");
+                contentModified = true;
+            }
+
+            // 2. 处理思维块
+            if (type == "thinking")
+            {
+                var thoughtText = blockObj["thinking"]?.GetValue<string>();
+                if (!string.IsNullOrWhiteSpace(thoughtText))
+                {
+                    logger.LogDebug("正在合并思维块内容至主文本块");
+                    MergeIntoTextBlock(ref primaryTextBlock, $"[Original Thought]:\n{thoughtText}");
+                }
+                contentModified = true;
+                continue; // 丢弃原块
+            }
+
+            if (type == "redacted_thinking")
+            {
+                logger.LogDebug("已丢弃无法降级的 redacted_thinking 块");
+                contentModified = true;
+                continue; // 直接丢弃加密思维，无法降级
+            }
+
+            // 3. 处理工具块 (Level 2+)
+            if (level >= 2)
+            {
+                if (type == "tool_use")
+                {
+                    var name = blockObj["name"]?.GetValue<string>() ?? "unknown";
+                    var input = blockObj["input"]?.ToJsonString() ?? "{}";
+                    logger.LogDebug("正在降级工具调用块: {ToolName}", name);
+                    MergeIntoTextBlock(ref primaryTextBlock, $"[Tool Use: {name}]\nInput: {input}");
+                    contentModified = true;
+                    continue;
+                }
+                if (type == "tool_result")
+                {
+                    var id = blockObj["tool_use_id"]?.GetValue<string>() ?? "unknown";
+                    var output = blockObj["content"]?.ToJsonString() ?? "";
+                    logger.LogDebug("正在降级工具结果块: {ToolUseId}", id);
+                    MergeIntoTextBlock(ref primaryTextBlock, $"[Tool Result: {id}]\n{output}");
+                    contentModified = true;
+                    continue;
+                }
+            }
+
+            // 文本块：首个作为主块，后续块合并内容以避免丢失，统一在末尾插入
+            if (type == "text")
+            {
+                if (primaryTextBlock == null)
+                {
+                    primaryTextBlock = blockObj.DeepClone().AsObject();
+                }
+                else
+                {
+                    var extraText = blockObj["text"]?.GetValue<string>();
+                    if (!string.IsNullOrEmpty(extraText))
+                    {
+                        MergeIntoTextBlock(ref primaryTextBlock, extraText);
+                        contentModified = true;
+                    }
+                }
+                continue;
+            }
+
+            finalContent.Add(blockObj.DeepClone());
+        }
+
+        // 最后组装：将唯一的合并文本块放在最前面（或原位），确保不违反 API 协议
+        if (primaryTextBlock != null)
+        {
+            finalContent.Insert(0, primaryTextBlock);
+            // 这里不一定非要 modified = true，除非发生了内容变化
+        }
+
+        if (contentModified || finalContent.Count != contentArray.Count)
+        {
+            messageObj["content"] = finalContent;
+            return true;
+        }
+
+        return false;
+    }
+
+    private void MergeIntoTextBlock(ref JsonObject? target, string textToAppend)
+    {
+        if (target == null)
+        {
+            target = new JsonObject
+            {
+                ["type"] = "text",
+                ["text"] = textToAppend
+            };
+        }
+        else
+        {
+            var current = target["text"]?.GetValue<string>() ?? "";
+            target["text"] = string.IsNullOrWhiteSpace(current) 
+                ? textToAppend 
+                : $"{current}\n\n{textToAppend}";
         }
     }
 

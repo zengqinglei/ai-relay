@@ -13,7 +13,7 @@ public static partial class JsonExtractHelper
     /// 仅扫描流的前N个字节，提取所有顶层基础类型属性及其子对象的基础属性（如 messages[0].content）
     /// 并同时生成供日志使用的主体内容预览字符串，避免二次读取引发崩溃
     /// </summary>
-    public static async Task<(Dictionary<string, string> Props, string? BodyPreview)> ExtractEssentialPropsAsync(Stream? stream, bool needPreview = false, int previewMaxLength = 2000, int maxBytesToRead = 262144)
+    public static async Task<(Dictionary<string, string> Props, string? BodyPreview)> ExtractEssentialPropsAsync(Stream? stream, bool needPreview = false, int previewMaxLength = 2000, int maxBytesToRead = 1048576) // [优化] 提升至 1MB 缓冲区以支持大报文探测
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         string? bodyPreview = null;

@@ -16,4 +16,9 @@ public class ModelErrorAnalysisResult
     /// 是否需要降级重试（签名错误场景）
     /// </summary>
     public bool RequiresDowngrade { get; set; }
+
+    /// <summary>
+    /// 诊断说明（用于日志记录）
+    /// </summary>
+    public string? Description { get; set; }
 }

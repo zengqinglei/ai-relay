@@ -341,7 +341,16 @@ public abstract class BaseChatModelHandler : IChatModelHandler
         if (string.IsNullOrEmpty(duration))
             return null;
 
-        // 格式 1: "8085.070001278s" (仅含秒，无 h/m)
+        // 1. 毫秒格式: "591.851946ms"
+        if (duration.EndsWith("ms"))
+        {
+            var msStr = duration.TrimEnd('s').TrimEnd('m');
+            if (double.TryParse(msStr, NumberStyles.Float, CultureInfo.InvariantCulture, out var ms))
+                return (int)Math.Ceiling(ms / 1000.0);
+            return null;
+        }
+
+        // 2. 格式 1: "8085.070001278s" (仅含秒，无 h/m)
         if (duration.EndsWith("s") && !duration.Contains("h") && !duration.Contains("m"))
         {
             var secondsStr = duration.TrimEnd('s');
@@ -350,18 +359,19 @@ public abstract class BaseChatModelHandler : IChatModelHandler
             return null; // 格式匹配但解析失败，不 fall-through 到格式2
         }
 
-        // 格式 2: "2h14m45.070001278s" (复合格式)
+        // 3. 格式 2: "2h14m45.070001278s" (复合格式)
         int totalSeconds = 0;
 
-        var hourMatch = Regex.Match(duration, @"(\d+)h");
+        // 使用负向断言确保匹配的单位前没有小数点且 m 不是 ms 的一部分。
+        var hourMatch = Regex.Match(duration, @"(?<![\d.])(\d+)h");
         if (hourMatch.Success && int.TryParse(hourMatch.Groups[1].Value, out var hours))
             totalSeconds += hours * 3600;
 
-        var minuteMatch = Regex.Match(duration, @"(\d+)m");
+        var minuteMatch = Regex.Match(duration, @"(?<![\d.])(\d+)m(?!s)");
         if (minuteMatch.Success && int.TryParse(minuteMatch.Groups[1].Value, out var minutes))
             totalSeconds += minutes * 60;
 
-        var secondMatch = Regex.Match(duration, @"(\d+(?:\.\d+)?)s");
+        var secondMatch = Regex.Match(duration, @"(?<![\d.])(\d+(?:\.\d+)?)s");
         if (secondMatch.Success && double.TryParse(secondMatch.Groups[1].Value, NumberStyles.Float,
                 CultureInfo.InvariantCulture, out var secs))
             totalSeconds += (int)Math.Ceiling(secs);

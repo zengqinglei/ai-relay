@@ -74,7 +74,8 @@ public class AccountTokenDomainService(
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "准备账户时刷新 Token 失败: {Name}", accountToken.Name);
+                logger.LogWarning(ex, "准备账户时刷新 Token 失败: {Name}({Provider}-{AuthMethod})", 
+                    accountToken.Name, accountToken.Provider, accountToken.AuthMethod);
             }
         }
 
@@ -122,7 +123,8 @@ public class AccountTokenDomainService(
         if (lockHandle == null)
         {
             // 锁被占用，说明其他 worker 正在刷新，等待后重读 DB 使用最新 token
-            logger.LogDebug("Token 刷新锁被占用，等待后重读 DB: {Name}", accountToken.Name);
+            logger.LogDebug("Token 刷新锁被占用，等待后重读 DB: {Name}({Provider}-{AuthMethod})", 
+                accountToken.Name, accountToken.Provider, accountToken.AuthMethod);
             await Task.Delay(RefreshLockWait, cancellationToken);
             var fresh = await accountTokenRepository.GetByIdAsync(accountToken.Id, cancellationToken);
             if (fresh != null)
@@ -139,14 +141,15 @@ public class AccountTokenDomainService(
 
             if (!accountToken.IsNeedRefreshToken())
             {
-                logger.LogDebug("Token 已由其他 worker 刷新，跳过: {Name}", accountToken.Name);
+                logger.LogDebug("Token 已由其他 worker 刷新，跳过: {Name}({Provider}-{AuthMethod})", 
+                    accountToken.Name, accountToken.Provider, accountToken.AuthMethod);
                 return;
             }
 
             // 执行刷新
             var remainingMinutes = accountToken.GetTokenRemainingMinutes();
-            logger.LogInformation("开始刷新 Token - Name: {Name}, 剩余分钟数: {Minutes}",
-                accountToken.Name, remainingMinutes ?? 0);
+            logger.LogInformation("开始刷新 Token - Name: {Name}({Provider}-{AuthMethod}), 剩余分钟数: {Minutes}",
+                accountToken.Name, accountToken.Provider, accountToken.AuthMethod, remainingMinutes ?? 0);
 
             if (string.IsNullOrEmpty(accountToken.RefreshToken))
                 throw new BadRequestException($"账户 '{accountToken.Name}' 无可用的 RefreshToken");
@@ -171,7 +174,8 @@ public class AccountTokenDomainService(
             }
 
             await accountTokenRepository.UpdateAsync(accountToken, cancellationToken);
-            logger.LogInformation("刷新 Token 成功: {Name}", accountToken.Name);
+            logger.LogInformation("刷新 Token 成功: {Name}({Provider}-{AuthMethod})", 
+                accountToken.Name, accountToken.Provider, accountToken.AuthMethod);
         }
     }
 
@@ -205,7 +209,8 @@ public class AccountTokenDomainService(
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "IsModelSupportedAsync 上游模型拉取失败，将回退到基准配置：AccountId={AccountId}", account.Id);
+            logger.LogWarning(ex, "IsModelSupportedAsync 上游模型检测失败，将回退到基准配置：Name={Name}, Provider={Provider}, AuthMethod={AuthMethod}", 
+                account.Name, account.Provider, account.AuthMethod);
         }
 
         // 4. 上游优先判断 (严格模式)
@@ -304,6 +309,26 @@ public class AccountTokenDomainService(
     /// </summary>
     public async Task<IReadOnlyList<string>?> FetchAndCacheUpstreamModelsAsync(AccountToken account, CancellationToken ct = default)
     {
+        // 1. 优先尝试从缓存获取（增加异常保护，确保缓存组件故障不影响业务）
+        try
+        {
+            var cachedValue = await cache.GetStringAsync(CacheKey(account.Id), ct);
+            if (!string.IsNullOrEmpty(cachedValue))
+            {
+                var cachedIds = JsonSerializer.Deserialize<List<string>>(cachedValue);
+                if (cachedIds != null && cachedIds.Count > 0)
+                {
+                    return cachedIds;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "从缓存获取上游模型失败（降级请求上游）: Name={Name}, Provider={Provider}, AuthMethod={AuthMethod}",
+                account.Name, account.Provider, account.AuthMethod);
+        }
+
+        // 2. 缓存不存在或探测失败，发起上游请求
         try
         {
             var handler = chatModelHandlerFactory.CreateHandler(
@@ -324,20 +349,31 @@ public class AccountTokenDomainService(
 
             var ids = upstreamModels.Select(m => m.Value).ToList();
 
-            var ttl = MinTtl + TimeSpan.FromMinutes(Random.Shared.NextDouble() * (MaxTtl - MinTtl).TotalMinutes);
-            await cache.SetStringAsync(
-                CacheKey(account.Id),
-                JsonSerializer.Serialize(ids),
-                new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = ttl },
-                ct);
+            // 3. 异步写入缓存（增加异常保护，不因写缓存失败而导致请求报错）
+            try
+            {
+                var ttl = MinTtl + TimeSpan.FromMinutes(Random.Shared.NextDouble() * (MaxTtl - MinTtl).TotalMinutes);
+                await cache.SetStringAsync(
+                    CacheKey(account.Id),
+                    JsonSerializer.Serialize(ids),
+                    new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = ttl },
+                    ct);
 
-            logger.LogInformation("上游模型缓存写入: AccountId={AccountId}, Count={Count}, TTL={TTL}min",
-                account.Id, ids.Count, (int)ttl.TotalMinutes);
+                logger.LogInformation("同步并刷新上游模型缓存成功: Name={Name}, Provider={Provider}, Count={Count}, TTL={TTL}min",
+                    account.Name, account.Provider, ids.Count, (int)ttl.TotalMinutes);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "更新上游模型缓存失败: Name={Name}, Provider={Provider}",
+                    account.Name, account.Provider);
+            }
+
             return ids;
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "上游模型拉取失败: AccountId={AccountId}", account.Id);
+            logger.LogWarning(ex, "上游模型拉取失败: Name={Name}, Provider={Provider}, AuthMethod={AuthMethod}",
+                account.Name, account.Provider, account.AuthMethod);
             return null;
         }
     }

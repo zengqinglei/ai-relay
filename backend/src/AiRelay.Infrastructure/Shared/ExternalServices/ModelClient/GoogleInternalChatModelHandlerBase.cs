@@ -48,6 +48,7 @@ public abstract class GoogleInternalChatModelHandlerBase(
         ];
     }
 
+
     public override async Task<ModelErrorAnalysisResult> CheckRetryPolicyAsync(
         int statusCode,
         Dictionary<string, IEnumerable<string>>? headers,
@@ -56,7 +57,13 @@ public abstract class GoogleInternalChatModelHandlerBase(
         // 签名错误 → 降级重试
         if (statusCode == 400 && GoogleSignatureCleaner.IsSignatureError(responseBody))
         {
-            return new ModelErrorAnalysisResult { IsCanRetry = true, RequiresDowngrade = true };
+            return new ModelErrorAnalysisResult
+            {
+                IsCanRetry = true,
+                RequiresDowngrade = true,
+                RetryAfter = TimeSpan.FromSeconds(1), // 特殊信号：降级重试延迟 1s
+                Description = "[协议适配] 检测到 Google 签名无法解密或与 OAuth 协议冲突，正在执行自动降级修复"
+            };
         }
 
         // 429/503 限流 / 容量不足
@@ -118,7 +125,19 @@ public abstract class GoogleInternalChatModelHandlerBase(
         result = TimeSpan.Zero;
         if (string.IsNullOrEmpty(duration)) return false;
 
-        // 简单纯秒格式: "3.5s"
+        // 1. 毫秒格式: "591.851946ms"
+        if (duration.EndsWith("ms"))
+        {
+            var msStr = duration.TrimEnd('s').TrimEnd('m');
+            if (double.TryParse(msStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var ms))
+            {
+                result = TimeSpan.FromMilliseconds(ms);
+                return true;
+            }
+            return false;
+        }
+
+        // 2. 简单纯秒格式: "3.5s"
         if (!duration.Contains('h') && !duration.Contains('m'))
         {
             var raw = duration.TrimEnd('s');
@@ -130,15 +149,16 @@ public abstract class GoogleInternalChatModelHandlerBase(
             return false;
         }
 
-        // 复合时长格式: "2h14m45.070001278s"
+        // 3. 复合时长格式: "2h14m45.070001278s"
         double total = 0;
-        var hourMatch = Regex.Match(duration, @"(\d+)h");
+        // 使用负向断言确保匹配的单位前没有小数点，防止 123.456ms 这种格式被错认。
+        var hourMatch = Regex.Match(duration, @"(?<![\d.])(\d+)h");
         if (hourMatch.Success) total += int.Parse(hourMatch.Groups[1].Value) * 3600;
 
-        var minuteMatch = Regex.Match(duration, @"(\d+)m");
+        var minuteMatch = Regex.Match(duration, @"(?<![\d.])(\d+)m(?!s)");
         if (minuteMatch.Success) total += int.Parse(minuteMatch.Groups[1].Value) * 60;
 
-        var secondMatch = Regex.Match(duration, @"(\d+(?:\.\d+)?)s");
+        var secondMatch = Regex.Match(duration, @"(?<![\d.])(\d+(?:\.\d+)?)s");
         if (secondMatch.Success &&
             double.TryParse(secondMatch.Groups[1].Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var compoundSeconds))
         {

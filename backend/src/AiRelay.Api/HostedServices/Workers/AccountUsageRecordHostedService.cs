@@ -41,6 +41,7 @@ public class AccountUsageRecordHostedService(
                 switch (item)
                 {
                     case UsageRecordStartItem start:
+                        logger.LogDebug("接收到 UsageRecordStartItem: UsageRecordId={UsageRecordId}", start.UsageRecordId);
                         await usageLifecycleAppService.StartUsageAsync(
                             new StartUsageInputDto(
                                 start.UsageRecordId,
@@ -60,6 +61,8 @@ public class AccountUsageRecordHostedService(
                         break;
 
                     case UsageRecordAttemptStartItem attemptStart:
+                        logger.LogDebug("接收到 UsageRecordAttemptStartItem: UsageRecordId={UsageRecordId}, Attempt={Attempt}", 
+                            attemptStart.UsageRecordId, attemptStart.AttemptNumber);
                         await usageLifecycleAppService.StartAttemptAsync(
                             new StartAttemptInputDto(
                                 attemptStart.UsageRecordId,
@@ -80,6 +83,8 @@ public class AccountUsageRecordHostedService(
                         break;
 
                     case UsageRecordAttemptEndItem attemptEnd:
+                        logger.LogDebug("接收到 UsageRecordAttemptEndItem: UsageRecordId={UsageRecordId}, Attempt={Attempt}, Status={Status}", 
+                            attemptEnd.UsageRecordId, attemptEnd.AttemptNumber, attemptEnd.Status);
                         await usageLifecycleAppService.CompleteAttemptAsync(
                             new CompleteAttemptInputDto(
                                 attemptEnd.UsageRecordId,
@@ -93,6 +98,8 @@ public class AccountUsageRecordHostedService(
                         break;
 
                     case UsageRecordEndItem end:
+                        logger.LogDebug("接收到 UsageRecordEndItem: UsageRecordId={UsageRecordId}, FinalStatus={Status}, AttemptCount={Count}", 
+                            end.UsageRecordId, end.Status, end.AttemptCount);
                         await usageLifecycleAppService.FinishUsageAsync(
                             new FinishUsageInputDto(
                                 end.UsageRecordId,
@@ -116,8 +123,8 @@ public class AccountUsageRecordHostedService(
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "处理账户使用记录失败: UsageRecordId={UsageRecordId}, Type={Type}",
-                    item.UsageRecordId, item.GetType().Name);
+                logger.LogError(ex, "处理使用记录严重失败! UsageRecordId={UsageRecordId}, Type={Type}, Message={Message}",
+                    item.UsageRecordId, item.GetType().Name, ex.Message);
             }
         }
         logger.LogInformation("账户使用记录后台服务已停止");

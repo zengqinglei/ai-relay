@@ -32,6 +32,9 @@ public class AntigravityModifyBodyRequestProcessor(
 
         var clonedBody = await up.EnsureMutableBodyAsync(down);
 
+        GeminiContentPartsCleaner.FilterEmptyParts(clonedBody);
+        GeminiContentPartsCleaner.EnsureFunctionCallThoughtSignatures(clonedBody, null);
+
         // 协议必需：注入 Antigravity 特有字段
         antigravityIdentityInjector.EnsureAntigravityIdentity(clonedBody);
         FixGeminiCliTools(clonedBody);

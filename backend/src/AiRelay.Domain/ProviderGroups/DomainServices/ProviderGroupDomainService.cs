@@ -204,7 +204,7 @@ public class ProviderGroupDomainService(
 
         if (!relations.Any())
         {
-            logger.LogWarning("分组 {GroupId} 中没有符合协议或排除条件的活跃账号", groupId);
+            logger.LogWarning("分组 '{GroupName}' 中没有符合协议或排除条件的活跃账号", group.Name);
             return (null, group, false, 0);
         }
 
@@ -232,7 +232,8 @@ public class ProviderGroupDomainService(
             {
                 if (!await accountTokenDomainService.IsModelSupportedAsync(account, requestedModel))
                 {
-                    logger.LogDebug("账号 {AccountName} 不支持模型 {Model}，跳过", account.Name, requestedModel);
+                    logger.LogDebug("账号 '{Name}'({Provider}-{AuthMethod}) 不支持模型 {Model}，跳过", 
+                        account.Name, account.Provider, account.AuthMethod, requestedModel);
                     continue;
                 }
             }
@@ -242,12 +243,12 @@ public class ProviderGroupDomainService(
 
         if (qualifiedRelations.Count == 0)
         {
-            logger.LogWarning("分组 {GroupId} 中没有合规账号支持模型 {Model}", groupId, requestedModel);
+            logger.LogWarning("分组 '{GroupName}' 中没有合规账号支持模型 {Model}", group.Name, requestedModel);
             return (null, group, false, 0);
         }
 
         // 4. 决策分流：
-        
+
         // 4.1 分支 A: 粘性优先
         if (group.EnableStickySession && !string.IsNullOrEmpty(sessionHash))
         {
@@ -260,7 +261,9 @@ public class ProviderGroupDomainService(
                     // 检查状态：如果被熔断则清除粘性；若仅是并发满载，则允许返回（由中间件处理等待）
                     if (rateLimitedIds.Contains(stickyRel.AccountTokenId))
                     {
-                        logger.LogInformation("粘性账号 {AccountName} 已进入限流锁，清除粘性", stickyRel.AccountToken.Name);
+                        var stickyAcc = stickyRel.AccountToken;
+                        logger.LogInformation("粘性账号 '{Name}'({Provider}-{AuthMethod}) 已进入限流锁，清除粘性", 
+                            stickyAcc.Name, stickyAcc.Provider, stickyAcc.AuthMethod);
                         await RemoveStickySessionAsync(groupId, sessionHash);
                     }
                     else
@@ -304,7 +307,7 @@ public class ProviderGroupDomainService(
         }
 
         // 如果没有立即可以使用的账号，返回 null，上层将根据是否重试进行后续处理
-        logger.LogWarning("分组 {GroupId} 中当前无立立即（可用状态）的有效账号", groupId);
+        logger.LogWarning("分组 '{GroupName}' 中当前无立即（可用状态）的有效账号", group.Name);
         return (null, group, false, qualifiedRelations.Count);
     }
 

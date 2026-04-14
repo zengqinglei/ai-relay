@@ -36,10 +36,14 @@ public class AccountResultHandlerDomainService(
 
             TimeSpan lockDuration;
 
-            if (retryAfter.HasValue && retryAfter.Value.TotalSeconds > 0)
+            if (retryAfter.HasValue)
             {
-                // 优先使用 API 返回的 retry-after
-                lockDuration = retryAfter.Value;
+                // 优先使用 API 返回的 retry-after。
+                // 特殊处理：针对 Google API 等返回 0s 但实际建议重试的情况，赋予 1-3s 随机保底时间。
+                // 且对于带有 API 明确重试建议的限流，不进入指数退避分支（不累加 BackoffCount），由于其通常被认为是临时配额波动。
+                lockDuration = retryAfter.Value.TotalSeconds > 0
+                    ? retryAfter.Value
+                    : TimeSpan.FromSeconds(Random.Shared.Next(1, 4));
             }
             else
             {

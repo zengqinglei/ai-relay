@@ -440,7 +440,8 @@ public class AccountTokenAppService(
             input.IsCheckStreamHealth,
             cancellationToken);
 
-        logger.LogInformation("创建账户成功: {Name}", accountToken.Name);
+        logger.LogInformation("创建账户成功: {Name}({Provider}-{AuthMethod})", 
+            accountToken.Name, accountToken.Provider, accountToken.AuthMethod);
 
         // ✅ 传递空的上下文以保持统一（新创建的账户暂无并发数据）
         var contextItems = new Dictionary<string, object>
@@ -457,10 +458,11 @@ public class AccountTokenAppService(
         UpdateAccountTokenInputDto input,
         CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("开始更新账户: {Id}", id);
-
         var accountToken = await accountTokenRepository.GetByIdAsync(id, cancellationToken)
             ?? throw new NotFoundException($"账户不存在: {id}");
+
+        logger.LogInformation("开始更新账户: {Name}({Provider}-{AuthMethod})", 
+            accountToken.Name, accountToken.Provider, accountToken.AuthMethod);
 
         // 更新基本信息
         accountToken.Update(input.Name, input.BaseUrl, input.Description, input.MaxConcurrency, input.ExtraProperties,
@@ -491,18 +493,19 @@ public class AccountTokenAppService(
         // 现阶段保持原样，只更新数据。
 
         await accountTokenRepository.UpdateAsync(accountToken, cancellationToken: cancellationToken);
-
-        logger.LogInformation("更新账户成功: {Id}", id);
+        logger.LogInformation("更新账户成功: {Name}({Provider}-{AuthMethod})", 
+            accountToken.Name, accountToken.Provider, accountToken.AuthMethod);
 
         return await GetAsync(id, cancellationToken);
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("开始删除账户: {Id}", id);
-
         var account = await accountTokenRepository.GetByIdAsync(id, cancellationToken)
             ?? throw new NotFoundException($"账户不存在: {id}");
+
+        logger.LogInformation("开始删除账户: {Name}({Provider}-{AuthMethod})", 
+            account.Name, account.Provider, account.AuthMethod);
 
         // 检查是否被分组关联
         var relations = await relationRepository.GetListAsync(
@@ -515,43 +518,50 @@ public class AccountTokenAppService(
         // 软删除
         await accountTokenRepository.DeleteAsync(account, cancellationToken: cancellationToken);
 
-        logger.LogInformation("删除账户成功: {Id}", id);
+        logger.LogInformation("删除账户成功: {Name}({Provider}-{AuthMethod})", 
+            account.Name, account.Provider, account.AuthMethod);
     }
 
     public async Task EnableAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("启用账户: {Id}", id);
-
         var account = await accountTokenRepository.GetByIdAsync(id, cancellationToken)
             ?? throw new NotFoundException($"账户不存在: {id}");
+        
+        logger.LogInformation("启用账户: {Name}({Provider}-{AuthMethod})", 
+            account.Name, account.Provider, account.AuthMethod);
         account.Enable();
         await accountTokenRepository.UpdateAsync(account, cancellationToken: cancellationToken);
 
-        logger.LogInformation("启用账户成功: {Id}", id);
+        logger.LogInformation("启用账户成功: {Name}({Provider}-{AuthMethod})", 
+            account.Name, account.Provider, account.AuthMethod);
     }
 
     public async Task DisableAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("禁用账户: {Id}", id);
-
         var account = await accountTokenRepository.GetByIdAsync(id, cancellationToken)
             ?? throw new NotFoundException($"账户不存在: {id}");
+
+        logger.LogInformation("禁用账户: {Name}({Provider}-{AuthMethod})", 
+            account.Name, account.Provider, account.AuthMethod);
         account.Disable();
         await accountTokenRepository.UpdateAsync(account, cancellationToken: cancellationToken);
 
-        logger.LogInformation("禁用账户成功: {Id}", id);
+        logger.LogInformation("禁用账户成功: {Name}({Provider}-{AuthMethod})", 
+            account.Name, account.Provider, account.AuthMethod);
     }
 
     public async Task ResetStatusAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("重置账户状态: {Id}", id);
-
         var account = await accountTokenRepository.GetByIdAsync(id, cancellationToken)
             ?? throw new NotFoundException($"账户不存在: {id}");
+
+        logger.LogInformation("重置账户状态: {Name}({Provider}-{AuthMethod})", 
+            account.Name, account.Provider, account.AuthMethod);
 
         // 使用 RateLimitTracker 清除 Redis 缓存和 DB 状态（支持限流和异常状态）
         await accountRateLimitDomainService.ClearAsync(account, cancellationToken);
 
-        logger.LogInformation("重置账户状态成功: {Id}", id);
+        logger.LogInformation("重置账户状态成功: {Name}({Provider}-{AuthMethod})", 
+            account.Name, account.Provider, account.AuthMethod);
     }
 }
