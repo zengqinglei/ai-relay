@@ -205,14 +205,14 @@ public class ClaudeChatModelHandler(
         // 优先级 3: system[] 中带 cache_control ephemeral 的文本内容
         if (down.ExtractedProps.TryGetValue("claude.cache_text", out var cacheText) && !string.IsNullOrWhiteSpace(cacheText))
         {
-            down.SessionId = GenerateSessionHashWithContext(cacheText, down, apiKeyId);
+            down.SessionId = GenerateSessionHashWithContext(cacheText, down, apiKeyId, useUuidFormat: true);
             return;
         }
 
-        // 优先级 4: 第一条消息内容
+        // 优先级 4: 第一条消息内容（内容指纹，确保多开隔离）
         if (down.ExtractedProps.TryGetValue("public.fingerprint", out var text) && !string.IsNullOrWhiteSpace(text))
         {
-            down.SessionId = GenerateSessionHashWithContext(text, down, apiKeyId);
+            down.SessionId = GenerateSessionHashWithContext(text, down, apiKeyId, useUuidFormat: true);
             return;
         }
     }

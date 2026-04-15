@@ -421,14 +421,26 @@ public abstract partial class BaseChatModelHandler : IChatModelHandler
     protected string GenerateSessionHashWithContext(
         string messageContent,
         DownRequestContext downContext,
-        Guid apiKeyId)
+        Guid apiKeyId,
+        bool useUuidFormat = false)
     {
         if (string.IsNullOrEmpty(messageContent))
             return GenerateFallbackSessionId();
 
-        var combined = $"{downContext.GetUserAgent() ?? string.Empty}:{apiKeyId}|{messageContent}";
-        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(combined))).ToLowerInvariant();
-        return $"sid-{hash[..SessionHashLength]}";
+        // 核心因子：UA + KeyID + 内容指纹。
+        // 这确保了：不同用户隔离、同一用户不同会话隔离、同一用户 UA 变更时尽量保持连贯。
+        var ua = downContext.GetUserAgent() ?? string.Empty;
+        var combined = $"{ua}:{apiKeyId}|{messageContent}";
+        var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(combined));
+        var hex = Convert.ToHexString(hashBytes).ToLowerInvariant();
+
+        if (useUuidFormat)
+        {
+            // 转换为标准的 UUID 格式以模拟官方客户端行为 (8-4-4-4-12)
+            return $"{hex[..8]}-{hex[8..12]}-{hex[12..16]}-{hex[16..20]}-{hex[20..32]}";
+        }
+
+        return $"sid-{hex[..SessionHashLength]}";
     }
 
     protected static string GenerateFallbackSessionId() =>

@@ -284,6 +284,6 @@ export class UsageRecords implements OnInit {
   getModelDisplay(record: UsageRecordOutputDto): string {
     const down = record.downModelId || 'N/A';
     const up = record.upModelId || 'N/A';
-    return down === up ? down : `down: ${down} | up: ${up}`;
+    return down === up ? down : `${down} → ${up}`;
   }
 }

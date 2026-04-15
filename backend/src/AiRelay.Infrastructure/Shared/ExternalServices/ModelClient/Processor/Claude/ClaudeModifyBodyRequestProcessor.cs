@@ -43,14 +43,15 @@ public class ClaudeModifyBodyRequestProcessor(
             bool isOAuth = options.AuthMethod == AuthMethod.OAuth;
             bool shouldMimic = options.ShouldMimicOfficialClient;
 
-            // OAuth 专属：过滤黑名单系统提示词
+            // 1. OAuth 专属：过滤黑名单系统提示词
             if (isOAuth)
                 claudeRequestCleaner.FilterSystemBlocksByPrefix(clonedBody);
 
-            // 强制执行 cache_control 块数量限制（最多 4 个）
+            // 2. 强制执行 cache_control 块数量限制（最多 4 个）
             claudeCacheControlCleaner.EnforceCacheControlLimit(clonedBody);
 
-            // 伪装逻辑：inject Claude Code system prompt
+            // 3. 伪装逻辑：inject Claude Code system prompt
+            // 该注入器现在内部集成了“系统消息迁移至 User”的逻辑，确保了纯净的官方仿真
             bool isClaudeCodeClient = clientDetector.IsClaudeCodeClient(down);
             bool isHaikuModel = (up.MappedModelId ?? down.ModelId ?? "")
                                 .Contains("haiku", StringComparison.OrdinalIgnoreCase);
@@ -60,7 +61,7 @@ public class ClaudeModifyBodyRequestProcessor(
                 claudeSystemPromptInjector.InjectClaudeCodePrompt(clonedBody);
             }
 
-            // 注入 metadata.user_id（OAuth 或开启伪装时执行，非 batches 路由）
+            // 4. 注入 metadata.user_id（OAuth 或开启伪装时执行，非 batches 路由）
             if ((isOAuth || shouldMimic) &&
                 !down.RelativePath.Contains("/batches", StringComparison.OrdinalIgnoreCase))
             {

@@ -425,6 +425,6 @@ export class UsageRecordDetailDialog {
     if (!down && !up) return 'N/A';
     if (!down) return up || 'N/A';
     if (!up) return down;
-    return down === up ? down : `down: ${down} | up: ${up}`;
+    return down === up ? down : `${down} → ${up}`;
   }
 }

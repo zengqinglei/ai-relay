@@ -131,7 +131,7 @@ public class OpenAiChatModelHandler(
             return;
         }
 
-        // 优先级 5: 第一条消息内容（包含智能筛选的 User 内容或保底首条消息）
+        // 优先级 5: 内容指纹（复合身份+内容，确保多开隔离）
         if (down.ExtractedProps.TryGetValue("public.fingerprint", out var fingerprint) && !string.IsNullOrWhiteSpace(fingerprint))
         {
             down.SessionId = GenerateSessionHashWithContext(fingerprint, down, apiKeyId);
