@@ -139,14 +139,14 @@ public class ClaudeChatModelHandler(
     public override void ExtractModelInfo(DownRequestContext down, Guid apiKeyId)
     {
         // 提取 ModelId
-        if (down.ExtractedProps.TryGetValue("model", out var modelId) && !string.IsNullOrWhiteSpace(modelId))
+        if (down.ExtractedProps.TryGetValue("public.model", out var modelId) && !string.IsNullOrWhiteSpace(modelId))
         {
             down.ModelId = modelId;
         }
 
         // 提取 SessionHash
-        // 优先级 1: metadata.user_id（支持新格式 JSON 和旧格式 legacy string）
-        if (down.ExtractedProps.TryGetValue("metadata.user_id", out var userIdStr) && !string.IsNullOrWhiteSpace(userIdStr))
+        // 优先级 1: claude.metadata_user_id（支持新格式 JSON 和旧格式 legacy string）
+        if (down.ExtractedProps.TryGetValue("claude.metadata_user_id", out var userIdStr) && !string.IsNullOrWhiteSpace(userIdStr))
         {
             userIdStr = userIdStr.Trim();
 
@@ -196,21 +196,21 @@ public class ClaudeChatModelHandler(
         }
 
         // 优先级 2: conversation_id
-        if (down.ExtractedProps.TryGetValue("conversation_id", out var id) && !string.IsNullOrWhiteSpace(id))
+        if (down.ExtractedProps.TryGetValue("public.conversation_id", out var id) && !string.IsNullOrWhiteSpace(id))
         {
             down.SessionId = id;
             return;
         }
 
         // 优先级 3: system[] 中带 cache_control ephemeral 的文本内容
-        if (down.ExtractedProps.TryGetValue("cache_ephemeral_text", out var cacheText) && !string.IsNullOrWhiteSpace(cacheText))
+        if (down.ExtractedProps.TryGetValue("claude.cache_text", out var cacheText) && !string.IsNullOrWhiteSpace(cacheText))
         {
             down.SessionId = GenerateSessionHashWithContext(cacheText, down, apiKeyId);
             return;
         }
 
         // 优先级 4: 第一条消息内容
-        if (down.ExtractedProps.TryGetValue("session_fingerprint_text", out var text) && !string.IsNullOrWhiteSpace(text))
+        if (down.ExtractedProps.TryGetValue("public.fingerprint", out var text) && !string.IsNullOrWhiteSpace(text))
         {
             down.SessionId = GenerateSessionHashWithContext(text, down, apiKeyId);
             return;

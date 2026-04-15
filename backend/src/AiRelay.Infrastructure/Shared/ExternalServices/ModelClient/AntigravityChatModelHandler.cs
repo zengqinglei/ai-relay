@@ -1,8 +1,8 @@
 using System.Text;
 using System.Text.Json.Nodes;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
-using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.Antigravity;
 using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.Common;
+using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.Google;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using AiRelay.Domain.Shared.ExternalServices.ModelProvider;
@@ -38,32 +38,32 @@ public sealed class AntigravityChatModelHandler(
         return
         [
             new ModelIdMappingRequestProcessor(modelProvider, Options.Provider, Options),
-            new AntigravityUrlRequestProcessor(Options),
-            new AntigravityHeaderRequestProcessor(Options),
-            new AntigravityModifyBodyRequestProcessor(
-                Options, antigravityIdentityInjector,
-                googleJsonSchemaCleaner, Logger),
-            new AntigravityDegradationRequestProcessor(degradationLevel, googleSignatureCleaner),
+            new GoogleUrlRequestProcessor(Options),
+            new GoogleHeaderRequestProcessor(Options),
+            new GoogleModifyBodyRequestProcessor(
+                Options, googleJsonSchemaCleaner, Logger,
+                antigravityIdentityInjector: antigravityIdentityInjector),
+            new GoogleDegradationRequestProcessor(degradationLevel, googleSignatureCleaner),
         ];
     }
 
     public override void ExtractModelInfo(DownRequestContext down, Guid apiKeyId)
     {
         // 提取 ModelId
-        if (down.ExtractedProps.TryGetValue("model", out var modelId) && !string.IsNullOrWhiteSpace(modelId))
+        if (down.ExtractedProps.TryGetValue("public.model", out var modelId) && !string.IsNullOrWhiteSpace(modelId))
         {
             down.ModelId = modelId;
         }
 
         // 优先级 1: conversation_id
-        if (down.ExtractedProps.TryGetValue("conversation_id", out var id) && !string.IsNullOrWhiteSpace(id))
+        if (down.ExtractedProps.TryGetValue("public.conversation_id", out var id) && !string.IsNullOrWhiteSpace(id))
         {
             down.SessionId = id;
             return;
         }
 
         // 优先级 2: 第一条消息内容
-        if (down.ExtractedProps.TryGetValue("session_fingerprint_text", out var text) && !string.IsNullOrWhiteSpace(text))
+        if (down.ExtractedProps.TryGetValue("public.fingerprint", out var text) && !string.IsNullOrWhiteSpace(text))
         {
             down.SessionId = GenerateSessionHashWithContext(text, down, apiKeyId);
             return;

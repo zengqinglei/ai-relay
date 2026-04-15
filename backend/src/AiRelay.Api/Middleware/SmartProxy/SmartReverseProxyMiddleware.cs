@@ -259,7 +259,7 @@ public class SmartReverseProxyMiddleware(
                                     httpStatusCode!.Value, proxyResponse.Headers, proxyResponse.ErrorBody);
 
                             var (instruction, retryAfter) = DetermineFailureInstruction(
-                                retryPolicy, currentAccountRetryCount, maxSameAccountRetries);
+                                retryPolicy, currentAccountRetryCount, maxSameAccountRetries, accountSwitchCount);
 
                             switch (instruction)
                             {
@@ -742,10 +742,13 @@ public class SmartReverseProxyMiddleware(
     private static (FailureInstruction Instruction, TimeSpan RetryDelay) DetermineFailureInstruction(
         ModelErrorAnalysisResult retryPolicy,
         int currentRetryCount,
-        int maxRetries)
+        int maxRetries,
+        int accountSwitchCount)
     {
+        // 1. 同账号重试判定
         if (retryPolicy.IsCanRetry && currentRetryCount < maxRetries)
         {
+            // 如果上游明确要求等待超过 15s，通常意味着该账号被严重限流，直接切号
             if (retryPolicy.RetryAfter.HasValue && retryPolicy.RetryAfter.Value.TotalSeconds >= 15)
                 return (FailureInstruction.SwitchAccount, TimeSpan.Zero);
 
@@ -754,9 +757,22 @@ public class SmartReverseProxyMiddleware(
             return (FailureInstruction.RetrySameAccount, delay);
         }
 
-        return retryPolicy.IsCanRetry
-            ? (FailureInstruction.SwitchAccount, TimeSpan.Zero)
-            : (FailureInstruction.Fail, TimeSpan.Zero);
+        // 2. 切换账号判定
+        // 情况 A: Handler 判定可重试（IsCanRetry = true），但同账号次数已满，则切换到下一个号继续试
+        if (retryPolicy.IsCanRetry)
+        {
+            return (FailureInstruction.SwitchAccount, TimeSpan.Zero);
+        }
+
+        // 情况 B: Handler 判定不可重试（IsCanRetry = false，如官方 5xx 或 401/403/429 等）
+        // 此时如果是第一个号由于节点、网关或其他未知原因报错，额外给一次切号机会（盲切补偿）
+        if (accountSwitchCount == 0)
+        {
+            return (FailureInstruction.SwitchAccount, TimeSpan.Zero);
+        }
+
+        // 其他情况（已经切过号但还是报错，或者明确不可重试）则直接失败
+        return (FailureInstruction.Fail, TimeSpan.Zero);
     }
 
     private static string? CaptureHeaders(Dictionary<string, string> headers)

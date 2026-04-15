@@ -220,7 +220,7 @@ public sealed class ModelProvider(ILogger<ModelProvider> logger) : IModelProvide
         Provider.Antigravity     => GetAntigravityMappedModel(requestedModel),
         Provider.Claude          => GetClaudeMappedModel(requestedModel),
         Provider.OpenAI          => GetOpenAIMappedModel(requestedModel),
-        Provider.OpenAICompatible => GetOpenAIMappedModel(requestedModel), // 协议相同，复用 OpenAI 映射
+        Provider.OpenAICompatible => requestedModel, // 三方兼容接口全透传，防止被 Codex fallback 强制降级为 gpt-5.1
         _                        => requestedModel // Gemini 等无需平台映射的提供商透传
     };
 

@@ -4,7 +4,8 @@ using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Processor;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.SignatureCache;
 using AiRelay.Domain.Shared.ExternalServices.ModelProvider.Dto;
-using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.Gemini;
+using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.Common;
+using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.Google;
 using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Cleaning;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
@@ -31,17 +32,20 @@ public class GeminiAccountChatModelHandler(
         DownRequestContext down, int degradationLevel)
     {
         return [
-            new GeminiOAuthUrlRequestProcessor(Options),
-            new GeminiHeaderRequestProcessor(Options),
-            new GeminiOAuthModifyBodyRequestProcessor(Options, googleJsonSchemaCleaner, geminiSystemPromptInjector, SignatureCache),
-            new GeminiDegradationRequestProcessor(degradationLevel, googleSignatureCleaner)
+            new GoogleUrlRequestProcessor(Options),
+            new GoogleHeaderRequestProcessor(Options),
+            new GoogleModifyBodyRequestProcessor(
+                Options, googleJsonSchemaCleaner, Logger,
+                geminiSystemPromptInjector: geminiSystemPromptInjector,
+                signatureCache: SignatureCache),
+            new GoogleDegradationRequestProcessor(degradationLevel, googleSignatureCleaner)
         ];
     }
 
     public override void ExtractModelInfo(DownRequestContext down, Guid apiKeyId)
     {
         // 提取 PromptIndex：统计 contents[]/messages[] 中 user 角色数量 - 1
-        if (down.ExtractedProps.TryGetValue("user_role_count", out var countStr) &&
+        if (down.ExtractedProps.TryGetValue("public.user_role_count", out var countStr) &&
             int.TryParse(countStr, out var count) && count > 0)
         {
             down.PromptIndex = count - 1;
@@ -71,7 +75,7 @@ public class GeminiAccountChatModelHandler(
 
         // 2. 从 Body 提取
         if (string.IsNullOrEmpty(down.ModelId) &&
-            down.ExtractedProps.TryGetValue("model", out var modelId) &&
+            down.ExtractedProps.TryGetValue("public.model", out var modelId) &&
             !string.IsNullOrWhiteSpace(modelId))
         {
             down.ModelId = modelId;
@@ -79,12 +83,12 @@ public class GeminiAccountChatModelHandler(
 
         // ========== 提取 SessionHash ==========
         // 优先级 1: Gemini CLI 专用逻辑 (从 tmp 目录提取)
-        if (down.ExtractedProps.TryGetValue("gemini_cli_tmp_hash", out var tmpDirHash) && !string.IsNullOrWhiteSpace(tmpDirHash))
+        if (down.ExtractedProps.TryGetValue("google.cli_tmp_hash", out var tmpDirHash) && !string.IsNullOrWhiteSpace(tmpDirHash))
         {
-            down.ExtractedProps.TryGetValue("request.session_id", out var sessionId);
+            down.ExtractedProps.TryGetValue("google.request_session_id", out var sessionId);
             if (string.IsNullOrWhiteSpace(sessionId))
             {
-                down.ExtractedProps.TryGetValue("session_id", out sessionId);
+                down.ExtractedProps.TryGetValue("public.conversation_id", out sessionId);
             }
 
             if (!string.IsNullOrWhiteSpace(sessionId))
@@ -101,9 +105,9 @@ public class GeminiAccountChatModelHandler(
         }
 
         // 优先级 2: 第一条消息内容
-        if (down.ExtractedProps.TryGetValue("session_fingerprint_text", out var text) && !string.IsNullOrWhiteSpace(text))
+        if (down.ExtractedProps.TryGetValue("public.fingerprint", out var fingerprint) && !string.IsNullOrWhiteSpace(fingerprint))
         {
-            down.SessionId = GenerateSessionHashWithContext(text, down, apiKeyId);
+            down.SessionId = GenerateSessionHashWithContext(fingerprint, down, apiKeyId);
             return;
         }
     }

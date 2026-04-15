@@ -272,10 +272,15 @@ public abstract partial class BaseChatModelHandler : IChatModelHandler
             result.RetryAfter = ExtractRetryAfter(headers, responseBody);
             result.IsCanRetry = true;
         }
+        else if (statusCode == 502 || statusCode == 504) // 网络层转译错误（Bad Gateway / Gateway Timeout）
+        {
+            // 这种错误通常是瞬时网络抖动或代理故障，允许同号重试，耗尽后由中间件切号
+            result.IsCanRetry = true;
+            result.RetryAfter = ExtractRetryAfter(headers, responseBody);
+        }
         else
         {
-            // 官方账号 5xx：不允许同账号重试，由外层换号
-            // 非官方账号 5xx：允许重试（临时故障）
+            // 其他 5xx：官方账号不允许同账号重试，由外层换号；非官方账号允许重试
             result.IsCanRetry = !isOfficialAccount;
             result.RetryAfter = result.IsCanRetry ? ExtractRetryAfter(headers, responseBody) : null;
         }

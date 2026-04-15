@@ -244,6 +244,11 @@ public class AccountTokenDomainService(
     /// </summary>
     public static string? ResolveMapping(string model, Dictionary<string, string> mapping)
     {
+        // 0. 提前放行目标态：如果请求的模型本身就已经完全符合某条规则的【目标值】格式（如直连测试时使用了 Qwen/Qwen-3.5）
+        // 直接返回自身，防止被当做普通源模型再次匹配，造成拼接套娃
+        if (mapping.Values.Contains(model, StringComparer.OrdinalIgnoreCase)) return model;
+        if (mapping.Values.Any(v => v.Contains('*') && IsWildcardMatch(model, v))) return model;
+
         // 1. 精确匹配
         if (mapping.TryGetValue(model, out var exact)) return exact;
 

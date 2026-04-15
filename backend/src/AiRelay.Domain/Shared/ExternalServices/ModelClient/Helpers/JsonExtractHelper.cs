@@ -53,12 +53,12 @@ public static partial class JsonExtractHelper
                 string? currentTopLevelPropName = null;
                 string? currentPropName = null;
 
-                // cache_control ephemeral tracking for system[] and messages[] items
+                // 为 system[] 和 messages[] 项目进行 cache_control 临时跟踪
                 string? currentEphemeralText = null;
                 bool currentObjectHasCacheControl = false;
                 int currentCacheObjectDepth = 0;
 
-                // user role count for PromptIndex (Gemini ExtractPromptIndex)
+                // 为 PromptIndex (Gemini ExtractPromptIndex) 统计用户角色数量
                 int userRoleCount = 0;
                 int systemTextIdx = 0;
                 bool isNextUserContent = false;
@@ -68,6 +68,9 @@ public static partial class JsonExtractHelper
                 // Gemini CLI prompt detection: track if we're inside systemInstruction
                 bool insideSystemInstruction = false;
 
+                // Platform hint: track if we're inside systemInstruction.parts to detect Antigravity identity
+                bool insideSysInstParts = false;
+
                 while (reader.Read())
                 {
                     switch (reader.TokenType)
@@ -75,7 +78,7 @@ public static partial class JsonExtractHelper
                         case JsonTokenType.StartObject:
                         case JsonTokenType.StartArray:
                             depth++;
-                            // Check if entering a cacheable object (depth 3 for system[], depth 5 for messages[x].content[])
+                            // 检查是否进入可缓存对象（system[] 深度为 3，messages[x].content[] 深度为 5）
                             if ((currentTopLevelPropName == "system" && depth == 3) || 
                                 (currentTopLevelPropName == "messages" && depth == 5))
                             {
@@ -87,13 +90,13 @@ public static partial class JsonExtractHelper
 
                         case JsonTokenType.EndObject:
                         case JsonTokenType.EndArray:
-                            // Commit text if cache_control was present in this object
+                            // 如果该对象中存在 cache_control，则提交文本
                             if (currentCacheObjectDepth > 0 && depth == currentCacheObjectDepth && reader.TokenType == JsonTokenType.EndObject)
                             {
                                 if (currentObjectHasCacheControl && !string.IsNullOrWhiteSpace(currentEphemeralText)
-                                    && !result.ContainsKey("cache_ephemeral_text"))
+                                    && !result.ContainsKey("claude.cache_text"))
                                 {
-                                    result["cache_ephemeral_text"] = currentEphemeralText;
+                                    result["claude.cache_text"] = currentEphemeralText;
                                 }
                                 currentCacheObjectDepth = 0;
                                 currentObjectHasCacheControl = false;
@@ -101,8 +104,12 @@ public static partial class JsonExtractHelper
                             }
                             depth--;
                             if (depth == 1) currentTopLevelPropName = null;
-                            // Exit systemInstruction context when leaving depth 1
-                            if (depth == 1 && insideSystemInstruction) insideSystemInstruction = false;
+                            // 离开深度 1 时退出 systemInstruction 上下文
+                            if (depth == 1 && insideSystemInstruction)
+                            {
+                                insideSystemInstruction = false;
+                                insideSysInstParts = false;
+                            }
                             break;
 
                             case JsonTokenType.PropertyName:
@@ -115,22 +122,34 @@ public static partial class JsonExtractHelper
                                 if (currentPropName == "systemInstruction")
                                 {
                                     insideSystemInstruction = true;
+                                    // 平台标识：顶层含 systemInstruction → Gemini 原生报文
+                                    result.TryAdd("google.is_gemini", "true");
                                 }
 
-                                // Top-level struct flags (for zero-allocation shortcut detection)
-                                if (!result.ContainsKey("has_v1internal_request") && currentPropName == "request") result["has_v1internal_request"] = "true";
-                                else if (!result.ContainsKey("has_v1internal_project") && currentPropName == "project") result["has_v1internal_project"] = "true";
-                                else if (!result.ContainsKey("has_openai_input") && currentPropName == "input") result["has_openai_input"] = "true";
-                                else if (!result.ContainsKey("has_openai_messages") && currentPropName == "messages") result["has_openai_messages"] = "true";
-                            }
-                            
-                            // Track "tools" existence (can be at depth 1 or depth 2 when inside v1internal "request")
-                            if (depth <= 2 && currentPropName == "tools" && !result.ContainsKey("has_tools"))
-                            {
-                                result["has_tools"] = "true";
+                                // 平台标识：顶层含 conversation_id → Antigravity 特有字段
+                                if (currentPropName == "conversation_id")
+                                    result.TryAdd("google.antigravity_session", "true");
+
+                                // 顶层结构标志（用于零分配快捷路径探测）
+                                if (!result.ContainsKey("google.has_v1internal") && currentPropName == "request") result["google.has_v1internal"] = "true";
+                                else if (!result.ContainsKey("google.has_project") && currentPropName == "project") result["google.has_project"] = "true";
+                                else if (!result.ContainsKey("openai.has_input") && currentPropName == "input") result["openai.has_input"] = "true";
+                                else if (!result.ContainsKey("openai.has_messages") && currentPropName == "messages") result["openai.has_messages"] = "true";
                             }
 
-                            // Track cache_control property in system[] and messages[] items
+                            // 平台标识：进入 systemInstruction.parts 时设置 insideSysInstParts 标志
+                            if (insideSystemInstruction && depth == 3 && currentPropName == "parts")
+                                insideSysInstParts = true;
+                            else if (!insideSystemInstruction)
+                                insideSysInstParts = false;
+                            
+                             // 追踪 "tools" 的存在情况（在 v1internal "request" 内部时深度可能为 1 或 2）
+                            if (depth <= 2 && currentPropName == "tools" && !result.ContainsKey("public.has_tools"))
+                            {
+                                result["public.has_tools"] = "true";
+                            }
+
+                            // 追踪 system[] 和 messages[] 项目中的 cache_control 属性
                             if (currentCacheObjectDepth > 0 && depth == currentCacheObjectDepth && currentPropName == "cache_control")
                             {
                                 currentObjectHasCacheControl = true;
@@ -143,9 +162,18 @@ public static partial class JsonExtractHelper
                         case JsonTokenType.False:
                             if (depth == 1 && currentTopLevelPropName != null)
                             {
-                                if (!result.ContainsKey(currentTopLevelPropName))
+                                // [标准化] 为公共顶层属性映射 'public.' 前缀
+                                var finalKey = currentTopLevelPropName switch
                                 {
-                                    result[currentTopLevelPropName] = reader.TokenType == JsonTokenType.String 
+                                    "model" => "public.model",
+                                    "stream" => "public.stream",
+                                    "conversation_id" or "session_id" => "public.conversation_id",
+                                    _ => currentTopLevelPropName
+                                };
+
+                                if (!result.ContainsKey(finalKey))
+                                {
+                                    result[finalKey] = reader.TokenType == JsonTokenType.String 
                                         ? reader.GetString()! 
                                         : GetRawString(reader);
                                 }
@@ -157,12 +185,12 @@ public static partial class JsonExtractHelper
                                     var contentValue = reader.GetString()!;
                                     if (isNextUserContent)
                                     {
-                                        result["session_fingerprint_text"] = contentValue;
+                                        result["public.fingerprint"] = contentValue;
                                         hasSetFingerprint = true; // 锁定 User 内容
                                     }
                                     else if (!hasSavedDefault)
                                     {
-                                        result["session_fingerprint_text"] = contentValue;
+                                        result["public.fingerprint"] = contentValue;
                                         hasSavedDefault = true; // 暂存第一条内容做保底
                                     }
                                 }
@@ -171,14 +199,14 @@ public static partial class JsonExtractHelper
                             {
                                 if (reader.TokenType == JsonTokenType.String)
                                 {
-                                    result["metadata.user_id"] = reader.GetString()!;
+                                    result["claude.metadata_user_id"] = reader.GetString()!;
                                 }
                             }
                             else if (currentTopLevelPropName == "stream_options" && currentPropName == "include_usage")
                             {
                                 if (reader.TokenType == JsonTokenType.True)
                                 {
-                                    result["stream_options.include_usage"] = "true";
+                                    result["openai.include_usage"] = "true";
                                 }
                             }
                             // Count user roles in contents[]/messages[]/input[] for PromptIndex
@@ -189,15 +217,22 @@ public static partial class JsonExtractHelper
                                 userRoleCount++;
                                 isNextUserContent = true;
                             }
+                            else if (depth == 1 && currentPropName == "user_prompt_id")
+                            {
+                                if (reader.TokenType == JsonTokenType.String)
+                                {
+                                    result["google.user_prompt_id"] = reader.GetString()!;
+                                }
+                            }
                             else if (currentTopLevelPropName == "request" && currentPropName == "session_id")
                             {
                                 if (reader.TokenType == JsonTokenType.String)
                                 {
-                                    result["request.session_id"] = reader.GetString()!;
+                                    result["google.request_session_id"] = reader.GetString()!;
                                 }
                             }
 
-                            // Extract text from items with cache_control (Claude Prompt Caching)
+                            // 从带有 cache_control 的项目中提取文本（Claude Prompt 缓存）
                             if (currentCacheObjectDepth > 0 && depth == currentCacheObjectDepth && currentPropName == "text" && reader.TokenType == JsonTokenType.String)
                             {
                                 currentEphemeralText ??= reader.GetString();
@@ -207,37 +242,42 @@ public static partial class JsonExtractHelper
                                 {
                                     if (systemTextIdx < 5)
                                     {
-                                        result[$"system_text_{systemTextIdx}"] = currentEphemeralText ?? string.Empty;
+                                        result[$"claude.sys_text_{systemTextIdx}"] = currentEphemeralText ?? string.Empty;
                                         systemTextIdx++;
                                     }
                                 }
                             }
 
-                            // 探测 Gemini CLI Prompt（仅在 systemInstruction 上下文中）
-                            if (insideSystemInstruction && currentPropName == "text" && reader.TokenType == JsonTokenType.String && !result.ContainsKey("is_gemini_cli_prompt"))
+                            // 探测 Gemini CLI Prompt 及 Antigravity 身份（仅在 systemInstruction 上下文中）
+                            if (insideSystemInstruction && currentPropName == "text" && reader.TokenType == JsonTokenType.String)
                             {
-                                if (reader.ValueSpan.IndexOf("Gemini CLI"u8) >= 0)
-                                {
-                                    result["is_gemini_cli_prompt"] = "true";
-                                }
+                                if (!result.ContainsKey("google.is_cli") && reader.ValueSpan.IndexOf("Gemini CLI"u8) >= 0)
+                                    result["google.is_cli"] = "true";
+
+                                // 平台标识：systemInstruction 的 parts.text 含 "Antigravity" → 身份已注入，无需重复注入
+                                if (insideSysInstParts && !result.ContainsKey("google.has_identity") && reader.ValueSpan.IndexOf("Antigravity"u8) >= 0)
+                                    result["google.has_identity"] = "true";
                             }
 
                             // 合并无损正则嗅探逻辑：在单次循环中顺手用 ReadOnlySpan 探测 .gemini/tmp/ 的签名（Gemini CLI 专属）
                             // 避免了重新分配 50KB~100KB 的大字符串用于正则匹配，防止 LOH 触发
-                            if (reader.TokenType == JsonTokenType.String && !result.ContainsKey("gemini_cli_tmp_hash"))
+                            if (reader.TokenType == JsonTokenType.String)
                             {
                                 var valSpan = reader.ValueSpan;
+
+                                // 平台标识：任意字符串含 thoughtSignature 字段名 → 签名已存在于请求体
+                                if (!result.ContainsKey("google.has_signature") && valSpan.IndexOf("thoughtSignature"u8) >= 0)
+                                    result["google.has_signature"] = "true";
+
                                 // 查找 ".gemini" 关键字，支持 Windows (\) 和 Linux (/) 路径
-                                if (valSpan.IndexOf(".gemini"u8) >= 0)
+                                if (!result.ContainsKey("google.cli_tmp_hash") && valSpan.IndexOf(".gemini"u8) >= 0)
                                 {
                                     var strVal = reader.GetString();
                                     if (strVal != null)
                                     {
                                         var match = GeminiCliTmpDirRegex().Match(strVal);
                                         if (match.Success)
-                                        {
-                                            result["gemini_cli_tmp_hash"] = match.Groups[1].Value;
-                                        }
+                                            result["google.cli_tmp_hash"] = match.Groups[1].Value;
                                     }
                                 }
                             }
@@ -245,10 +285,10 @@ public static partial class JsonExtractHelper
                     }
                 }
 
-                // Write user_role_count if any user roles were found
+                // 如果发现了任何用户角色，记录 user_role_count
                 if (userRoleCount > 0)
                 {
-                    result["user_role_count"] = userRoleCount.ToString();
+                    result["public.user_role_count"] = userRoleCount.ToString();
                 }
             }
             catch (JsonException)

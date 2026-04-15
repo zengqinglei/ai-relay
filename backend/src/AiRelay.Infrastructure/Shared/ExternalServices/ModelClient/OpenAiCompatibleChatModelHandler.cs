@@ -55,7 +55,7 @@ public class OpenAiCompatibleChatModelHandler(
     public override void ExtractModelInfo(DownRequestContext down, Guid apiKeyId)
     {
         // 提取 ModelId
-        if (down.ExtractedProps.TryGetValue("model", out var modelId) && !string.IsNullOrWhiteSpace(modelId))
+        if (down.ExtractedProps.TryGetValue("public.model", out var modelId) && !string.IsNullOrWhiteSpace(modelId))
         {
             down.ModelId = modelId;
         }
@@ -72,7 +72,7 @@ public class OpenAiCompatibleChatModelHandler(
         }
 
         // 优先级 2: 第一条消息内容
-        if (down.ExtractedProps.TryGetValue("session_fingerprint_text", out var fingerprint) && !string.IsNullOrWhiteSpace(fingerprint))
+        if (down.ExtractedProps.TryGetValue("public.fingerprint", out var fingerprint) && !string.IsNullOrWhiteSpace(fingerprint))
         {
             down.SessionId = GenerateSessionHashWithContext(fingerprint, down, apiKeyId);
             return;

@@ -17,7 +17,7 @@ public class OpenAiToCompletionResponseProcessor(DownRequestContext down) : IRes
     private readonly bool _isActive = down.IsStreaming
         && down.RelativePath.Contains("/chat/completions", StringComparison.OrdinalIgnoreCase);
     private readonly ResponsesToCompletionsConverter _converter = new(
-        down.ExtractedProps.TryGetValue("stream_options.include_usage", out var iuVal) && iuVal == "true");
+        down.ExtractedProps.TryGetValue("openai.include_usage", out var iuVal) && iuVal == "true");
 
     public bool RequiresMutation => _isActive;
 

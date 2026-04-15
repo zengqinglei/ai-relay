@@ -32,8 +32,8 @@ public class OpenAiModifyBodyRequestProcessor(ChatModelConnectionOptions options
         }
 
         // 零分配捷径：如果是聊天路由，非 OAuth，无改模型需求，且格式已经是目标格式 (含 input，无 messages)，则无需解析 JSON
-        bool hasMessages = down.ExtractedProps.ContainsKey("has_openai_messages");
-        bool hasInput = down.ExtractedProps.ContainsKey("has_openai_input");
+        bool hasMessages = down.ExtractedProps.ContainsKey("openai.has_messages");
+        bool hasInput = down.ExtractedProps.ContainsKey("openai.has_input");
         if (isChatRoute && !isOAuth && !needChangeModel && !hasMessages && hasInput)
         {
             return;

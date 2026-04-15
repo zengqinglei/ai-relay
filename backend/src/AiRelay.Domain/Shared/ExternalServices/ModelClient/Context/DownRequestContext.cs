@@ -61,7 +61,7 @@ public class DownRequestContext
             }
 
             // 4. 检查解析好的特征字典
-            if (ExtractedProps.TryGetValue("stream", out var streamStr) &&
+            if (ExtractedProps.TryGetValue("public.stream", out var streamStr) &&
                 bool.TryParse(streamStr, out var isStream) && isStream)
             {
                 _isStreaming = true;

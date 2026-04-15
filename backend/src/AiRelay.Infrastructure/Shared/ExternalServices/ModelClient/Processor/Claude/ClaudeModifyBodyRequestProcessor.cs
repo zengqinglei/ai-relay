@@ -72,7 +72,7 @@ public class ClaudeModifyBodyRequestProcessor(
     private void InjectMetadataUserId(DownRequestContext down, JsonObject clonedBody)
     {
         // 零分配捷径：ExtractedProps 中已有有效的 metadata.user_id，直接短路
-        if (down.ExtractedProps.TryGetValue("metadata.user_id", out var extUserId) && !string.IsNullOrWhiteSpace(extUserId))
+        if (down.ExtractedProps.TryGetValue("claude.metadata_user_id", out var extUserId) && !string.IsNullOrWhiteSpace(extUserId))
             return;
 
         // Body 中已有非空的 metadata.user_id，直接短路

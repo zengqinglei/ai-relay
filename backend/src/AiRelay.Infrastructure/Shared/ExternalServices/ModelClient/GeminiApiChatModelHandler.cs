@@ -2,7 +2,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
-using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.Gemini;
+using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.Common;
+using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.Google;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using AiRelay.Domain.Shared.ExternalServices.ModelProvider.Dto;
@@ -31,13 +32,12 @@ public class GeminiApiChatModelHandler(
         DownRequestContext down, int degradationLevel)
     {
         return [
-            new GeminiApiKeyUrlRequestProcessor(Options),
-            new GeminiHeaderRequestProcessor(Options),
-            new GeminiApiKeyModifyBodyRequestProcessor(
-                googleJsonSchemaCleaner,
-                geminiSystemPromptInjector,
-                Options.ShouldMimicOfficialClient),
-            new GeminiDegradationRequestProcessor(degradationLevel, googleSignatureCleaner)
+            new GoogleUrlRequestProcessor(Options),
+            new GoogleHeaderRequestProcessor(Options),
+            new GoogleModifyBodyRequestProcessor(
+                Options, googleJsonSchemaCleaner, Logger,
+                geminiSystemPromptInjector: geminiSystemPromptInjector),
+            new GoogleDegradationRequestProcessor(degradationLevel, googleSignatureCleaner)
         ];
     }
 
@@ -64,7 +64,7 @@ public class GeminiApiChatModelHandler(
 
         // 2. 从 Body 提取
         if (string.IsNullOrEmpty(down.ModelId) &&
-            down.ExtractedProps.TryGetValue("model", out var modelId) &&
+            down.ExtractedProps.TryGetValue("public.model", out var modelId) &&
             !string.IsNullOrWhiteSpace(modelId))
         {
             down.ModelId = modelId;
@@ -73,7 +73,7 @@ public class GeminiApiChatModelHandler(
         // ========== 提取 SessionHash ==========
         // 优先级 1: Gemini CLI 专用逻辑 (从 tmp 目录提取)
         // ApiKey 场景：通过 header x-gemini-api-privileged-user-id + tmpDirHash 组合
-        if (down.ExtractedProps.TryGetValue("gemini_cli_tmp_hash", out var tmpDirHash) && !string.IsNullOrWhiteSpace(tmpDirHash))
+        if (down.ExtractedProps.TryGetValue("google.cli_tmp_hash", out var tmpDirHash) && !string.IsNullOrWhiteSpace(tmpDirHash))
         {
             string? privilegedUserId = null;
             if (down.Headers.TryGetValue("x-gemini-api-privileged-user-id", out var headerVal))
@@ -93,7 +93,7 @@ public class GeminiApiChatModelHandler(
         }
 
         // 优先级 2: 第一条消息内容
-        if (down.ExtractedProps.TryGetValue("session_fingerprint_text", out var text) && !string.IsNullOrWhiteSpace(text))
+        if (down.ExtractedProps.TryGetValue("public.fingerprint", out var text) && !string.IsNullOrWhiteSpace(text))
         {
             down.SessionId = GenerateSessionHashWithContext(text, down, apiKeyId);
             return;

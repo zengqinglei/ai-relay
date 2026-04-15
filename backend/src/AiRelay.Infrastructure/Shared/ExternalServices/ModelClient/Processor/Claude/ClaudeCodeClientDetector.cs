@@ -47,7 +47,7 @@ public class ClaudeCodeClientDetector : IClaudeCodeClientDetector
     {
         for (int i = 0; i < 5; i++)
         {
-            if (down.ExtractedProps.TryGetValue($"system_text_{i}", out var text) &&
+            if (down.ExtractedProps.TryGetValue($"claude.sys_text_{i}", out var text) &&
                 !string.IsNullOrEmpty(text) &&
                 BestSimilarityScore(text) >= SystemPromptThreshold)
             {
@@ -59,7 +59,7 @@ public class ClaudeCodeClientDetector : IClaudeCodeClientDetector
 
     private static bool ValidateMetadataUserId(DownRequestContext down)
     {
-        return down.ExtractedProps.TryGetValue("metadata.user_id", out var userId) &&
+        return down.ExtractedProps.TryGetValue("claude.metadata_user_id", out var userId) &&
                !string.IsNullOrEmpty(userId) &&
                UserIdPattern.IsMatch(userId);
     }
