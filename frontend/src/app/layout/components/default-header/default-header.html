@@ -65,18 +65,15 @@
     <!-- User Dropdown: 始终显示用户名 -->
     @if (authService.currentUser(); as user) {
       <div class="relative">
-        <!-- User Menu -->
         <p-menu #userMenu [model]="userMenuItems" [popup]="true" appendTo="body"></p-menu>
 
-        <!-- User Trigger -->
         <p-button
           [text]="true"
           severity="secondary"
           styleClass="flex items-center gap-2 md:gap-3 p-1.5 border-transparent transition-colors min-h-[44px]"
           (onClick)="userMenu.toggle($event)"
         >
-          <p-avatar [image]="user.avatarUrl || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + user.username" shape="circle">
-          </p-avatar>
+          <p-avatar [image]="user.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + user.username" shape="circle"></p-avatar>
           <div class="flex items-center gap-2">
             <p class="text-sm font-medium text-color leading-none truncate max-w-[80px] md:max-w-none">
               {{ user.nickname || user.username }}
@@ -91,3 +88,7 @@
     }
   </div>
 </header>
+
+<app-profile-settings-dialog [visible]="profileDialogVisible()" (visibleChange)="profileDialogVisible.set($event)" />
+
+<app-change-password-dialog [visible]="changePasswordDialogVisible()" (visibleChange)="changePasswordDialogVisible.set($event)" />

@@ -22,4 +22,14 @@ public interface IAuthAppService : IAppService
     /// 获取当前用户信息
     /// </summary>
     Task<UserOutputDto> GetCurrentUserAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 更新个人信息
+    /// </summary>
+    Task<UserOutputDto> UpdateCurrentUserAsync(UpdateCurrentUserInputDto input, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 修改密码
+    /// </summary>
+    Task ChangePasswordAsync(ChangePasswordInputDto input, CancellationToken cancellationToken = default);
 }

@@ -40,4 +40,24 @@ public class AuthController(IAuthAppService authService) : BaseController
     {
         return await authService.GetCurrentUserAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// 更新个人信息
+    /// </summary>
+    [Authorize]
+    [HttpPut("me")]
+    public async Task<UserOutputDto> UpdateCurrentUserAsync([FromBody] UpdateCurrentUserInputDto request, CancellationToken cancellationToken)
+    {
+        return await authService.UpdateCurrentUserAsync(request, cancellationToken);
+    }
+
+    /// <summary>
+    /// 修改密码
+    /// </summary>
+    [Authorize]
+    [HttpPost("change-password")]
+    public async Task ChangePasswordAsync([FromBody] ChangePasswordInputDto request, CancellationToken cancellationToken)
+    {
+        await authService.ChangePasswordAsync(request, cancellationToken);
+    }
 }

@@ -23,7 +23,7 @@ export interface UserOutputDto {
   username: string;
   email: string;
   nickname?: string;
-  avatarUrl?: string;
+  avatar?: string;
   phoneNumber?: string;
   isActive: boolean;
   creationTime: string;
@@ -55,4 +55,24 @@ export interface RegisterInputDto {
   email: string;
   password: string;
   nickname?: string;
+}
+
+/**
+ * 当前用户资料更新请求 DTO
+ */
+export interface UpdateCurrentUserInputDto {
+  username: string;
+  email: string;
+  nickname?: string;
+  phoneNumber?: string;
+  avatar?: string;
+}
+
+/**
+ * 修改密码请求 DTO
+ */
+export interface ChangePasswordInputDto {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
 }

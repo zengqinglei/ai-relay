@@ -1,5 +1,5 @@
 import { MockException, MockRequest } from '../core/models';
-import { USERS } from '../data/user';
+import { USERS, toUserOutput } from '../data/user';
 
 export function getUsers(params: any): { total: number; items: any[] } {
   let users = [...USERS];
@@ -10,7 +10,7 @@ export function getUsers(params: any): { total: number; items: any[] } {
     users = users.filter(user => user.username.indexOf(params.username) > -1);
   }
 
-  return { total: users.length, items: users.slice(offset, offset + limit) };
+  return { total: users.length, items: users.slice(offset, offset + limit).map(toUserOutput) };
 }
 
 export function getUserById(id: string) {
@@ -18,7 +18,7 @@ export function getUserById(id: string) {
   if (!user) {
     throw new MockException(400, { code: 40000, message: '用户名已存在' });
   }
-  return user;
+  return toUserOutput(user);
 }
 
 export function addUser(value: any) {
@@ -28,12 +28,13 @@ export function addUser(value: any) {
   }
   const newUser = {
     ...value,
-    id: (USERS.length + 1).toString(), // Simple ID generation
+    id: (USERS.length + 1).toString(),
     createdTime: new Date(),
-    lastModifiedTime: new Date()
+    lastModifiedTime: new Date(),
+    password: value.password || 'Admin@123456'
   };
   USERS.push(newUser);
-  return newUser;
+  return toUserOutput(newUser);
 }
 
 export function updateUser(id: string, value: any) {
@@ -42,6 +43,7 @@ export function updateUser(id: string, value: any) {
     throw new MockException(404, { code: 40400, message: '用户不存在或以删除' });
   }
   Object.assign(user, value);
+  return toUserOutput(user);
 }
 
 export const USER_API = {

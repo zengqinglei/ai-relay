@@ -27,7 +27,7 @@ internal static class IdentityEntityConfiguration
             b.Property(e => e.Email).IsRequired().HasMaxLength(256);
             b.Property(e => e.PasswordHash).HasMaxLength(256);
             b.Property(e => e.PhoneNumber).HasMaxLength(32);
-            b.Property(e => e.AvatarUrl).HasMaxLength(1024);
+            b.Property(e => e.Avatar).HasColumnType("text");
             b.Property(e => e.Nickname).HasMaxLength(128);
             b.Property(e => e.LastLoginIp).HasMaxLength(45);
 
@@ -100,3 +100,4 @@ internal static class IdentityEntityConfiguration
         });
     }
 }
+

@@ -98,9 +98,13 @@ public class ClaudeSystemPromptInjector
         {
             var contentArray = sysArray.DeepClone().AsArray();
             // 在第一个文本块前添加标记
-            if (contentArray.Count > 0 && contentArray[0] is JsonObject firstBlock && firstBlock.TryGetPropertyValue("text", out var textNode))
+            if (contentArray.Count > 0 &&
+                contentArray[0] is JsonObject firstBlock &&
+                firstBlock.TryGetPropertyValue("text", out var textNode) &&
+                textNode is JsonValue textValue &&
+                textValue.TryGetValue<string>(out var text))
             {
-                firstBlock["text"] = "[System Instructions]\n" + textNode.GetValue<string>();
+                firstBlock["text"] = "[System Instructions]\n" + text;
             }
             userMessage["content"] = contentArray;
         }
@@ -161,3 +165,4 @@ public class ClaudeSystemPromptInjector
         return false;
     }
 }
+

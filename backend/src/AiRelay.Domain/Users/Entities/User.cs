@@ -2,9 +2,6 @@ using Leistd.Ddd.Domain.Entities.Auditing;
 
 namespace AiRelay.Domain.Users.Entities;
 
-/// <summary>
-/// 用户实体
-/// </summary>
 public class User : FullAuditedEntity<Guid>
 {
     /// <summary>
@@ -38,9 +35,9 @@ public class User : FullAuditedEntity<Guid>
     public bool PhoneNumberConfirmed { get; private set; }
 
     /// <summary>
-    /// 头像 URL
+    /// 头像
     /// </summary>
-    public string? AvatarUrl { get; private set; }
+    public string? Avatar { get; private set; }
 
     /// <summary>
     /// 昵称
@@ -83,11 +80,7 @@ public class User : FullAuditedEntity<Guid>
         Email = null!;
     }
 
-    public User(
-        string username,
-        string email,
-        string? passwordHash = null,
-        string? nickname = null)
+    public User(string username, string email, string? passwordHash = null, string? nickname = null)
     {
         Id = Guid.CreateVersion7();
         Username = username;
@@ -96,11 +89,20 @@ public class User : FullAuditedEntity<Guid>
         Nickname = nickname ?? username;
     }
 
-    public void Update(string? nickname, string? phoneNumber, string? avatarUrl)
+    public void Update(string? nickname, string? phoneNumber, string? avatar)
     {
         Nickname = nickname;
         PhoneNumber = phoneNumber;
-        AvatarUrl = avatarUrl;
+        Avatar = avatar;
+    }
+
+    public void UpdateProfile(string username, string email, string? nickname, string? phoneNumber, string? avatar)
+    {
+        Username = username;
+        Email = email;
+        Nickname = nickname;
+        PhoneNumber = phoneNumber;
+        Avatar = avatar;
     }
 
     public void UpdatePasswordHash(string passwordHash)

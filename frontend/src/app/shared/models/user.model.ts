@@ -3,7 +3,8 @@ export class User {
   username!: string;
   email!: string;
   nickname?: string;
-  avatarUrl?: string;
+  avatar?: string;
+  phoneNumber?: string;
   roles!: string[];
 
   constructor(data: Partial<User>) {

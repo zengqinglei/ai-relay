@@ -37,9 +37,7 @@ public class UserAppService(
         // 应用过滤条件
         if (!string.IsNullOrWhiteSpace(input.Keyword))
         {
-            userQuery = userQuery.Where(u =>
-                u.Username.Contains(input.Keyword) ||
-                u.Email.Contains(input.Keyword));
+            userQuery = userQuery.Where(u => u.Username.Contains(input.Keyword) || u.Email.Contains(input.Keyword));
         }
 
         if (input.IsActive.HasValue)
@@ -49,21 +47,13 @@ public class UserAppService(
 
         // 获取总数
         var totalCount = await asyncExecuter.CountAsync(userQuery, cancellationToken);
+        // 分页查询
+        var users = await asyncExecuter.ToListAsync(userQuery.OrderBy(u => u.CreationTime).Skip(input.Offset).Take(input.Limit), cancellationToken);
 
-        // 分页
-        var users = await asyncExecuter.ToListAsync(userQuery
-            .OrderBy(u => u.CreationTime)
-            .Skip(input.Offset)
-            .Take(input.Limit), cancellationToken);
-
-        // 获取用户角色
         var userIds = users.Select(u => u.Id).ToList();
-        var userRoles = await userRoleRepository
-            .GetListAsync(ur => userIds.Contains(ur.UserId), cancellationToken);
-
+        var userRoles = await userRoleRepository.GetListAsync(ur => userIds.Contains(ur.UserId), cancellationToken);
         var roleIds = userRoles.Select(ur => ur.RoleId).Distinct().ToList();
-        var roles = await roleRepository
-            .GetListAsync(r => roleIds.Contains(r.Id), cancellationToken);
+        var roles = await roleRepository.GetListAsync(r => roleIds.Contains(r.Id), cancellationToken);
 
         // 构建上下文
         var contextItems = new Dictionary<string, object>
@@ -74,16 +64,13 @@ public class UserAppService(
 
         // 映射 DTO (AutoMapper 自动处理角色关联)
         var userDtos = objectMapper.Map<List<User>, List<UserOutputDto>>(users, contextItems);
-
         return new PagedResultDto<UserOutputDto>(totalCount, userDtos);
     }
 
     /// <summary>
     /// 创建用户
     /// </summary>
-    public async Task<UserOutputDto> CreateAsync(
-        CreateUserInputDto input,
-        CancellationToken cancellationToken = default)
+    public async Task<UserOutputDto> CreateAsync(CreateUserInputDto input, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("开始创建用户 {Username}... 邮箱：{Email}", input.Username, input.Email);
 
@@ -97,12 +84,9 @@ public class UserAppService(
             cancellationToken);
 
         // 获取用户角色
-        var userRoles = await userRoleRepository
-            .GetListAsync(ur => ur.UserId == user.Id, cancellationToken);
-
+        var userRoles = await userRoleRepository.GetListAsync(ur => ur.UserId == user.Id, cancellationToken);
         var roleIds = userRoles.Select(ur => ur.RoleId).ToList();
-        var roles = await roleRepository
-            .GetListAsync(r => roleIds.Contains(r.Id), cancellationToken);
+        var roles = await roleRepository.GetListAsync(r => roleIds.Contains(r.Id), cancellationToken);
 
         logger.LogInformation("创建用户成功 (ID: {Id})", user.Id);
 
@@ -119,10 +103,7 @@ public class UserAppService(
     /// <summary>
     /// 更新用户
     /// </summary>
-    public async Task<UserOutputDto> UpdateAsync(
-        Guid id,
-        UpdateUserInputDto input,
-        CancellationToken cancellationToken = default)
+    public async Task<UserOutputDto> UpdateAsync(Guid id, UpdateUserInputDto input, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("开始更新用户 {Id}...", id);
 
@@ -133,7 +114,7 @@ public class UserAppService(
         }
 
         // 更新用户信息
-        user.Update(input.Nickname, input.PhoneNumber, input.AvatarUrl);
+        user.Update(input.Nickname, input.PhoneNumber, input.Avatar);
 
         if (input.IsActive.HasValue)
         {
@@ -148,16 +129,12 @@ public class UserAppService(
         }
 
         await userRepository.UpdateAsync(user, cancellationToken);
-
         logger.LogInformation("更新用户成功 (ID: {Id})", user.Id);
 
         // 获取用户角色
-        var userRoles = await userRoleRepository
-            .GetListAsync(ur => ur.UserId == user.Id, cancellationToken);
-
+        var userRoles = await userRoleRepository.GetListAsync(ur => ur.UserId == user.Id, cancellationToken);
         var roleIds = userRoles.Select(ur => ur.RoleId).ToList();
-        var roles = await roleRepository
-            .GetListAsync(r => roleIds.Contains(r.Id), cancellationToken);
+        var roles = await roleRepository.GetListAsync(r => roleIds.Contains(r.Id), cancellationToken);
 
         // ✅ 统一使用上下文传递
         var contextItems = new Dictionary<string, object>
