@@ -121,7 +121,7 @@ export class AccountTable implements OnInit {
   sortOrder = signal<number>(-1);
   activeProviderGroups = signal<ProviderGroupOutputDto[]>([]);
   groupPopoverMode = signal<AccountGroupPopoverMode>('summary');
-  visibleGroupCount = signal(2);
+  visibleGroupCount = signal(1);
 
   constructor() {
     this.searchSubject
@@ -271,7 +271,7 @@ export class AccountTable implements OnInit {
             {
               id: `${group.id}-empty`,
               leftText: group.name,
-              rightText: '空资源池',
+              rightText: '空分组',
               isWarning: true
             }
           ];
@@ -295,7 +295,7 @@ export class AccountTable implements OnInit {
 
   getGroupRouteBadgeSummary(group: ProviderGroupOutputDto): string {
     if (!group.supportedRouteProfiles?.length) {
-      return '空资源池';
+      return '空分组';
     }
 
     return group.supportedRouteProfiles.map(profile => this.getRouteProfileLabel(profile)).join(' | ');
@@ -434,4 +434,9 @@ export class AccountTable implements OnInit {
 
   formatTokenCount = formatTokenCount;
 }
+
+
+
+
+
 

@@ -25,7 +25,7 @@ public class UpdateAccountTokenInputDto
     /// </summary>
     [Display(Name = "BaseURL")]
     [MaxLength(512, ErrorMessage = "{0}长度不能超过 {1} 个字符")]
-    [Url(ErrorMessage = "{0}格式不正确")]
+    [RegularExpression(@"^(?:https?://.+|)$", ErrorMessage = "{0}格式不正确")]
     public string? BaseUrl { get; init; }
 
     /// <summary>

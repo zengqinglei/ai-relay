@@ -15,7 +15,7 @@
           密钥掩码
         </th>
         <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden lg:table-cell whitespace-nowrap" style="width: 16rem; max-width: 16rem;">
-          <div class="w-full overflow-hidden">关联资源池</div>
+          <div class="w-full overflow-hidden">关联分组</div>
         </th>
         <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden xl:table-cell" pSortableColumn="usageToday">
           <div class="flex items-center gap-1">调用 <p-sortIcon field="usageToday"></p-sortIcon></div>
@@ -72,7 +72,7 @@
                   class="flex items-center gap-1.5 px-2 py-1 rounded bg-surface-100 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 shrink-0 cursor-pointer max-w-[7rem]"
                   (click)="openBindingDetailsPopover($event, bindingsPopover, bind)">
                   <i class="pi pi-database text-muted-color text-[10px] shrink-0"></i>
-                  <span class="text-[11px] font-medium text-color truncate min-w-0">{{ bind.providerGroupName || '未知分组' }}</span>
+                  <span class="text-[11px] font-medium text-color truncate min-w-0" [pTooltip]="bind.providerGroupName || '未知分组'" tooltipPosition="top" tooltipStyleClass="max-w-none whitespace-nowrap">{{ bind.providerGroupName || '未知分组' }}</span>
                 </div>
               }
               @if (getHiddenBindings(item).length > 0) {
@@ -81,7 +81,7 @@
                 </p-tag>
               }
             } @else {
-              <span class="text-xs text-muted-color italic whitespace-nowrap">- 未分配资源池 -</span>
+              <span class="text-xs text-muted-color italic whitespace-nowrap">- 未分配分组 -</span>
             }
           </div>
         </td>
@@ -185,3 +185,7 @@
     <p-button label="确认并启用" icon="pi pi-check" (onClick)="saveExpiry()" [disabled]="!newExpiryDate()" />
   </ng-template>
 </p-dialog>
+
+
+
+

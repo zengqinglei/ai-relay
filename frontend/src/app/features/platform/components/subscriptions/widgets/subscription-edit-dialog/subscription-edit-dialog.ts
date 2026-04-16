@@ -101,7 +101,7 @@ export class SubscriptionEditDialogComponent {
   filteredGroups = signal<ProviderGroupOutputDto[]>([]);
   selectedGroupToAdd: ProviderGroupOutputDto | null = null;
   dialogConfig = DIALOG_CONFIGS.SMALL;
-  visibleRouteCount = signal(2);
+  visibleRouteCount = signal(1);
   activeRouteProfiles = signal<RouteProfile[]>([]);
 
   constructor() {
@@ -271,3 +271,4 @@ export class SubscriptionEditDialogComponent {
     this.saved.emit(payload);
   }
 }
+

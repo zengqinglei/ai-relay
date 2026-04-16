@@ -45,7 +45,7 @@ export class ProviderGroupPage implements OnInit {
   });
 
   ngOnInit() {
-    this.layoutService.title.set('资源池');
+    this.layoutService.title.set('分组管理');
   }
 
   loadData() {
@@ -144,3 +144,4 @@ export class ProviderGroupPage implements OnInit {
     });
   }
 }
+

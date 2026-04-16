@@ -103,7 +103,7 @@ export class AccountEditDialogComponent implements OnChanges {
       provider: [Provider.Gemini, Validators.required],
       authMethod: [AuthMethod.OAuth, Validators.required],
       projectId: [''],
-      baseUrl: ['', [Validators.maxLength(512), Validators.pattern(/^https?:\/\/.+/)]],
+      baseUrl: ['', [Validators.maxLength(512), Validators.pattern(/^(?:https?:\/\/.+|)$/)]],
       credential: ['', [Validators.required, Validators.maxLength(2048)]],
       description: ['', Validators.maxLength(1000)],
       maxConcurrency: [10, [Validators.required, Validators.min(0), Validators.max(1000)]],
@@ -342,9 +342,9 @@ export class AccountEditDialogComponent implements OnChanges {
 
     const baseUrlControl = this.form.get('baseUrl');
     if (this.currentProvider() === Provider.OpenAICompatible) {
-      baseUrlControl?.setValidators([Validators.required, Validators.maxLength(512), Validators.pattern(/^https?:\/\/.+/)]);
+      baseUrlControl?.setValidators([Validators.required, Validators.maxLength(512), Validators.pattern(/^(?:https?:\/\/.+|)$/)]);
     } else {
-      baseUrlControl?.setValidators([Validators.maxLength(512), Validators.pattern(/^https?:\/\/.+/)]);
+      baseUrlControl?.setValidators([Validators.maxLength(512), Validators.pattern(/^(?:https?:\/\/.+|)$/)]);
     }
     baseUrlControl?.updateValueAndValidity();
   }

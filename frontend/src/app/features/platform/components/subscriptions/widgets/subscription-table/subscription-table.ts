@@ -77,7 +77,7 @@ export class SubscriptionTable {
   sortOrder = signal<number>(-1);
   activeBindings = signal<ApiKeyBindingOutputDto[]>([]);
   bindPopoverMode = signal<BindPopoverMode>('summary');
-  visibleBindingCount = signal(2);
+  visibleBindingCount = signal(1);
 
   onPage(event: TableLazyLoadEvent) {
     this.first = event.first ?? 0;
@@ -121,7 +121,7 @@ export class SubscriptionTable {
             {
               id: `${binding.providerGroupId}-empty`,
               leftText: binding.providerGroupName || '未知分组',
-              rightText: '空资源池',
+              rightText: '空分组',
               isWarning: true
             }
           ];
@@ -199,7 +199,7 @@ export class SubscriptionTable {
 
   getBindingRouteBadgeSummary(binding: ApiKeyBindingOutputDto): string {
     if (!binding.supportedRouteProfiles?.length) {
-      return '空资源池';
+      return '空分组';
     }
 
     return binding.supportedRouteProfiles.map(profile => this.getRouteProfileLabel(profile)).join(' | ');
@@ -269,3 +269,6 @@ export class SubscriptionTable {
 
   formatTokenCount = formatTokenCount;
 }
+
+
+

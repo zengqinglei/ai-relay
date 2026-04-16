@@ -176,7 +176,7 @@ public class AccountToken : DeletionAuditedEntity<Guid>
         Weight = weight;
         AccessToken = accessToken;
         RefreshToken = refreshToken;
-        BaseUrl = baseUrl;
+        BaseUrl = string.IsNullOrWhiteSpace(baseUrl) ? null : baseUrl;
         Description = description;
         if (extraProperties != null)
         {
@@ -224,7 +224,7 @@ public class AccountToken : DeletionAuditedEntity<Guid>
 
         if (baseUrl != null)
         {
-            BaseUrl = baseUrl;
+            BaseUrl = string.IsNullOrWhiteSpace(baseUrl) ? null : baseUrl;
         }
 
         if (description != null)

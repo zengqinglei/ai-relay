@@ -1,5 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { TagModule } from 'primeng/tag';
+import { TooltipModule } from 'primeng/tooltip';
 
 export type RelationPopoverDisplayMode = 'route-details' | 'binding-summary';
 
@@ -13,7 +15,7 @@ export interface RelationPopoverItem {
 @Component({
   selector: 'app-relation-popover-content',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, TagModule, TooltipModule],
   templateUrl: './relation-popover-content.html',
   changeDetection: ChangeDetectionStrategy.OnPush
 })

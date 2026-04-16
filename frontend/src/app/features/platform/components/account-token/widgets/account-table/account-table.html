@@ -106,21 +106,21 @@
     [sortOrder]="sortOrder()">
     <ng-template pTemplate="header">
       <tr class="bg-surface-50 text-xs font-medium uppercase text-muted-color backdrop-blur-sm dark:bg-surface-800">
-        <th class="border-b border-surface-200 bg-transparent px-5 py-3 text-xs font-medium dark:border-surface-700" pSortableColumn="name" style="width: 15rem; max-width: 15rem">
+        <th class="border-b border-surface-200 bg-transparent px-5 py-3 text-xs font-medium dark:border-surface-700" pSortableColumn="name" style="width: 18rem; max-width: 20rem">
           <div class="flex items-center gap-1">账户标识 <p-sortIcon field="name"></p-sortIcon></div>
         </th>
         <th class="hidden border-b border-surface-200 bg-transparent px-6 py-3 text-xs font-medium md:table-cell dark:border-surface-700">鉴权信息</th>
         <th
           class="hidden whitespace-nowrap border-b border-surface-200 bg-transparent px-6 py-3 text-xs font-medium lg:table-cell dark:border-surface-700"
-          style="width: 16rem; max-width: 16rem">
+          style="width: 14rem; max-width: 14rem">
           <div class="w-full overflow-hidden">所属分组</div>
         </th>
-        <th class="hidden border-b border-surface-200 bg-transparent px-6 py-3 text-xs font-medium lg:table-cell dark:border-surface-700" style="width: 14rem; max-width: 14rem">调度状态</th>
+        <th class="hidden border-b border-surface-200 bg-transparent px-6 py-3 text-xs font-medium xl:table-cell dark:border-surface-700" style="width: 16rem; max-width: 18rem">调度状态</th>
         <th class="hidden border-b border-surface-200 bg-transparent px-6 py-3 text-xs font-medium xl:table-cell dark:border-surface-700" pSortableColumn="costToday">
           <div class="flex items-center gap-1">消费 <p-sortIcon field="costToday"></p-sortIcon></div>
         </th>
         <th class="hidden border-b border-surface-200 bg-transparent px-6 py-3 text-xs font-medium 2xl:table-cell dark:border-surface-700">调用</th>
-        <th class="hidden border-b border-surface-200 bg-transparent px-6 py-3 text-xs font-medium lg:table-cell dark:border-surface-700">启用/禁用</th>
+        <th class="hidden border-b border-surface-200 bg-transparent px-6 py-3 text-xs font-medium xl:table-cell dark:border-surface-700">启用/禁用</th>
         <th class="hidden border-b border-surface-200 bg-transparent px-6 py-3 text-xs font-medium 2xl:table-cell dark:border-surface-700" pSortableColumn="creationTime">
           <div class="flex items-center gap-1">创建时间 <p-sortIcon field="creationTime"></p-sortIcon></div>
         </th>
@@ -131,7 +131,7 @@
     <ng-template pTemplate="body" let-acc>
       <tr class="group border-b border-transparent text-sm text-color-secondary transition-colors hover:bg-surface-50 dark:hover:bg-surface-800/50">
         <!-- Identity -->
-        <td class="border-b border-surface-200 bg-transparent px-5 py-4 dark:border-surface-700" style="width: 15rem; max-width: 15rem">
+        <td class="border-b border-surface-200 bg-transparent px-5 py-4 dark:border-surface-700">
           <div class="flex min-w-0 items-center gap-3">
             <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-100 p-2 shadow-sm transition-transform group-hover:scale-110 dark:bg-surface-800">
               <app-platform-icon [provider]="acc.provider" />
@@ -144,7 +144,7 @@
                 tooltipStyleClass="max-w-xs">
                 {{ acc.name }}
               </p>
-              <div class="mt-0.5 flex items-center gap-2 overflow-hidden">
+              <div class="mt-1.5 flex items-center gap-2 overflow-hidden">
                 <span
                   class="inline-flex items-center whitespace-nowrap rounded border border-surface-200 bg-surface-100 px-1.5 py-0.5 text-[10px] font-medium text-muted-color dark:border-surface-700 dark:bg-surface-800">
                   {{ acc.provider | providerLabel }}
@@ -185,7 +185,7 @@
         <!-- Provider Groups -->
         <td
           class="hidden border-b border-surface-200 bg-transparent px-6 py-4 lg:table-cell dark:border-surface-700"
-          style="width: 16rem; max-width: 16rem">
+          style="width: 14rem; max-width: 14rem">
           <div class="flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap">
             @if (getAccountGroups(acc).length > 0) {
               @for (group of getVisibleGroups(acc); track group.id) {
@@ -193,7 +193,7 @@
                   class="flex max-w-[7rem] shrink-0 cursor-pointer items-center gap-1.5 rounded border border-surface-200 bg-surface-100 px-2 py-1 dark:border-surface-700 dark:bg-surface-800"
                   (click)="openGroupDetailsPopover($event, providerGroupsPopover, group)">
                   <i class="pi pi-database shrink-0 text-[10px] text-muted-color"></i>
-                  <span class="min-w-0 truncate text-[11px] font-medium text-color">{{ group.name }}</span>
+                  <span class="min-w-0 truncate text-[11px] font-medium text-color" [pTooltip]="group.name" tooltipPosition="top" tooltipStyleClass="max-w-none whitespace-nowrap">{{ group.name }}</span>
                 </div>
               }
               @if (getHiddenGroups(acc).length > 0) {
@@ -205,13 +205,13 @@
                 </p-tag>
               }
             } @else {
-              <span class="whitespace-nowrap text-xs italic text-muted-color">- 未分配资源池 -</span>
+              <span class="text-xs text-muted-color italic whitespace-nowrap">- 未分配分组 -</span>
             }
           </div>
         </td>
 
         <!-- Scheduling Status -->
-        <td class="hidden border-b border-surface-200 bg-transparent px-6 py-4 lg:table-cell dark:border-surface-700" style="width: 14rem; max-width: 14rem">
+        <td class="hidden border-b border-surface-200 bg-transparent px-6 py-4 xl:table-cell dark:border-surface-700">
           <div class="flex flex-col items-start gap-1.5">
             <div class="flex flex-wrap items-center gap-1.5 whitespace-nowrap">
               <div class="flex items-center gap-1 whitespace-nowrap rounded border border-surface-200 bg-surface-50 px-1.5 py-0.5 font-mono text-xs text-color-secondary dark:border-surface-700/50 dark:bg-surface-800/50">
@@ -334,7 +334,7 @@
         </td>
 
         <!-- Enable/Disable -->
-        <td class="hidden border-b border-surface-200 bg-transparent px-6 py-4 lg:table-cell dark:border-surface-700">
+        <td class="hidden border-b border-surface-200 bg-transparent px-6 py-4 xl:table-cell dark:border-surface-700">
           <div (click)="confirmStatusToggle($event, acc)" class="inline-flex cursor-pointer" pTooltip="点击切换状态" tooltipPosition="top">
             <p-toggleswitch [ngModel]="acc.isActive" styleClass="pointer-events-none" size="small" />
           </div>
@@ -394,5 +394,7 @@
 </p-popover>
 <p-confirmpopup />
 <app-model-test-dialog />
+
+
 
 

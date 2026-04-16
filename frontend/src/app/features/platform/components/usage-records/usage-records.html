@@ -215,9 +215,9 @@
                 </div>
                 <div class="flex items-center gap-1.5 overflow-hidden">
                   <span class="text-[11px] text-surface-500 dark:text-surface-400 font-medium truncate"
-                    [pTooltip]="'资源池: ' + (record.providerGroupName || '无') + ' | 模型: ' + getModelDisplay(record)"
+                    [pTooltip]="'分组: ' + (record.providerGroupName || '无') + ' | 模型: ' + getModelDisplay(record)"
                     tooltipPosition="top" tooltipStyleClass="max-w-md">
-                    <span class="opacity-70 font-normal">资源池:</span> {{ record.providerGroupName || '无' }}
+                    <span class="opacity-70 font-normal">分组:</span> {{ record.providerGroupName || '无' }}
                     <span class="text-surface-300 dark:text-surface-600 mx-1">|</span>
                     <span class="opacity-70 font-normal">模型:</span> {{ getModelDisplay(record) }}
                   </span>
@@ -317,3 +317,4 @@
 
 <app-usage-record-detail-dialog [(visible)]="detailDialogVisible"
   [record]="selectedRecord()"></app-usage-record-detail-dialog>
+

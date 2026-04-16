@@ -198,7 +198,7 @@
                             (click)="openRouteProfilesPopover($event, routeProfilesPopover, getHiddenRouteProfiles(group))"></p-tag>
                         }
                       } @else {
-                        <span class="text-xs text-orange-500">空资源池</span>
+                        <span class="text-xs text-orange-500">空分组</span>
                       }
                     </div>
                   </div>
@@ -224,4 +224,5 @@
 <p-popover #routeProfilesPopover>
   <app-relation-popover-content [items]="getRoutePopoverItems()"></app-relation-popover-content>
 </p-popover>
+
 

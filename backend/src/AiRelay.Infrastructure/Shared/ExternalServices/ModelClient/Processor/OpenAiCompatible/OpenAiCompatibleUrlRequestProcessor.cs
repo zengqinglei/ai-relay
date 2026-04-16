@@ -2,6 +2,7 @@ using Leistd.Exception.Core;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Context;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Processor;
+using System.Text.RegularExpressions;
 
 namespace AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.OpenAiCompatible;
 
@@ -16,8 +17,8 @@ public class OpenAiCompatibleUrlRequestProcessor(ChatModelConnectionOptions opti
         var baseUrl = options.BaseUrl?.TrimEnd('/') ?? throw new BadRequestException("OpenAICompatible 必须配置 BaseUrl");
         var relPath = down.RelativePath?.TrimStart('/') ?? "";
 
-        // 智能去重：处理 BaseUrl 包含 /v1 且 relPath 也包含 v1 的情况
-        if (baseUrl.EndsWith("/v1") && relPath.StartsWith("v1/"))
+        // 智能去重：处理 BaseUrl 包含版本号（如 /v1, /v4）且 relPath 也包含 v1/ 的情况
+        if (Regex.IsMatch(baseUrl, @"/v\d+$") && relPath.StartsWith("v1/"))
         {
             relPath = relPath["v1/".Length..];
         }
