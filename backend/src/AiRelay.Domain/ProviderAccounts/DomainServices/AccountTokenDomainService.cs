@@ -1,5 +1,4 @@
 using AiRelay.Domain.ProviderAccounts.Entities;
-
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient;
 using AiRelay.Domain.Shared.ExternalServices.ModelProvider;
@@ -47,6 +46,8 @@ public class AccountTokenDomainService(
         Dictionary<string, string>? modelMapping = null,
         bool allowOfficialClientMimic = false,
         bool isCheckStreamHealth = false,
+        int priority = 1,
+        int weight = 50,
         CancellationToken cancellationToken = default)
     {
         var accountToken = new AccountToken(
@@ -54,6 +55,8 @@ public class AccountTokenDomainService(
             authMethod,
             name,
             maxConcurrency ?? 10,
+            priority,
+            weight,
             accessToken,
             refreshToken,
             expiresIn,
@@ -74,7 +77,7 @@ public class AccountTokenDomainService(
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "准备账户时刷新 Token 失败: {Name}({Provider}-{AuthMethod})", 
+                logger.LogWarning(ex, "准备账户时刷新 Token 失败: {Name}({Provider}-{AuthMethod})",
                     accountToken.Name, accountToken.Provider, accountToken.AuthMethod);
             }
         }
@@ -105,7 +108,6 @@ public class AccountTokenDomainService(
         return await accountTokenRepository.InsertAsync(accountToken, cancellationToken: cancellationToken);
     }
 
-
     /// <summary>
     /// 刷新 Token（如果需要），使用分布式锁防止并发竞态
     /// </summary>
@@ -123,7 +125,7 @@ public class AccountTokenDomainService(
         if (lockHandle == null)
         {
             // 锁被占用，说明其他 worker 正在刷新，等待后重读 DB 使用最新 token
-            logger.LogDebug("Token 刷新锁被占用，等待后重读 DB: {Name}({Provider}-{AuthMethod})", 
+            logger.LogDebug("Token 刷新锁被占用，等待后重读 DB: {Name}({Provider}-{AuthMethod})",
                 accountToken.Name, accountToken.Provider, accountToken.AuthMethod);
             await Task.Delay(RefreshLockWait, cancellationToken);
             var fresh = await accountTokenRepository.GetByIdAsync(accountToken.Id, cancellationToken);
@@ -141,7 +143,7 @@ public class AccountTokenDomainService(
 
             if (!accountToken.IsNeedRefreshToken())
             {
-                logger.LogDebug("Token 已由其他 worker 刷新，跳过: {Name}({Provider}-{AuthMethod})", 
+                logger.LogDebug("Token 已由其他 worker 刷新，跳过: {Name}({Provider}-{AuthMethod})",
                     accountToken.Name, accountToken.Provider, accountToken.AuthMethod);
                 return;
             }
@@ -174,7 +176,7 @@ public class AccountTokenDomainService(
             }
 
             await accountTokenRepository.UpdateAsync(accountToken, cancellationToken);
-            logger.LogInformation("刷新 Token 成功: {Name}({Provider}-{AuthMethod})", 
+            logger.LogInformation("刷新 Token 成功: {Name}({Provider}-{AuthMethod})",
                 accountToken.Name, accountToken.Provider, accountToken.AuthMethod);
         }
     }
@@ -209,7 +211,7 @@ public class AccountTokenDomainService(
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "IsModelSupportedAsync 上游模型检测失败，将回退到基准配置：Name={Name}, Provider={Provider}, AuthMethod={AuthMethod}", 
+            logger.LogWarning(ex, "IsModelSupportedAsync 上游模型检测失败，将回退到基准配置：Name={Name}, Provider={Provider}, AuthMethod={AuthMethod}",
                 account.Name, account.Provider, account.AuthMethod);
         }
 
@@ -226,12 +228,12 @@ public class AccountTokenDomainService(
         if (baselineModels == null || baselineModels.Count == 0) return true;
 
         // 检查基准中的精确匹配
-        if (baselineModels.Any(m => !m.Value.Contains('*') && m.Value.Equals(requestedModel, StringComparison.OrdinalIgnoreCase))) 
+        if (baselineModels.Any(m => !m.Value.Contains('*') && m.Value.Equals(requestedModel, StringComparison.OrdinalIgnoreCase)))
             return true;
 
         // 检查基准中的通配符匹配 (如 gpt-4-*)
         if (baselineModels.Where(m => m.Value.EndsWith('*'))
-            .Any(m => requestedModel.StartsWith(m.Value[..^1], StringComparison.OrdinalIgnoreCase))) 
+            .Any(m => requestedModel.StartsWith(m.Value[..^1], StringComparison.OrdinalIgnoreCase)))
             return true;
 
         // 最后：如果系统定义了该 Provider 的基准但未命中，则返回 false；若基准根本没定义，则返回 true

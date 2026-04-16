@@ -46,6 +46,16 @@ public class AccountToken : DeletionAuditedEntity<Guid>
     public int MaxConcurrency { get; private set; } = 10;
 
     /// <summary>
+    /// 调度优先级（值越小优先级越高）
+    /// </summary>
+    public int Priority { get; private set; }
+
+    /// <summary>
+    /// 调度权重（同优先级内的分配因子，1-100）
+    /// </summary>
+    public int Weight { get; private set; } = 50;
+
+    /// <summary>
     /// 额外属性（存储平台特定元数据，如 chatgpt_account_id, project_id）
     /// </summary>
     public Dictionary<string, string> ExtraProperties { get; private set; } = new();
@@ -144,6 +154,8 @@ public class AccountToken : DeletionAuditedEntity<Guid>
         AuthMethod authMethod,
         string name,
         int maxConcurrency,
+        int priority = 1,
+        int weight = 50,
         string? accessToken = null,
         string? refreshToken = null,
         long? expiresIn = null,
@@ -160,6 +172,8 @@ public class AccountToken : DeletionAuditedEntity<Guid>
         AuthMethod = authMethod;
         Name = name;
         MaxConcurrency = maxConcurrency;
+        Priority = priority;
+        Weight = weight;
         AccessToken = accessToken;
         RefreshToken = refreshToken;
         BaseUrl = baseUrl;
@@ -188,9 +202,20 @@ public class AccountToken : DeletionAuditedEntity<Guid>
 
     public void Enable() => IsActive = true;
 
-    public void Update(string? name, string? baseUrl, string? description, int? maxConcurrency, Dictionary<string, string>? extraProperties = null,
-        List<string>? modelWhites = null, Dictionary<string, string>? modelMapping = null, bool clearModelWhites = false, bool clearModelMapping = false,
-        bool? allowOfficialClientMimic = null, bool? isCheckStreamHealth = null)
+    public void Update(
+        string? name,
+        string? baseUrl,
+        string? description,
+        int? maxConcurrency,
+        Dictionary<string, string>? extraProperties = null,
+        List<string>? modelWhites = null,
+        Dictionary<string, string>? modelMapping = null,
+        bool clearModelWhites = false,
+        bool clearModelMapping = false,
+        bool? allowOfficialClientMimic = null,
+        bool? isCheckStreamHealth = null,
+        int? priority = null,
+        int? weight = null)
     {
         if (!string.IsNullOrWhiteSpace(name))
         {
@@ -236,6 +261,17 @@ public class AccountToken : DeletionAuditedEntity<Guid>
         {
             IsCheckStreamHealth = isCheckStreamHealth.Value;
         }
+
+        if (priority.HasValue || weight.HasValue)
+        {
+            UpdateScheduling(priority ?? Priority, weight ?? Weight);
+        }
+    }
+
+    public void UpdateScheduling(int priority, int weight)
+    {
+        Priority = priority;
+        Weight = weight;
     }
 
     public void UpdateTokens(string accessToken, string? refreshToken, long? expiresIn)

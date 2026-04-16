@@ -1,22 +1,39 @@
 import { PagedResultDto } from '../../src/app/shared/models/paged-result.dto';
-import { MockRequest, MockException } from '../core/models';
+import { MockException, MockRequest } from '../core/models';
+import { ACCOUNT_TOKENS } from '../data/account-token';
 import { PROVIDER_GROUPS } from '../data/provider-group';
 
-// 简单内存存储
-const groups = [...PROVIDER_GROUPS];
+const groups = PROVIDER_GROUPS;
+const accounts = ACCOUNT_TOKENS;
+
+function buildGroupView(groupId: string) {
+  const group = groups.find(item => item.id === groupId);
+  if (!group) {
+    return undefined;
+  }
+
+  const groupAccounts = accounts.filter(account => account.providerGroupIds.includes(groupId));
+  const supportedRouteProfiles = Array.from(new Set(groupAccounts.flatMap(account => account.supportedRouteProfiles)));
+
+  return {
+    ...group,
+    supportedRouteProfiles,
+    accountCount: groupAccounts.length
+  };
+}
 
 export function findGroupById(id: string) {
-  return groups.find(g => g.id === id);
+  return buildGroupView(id);
 }
 
 function getGroups(req: MockRequest) {
   const { keyword, offset = 0, limit = 10 } = req.queryParams;
 
-  let list = [...groups];
+  let list = groups.map(group => buildGroupView(group.id)!);
 
   if (keyword) {
     const query = String(keyword).trim().toLowerCase();
-    list = list.filter(g => g.name.toLowerCase().includes(query) || g.description?.toLowerCase().includes(query));
+    list = list.filter(group => group.name.toLowerCase().includes(query) || group.description?.toLowerCase().includes(query));
   }
 
   const totalCount = list.length;
@@ -24,17 +41,15 @@ function getGroups(req: MockRequest) {
   const end = start + +limit;
   const items = list.slice(start, end);
 
-  const result: PagedResultDto<(typeof items)[0]> = {
+  return {
     totalCount,
     items
-  };
-
-  return result;
+  } as PagedResultDto<(typeof items)[0]>;
 }
 
 function getGroup(req: MockRequest) {
   const id = req.params['id'];
-  const group = groups.find(g => g.id === id);
+  const group = buildGroupView(id);
 
   if (!group) {
     throw new MockException(404, 'Group not found');
@@ -46,94 +61,63 @@ function getGroup(req: MockRequest) {
 function createGroup(req: MockRequest) {
   const body = req.body;
   const newGroup = {
-    ...body,
     id: `group-${Date.now()}`,
+    name: body.name,
+    description: body.description,
+    isDefault: false,
+    enableStickySession: body.enableStickySession ?? true,
+    stickySessionExpirationHours: body.enableStickySession === false ? 1 : (body.stickySessionExpirationHours ?? 1),
+    rateMultiplier: body.rateMultiplier ?? 1,
     creationTime: new Date().toISOString(),
-    supportedRouteProfiles: body.supportedRouteProfiles || [],
-    accounts: (body.accounts || []).map((a: any) => ({
-      ...a,
-      accountTokenName: a.accountTokenName || `Mock Account ${a.accountTokenId}`
-    }))
+    supportedRouteProfiles: [],
+    accountCount: 0
   };
 
   groups.unshift(newGroup);
-  return newGroup;
+  return buildGroupView(newGroup.id);
 }
 
 function updateGroup(req: MockRequest) {
   const id = req.params['id'];
   const body = req.body;
-  const index = groups.findIndex(g => g.id === id);
+  const index = groups.findIndex(group => group.id === id);
 
   if (index === -1) {
     throw new MockException(404, 'Group not found');
   }
 
-  const updatedGroup = {
-    ...groups[index],
-    ...body,
-    creationTime: groups[index].creationTime,
-    supportedRouteProfiles: body.supportedRouteProfiles || groups[index].supportedRouteProfiles || [],
-    accounts: (body.accounts || []).map((a: any) => ({
-      ...a,
-      accountTokenName: a.accountTokenName || `Mock Account ${a.accountTokenId}`
-    }))
+  const existing = groups[index];
+  groups[index] = {
+    ...existing,
+    name: existing.isDefault ? existing.name : body.name,
+    description: body.description,
+    enableStickySession: body.enableStickySession,
+    stickySessionExpirationHours: body.enableStickySession ? body.stickySessionExpirationHours : 1,
+    rateMultiplier: body.rateMultiplier
   };
 
-  groups[index] = updatedGroup;
-  return updatedGroup;
+  return buildGroupView(id);
 }
 
 function deleteGroup(req: MockRequest) {
   const id = req.params['id'];
-  const index = groups.findIndex(g => g.id === id);
+  const index = groups.findIndex(group => group.id === id);
 
-  if (index !== -1) {
-    groups.splice(index, 1);
+  if (index === -1) {
+    return { success: true };
   }
 
-  return { success: true };
-}
-
-function addAccountToGroup(req: MockRequest) {
-  const groupId = req.params['groupId'];
-  const body = req.body;
-  const groupIndex = groups.findIndex(g => g.id === groupId);
-
-  if (groupIndex === -1) {
-    throw new MockException(404, 'Group not found');
+  if (groups[index].isDefault) {
+    throw new MockException(400, '默认分组不可删除');
   }
 
-  const newAccount = {
-    id: `relation-${Date.now()}`,
-    accountTokenId: body.accountId,
-    accountTokenName: body.accountTokenName || `Mock Account ${body.accountId}`,
-    provider: body.provider,
-    authMethod: body.authMethod,
-    supportedRouteProfiles: body.supportedRouteProfiles || [],
-    weight: body.weight || 1,
-    priority: body.priority || 0,
-    isActive: true
-  };
-
-  groups[groupIndex].accounts.push(newAccount);
-  return { success: true };
-}
-
-function removeAccountFromGroup(req: MockRequest) {
-  const groupId = req.params['groupId'];
-  const accountId = req.params['accountId'];
-  const groupIndex = groups.findIndex(g => g.id === groupId);
-
-  if (groupIndex === -1) {
-    throw new MockException(404, 'Group not found');
-  }
-
-  const accountIndex = groups[groupIndex].accounts.findIndex((a: any) => a.accountTokenId === accountId);
-
-  if (accountIndex !== -1) {
-    groups[groupIndex].accounts.splice(accountIndex, 1);
-  }
+  groups.splice(index, 1);
+  accounts.forEach(account => {
+    account.providerGroupIds = account.providerGroupIds.filter(groupId => groupId !== id);
+    if (!account.providerGroupIds.length) {
+      account.providerGroupIds = ['group-default'];
+    }
+  });
 
   return { success: true };
 }
@@ -143,7 +127,5 @@ export const PROVIDER_GROUP_API = {
   'GET /api/v1/provider-groups/:id': (req: MockRequest) => getGroup(req),
   'POST /api/v1/provider-groups': (req: MockRequest) => createGroup(req),
   'PUT /api/v1/provider-groups/:id': (req: MockRequest) => updateGroup(req),
-  'DELETE /api/v1/provider-groups/:id': (req: MockRequest) => deleteGroup(req),
-  'POST /api/v1/provider-groups/:groupId/accounts': (req: MockRequest) => addAccountToGroup(req),
-  'DELETE /api/v1/provider-groups/:groupId/accounts/:accountId': (req: MockRequest) => removeAccountFromGroup(req)
+  'DELETE /api/v1/provider-groups/:id': (req: MockRequest) => deleteGroup(req)
 };

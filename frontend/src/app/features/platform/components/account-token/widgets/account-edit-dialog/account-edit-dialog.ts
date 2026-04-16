@@ -1,17 +1,17 @@
 import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   EventEmitter,
   Input,
-  Output,
-  signal,
   OnChanges,
+  Output,
   SimpleChanges,
   inject,
-  ChangeDetectorRef
+  signal
 } from '@angular/core';
-import { ReactiveFormsModule, FormBuilder, FormGroup, Validators, FormsModule } from '@angular/forms';
+import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AutoCompleteModule } from 'primeng/autocomplete';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
@@ -20,17 +20,20 @@ import { InputTextModule } from 'primeng/inputtext';
 import { PanelModule } from 'primeng/panel';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
+import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { TooltipModule } from 'primeng/tooltip';
 import { finalize } from 'rxjs/operators';
 
 import { DIALOG_CONFIGS } from '../../../../../../shared/constants/dialog-config.constants';
-import { PROVIDER_OPTIONS, AUTH_METHOD_OPTIONS } from '../../../../../../shared/constants/provider.constants';
+import { AUTH_METHOD_OPTIONS, PROVIDER_OPTIONS } from '../../../../../../shared/constants/provider.constants';
 import { AuthMethod } from '../../../../../../shared/models/auth-method.enum';
 import { Provider } from '../../../../../../shared/models/provider.enum';
 import { AccountTokenOutputDto, CreateAccountTokenInputDto, UpdateAccountTokenInputDto } from '../../../../models/account-token.dto';
+import { ProviderGroupOutputDto } from '../../../../models/provider-group.dto';
 import { AccountTokenService } from '../../../../services/account-token-service';
+import { ProviderGroupService } from '../../../../services/provider-group-service';
 
 @Component({
   selector: 'app-account-edit-dialog',
@@ -49,7 +52,8 @@ import { AccountTokenService } from '../../../../services/account-token-service'
     AutoCompleteModule,
     PanelModule,
     SelectButtonModule,
-    ToggleSwitchModule
+    ToggleSwitchModule,
+    TagModule
   ],
   templateUrl: './account-edit-dialog.html',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -63,6 +67,7 @@ export class AccountEditDialogComponent implements OnChanges {
 
   fb = inject(FormBuilder);
   accountService = inject(AccountTokenService);
+  providerGroupService = inject(ProviderGroupService);
   cdr = inject(ChangeDetectorRef);
 
   form: FormGroup;
@@ -83,10 +88,13 @@ export class AccountEditDialogComponent implements OnChanges {
   availableModels: string[] = [];
   modelMappings: Array<{ from: string; to: string }> = [];
 
+  // Provider Groups
+  allProviderGroups = signal<ProviderGroupOutputDto[]>([]);
+  filteredProviderGroups = signal<ProviderGroupOutputDto[]>([]);
+  selectedProviderGroups = signal<ProviderGroupOutputDto[]>([]);
+
   providerOptions = PROVIDER_OPTIONS;
   authMethodOptions = AUTH_METHOD_OPTIONS;
-
-  // 使用小型 Dialog 配置
   dialogConfig = DIALOG_CONFIGS.SMALL;
 
   constructor() {
@@ -99,6 +107,8 @@ export class AccountEditDialogComponent implements OnChanges {
       credential: ['', [Validators.required, Validators.maxLength(2048)]],
       description: ['', Validators.maxLength(1000)],
       maxConcurrency: [10, [Validators.required, Validators.min(0), Validators.max(1000)]],
+      priority: [1, [Validators.required, Validators.min(1), Validators.max(1000)]],
+      weight: [50, [Validators.required, Validators.min(1), Validators.max(100)]],
       allowOfficialClientMimic: [false],
       isCheckStreamHealth: [false]
     });
@@ -109,10 +119,8 @@ export class AccountEditDialogComponent implements OnChanges {
         this.updateValidators();
         if (!this.isEditMode()) {
           this.loadAvailableModels(val as Provider);
-          // 新建模式：OAuth 默认开启伪装
           this.form.get('allowOfficialClientMimic')?.setValue(this.currentAuthMethod() === AuthMethod.OAuth, { emitEvent: false });
         }
-        // Antigravity 平台：认证方式强制为 OAuth，伪装强制开启且禁止编辑
         if (val === Provider.Antigravity) {
           this.form.get('authMethod')?.setValue(AuthMethod.OAuth);
           this.form.get('authMethod')?.disable({ emitEvent: false });
@@ -120,7 +128,6 @@ export class AccountEditDialogComponent implements OnChanges {
           this.form.get('allowOfficialClientMimic')?.setValue(true, { emitEvent: false });
           this.form.get('allowOfficialClientMimic')?.disable({ emitEvent: false });
         } else if (val === Provider.OpenAICompatible) {
-          // OpenAI Compatible：认证方式强制为 ApiKey（且 BaseUrl 必填在 updateValidators 中处理）
           this.form.get('authMethod')?.setValue(AuthMethod.ApiKey);
           this.form.get('authMethod')?.disable({ emitEvent: false });
 
@@ -132,7 +139,7 @@ export class AccountEditDialogComponent implements OnChanges {
           this.form.get('allowOfficialClientMimic')?.enable({ emitEvent: false });
         }
       }
-      // Clear OAuth state when provider changes
+
       this.authCodeInput = '';
       this.generatedAuthUrl = '';
       this.sessionId = '';
@@ -143,11 +150,10 @@ export class AccountEditDialogComponent implements OnChanges {
         this.currentAuthMethod.set(val);
         this.updateValidators();
         if (!this.isEditMode()) {
-          // OAuth 默认开启伪装
           this.form.get('allowOfficialClientMimic')?.setValue(val === AuthMethod.OAuth, { emitEvent: false });
         }
       }
-      // Clear OAuth state when auth method changes
+
       this.authCodeInput = '';
       this.generatedAuthUrl = '';
       this.sessionId = '';
@@ -162,16 +168,24 @@ export class AccountEditDialogComponent implements OnChanges {
     }
     if (changes['visible'] && this.visible) {
       shouldInit = true;
-      // Reset OAuth state on open
       this.authCodeInput = '';
       this.generatedAuthUrl = '';
       this.sessionId = '';
       this.authCodeTouched = false;
+      this.loadProviderGroups();
     }
 
     if (shouldInit) {
       this.initForm();
     }
+  }
+
+  private loadProviderGroups() {
+    this.providerGroupService.getAll().subscribe(groups => {
+      this.allProviderGroups.set(groups);
+      this.syncSelectedProviderGroups();
+      this.cdr.markForCheck();
+    });
   }
 
   initForm() {
@@ -184,11 +198,13 @@ export class AccountEditDialogComponent implements OnChanges {
           name: this.account.name,
           provider: this.account.provider,
           authMethod: this.account.authMethod,
-          projectId: projectId,
+          projectId,
           baseUrl: this.account.baseUrl,
-          credential: '', // Don't fill credential
+          credential: '',
           description: this.account.description,
           maxConcurrency: this.account.maxConcurrency,
+          priority: this.account.priority,
+          weight: this.account.weight,
           allowOfficialClientMimic: this.account.allowOfficialClientMimic ?? false,
           isCheckStreamHealth: this.account.isCheckStreamHealth ?? false
         },
@@ -200,7 +216,6 @@ export class AccountEditDialogComponent implements OnChanges {
       this.form.get('provider')?.disable({ emitEvent: false });
       this.form.get('authMethod')?.disable({ emitEvent: false });
 
-      // Load model configuration
       this.modelWhites = this.account.modelWhites ? [...this.account.modelWhites] : [];
       this.filteredModels = [];
       this.modelMappings =
@@ -208,10 +223,10 @@ export class AccountEditDialogComponent implements OnChanges {
           ? Object.entries(this.account.modelMapping).map(([from, to]) => ({ from, to }))
           : [{ from: '', to: '' }];
 
+      this.syncSelectedProviderGroups();
       this.updateValidators();
       this.loadAvailableModels(this.account.provider, this.account.id);
 
-      // Antigravity 平台：伪装强制开启且禁止编辑
       if (this.account.provider === Provider.Antigravity) {
         this.form.get('allowOfficialClientMimic')?.setValue(true, { emitEvent: false });
         this.form.get('allowOfficialClientMimic')?.disable({ emitEvent: false });
@@ -226,7 +241,9 @@ export class AccountEditDialogComponent implements OnChanges {
           authMethod: AuthMethod.OAuth,
           credential: '',
           maxConcurrency: 10,
-          allowOfficialClientMimic: true, // OAuth 默认开启伪装
+          priority: 1,
+          weight: 50,
+          allowOfficialClientMimic: true,
           isCheckStreamHealth: false
         },
         { emitEvent: false }
@@ -237,14 +254,78 @@ export class AccountEditDialogComponent implements OnChanges {
       this.form.get('provider')?.enable({ emitEvent: false });
       this.form.get('authMethod')?.enable({ emitEvent: false });
 
-      // Reset model configuration
       this.modelWhites = [];
       this.filteredModels = [];
       this.modelMappings = [{ from: '', to: '' }];
 
+      this.selectedProviderGroups.set([]);
+      this.ensureDefaultGroupSelected();
       this.updateValidators();
       this.loadAvailableModels(Provider.Gemini);
     }
+
+    this.cdr.markForCheck();
+  }
+
+  private syncSelectedProviderGroups() {
+    const groups = this.allProviderGroups();
+    if (!groups.length) {
+      return;
+    }
+
+    if (this.account?.providerGroupIds?.length) {
+      const selected = groups.filter(group => this.account?.providerGroupIds.includes(group.id));
+      this.selectedProviderGroups.set(selected.length ? selected : this.getDefaultGroupSelection(groups));
+      return;
+    }
+
+    if (!this.isEditMode()) {
+      this.ensureDefaultGroupSelected();
+    }
+  }
+
+  private ensureDefaultGroupSelected() {
+    if (this.selectedProviderGroups().length) {
+      return;
+    }
+
+    const defaults = this.getDefaultGroupSelection(this.allProviderGroups());
+    if (defaults.length) {
+      this.selectedProviderGroups.set(defaults);
+    }
+  }
+
+  private getDefaultGroupSelection(groups: ProviderGroupOutputDto[]): ProviderGroupOutputDto[] {
+    const defaultGroup = groups.find(group => group.isDefault);
+    return defaultGroup ? [defaultGroup] : [];
+  }
+
+  searchProviderGroups(event: { query: string }) {
+    const query = event.query.trim().toLowerCase();
+    const selectedIds = new Set(this.selectedProviderGroups().map(group => group.id));
+
+    this.filteredProviderGroups.set(
+      this.allProviderGroups().filter(group => {
+        if (selectedIds.has(group.id)) {
+          return false;
+        }
+
+        if (!query) {
+          return true;
+        }
+
+        return group.name.toLowerCase().includes(query) || (group.description ?? '').toLowerCase().includes(query);
+      })
+    );
+  }
+
+  onProviderGroupsChange(groups: ProviderGroupOutputDto[]) {
+    this.selectedProviderGroups.set(groups ?? []);
+    this.cdr.markForCheck();
+  }
+
+  get providerGroupsInvalid(): boolean {
+    return this.selectedProviderGroups().length === 0;
   }
 
   updateValidators() {
@@ -252,17 +333,13 @@ export class AccountEditDialogComponent implements OnChanges {
 
     if (isOAuth) {
       this.form.get('credential')?.clearValidators();
+    } else if (this.isEditMode()) {
+      this.form.get('credential')?.setValidators([Validators.maxLength(2048)]);
     } else {
-      // API Key 类型：编辑模式下允许为空（后端不修改），创建模式下必填
-      if (this.isEditMode()) {
-        this.form.get('credential')?.setValidators([Validators.maxLength(2048)]);
-      } else {
-        this.form.get('credential')?.setValidators([Validators.required, Validators.maxLength(2048)]);
-      }
+      this.form.get('credential')?.setValidators([Validators.required, Validators.maxLength(2048)]);
     }
     this.form.get('credential')?.updateValueAndValidity();
 
-    // Base URL 校验：OpenAICompatible 为必填
     const baseUrlControl = this.form.get('baseUrl');
     if (this.currentProvider() === Provider.OpenAICompatible) {
       baseUrlControl?.setValidators([Validators.required, Validators.maxLength(512), Validators.pattern(/^https?:\/\/.+/)]);
@@ -274,100 +351,6 @@ export class AccountEditDialogComponent implements OnChanges {
 
   get isOAuth(): boolean {
     return this.currentAuthMethod() === AuthMethod.OAuth;
-  }
-
-  onHide() {
-    this.visibleChange.emit(false);
-  }
-
-  onSubmit() {
-    // If OAuth, ensure authCode is present if we are creating, or if we are editing and want to update token
-    if (this.showOAuthFlow && !this.isEditMode() && !this.authCodeInput) {
-      // Manual validation for Auth Code in Create mode
-      this.authCodeTouched = true;
-      // Mark form as touched to show other validation errors
-      Object.keys(this.form.controls).forEach(key => {
-        this.form.get(key)?.markAsTouched();
-      });
-      this.cdr.markForCheck();
-      return;
-    }
-
-    if (this.form.valid) {
-      if (this.hasMappingError) {
-        this.cdr.markForCheck();
-        return;
-      }
-
-      const formValue = this.form.getRawValue();
-
-      // Construct extraProperties
-      const extraProperties: Record<string, string> = {};
-      if (this.isEditMode() && this.account?.extraProperties) {
-        Object.assign(extraProperties, this.account.extraProperties);
-      }
-
-      if (formValue.projectId) {
-        extraProperties['project_id'] = formValue.projectId;
-      } else if (extraProperties['project_id']) {
-        // If cleared in form, remove from extraProperties
-        delete extraProperties['project_id'];
-      }
-
-      const createDto: CreateAccountTokenInputDto = {
-        name: formValue.name,
-        provider: formValue.provider,
-        authMethod: formValue.authMethod,
-        extraProperties: Object.keys(extraProperties).length > 0 ? extraProperties : undefined,
-        baseUrl: formValue.baseUrl,
-        description: formValue.description,
-        maxConcurrency: formValue.maxConcurrency,
-        modelWhites: this.modelWhites,
-        modelMapping: this.buildModelMapping(),
-        allowOfficialClientMimic: formValue.allowOfficialClientMimic ?? false,
-        isCheckStreamHealth: formValue.isCheckStreamHealth ?? false
-      };
-
-      if (this.showOAuthFlow) {
-        // OAuth Mode: Pass authCode and sessionId
-        createDto.authCode = this.authCodeInput;
-        createDto.sessionId = this.sessionId;
-        // Backend handles exchange, credential field is ignored or empty
-      } else {
-        // API Key Mode: Pass credential
-        createDto.credential = formValue.credential;
-      }
-
-      if (this.isEditMode() && this.account) {
-        // For update, construct UpdateAccountTokenInputDto (provider/authMethod is not updatable)
-        const updateDto: UpdateAccountTokenInputDto = {
-          name: createDto.name,
-          extraProperties: createDto.extraProperties,
-          baseUrl: createDto.baseUrl,
-          description: createDto.description,
-          maxConcurrency: createDto.maxConcurrency,
-          modelWhites: createDto.modelWhites,
-          modelMapping: createDto.modelMapping,
-          allowOfficialClientMimic: createDto.allowOfficialClientMimic,
-          isCheckStreamHealth: createDto.isCheckStreamHealth
-        };
-
-        // Only send credential if provided
-        if (createDto.credential) {
-          updateDto.credential = createDto.credential;
-        }
-
-        this.save.emit({ id: this.account.id, dto: updateDto });
-      } else {
-        this.save.emit({ dto: createDto });
-      }
-    } else {
-      // Mark all fields as touched to trigger validation messages
-      Object.keys(this.form.controls).forEach(key => {
-        this.form.get(key)?.markAsTouched();
-      });
-      this.cdr.markForCheck();
-    }
   }
 
   get isApiKeyMode(): boolean {
@@ -383,8 +366,105 @@ export class AccountEditDialogComponent implements OnChanges {
   }
 
   get showProjectId(): boolean {
-    // Only show Project ID for Gemini OAuth
     return this.currentProvider() === Provider.Gemini && this.currentAuthMethod() === AuthMethod.OAuth;
+  }
+
+  onHide() {
+    this.visibleChange.emit(false);
+  }
+
+  onSubmit() {
+    if (this.showOAuthFlow && !this.isEditMode() && !this.authCodeInput) {
+      this.authCodeTouched = true;
+      Object.keys(this.form.controls).forEach(key => {
+        this.form.get(key)?.markAsTouched();
+      });
+      this.cdr.markForCheck();
+      return;
+    }
+
+    if (this.providerGroupsInvalid) {
+      Object.keys(this.form.controls).forEach(key => {
+        this.form.get(key)?.markAsTouched();
+      });
+      this.cdr.markForCheck();
+      return;
+    }
+
+    if (this.form.valid) {
+      if (this.hasMappingError) {
+        this.cdr.markForCheck();
+        return;
+      }
+
+      const formValue = this.form.getRawValue();
+      const extraProperties: Record<string, string> = {};
+      if (this.isEditMode() && this.account?.extraProperties) {
+        Object.assign(extraProperties, this.account.extraProperties);
+      }
+
+      if (formValue.projectId) {
+        extraProperties['project_id'] = formValue.projectId;
+      } else if (extraProperties['project_id']) {
+        delete extraProperties['project_id'];
+      }
+
+      const providerGroupIds = this.selectedProviderGroups().map(group => group.id);
+
+      const createDto: CreateAccountTokenInputDto = {
+        name: formValue.name,
+        provider: formValue.provider,
+        authMethod: formValue.authMethod,
+        extraProperties: Object.keys(extraProperties).length > 0 ? extraProperties : undefined,
+        baseUrl: formValue.baseUrl,
+        description: formValue.description,
+        maxConcurrency: formValue.maxConcurrency,
+        priority: formValue.priority,
+        weight: formValue.weight,
+        providerGroupIds,
+        modelWhites: this.modelWhites,
+        modelMapping: this.buildModelMapping(),
+        allowOfficialClientMimic: formValue.allowOfficialClientMimic ?? false,
+        isCheckStreamHealth: formValue.isCheckStreamHealth ?? false
+      };
+
+      if (this.showOAuthFlow) {
+        createDto.authCode = this.authCodeInput;
+        createDto.sessionId = this.sessionId;
+      } else {
+        createDto.credential = formValue.credential;
+      }
+
+      if (this.isEditMode() && this.account) {
+        const updateDto: UpdateAccountTokenInputDto = {
+          name: createDto.name,
+          extraProperties: createDto.extraProperties,
+          baseUrl: createDto.baseUrl,
+          description: createDto.description,
+          maxConcurrency: createDto.maxConcurrency,
+          priority: createDto.priority,
+          weight: createDto.weight,
+          providerGroupIds: createDto.providerGroupIds,
+          modelWhites: createDto.modelWhites,
+          modelMapping: createDto.modelMapping,
+          allowOfficialClientMimic: createDto.allowOfficialClientMimic,
+          isCheckStreamHealth: createDto.isCheckStreamHealth
+        };
+
+        if (createDto.credential) {
+          updateDto.credential = createDto.credential;
+        }
+
+        this.save.emit({ id: this.account.id, dto: updateDto });
+      } else {
+        this.save.emit({ dto: createDto });
+      }
+    } else {
+      Object.keys(this.form.controls).forEach(key => {
+        this.form.get(key)?.markAsTouched();
+      });
+      this.cdr.markForCheck();
+    }
   }
 
   generateAuthUrl() {
@@ -428,21 +508,17 @@ export class AccountEditDialogComponent implements OnChanges {
   extractCodeFromUrl() {
     if (!this.authCodeInput) return;
 
-    // Reset touched state when user starts typing
     this.authCodeTouched = false;
 
     const code = this.authCodeInput.trim();
-    // Simple check if it looks like a URL
     if (code.includes('http') || code.includes('code=')) {
       try {
-        // Try constructing URL object (might fail if partial)
         const url = new URL(code);
         const codeParam = url.searchParams.get('code');
         if (codeParam) {
           this.authCodeInput = decodeURIComponent(codeParam);
         }
-      } catch (e) {
-        // Fallback regex
+      } catch {
         const match = code.match(/code=([^&]+)/);
         if (match) {
           this.authCodeInput = decodeURIComponent(match[1]);
@@ -471,7 +547,8 @@ export class AccountEditDialogComponent implements OnChanges {
     const lowerQuery = originalQuery.toLowerCase();
     const existing = new Set(this.modelWhites);
     const matched = this.availableModels.filter(m => !existing.has(m) && (lowerQuery === '' || m.toLowerCase().includes(lowerQuery)));
-    this.filteredModels = originalQuery && !this.availableModels.some(m => m.toLowerCase() === lowerQuery) ? [originalQuery, ...matched] : matched;
+    this.filteredModels =
+      originalQuery && !this.availableModels.some(m => m.toLowerCase() === lowerQuery) ? [originalQuery, ...matched] : matched;
   }
 
   onWhitelistSelect(event: { value: string }) {
@@ -493,7 +570,6 @@ export class AccountEditDialogComponent implements OnChanges {
     if (this.modelMappings.length > 1) {
       this.modelMappings = this.modelMappings.filter((_, i) => i !== index);
     } else {
-      // 只剩一行时清空内容
       this.modelMappings = [{ from: '', to: '' }];
     }
   }
@@ -519,7 +595,6 @@ export class AccountEditDialogComponent implements OnChanges {
     if (entries.length > 0) {
       return Object.fromEntries(entries.map(m => [m.from.trim(), m.to.trim()]));
     }
-    // 编辑模式下原来有映射但现在已全部清除，返回空对象通知后端清除
     if (this.isEditMode() && this.account?.modelMapping && Object.keys(this.account.modelMapping).length > 0) {
       return {};
     }

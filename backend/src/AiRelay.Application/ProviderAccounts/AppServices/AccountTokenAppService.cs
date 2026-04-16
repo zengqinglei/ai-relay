@@ -2,24 +2,24 @@ using System.Linq.Dynamic.Core;
 using AiRelay.Application.ProviderAccounts.Dtos;
 using AiRelay.Domain.ProviderAccounts.DomainServices;
 using AiRelay.Domain.ProviderAccounts.Entities;
-
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
+using AiRelay.Domain.ProviderGroups.DomainServices;
 using AiRelay.Domain.ProviderGroups.DomainServices.SchedulingStrategy.AccountConcurrencyStrategy;
 using AiRelay.Domain.ProviderGroups.Entities;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
+using AiRelay.Domain.Shared.ExternalServices.ModelProvider;
+using AiRelay.Domain.Shared.ExternalServices.ModelProvider.Dto;
 using AiRelay.Domain.Shared.OAuth.Authorize;
-
 using Leistd.Ddd.Application.AppService;
 using Leistd.Ddd.Application.Contracts.Dtos;
 using Leistd.Ddd.Domain.Repositories;
 using Leistd.Exception.Core;
 using Leistd.ObjectMapping.Core;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Runtime.CompilerServices;
-using AiRelay.Domain.Shared.ExternalServices.ModelProvider;
-using AiRelay.Domain.Shared.ExternalServices.ModelProvider.Dto;
-using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
-using AiRelay.Domain.Shared.ExternalServices.ModelClient;
 
 namespace AiRelay.Application.ProviderAccounts.AppServices;
 
@@ -30,6 +30,7 @@ public class AccountTokenAppService(
     IRepository<AccountToken, Guid> accountTokenRepository,
     IRepository<ProviderGroupAccountRelation, Guid> relationRepository,
     AccountTokenDomainService accountTokenDomainService,
+    ProviderGroupDomainService providerGroupDomainService,
     IChatModelHandlerFactory chatModelHandlerFactory,
     AccountRateLimitDomainService accountRateLimitDomainService,
     IModelProvider modelProvider,
@@ -227,8 +228,7 @@ public class AccountTokenAppService(
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "上游模型拉取失败，降级静态: AccountId={AccountId}, Provider={Provider}",
-                    accountId, provider);
+                logger.LogWarning(ex, "上游模型拉取失败，降级静态: AccountId={AccountId}, Provider={Provider}", accountId, provider);
             }
         }
 
@@ -286,44 +286,55 @@ public class AccountTokenAppService(
         if (input.IsActive.HasValue)
             accountQuery = accountQuery.Where(a => a.IsActive == input.IsActive.Value);
 
-        // 动态排序
+        var providerGroupIds = ParseProviderGroupIds(input.ProviderGroupIds);
+        if (providerGroupIds.Count > 0)
+        {
+            var relationQuery = await relationRepository.GetQueryableAsync(cancellationToken);
+            var matchedAccountIds = await asyncExecuter.ToListAsync(
+                relationQuery
+                    .Where(r => providerGroupIds.Contains(r.ProviderGroupId))
+                    .Select(r => r.AccountTokenId)
+                    .Distinct(),
+                cancellationToken);
+
+            if (matchedAccountIds.Count == 0)
+            {
+                return new PagedResultDto<AccountTokenOutputDto>(0, []);
+            }
+
+            accountQuery = accountQuery.Where(a => matchedAccountIds.Contains(a.Id));
+        }
+
         var sorting = input.Sorting ?? $"{nameof(AccountToken.CreationTime)} desc";
         accountQuery = accountQuery.OrderBy(sorting);
 
         var totalCount = await asyncExecuter.CountAsync(accountQuery, cancellationToken);
-        var accounts = await asyncExecuter.ToListAsync(accountQuery
-            .Skip(input.Offset)
-            .Take(input.Limit), cancellationToken);
+        var accounts = await asyncExecuter.ToListAsync(
+            accountQuery.Skip(input.Offset).Take(input.Limit),
+            cancellationToken);
 
-        // ✅ 直接在获取数据后映射，传递上下文
-        List<AccountTokenOutputDto> results;
-
-        if (accounts.Any())
+        if (accounts.Count == 0)
         {
-            var accountIds = accounts.Select(x => x.Id).ToList();
-
-            // 批量获取并发数据
-            var concurrencyCounts = await concurrencyStrategy.GetConcurrencyCountsAsync(accountIds, cancellationToken);
-
-            var contextItems = new Dictionary<string, object>
-            {
-                ["ConcurrencyCounts"] = concurrencyCounts
-            };
-            results = objectMapper.Map<List<AccountToken>, List<AccountTokenOutputDto>>(accounts, contextItems);
+            return new PagedResultDto<AccountTokenOutputDto>(totalCount, []);
         }
-        else
+
+        var accountIds = accounts.Select(x => x.Id).ToList();
+        var concurrencyCounts = await concurrencyStrategy.GetConcurrencyCountsAsync(accountIds, cancellationToken);
+        var contextItems = new Dictionary<string, object>
         {
-            results = new List<AccountTokenOutputDto>();
-        }
+            ["ConcurrencyCounts"] = concurrencyCounts
+        };
+
+        var results = objectMapper.Map<List<AccountToken>, List<AccountTokenOutputDto>>(accounts, contextItems);
+        await EnrichAccountOutputsAsync(accounts, results, cancellationToken);
 
         return new PagedResultDto<AccountTokenOutputDto>(totalCount, results);
     }
 
     public async Task<AccountTokenOutputDto> GetAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var account = await accountTokenRepository.GetByIdAsync(id, cancellationToken);
-        if (account == null)
-            throw new NotFoundException($"账户不存在: {id}");
+        var account = await accountTokenRepository.GetByIdAsync(id, cancellationToken)
+            ?? throw new NotFoundException($"账户不存在: {id}");
 
         // 预取并发数据 (避免 Resolver 中的 Sync-over-Async)
         var concurrencyCount = await concurrencyStrategy.GetConcurrencyCountAsync(id, cancellationToken);
@@ -332,9 +343,8 @@ public class AccountTokenAppService(
             ["ConcurrencyCounts"] = new Dictionary<Guid, int> { [id] = concurrencyCount }
         };
 
-        // 1. 基础映射 (传递并发数据)
         var result = objectMapper.Map<AccountToken, AccountTokenOutputDto>(account, contextItems);
-
+        await EnrichAccountOutputsAsync([account], [result], cancellationToken);
         return result;
     }
 
@@ -352,12 +362,9 @@ public class AccountTokenAppService(
                 throw new BadRequestException("OAuth 模式下 AuthCode 和 SessionId 不能为空");
             }
         }
-        else
+        else if (string.IsNullOrWhiteSpace(input.Credential))
         {
-            if (string.IsNullOrWhiteSpace(input.Credential))
-            {
-                throw new BadRequestException("API Key 模式下 Credential 不能为空");
-            }
+            throw new BadRequestException("API Key 模式下 Credential 不能为空");
         }
 
         // 检查同名账户
@@ -414,7 +421,6 @@ public class AccountTokenAppService(
         {
             // API Key 平台，credential 作为 AccessToken
             accessToken = input.Credential;
-            expiresIn = null; // API Key 通常不过期或由提供商控制
         }
         else
         {
@@ -438,19 +444,14 @@ public class AccountTokenAppService(
             input.ModelMapping,
             input.AllowOfficialClientMimic,
             input.IsCheckStreamHealth,
+            input.Priority,
+            input.Weight,
             cancellationToken);
 
-        logger.LogInformation("创建账户成功: {Name}({Provider}-{AuthMethod})", 
-            accountToken.Name, accountToken.Provider, accountToken.AuthMethod);
+        await providerGroupDomainService.SyncAccountRelationsAsync(accountToken.Id, input.ProviderGroupIds, cancellationToken);
 
-        // ✅ 传递空的上下文以保持统一（新创建的账户暂无并发数据）
-        var contextItems = new Dictionary<string, object>
-        {
-            ["ConcurrencyCounts"] = new Dictionary<Guid, int>()
-        };
-
-        var result = objectMapper.Map<AccountToken, AccountTokenOutputDto>(accountToken, contextItems);
-        return result;
+        logger.LogInformation("创建账户成功: {Name}({Provider}-{AuthMethod})", accountToken.Name, accountToken.Provider, accountToken.AuthMethod);
+        return await GetAsync(accountToken.Id, cancellationToken);
     }
 
     public async Task<AccountTokenOutputDto> UpdateAsync(
@@ -461,17 +462,34 @@ public class AccountTokenAppService(
         var accountToken = await accountTokenRepository.GetByIdAsync(id, cancellationToken)
             ?? throw new NotFoundException($"账户不存在: {id}");
 
-        logger.LogInformation("开始更新账户: {Name}({Provider}-{AuthMethod})", 
-            accountToken.Name, accountToken.Provider, accountToken.AuthMethod);
+        logger.LogInformation("开始更新账户: {Name}({Provider}-{AuthMethod})", accountToken.Name, accountToken.Provider, accountToken.AuthMethod);
 
-        // 更新基本信息
-        accountToken.Update(input.Name, input.BaseUrl, input.Description, input.MaxConcurrency, input.ExtraProperties,
+        if (!string.IsNullOrWhiteSpace(input.Name) && !string.Equals(accountToken.Name, input.Name, StringComparison.Ordinal))
+        {
+            var duplicateAccounts = await accountTokenRepository.GetListAsync(
+                a => a.Id != id && a.Name == input.Name && a.Provider == accountToken.Provider && a.AuthMethod == accountToken.AuthMethod,
+                cancellationToken);
+
+            if (duplicateAccounts.Any())
+            {
+                throw new BadRequestException($"提供商 {accountToken.Provider}({accountToken.AuthMethod}) 下已存在同名账户: {input.Name}");
+            }
+        }
+
+        accountToken.Update(
+            input.Name,
+            input.BaseUrl,
+            input.Description,
+            input.MaxConcurrency,
+            input.ExtraProperties,
             modelWhites: input.ModelWhites,
             modelMapping: input.ModelMapping,
             clearModelWhites: input.ModelWhites != null && input.ModelWhites.Count == 0,
             clearModelMapping: input.ModelMapping != null && input.ModelMapping.Count == 0,
             allowOfficialClientMimic: input.AllowOfficialClientMimic,
-            isCheckStreamHealth: input.IsCheckStreamHealth);
+            isCheckStreamHealth: input.IsCheckStreamHealth,
+            priority: input.Priority,
+            weight: input.Weight);
 
         // 更新凭证
         if (!string.IsNullOrWhiteSpace(input.Credential))
@@ -488,13 +506,13 @@ public class AccountTokenAppService(
             }
         }
 
-        // 也可以在这里调用 PrepareAccountAsync 来验证更新后的凭证，但这可能导致更新操作变慢
-        // 且 Update 通常期望是原子的。如果需要，可以考虑异步触发或者让用户手动触发 "Test"
-        // 现阶段保持原样，只更新数据。
+        if (input.ProviderGroupIds != null)
+        {
+            await providerGroupDomainService.SyncAccountRelationsAsync(accountToken.Id, input.ProviderGroupIds, cancellationToken);
+        }
 
         await accountTokenRepository.UpdateAsync(accountToken, cancellationToken: cancellationToken);
-        logger.LogInformation("更新账户成功: {Name}({Provider}-{AuthMethod})", 
-            accountToken.Name, accountToken.Provider, accountToken.AuthMethod);
+        logger.LogInformation("更新账户成功: {Name}({Provider}-{AuthMethod})", accountToken.Name, accountToken.Provider, accountToken.AuthMethod);
 
         return await GetAsync(id, cancellationToken);
     }
@@ -504,36 +522,21 @@ public class AccountTokenAppService(
         var account = await accountTokenRepository.GetByIdAsync(id, cancellationToken)
             ?? throw new NotFoundException($"账户不存在: {id}");
 
-        logger.LogInformation("开始删除账户: {Name}({Provider}-{AuthMethod})", 
-            account.Name, account.Provider, account.AuthMethod);
-
-        // 检查是否被分组关联
-        var relations = await relationRepository.GetListAsync(
-            r => r.AccountTokenId == id,
-            cancellationToken);
-
-        if (relations.Any())
-            throw new BadRequestException("账户已被分组关联，无法删除");
-
-        // 软删除
+        logger.LogInformation("开始删除账户: {Name}({Provider}-{AuthMethod})", account.Name, account.Provider, account.AuthMethod);
         await accountTokenRepository.DeleteAsync(account, cancellationToken: cancellationToken);
-
-        logger.LogInformation("删除账户成功: {Name}({Provider}-{AuthMethod})", 
-            account.Name, account.Provider, account.AuthMethod);
+        logger.LogInformation("删除账户成功: {Name}({Provider}-{AuthMethod})", account.Name, account.Provider, account.AuthMethod);
     }
 
     public async Task EnableAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var account = await accountTokenRepository.GetByIdAsync(id, cancellationToken)
             ?? throw new NotFoundException($"账户不存在: {id}");
-        
-        logger.LogInformation("启用账户: {Name}({Provider}-{AuthMethod})", 
-            account.Name, account.Provider, account.AuthMethod);
+
+        logger.LogInformation("启用账户: {Name}({Provider}-{AuthMethod})", account.Name, account.Provider, account.AuthMethod);
         account.Enable();
         await accountTokenRepository.UpdateAsync(account, cancellationToken: cancellationToken);
 
-        logger.LogInformation("启用账户成功: {Name}({Provider}-{AuthMethod})", 
-            account.Name, account.Provider, account.AuthMethod);
+        logger.LogInformation("启用账户成功: {Name}({Provider}-{AuthMethod})", account.Name, account.Provider, account.AuthMethod);
     }
 
     public async Task DisableAsync(Guid id, CancellationToken cancellationToken = default)
@@ -541,13 +544,11 @@ public class AccountTokenAppService(
         var account = await accountTokenRepository.GetByIdAsync(id, cancellationToken)
             ?? throw new NotFoundException($"账户不存在: {id}");
 
-        logger.LogInformation("禁用账户: {Name}({Provider}-{AuthMethod})", 
-            account.Name, account.Provider, account.AuthMethod);
+        logger.LogInformation("禁用账户: {Name}({Provider}-{AuthMethod})", account.Name, account.Provider, account.AuthMethod);
         account.Disable();
         await accountTokenRepository.UpdateAsync(account, cancellationToken: cancellationToken);
 
-        logger.LogInformation("禁用账户成功: {Name}({Provider}-{AuthMethod})", 
-            account.Name, account.Provider, account.AuthMethod);
+        logger.LogInformation("禁用账户成功: {Name}({Provider}-{AuthMethod})", account.Name, account.Provider, account.AuthMethod);
     }
 
     public async Task ResetStatusAsync(Guid id, CancellationToken cancellationToken = default)
@@ -555,13 +556,77 @@ public class AccountTokenAppService(
         var account = await accountTokenRepository.GetByIdAsync(id, cancellationToken)
             ?? throw new NotFoundException($"账户不存在: {id}");
 
-        logger.LogInformation("重置账户状态: {Name}({Provider}-{AuthMethod})", 
-            account.Name, account.Provider, account.AuthMethod);
-
-        // 使用 RateLimitTracker 清除 Redis 缓存和 DB 状态（支持限流和异常状态）
+        logger.LogInformation("重置账户状态: {Name}({Provider}-{AuthMethod})", account.Name, account.Provider, account.AuthMethod);
         await accountRateLimitDomainService.ClearAsync(account, cancellationToken);
+        logger.LogInformation("重置账户状态成功: {Name}({Provider}-{AuthMethod})", account.Name, account.Provider, account.AuthMethod);
+    }
 
-        logger.LogInformation("重置账户状态成功: {Name}({Provider}-{AuthMethod})", 
-            account.Name, account.Provider, account.AuthMethod);
+    private async Task EnrichAccountOutputsAsync(
+        IReadOnlyList<AccountToken> accounts,
+        IList<AccountTokenOutputDto> outputs,
+        CancellationToken cancellationToken)
+    {
+        if (accounts.Count == 0 || outputs.Count == 0)
+        {
+            return;
+        }
+
+        var accountIds = accounts.Select(a => a.Id).ToList();
+        var relationQuery = await relationRepository.GetQueryableAsync(cancellationToken);
+        var relations = await asyncExecuter.ToListAsync(
+            relationQuery
+                .Include(r => r.ProviderGroup)
+                .Where(r => accountIds.Contains(r.AccountTokenId)),
+            cancellationToken);
+
+        var groupIdsByAccount = relations
+            .GroupBy(r => r.AccountTokenId)
+            .ToDictionary(
+                g => g.Key,
+                g => g
+                    .OrderByDescending(r => r.ProviderGroup.IsDefault)
+                    .ThenBy(r => r.ProviderGroup.Name)
+                    .Select(r => r.ProviderGroupId)
+                    .Distinct()
+                    .ToList());
+
+        for (var i = 0; i < accounts.Count; i++)
+        {
+            var account = accounts[i];
+            var output = outputs[i];
+            output.ProviderGroupIds = groupIdsByAccount.GetValueOrDefault(account.Id, []);
+            output.SupportedRouteProfiles = ResolveRouteProfiles(account);
+        }
+    }
+
+    private static List<Guid> ParseProviderGroupIds(string? rawProviderGroupIds)
+    {
+        if (string.IsNullOrWhiteSpace(rawProviderGroupIds))
+        {
+            return [];
+        }
+
+        var result = new List<Guid>();
+        foreach (var rawId in rawProviderGroupIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (!Guid.TryParse(rawId, out var groupId))
+            {
+                throw new BadRequestException($"所属分组参数格式不正确: {rawId}");
+            }
+
+            result.Add(groupId);
+        }
+
+        return result.Distinct().ToList();
+    }
+
+    private static List<RouteProfile> ResolveRouteProfiles(AccountToken account)
+    {
+        return RouteProfileRegistry.Profiles
+            .Where(profile => profile.Value.SupportedCombinations.Any(combination =>
+                combination.Provider == account.Provider && combination.AuthMethod == account.AuthMethod))
+            .Select(profile => profile.Key)
+            .OrderBy(profile => profile)
+            .ToList();
     }
 }

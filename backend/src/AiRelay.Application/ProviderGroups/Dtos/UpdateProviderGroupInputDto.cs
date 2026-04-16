@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using AiRelay.Domain.ProviderGroups.ValueObjects;
 
 namespace AiRelay.Application.ProviderGroups.Dtos;
 
@@ -24,13 +23,6 @@ public record UpdateProviderGroupInputDto
     public string? Description { get; init; }
 
     /// <summary>
-    /// 调度策略
-    /// </summary>
-    [Required(ErrorMessage = "{0}不能为空")]
-    [Display(Name = "调度策略")]
-    public GroupSchedulingStrategy SchedulingStrategy { get; init; }
-
-    /// <summary>
     /// 是否启用粘性会话
     /// </summary>
     [Display(Name = "启用粘性会话")]
@@ -49,10 +41,4 @@ public record UpdateProviderGroupInputDto
     [Range(0.01, 100, ErrorMessage = "{0}必须在{1}-{2}之间")]
     [Display(Name = "费率倍数")]
     public decimal RateMultiplier { get; init; } = 1.0m;
-
-    /// <summary>
-    /// 关联账户列表（全量替换）
-    /// </summary>
-    [Display(Name = "关联账户")]
-    public List<AddGroupAccountInputDto> Accounts { get; init; } = new();
 }

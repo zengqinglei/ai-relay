@@ -1,5 +1,4 @@
 using AiRelay.Domain.ApiKeys.Entities;
-using AiRelay.Domain.ProviderGroups.ValueObjects;
 using Leistd.Ddd.Domain.Entities.Auditing;
 
 namespace AiRelay.Domain.ProviderGroups.Entities;
@@ -13,16 +12,14 @@ public class ProviderGroup : FullAuditedEntity<Guid>
 
     public string? Description { get; private set; }
 
-
-
-    public GroupSchedulingStrategy SchedulingStrategy { get; private set; }
+    public bool IsDefault { get; private set; }
 
     public bool EnableStickySession { get; private set; }
 
     public int StickySessionExpirationHours { get; private set; } = 1;
 
     public decimal RateMultiplier { get; private set; } = 1.0m;
-    
+
     // 导航属性
     public virtual ICollection<ProviderGroupAccountRelation> Relations { get; private set; } = new List<ProviderGroupAccountRelation>();
 
@@ -36,7 +33,7 @@ public class ProviderGroup : FullAuditedEntity<Guid>
     public ProviderGroup(
         string name,
         string? description,
-        GroupSchedulingStrategy schedulingStrategy,
+        bool isDefault = false,
         bool enableStickySession = false,
         int stickySessionExpirationHours = 1,
         decimal rateMultiplier = 1.0m)
@@ -44,18 +41,16 @@ public class ProviderGroup : FullAuditedEntity<Guid>
         Id = Guid.CreateVersion7();
         Name = name;
         Description = description;
-
-        SchedulingStrategy = schedulingStrategy;
+        IsDefault = isDefault;
         EnableStickySession = enableStickySession;
         StickySessionExpirationHours = stickySessionExpirationHours;
         RateMultiplier = rateMultiplier;
     }
 
-    public void Update(string name, string? description, GroupSchedulingStrategy schedulingStrategy, decimal rateMultiplier)
+    public void Update(string name, string? description, decimal rateMultiplier)
     {
         Name = name;
         Description = description;
-        SchedulingStrategy = schedulingStrategy;
         RateMultiplier = rateMultiplier;
     }
 
@@ -66,5 +61,11 @@ public class ProviderGroup : FullAuditedEntity<Guid>
         {
             StickySessionExpirationHours = expirationHours;
         }
+    }
+
+    public void MarkAsDefault(string name = "default")
+    {
+        IsDefault = true;
+        Name = name;
     }
 }

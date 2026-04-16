@@ -33,4 +33,10 @@ public record GetAccountTokenPagedInputDto : PagedRequestDto
     /// </summary>
     [Display(Name = "启用状态")]
     public bool? IsActive { get; init; }
+
+    /// <summary>
+    /// 所属分组过滤（逗号分隔的 Guid 列表）
+    /// </summary>
+    [Display(Name = "所属分组")]
+    public string? ProviderGroupIds { get; init; }
 }

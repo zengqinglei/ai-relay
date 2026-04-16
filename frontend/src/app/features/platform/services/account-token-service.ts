@@ -7,9 +7,9 @@ import { NativeFetchService } from '../../../core/services/native-fetch-service'
 import { PagedResultDto } from '../../../shared/models/paged-result.dto';
 import { Provider } from '../../../shared/models/provider.enum';
 import {
+  AccountTokenOutputDto,
   CreateAccountTokenInputDto,
   GetAccountTokenPagedInputDto,
-  AccountTokenOutputDto,
   UpdateAccountTokenInputDto
 } from '../models/account-token.dto';
 import { ChatMessageInputDto } from '../models/chat-message-input.dto';
@@ -31,6 +31,7 @@ export class AccountTokenService {
     if (params?.provider) httpParams = httpParams.set('provider', params.provider);
     if (params?.authMethod) httpParams = httpParams.set('authMethod', params.authMethod);
     if (params?.isActive !== undefined) httpParams = httpParams.set('isActive', params.isActive.toString());
+    if (params?.providerGroupIds?.length) httpParams = httpParams.set('providerGroupIds', params.providerGroupIds.join(','));
     if (params?.offset !== undefined) httpParams = httpParams.set('offset', params.offset.toString());
     if (params?.limit !== undefined) httpParams = httpParams.set('limit', params.limit.toString());
     if (params?.sorting) httpParams = httpParams.set('sorting', params.sorting);
@@ -170,13 +171,13 @@ export class AccountTokenService {
             }
 
             observer.complete();
-          } catch (err: any) {
-            if (err.name === 'AbortError') {
+          } catch (err: unknown) {
+            if (err instanceof Error && err.name === 'AbortError') {
               observer.complete();
-            } else if (err.name === 'TypeError') {
+            } else if (err instanceof Error && err.name === 'TypeError') {
               observer.error(new Error('网络连接异常，请检查网络后重试'));
             } else {
-              observer.error(new Error(err.message || '流式响应中断'));
+              observer.error(new Error(err instanceof Error ? err.message || '流式响应中断' : '流式响应中断'));
             }
           }
         })

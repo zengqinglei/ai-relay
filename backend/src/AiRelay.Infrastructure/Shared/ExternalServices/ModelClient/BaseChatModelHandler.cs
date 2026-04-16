@@ -175,6 +175,24 @@ public abstract partial class BaseChatModelHandler : IChatModelHandler
     {
         try
         {
+            // Path A: Handle non-streaming JSON responses (e.g., error responses or direct JSON from providers)
+            var contentType = response.Content.Headers.ContentType?.MediaType;
+            if (contentType != null && contentType.Equals("application/json", StringComparison.OrdinalIgnoreCase))
+            {
+                var bodyBytes = await response.Content.ReadAsByteArrayAsync(ct);
+                var bodyString = Encoding.UTF8.GetString(bodyBytes);
+                var evt = new StreamEvent
+                {
+                    Content = bodyString,
+                    IsComplete = true,
+                    OriginalBytes = bodyBytes
+                };
+                foreach (var proc in processors) await proc.ProcessAsync(evt, ct);
+                yield return evt;
+                yield break;
+            }
+
+            // Path B: Handle SSE streaming responses
             var sseBuffer = new SseStreamBuffer();
             await using var responseStream = await response.Content.ReadAsStreamAsync(ct);
             var buffer = ArrayPool<byte>.Shared.Rent(8192);
@@ -190,14 +208,14 @@ public abstract partial class BaseChatModelHandler : IChatModelHandler
                         yield return new StreamEvent { OriginalBytes = buffer.AsSpan(0, bytesRead).ToArray() };
 
                     var lines = sseBuffer.ProcessChunk(buffer.AsSpan(0, bytesRead));
-                    await foreach (var evt in ProcessSseLinesAsync(lines, requiresMutation, processors, ct))
+                    await foreach (var evt in ProcessLinesAsync(lines, requiresMutation, processors, ct))
                     {
                         yield return evt;
                         if (evt.IsComplete) yield break;
                     }
                 }
 
-                await foreach (var evt in ProcessSseLinesAsync(sseBuffer.Flush(), requiresMutation, processors, ct))
+                await foreach (var evt in ProcessLinesAsync(sseBuffer.Flush(), requiresMutation, processors, ct))
                 {
                     yield return evt;
                     if (evt.IsComplete) yield break;
@@ -221,10 +239,10 @@ public abstract partial class BaseChatModelHandler : IChatModelHandler
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // ProcessSseLinesAsync（SSE 文本行 → StreamEvent 转换与过滤）
+    // ProcessLinesAsync（文本行 → StreamEvent 转换与过滤）
     // ═══════════════════════════════════════════════════════════════════
 
-    private static async IAsyncEnumerable<StreamEvent> ProcessSseLinesAsync(
+    private static async IAsyncEnumerable<StreamEvent> ProcessLinesAsync(
         IEnumerable<string> lines,
         bool requiresMutation,
         IReadOnlyList<IResponseProcessor> processors,
@@ -238,11 +256,26 @@ public abstract partial class BaseChatModelHandler : IChatModelHandler
                 continue;
             }
 
-            var evt = new StreamEvent { SseLine = line };
+            var trimmed = line.Trim();
+            var evt = new StreamEvent();
+
+            // Heuristic fallback: If a line in a supposedly SSE stream looks like a naked JSON object
+            // (e.g., some proxies inject single-line JSON errors without 'data:' prefix),
+            // we promote it to Content to allow processors to run ParseCompleteResponse.
+            if (!trimmed.StartsWith("data:") && !trimmed.StartsWith("event:") && trimmed.StartsWith("{"))
+            {
+                evt.Content = line;
+            }
+            else
+            {
+                evt.SseLine = line;
+            }
+
             if (requiresMutation)
             {
                 evt.OriginalBytes = Encoding.UTF8.GetBytes(line + "\n\n");
             }
+
             foreach (var proc in processors) await proc.ProcessAsync(evt, ct);
 
             if (evt.Content != null || evt.InlineData != null || evt.IsComplete

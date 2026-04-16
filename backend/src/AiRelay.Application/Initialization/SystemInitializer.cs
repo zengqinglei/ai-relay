@@ -1,3 +1,4 @@
+using AiRelay.Domain.ProviderGroups.DomainServices;
 using AiRelay.Domain.Shared.Security.PasswordHash;
 using AiRelay.Domain.Users.Entities;
 using AiRelay.Domain.Users.Options;
@@ -15,6 +16,7 @@ public class SystemInitializer(
     IRepository<Role, Guid> roleRepository,
     IRepository<UserRole, Guid> userRoleRepository,
     IPasswordHasher passwordHasher,
+    ProviderGroupDomainService providerGroupDomainService,
     IOptions<DefaultAdminOptions> adminOptions,
     ILogger<SystemInitializer> logger) : ISystemInitializer
 {
@@ -28,13 +30,15 @@ public class SystemInitializer(
         // 1. 初始化系统角色
         var (adminRole, memberRole) = await InitializeRolesAsync(cancellationToken);
 
-        // 2. 初始化默认管理员用户
+        // 2. 初始化默认分组
+        await providerGroupDomainService.EnsureDefaultProviderGroupAsync(cancellationToken);
+
+        // 3. 初始化默认管理员用户
         await InitializeDefaultAdminAsync(adminRole, cancellationToken);
 
         // 注意：Admin 角色不需要分配权限
         // 在 PermissionChecker 中，Admin 角色自动拥有所有权限
         logger.LogInformation("Admin 角色通过代码逻辑自动拥有所有权限，无需插入数据库");
-
         logger.LogInformation("系统数据初始化完成");
     }
 
@@ -43,7 +47,6 @@ public class SystemInitializer(
     /// </summary>
     private async Task<(Role AdminRole, Role MemberRole)> InitializeRolesAsync(CancellationToken cancellationToken)
     {
-        // 检查 Admin 角色是否存在
         var adminRole = await roleRepository.GetFirstAsync(r => r.Name == AdminRoleName, cancellationToken);
         if (adminRole == null)
         {
@@ -51,7 +54,7 @@ public class SystemInitializer(
                 name: AdminRoleName,
                 displayName: "管理员",
                 description: "系统管理员，拥有所有权限",
-                isStatic: true,  // 系统内置角色，不可删除
+                isStatic: true,
                 isDefault: false,
                 sort: 1
             );
@@ -59,7 +62,6 @@ public class SystemInitializer(
             logger.LogInformation("已创建系统角色: {RoleName}", AdminRoleName);
         }
 
-        // 检查 Member 角色是否存在
         var memberRole = await roleRepository.GetFirstAsync(r => r.Name == MemberRoleName, cancellationToken);
         if (memberRole == null)
         {
@@ -67,8 +69,8 @@ public class SystemInitializer(
                 name: MemberRoleName,
                 displayName: "普通成员",
                 description: "系统默认角色，新用户自动分配",
-                isStatic: true,  // 系统内置角色，不可删除
-                isDefault: true, // 默认角色，新用户自动分配
+                isStatic: true,
+                isDefault: true,
                 sort: 100
             );
             await roleRepository.InsertAsync(memberRole, cancellationToken);
@@ -84,8 +86,6 @@ public class SystemInitializer(
     private async Task InitializeDefaultAdminAsync(Role adminRole, CancellationToken cancellationToken)
     {
         var options = adminOptions.Value;
-
-        // 检查管理员用户是否存在
         var adminUser = await userRepository.GetFirstAsync(u => u.Username == options.Username, cancellationToken);
         if (adminUser != null)
         {
@@ -93,7 +93,6 @@ public class SystemInitializer(
             return;
         }
 
-        // 创建管理员用户
         var passwordHash = passwordHasher.HashPassword(options.Password);
         adminUser = new User(
             username: options.Username,
@@ -105,7 +104,6 @@ public class SystemInitializer(
         await userRepository.InsertAsync(adminUser, cancellationToken);
         logger.LogInformation("已创建默认管理员用户: {Username}", options.Username);
 
-        // 分配 Admin 角色
         var userRole = new UserRole(adminUser.Id, adminRole.Id);
         await userRoleRepository.InsertAsync(userRole, cancellationToken);
         logger.LogInformation("已为管理员用户分配 {RoleName} 角色", AdminRoleName);

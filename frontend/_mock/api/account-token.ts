@@ -1,20 +1,29 @@
 import { AccountStatus } from '../../src/app/features/platform/models/account-token.dto';
-import { PagedResultDto } from '../../src/app/shared/models/paged-result.dto';
+import { ROUTE_PROFILE_SUPPORTED_COMBINATIONS } from '../../src/app/shared/constants/route-profile.constants';
 import { AuthMethod } from '../../src/app/shared/models/auth-method.enum';
+import { PagedResultDto } from '../../src/app/shared/models/paged-result.dto';
 import { Provider } from '../../src/app/shared/models/provider.enum';
-import { MockRequest, MockException } from '../core/models';
+import { MockException, MockRequest } from '../core/models';
 import { SSE_MOCK_REGISTRY } from '../core/sse-mock-registry';
 import { ACCOUNT_TOKENS, AVAILABLE_MODELS, MOCK_CHAT_STREAM_CHUNKS } from '../data/account-token';
 
-const accounts = [...ACCOUNT_TOKENS];
+const accounts = ACCOUNT_TOKENS;
 
-// Helper to mask token
 function maskToken(token: string | undefined): string {
   if (!token || token.length < 12) return '***';
   return `${token.substring(0, 7)}...${token.substring(token.length - 4)}`;
 }
 
-// Helper to simulate detail fields
+function normalizeProviderGroupIds(providerGroupIds?: string[]): string[] {
+  return providerGroupIds?.length ? providerGroupIds : ['group-default'];
+}
+
+function inferSupportedRouteProfiles(provider: Provider, authMethod: AuthMethod) {
+  return Object.entries(ROUTE_PROFILE_SUPPORTED_COMBINATIONS)
+    .filter(([, combinations]) => combinations.some(item => item.provider === provider && item.authMethod === authMethod))
+    .map(([profile]) => profile);
+}
+
 function enrichAccount(account: any) {
   const isOAuth = account.authMethod === AuthMethod.OAuth;
   if (isOAuth) {
@@ -27,7 +36,7 @@ function enrichAccount(account: any) {
 }
 
 function getAccounts(req: MockRequest) {
-  const { keyword, provider, authMethod, isActive, offset = 0, limit = 10 } = req.queryParams;
+  const { keyword, provider, authMethod, isActive, providerGroupIds, offset = 0, limit = 10 } = req.queryParams;
 
   let items = accounts.map(enrichAccount);
 
@@ -51,6 +60,17 @@ function getAccounts(req: MockRequest) {
     items = items.filter(a => a.isActive === active);
   }
 
+  if (providerGroupIds) {
+    const targetGroupIds = String(providerGroupIds)
+      .split(',')
+      .map(id => id.trim())
+      .filter(Boolean);
+
+    if (targetGroupIds.length) {
+      items = items.filter(account => account.providerGroupIds.some((groupId: string) => targetGroupIds.includes(groupId)));
+    }
+  }
+
   const totalCount = items.length;
   const start = +offset;
   const end = start + +limit;
@@ -69,7 +89,6 @@ function getAccount(req: MockRequest) {
   return enrichAccount(account);
 }
 
-// Helper to simulate token exchange (internal use)
 function simulateTokenExchange(provider: string) {
   const providerStr = String(provider || 'unknown');
   const accessToken = `mock_access_token_${Date.now()}`;
@@ -94,7 +113,7 @@ function simulateTokenExchange(provider: string) {
   }
 
   return {
-    fullToken: refreshToken, // For mock storage
+    fullToken: refreshToken,
     accessToken,
     expiresIn,
     scope,
@@ -105,12 +124,10 @@ function simulateTokenExchange(provider: string) {
 function createAccount(req: MockRequest) {
   const body = req.body;
 
-  // Handle OAuth flow (exchange code if present)
   let credential = body.credential;
   let expiresIn = null;
 
   if (body.authCode) {
-    console.log('[Mock] Auto-exchanging code for new account:', body.authCode);
     const tokenInfo = simulateTokenExchange(body.provider);
     credential = tokenInfo.fullToken;
     expiresIn = tokenInfo.expiresIn;
@@ -132,11 +149,17 @@ function createAccount(req: MockRequest) {
     successRateTotal: 0,
     status: AccountStatus.Normal,
     currentConcurrency: 0,
-    expiresIn: expiresIn,
-    allowOfficialClientMimic: body.allowOfficialClientMimic ?? false
+    expiresIn,
+    priority: body.priority ?? 1,
+    weight: body.weight ?? 50,
+    providerGroupIds: normalizeProviderGroupIds(body.providerGroupIds),
+    supportedRouteProfiles: body.supportedRouteProfiles ?? inferSupportedRouteProfiles(body.provider, body.authMethod),
+    allowOfficialClientMimic: body.allowOfficialClientMimic ?? false,
+    isCheckStreamHealth: body.isCheckStreamHealth ?? false
   };
+
   accounts.unshift(newAccount);
-  return newAccount;
+  return enrichAccount(newAccount);
 }
 
 function updateAccount(req: MockRequest) {
@@ -145,28 +168,29 @@ function updateAccount(req: MockRequest) {
   const index = accounts.findIndex(a => a.id === id);
   if (index === -1) throw new MockException(404, 'Account not found');
 
-  // Handle OAuth flow (exchange code if present)
   let credential = body.credential;
-  let expiresIn = accounts[index].expiresIn; // ✅ Keep existing expiry by default
+  let expiresIn = accounts[index].expiresIn;
 
   if (body.authCode) {
-    console.log('[Mock] Auto-exchanging code for account update:', body.authCode);
     const tokenInfo = simulateTokenExchange(accounts[index].provider);
     credential = tokenInfo.fullToken;
     expiresIn = tokenInfo.expiresIn;
   }
 
-  const updateData = { ...body };
+  const updateData = {
+    ...body,
+    ...(body.providerGroupIds ? { providerGroupIds: normalizeProviderGroupIds(body.providerGroupIds) } : {})
+  };
+
   if (credential) {
     updateData.fullToken = maskToken(credential);
-    // ✅ 只有当 expiresIn 有值时才更新（APIKEY 保持原值，通常为 null）
     if (expiresIn !== null && expiresIn !== undefined) {
       updateData.expiresIn = expiresIn;
     }
   }
 
   accounts[index] = { ...accounts[index], ...updateData };
-  return accounts[index];
+  return enrichAccount(accounts[index]);
 }
 
 function deleteAccount(req: MockRequest) {
@@ -205,7 +229,6 @@ function resetStatus(req: MockRequest) {
 
 function getOAuthUrl(req: MockRequest) {
   const { provider } = req.queryParams;
-  console.log('[Mock] Generate Auth URL for:', provider);
 
   const sessionId = crypto.randomUUID();
   let authUrl = '';
@@ -271,7 +294,6 @@ function getOAuthUrl(req: MockRequest) {
 
     authUrl = `https://auth.openai.com/oauth/authorize?${params.toString()}`;
   } else {
-    // Default to Gemini OAuth
     const clientId = '681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com';
     const redirectUri = 'https://codeassist.google.com/authcode';
     const scopes = [
@@ -297,15 +319,11 @@ function getOAuthUrl(req: MockRequest) {
   }
 
   return {
-    authUrl: authUrl,
-    sessionId: sessionId
+    authUrl,
+    sessionId
   };
 }
 
-/**
- * POST /api/v1/account-tokens/:id/model-test
- * 账户令牌模型测试（SSE 流式响应）
- */
 SSE_MOCK_REGISTRY.register('POST', /\/api\/v1\/account-tokens\/[^/]+\/model-test$/, (body?: unknown) => {
   console.log('[SSE Mock] Account token model test:', body);
   return MOCK_CHAT_STREAM_CHUNKS;
@@ -315,18 +333,15 @@ function getAvailableModelsForProvider(req: MockRequest) {
   const provider = req.params['provider'] as Provider;
   const accountId = req.params['accountId'] as string | undefined;
 
-  // 无 accountId → 返回静态列表
   if (!accountId) {
     return AVAILABLE_MODELS[provider] ?? [];
   }
 
-  // 有 accountId → 模拟上游拉取
   const account = accounts.find(a => a.id === accountId);
   if (!account) {
     throw new MockException(404, 'Account not found');
   }
 
-  // 模拟上游拉取：ApiKey 类账户返回扩展列表，OAuth 类返回静态
   if (account.provider === Provider.Claude && account.authMethod === AuthMethod.ApiKey) {
     return [...(AVAILABLE_MODELS[provider] ?? []), { label: 'Claude Opus 4.7 (Upstream)', value: 'claude-opus-4-7-preview' }];
   }
@@ -335,7 +350,6 @@ function getAvailableModelsForProvider(req: MockRequest) {
     return [...(AVAILABLE_MODELS[provider] ?? []), { label: 'Gemini 3.2 Flash (Upstream)', value: 'gemini-3.2-flash-preview' }];
   }
 
-  // OAuth 类降级静态
   return AVAILABLE_MODELS[provider] ?? [];
 }
 

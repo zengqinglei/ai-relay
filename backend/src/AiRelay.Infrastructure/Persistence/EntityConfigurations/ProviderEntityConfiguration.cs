@@ -63,6 +63,8 @@ internal static class ProviderEntityConfiguration
 
             b.Property(e => e.CostToday).HasPrecision(18, 8);
             b.Property(e => e.CostTotal).HasPrecision(18, 8);
+            b.Property(e => e.Priority).HasDefaultValue(1);
+            b.Property(e => e.Weight).HasDefaultValue(50);
 
             b.HasIndex(e => new { e.Provider, e.IsActive, e.Status });
         });
@@ -96,6 +98,7 @@ internal static class ProviderEntityConfiguration
             b.Property(e => e.Name).IsRequired().HasMaxLength(256);
             b.Property(e => e.Description).HasMaxLength(1024);
             b.Property(e => e.RateMultiplier).HasPrecision(10, 4);
+            b.Property(e => e.IsDefault).HasDefaultValue(false);
 
             b.HasIndex(e => new { e.Name, e.DeletionTime }).IsUnique();
         });

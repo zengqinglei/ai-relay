@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using AiRelay.Domain.ProviderGroups.ValueObjects;
 
 namespace AiRelay.Application.ProviderGroups.Dtos;
 
@@ -23,15 +22,6 @@ public record CreateProviderGroupInputDto
     [MaxLength(1000, ErrorMessage = "{0}长度不能超过 {1} 个字符")]
     public string? Description { get; init; }
 
-
-
-    /// <summary>
-    /// 调度策略
-    /// </summary>
-    [Required(ErrorMessage = "{0}不能为空")]
-    [Display(Name = "调度策略")]
-    public GroupSchedulingStrategy SchedulingStrategy { get; init; }
-
     /// <summary>
     /// 是否启用粘性会话
     /// </summary>
@@ -51,10 +41,4 @@ public record CreateProviderGroupInputDto
     [Range(0.01, 100, ErrorMessage = "{0}必须在{1}-{2}之间")]
     [Display(Name = "费率倍数")]
     public decimal RateMultiplier { get; init; } = 1.0m;
-
-    /// <summary>
-    /// 初始关联账户列表
-    /// </summary>
-    [Display(Name = "关联账户")]
-    public List<AddGroupAccountInputDto> Accounts { get; init; } = new();
 }

@@ -12,16 +12,23 @@ export const SUBSCRIPTIONS: SubscriptionOutputDto[] = [
     usageToday: 150,
     usageTotal: 5000,
     costToday: 0.18,
-    costTotal: 6.0,
+    costTotal: 6,
     tokensToday: 15000,
     tokensTotal: 500000,
     bindings: [
       {
         priority: 1,
-        providerGroupId: 'group-002',
-        providerGroupName: 'OpenAI 高优先',
+        providerGroupId: 'group-default',
+        providerGroupName: 'default',
         creationTime: '2025-01-01T10:00:00Z',
-        supportedRouteProfiles: [RouteProfile.OpenAiResponses, RouteProfile.ChatCompletions]
+        supportedRouteProfiles: [
+          RouteProfile.GeminiBeta,
+          RouteProfile.GeminiInternal,
+          RouteProfile.OpenAiResponses,
+          RouteProfile.OpenAiCodex,
+          RouteProfile.ChatCompletions,
+          RouteProfile.ClaudeMessages
+        ]
       }
     ]
   },
@@ -37,23 +44,37 @@ export const SUBSCRIPTIONS: SubscriptionOutputDto[] = [
     usageToday: 8900,
     usageTotal: 250000,
     costToday: 13.35,
-    costTotal: 375.0,
+    costTotal: 375,
     tokensToday: 890000,
     tokensTotal: 25000000,
     bindings: [
       {
         priority: 1,
-        providerGroupId: 'group-002',
-        providerGroupName: 'OpenAI 高优先',
+        providerGroupId: 'group-openai-vip',
+        providerGroupName: 'openai-vip',
         creationTime: '2025-06-15T14:30:00Z',
-        supportedRouteProfiles: [RouteProfile.OpenAiResponses, RouteProfile.ChatCompletions]
+        supportedRouteProfiles: [RouteProfile.OpenAiResponses, RouteProfile.OpenAiCodex, RouteProfile.ChatCompletions]
       },
       {
         priority: 2,
-        providerGroupId: 'group-001',
-        providerGroupName: 'Gemini 免费池',
+        providerGroupId: 'group-compatible-fallback',
+        providerGroupName: 'compatible-fallback',
         creationTime: '2025-06-15T14:30:00Z',
-        supportedRouteProfiles: [RouteProfile.GeminiBeta, RouteProfile.GeminiInternal]
+        supportedRouteProfiles: []
+      },
+      {
+        priority: 3,
+        providerGroupId: 'group-default',
+        providerGroupName: 'default',
+        creationTime: '2025-06-15T14:30:00Z',
+        supportedRouteProfiles: [
+          RouteProfile.GeminiBeta,
+          RouteProfile.GeminiInternal,
+          RouteProfile.OpenAiResponses,
+          RouteProfile.OpenAiCodex,
+          RouteProfile.ChatCompletions,
+          RouteProfile.ClaudeMessages
+        ]
       }
     ]
   },

@@ -5,17 +5,16 @@ import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { finalize } from 'rxjs/operators';
 
-
+import { LayoutService } from '../../../../layout/services/layout-service';
 import {
-  GetProviderGroupsInputDto,
   CreateProviderGroupInputDto,
-  UpdateProviderGroupInputDto,
-  ProviderGroupOutputDto
+  GetProviderGroupsInputDto,
+  ProviderGroupOutputDto,
+  UpdateProviderGroupInputDto
 } from '../../models/provider-group.dto';
 import { ProviderGroupService } from '../../services/provider-group-service';
 import { GroupEditDialogComponent } from './widgets/group-edit-dialog/group-edit-dialog';
 import { GroupTable, GroupTableFilterEvent } from './widgets/group-table/group-table';
-import { LayoutService } from '../../../../layout/services/layout-service';
 
 @Component({
   selector: 'app-provider-group',
@@ -31,18 +30,15 @@ export class ProviderGroupPage implements OnInit {
   private messageService = inject(MessageService);
   private layoutService = inject(LayoutService);
 
-  // State
   groups = signal<ProviderGroupOutputDto[]>([]);
   totalRecords = signal(0);
   loading = signal(false);
 
-  // Dialog State
   editDialogVisible = signal(false);
-  editDialogLoading = signal(false); // Loading for fetching group details
-  editDialogSaving = signal(false); // Loading for saving operation
+  editDialogLoading = signal(false);
+  editDialogSaving = signal(false);
   selectedGroup = signal<ProviderGroupOutputDto | null>(null);
 
-  // Filter State
   currentFilter = signal<GetProviderGroupsInputDto>({
     offset: 0,
     limit: 10
@@ -50,12 +46,6 @@ export class ProviderGroupPage implements OnInit {
 
   ngOnInit() {
     this.layoutService.title.set('资源池');
-    // Initial load will be triggered by table's onLazyLoad or we trigger manually if lazy load doesn't fire on init (PrimeNG usually fires it)
-    // For safety, we can trigger it or wait for table.
-    // If table [lazy]="true", it usually triggers onInit.
-    // Let's rely on Table to trigger the first load via onPage/onLazyLoad if we bound it correctly.
-    // However, in GroupTable, we emit filterChange onPage.
-    // But we need to listen to filterChange in the parent template.
   }
 
   loadData() {
@@ -73,17 +63,14 @@ export class ProviderGroupPage implements OnInit {
   }
 
   onFilterChange(event: GroupTableFilterEvent) {
-    const filter: GetProviderGroupsInputDto = {
+    this.currentFilter.set({
       offset: event.offset,
       limit: event.limit,
       keyword: event.q,
       sorting: event.sorting
-    };
-    this.currentFilter.set(filter);
+    });
     this.loadData();
   }
-
-  // --- Actions ---
 
   openAddDialog() {
     this.selectedGroup.set(null);
@@ -91,12 +78,10 @@ export class ProviderGroupPage implements OnInit {
   }
 
   openEditDialog(id: string) {
-    // Open dialog immediately for better UX
-    this.selectedGroup.set(null); // Clear first to avoid showing stale data
+    this.selectedGroup.set(null);
     this.editDialogVisible.set(true);
     this.editDialogLoading.set(true);
 
-    // Fetch detail in background
     this.service
       .getGroup(id)
       .pipe(finalize(() => this.editDialogLoading.set(false)))
@@ -140,8 +125,14 @@ export class ProviderGroupPage implements OnInit {
   }
 
   handleDelete(id: string) {
+    const target = this.groups().find(group => group.id === id);
+    if (target?.isDefault) {
+      this.messageService.add({ severity: 'warn', summary: '提示', detail: '默认分组不可删除' });
+      return;
+    }
+
     this.confirmationService.confirm({
-      message: '确定要删除该分组吗？删除后关联的ApiKey可能无法正常工作。',
+      message: '确定要删除该分组吗？删除后关联的 ApiKey 可能无法正常工作。',
       header: '确认删除',
       icon: 'pi pi-exclamation-triangle',
       accept: () => {

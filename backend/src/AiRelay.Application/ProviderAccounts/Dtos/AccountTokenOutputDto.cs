@@ -78,6 +78,26 @@ public class AccountTokenOutputDto
     public int CurrentConcurrency { get; set; }
 
     /// <summary>
+    /// 调度优先级（值越小优先级越高）
+    /// </summary>
+    public int Priority { get; init; }
+
+    /// <summary>
+    /// 调度权重（同优先级内按权重分配）
+    /// </summary>
+    public int Weight { get; init; }
+
+    /// <summary>
+    /// 所属分组ID列表
+    /// </summary>
+    public List<Guid> ProviderGroupIds { get; set; } = [];
+
+    /// <summary>
+    /// 该账户支持的路由协议
+    /// </summary>
+    public List<RouteProfile> SupportedRouteProfiles { get; set; } = [];
+
+    /// <summary>
     /// 完整 Token (敏感信息，仅编辑时返回)
     /// </summary>
     public string FullToken { get; init; } = string.Empty;

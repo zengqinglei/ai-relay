@@ -8,9 +8,8 @@ using Leistd.Ddd.Application.Contracts.Dtos;
 using Leistd.Ddd.Domain.Repositories;
 using Leistd.Exception.Core;
 using Leistd.ObjectMapping.Core;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using AiRelay.Domain.ProviderGroups.DomainServices.SchedulingStrategy.AccountConcurrencyStrategy;
-using Leistd.Ddd.Infrastructure.Persistence.Repositories;
 
 namespace AiRelay.Application.ProviderGroups.AppServices;
 
@@ -21,7 +20,6 @@ public class ProviderGroupAppService(
     IRepository<ProviderGroup, Guid> providerGroupRepository,
     IRepository<ProviderGroupAccountRelation, Guid> relationRepository,
     ProviderGroupDomainService providerGroupDomainService,
-    IConcurrencyStrategy concurrencyStrategy,
     ILogger<ProviderGroupAppService> logger,
     IObjectMapper objectMapper,
     IQueryableAsyncExecuter asyncExecuter) : BaseAppService(), IProviderGroupAppService
@@ -32,17 +30,12 @@ public class ProviderGroupAppService(
     {
         logger.LogInformation("开始创建分组 {Name}...", input.Name);
 
-        var accounts = input.Accounts?.Select(a => (a.AccountTokenId, a.Priority, a.Weight)).ToList()
-                       ?? new List<(Guid AccountId, int Priority, int Weight)>();
-
-        var group = await providerGroupDomainService.CreateGroupWithAccountsAsync(
+        var group = await providerGroupDomainService.CreateGroupAsync(
             input.Name,
             input.Description,
-            input.SchedulingStrategy,
             input.EnableStickySession,
             input.StickySessionExpirationHours,
             input.RateMultiplier,
-            accounts,
             cancellationToken);
 
         logger.LogInformation("创建分组成功 (ID: {Id})", group.Id);
@@ -57,18 +50,13 @@ public class ProviderGroupAppService(
         if (existingGroup == null)
             throw new NotFoundException($"分组不存在: {id}");
 
-        var accounts = input.Accounts?.Select(a => (a.AccountTokenId, a.Priority, a.Weight)).ToList()
-                       ?? new List<(Guid AccountId, int Priority, int Weight)>();
-
-        var group = await providerGroupDomainService.UpdateGroupWithAccountsAsync(
+        var group = await providerGroupDomainService.UpdateGroupAsync(
             id,
             input.Name,
             input.Description,
-            input.SchedulingStrategy,
             input.EnableStickySession,
             input.StickySessionExpirationHours,
             input.RateMultiplier,
-            accounts,
             cancellationToken);
 
         logger.LogInformation("更新分组成功 (ID: {Id})", id);
@@ -78,9 +66,7 @@ public class ProviderGroupAppService(
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("开始删除分组 {Id}...", id);
-
         await providerGroupDomainService.DeleteGroupAsync(id, cancellationToken);
-
         logger.LogInformation("删除分组成功 (ID: {Id})", id);
     }
 
@@ -108,39 +94,25 @@ public class ProviderGroupAppService(
         query = query.OrderBy(sorting);
 
         var totalCount = await asyncExecuter.CountAsync(query, cancellationToken);
-        var providerGroups = await asyncExecuter.ToListAsync(query
-            .Skip(input.Offset)
-            .Take(input.Limit), cancellationToken);
-
+        var providerGroups = await asyncExecuter.ToListAsync(query.Skip(input.Offset).Take(input.Limit), cancellationToken);
         var result = objectMapper.Map<List<ProviderGroup>, List<ProviderGroupOutputDto>>(providerGroups);
 
         // 批量加载关联的账户
-        if (providerGroups.Any())
+        if (providerGroups.Count > 0)
         {
-            var groupIds = providerGroups.Select(g => g.Id).ToList();
-            var relationQuery = await relationRepository.GetQueryIncludingAsync(cancellationToken, r => r.AccountToken);
-            var allRelations = await asyncExecuter.ToListAsync(relationQuery
-                .Where(r => groupIds.Contains(r.ProviderGroupId)),
-                cancellationToken);
-
-            var relationsByGroup = allRelations
-                .GroupBy(r => r.ProviderGroupId)
-                .ToDictionary(g => g.Key, g => g.ToList());
-
-            // 批量获取所有涉及账户的实时并发数
-            var allAccountIds = allRelations.Select(r => r.AccountTokenId).Distinct().ToList();
-            var concurrencyCounts = await concurrencyStrategy.GetConcurrencyCountsAsync(allAccountIds, cancellationToken);
-            var contextItems = new Dictionary<string, object>
-            {
-                ["ConcurrencyCounts"] = concurrencyCounts
-            };
+            var summaryByGroupId = await GetGroupSummaryByIdsAsync(providerGroups.Select(g => g.Id).ToList(), cancellationToken);
 
             foreach (var groupDto in result)
             {
-                if (relationsByGroup.TryGetValue(groupDto.Id, out var relations))
+                if (summaryByGroupId.TryGetValue(groupDto.Id, out var summary))
                 {
-                    groupDto.Accounts = objectMapper.Map<List<ProviderGroupAccountRelation>, List<GroupAccountRelationOutputDto>>(relations, contextItems);
-                    groupDto.SupportedRouteProfiles = ResolveRouteProfiles(groupDto.Accounts);
+                    groupDto.AccountCount = summary.AccountCount;
+                    groupDto.SupportedRouteProfiles = summary.SupportedRouteProfiles;
+                }
+                else
+                {
+                    groupDto.AccountCount = 0;
+                    groupDto.SupportedRouteProfiles = [];
                 }
             }
         }
@@ -156,41 +128,58 @@ public class ProviderGroupAppService(
     {
         var result = objectMapper.Map<ProviderGroup, ProviderGroupOutputDto>(group);
 
-        // 加载关联的账户
-        var relationQuery = await relationRepository.GetQueryIncludingAsync(cancellationToken, r => r.AccountToken);
-        var relations = await asyncExecuter.ToListAsync(relationQuery
-            .Where(r => r.ProviderGroupId == group.Id),
-            cancellationToken);
-
-        if (relations.Any())
+        var summaryByGroupId = await GetGroupSummaryByIdsAsync([group.Id], cancellationToken);
+        if (summaryByGroupId.TryGetValue(group.Id, out var summary))
         {
-            var accountIds = relations.Select(a => a.AccountTokenId).Distinct().ToList();
-            var concurrencyCounts = await concurrencyStrategy.GetConcurrencyCountsAsync(accountIds, cancellationToken);
-            var contextItems = new Dictionary<string, object>
-            {
-                ["ConcurrencyCounts"] = concurrencyCounts
-            };
-
-            result.Accounts = objectMapper.Map<List<ProviderGroupAccountRelation>, List<GroupAccountRelationOutputDto>>(relations, contextItems);
-            result.SupportedRouteProfiles = ResolveRouteProfiles(result.Accounts);
+            result.AccountCount = summary.AccountCount;
+            result.SupportedRouteProfiles = summary.SupportedRouteProfiles;
         }
         else
         {
-            result.Accounts = [];
+            result.AccountCount = 0;
             result.SupportedRouteProfiles = [];
         }
 
         return result;
     }
 
+    private async Task<Dictionary<Guid, (int AccountCount, List<RouteProfile> SupportedRouteProfiles)>> GetGroupSummaryByIdsAsync(
+        IReadOnlyCollection<Guid> groupIds,
+        CancellationToken cancellationToken)
+    {
+        if (groupIds.Count == 0)
+        {
+            return [];
+        }
+
+        var relationQuery = await relationRepository.GetQueryableAsync(cancellationToken);
+        var relations = await asyncExecuter.ToListAsync(
+            relationQuery
+                .Include(r => r.AccountToken)
+                .Where(r => groupIds.Contains(r.ProviderGroupId) && r.AccountToken != null),
+            cancellationToken);
+
+        return relations
+            .GroupBy(r => r.ProviderGroupId)
+            .ToDictionary(
+                group => group.Key,
+                group => (
+                    AccountCount: group.Count(),
+                    SupportedRouteProfiles: ResolveRouteProfiles(group
+                        .Where(r => r.AccountToken != null)
+                        .Select(r => (r.AccountToken!.Provider, r.AccountToken!.AuthMethod))
+                        .ToHashSet())));
+    }
+
     /// <summary>
     /// 从账号的 (Provider, AuthMethod) 组合反查 RouteProfileRegistry，得出该分组能响应的路由协议列表
     /// </summary>
-    private static List<RouteProfile> ResolveRouteProfiles(List<GroupAccountRelationOutputDto> accounts)
+    private static List<RouteProfile> ResolveRouteProfiles(HashSet<(Provider Provider, AuthMethod AuthMethod)> combinations)
     {
-        var combinations = accounts
-            .Select(a => (a.Provider, a.AuthMethod))
-            .ToHashSet();
+        if (combinations.Count == 0)
+        {
+            return [];
+        }
 
         return RouteProfileRegistry.Profiles
             .Where(p => p.Value.SupportedCombinations.Any(c => combinations.Contains((c.Provider, c.AuthMethod))))
@@ -198,6 +187,8 @@ public class ProviderGroupAppService(
             .OrderBy(p => p)
             .ToList();
     }
+
+    private sealed record ProviderGroupSummary(int AccountCount, List<RouteProfile> SupportedRouteProfiles);
 
     #endregion
 }

@@ -1,8 +1,22 @@
+import { findGroupById } from './provider-group';
 import { PagedResultDto } from '../../src/app/shared/models/paged-result.dto';
-import { MockRequest, MockException } from '../core/models';
+import { MockException, MockRequest } from '../core/models';
 import { SUBSCRIPTIONS } from '../data/subscriptions';
 
-const subscriptions = [...SUBSCRIPTIONS];
+const subscriptions = SUBSCRIPTIONS;
+
+function normalizeBindings(bindings: Array<{ priority: number; providerGroupId: string }>, creationTime: string) {
+  return bindings.map((binding, index) => {
+    const group = findGroupById(binding.providerGroupId);
+    return {
+      priority: index + 1,
+      providerGroupId: binding.providerGroupId,
+      providerGroupName: group?.name ?? binding.providerGroupId,
+      creationTime,
+      supportedRouteProfiles: group?.supportedRouteProfiles ?? []
+    };
+  });
+}
 
 function getSubscriptions(req: MockRequest) {
   const { keyword, isActive, offset = 0, limit = 10 } = req.queryParams;
@@ -40,20 +54,21 @@ function getSubscription(req: MockRequest) {
 function createSubscription(req: MockRequest) {
   const body = req.body;
   const secret = body.customSecret || `sk_mock_auto_generated_${Math.random().toString(36).substring(7)}`;
+  const creationTime = new Date().toISOString();
 
   const newSub = {
     ...body,
     id: crypto.randomUUID(),
-    secret: secret,
+    secret,
     isActive: true,
-    creationTime: new Date().toISOString(),
+    creationTime,
     usageToday: 0,
     usageTotal: 0,
     costToday: 0,
     costTotal: 0,
     tokensToday: 0,
     tokensTotal: 0,
-    bindings: body.bindings || []
+    bindings: normalizeBindings(body.bindings || [], creationTime)
   };
   subscriptions.unshift(newSub);
   return newSub;
@@ -65,7 +80,11 @@ function updateSubscription(req: MockRequest) {
   const index = subscriptions.findIndex(s => s.id === id);
   if (index === -1) throw new MockException(404, 'Subscription not found');
 
-  subscriptions[index] = { ...subscriptions[index], ...body };
+  subscriptions[index] = {
+    ...subscriptions[index],
+    ...body,
+    bindings: normalizeBindings(body.bindings || [], subscriptions[index].creationTime)
+  };
   return subscriptions[index];
 }
 

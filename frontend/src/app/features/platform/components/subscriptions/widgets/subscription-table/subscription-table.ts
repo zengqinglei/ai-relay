@@ -1,6 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { AfterViewInit, ChangeDetectionStrategy, Component, DestroyRef, ElementRef, EventEmitter, ViewChild, input, Output, inject, signal } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ChangeDetectionStrategy, Component, EventEmitter, input, Output, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
@@ -13,7 +12,6 @@ import { TagModule } from 'primeng/tag';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { TooltipModule } from 'primeng/tooltip';
 
-import { LayoutService } from '../../../../../../layout/services/layout-service';
 import { ROUTE_PROFILE_FULL_LABELS, ROUTE_PROFILE_LABELS } from '../../../../../../shared/constants/route-profile.constants';
 import { RouteProfile } from '../../../../../../shared/models/route-profile.enum';
 import { formatTokenCount } from '../../../../../../shared/utils/format.utils';
@@ -52,7 +50,7 @@ export interface SubscriptionTableFilterEvent {
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [ConfirmationService]
 })
-export class SubscriptionTable implements AfterViewInit {
+export class SubscriptionTable {
   subscriptions = input.required<ApiKeyOutputDto[]>();
   totalRecords = input.required<number>();
   loading = input<boolean>(false);
@@ -63,12 +61,8 @@ export class SubscriptionTable implements AfterViewInit {
   @Output() readonly updateExpiryAndEnable = new EventEmitter<{ id: string; date: Date }>();
   @Output() readonly filterChange = new EventEmitter<SubscriptionTableFilterEvent>();
 
-  @ViewChild('bindingColumnContainer') bindingColumnContainer?: ElementRef<HTMLElement>;
-
   private confirmationService = inject(ConfirmationService);
   private messageService = inject(MessageService);
-  private readonly layoutService = inject(LayoutService);
-  private readonly destroyRef = inject(DestroyRef);
 
   expiryDialogVisible = signal(false);
   selectedItemForExpiry = signal<ApiKeyOutputDto | null>(null);
@@ -83,12 +77,7 @@ export class SubscriptionTable implements AfterViewInit {
   sortOrder = signal<number>(-1);
   activeBindings = signal<ApiKeyBindingOutputDto[]>([]);
   bindPopoverMode = signal<BindPopoverMode>('summary');
-  visibleBindingCount = signal(3);
-  private bindingResizeObserver?: ResizeObserver;
-
-  ngAfterViewInit(): void {
-    queueMicrotask(() => this.setupBindingResizeObserver());
-  }
+  visibleBindingCount = signal(2);
 
   onPage(event: TableLazyLoadEvent) {
     this.first = event.first ?? 0;
@@ -102,36 +91,6 @@ export class SubscriptionTable implements AfterViewInit {
       limit: this.rows,
       sorting: `${this.sortField()} ${this.sortOrder() === 1 ? 'asc' : 'desc'}`
     });
-  }
-
-  private setupBindingResizeObserver(): void {
-    const element = this.bindingColumnContainer?.nativeElement;
-    if (!element || typeof ResizeObserver === 'undefined') {
-      this.updateVisibleBindingCount(this.layoutService.sidebarCollapsed() ? 18 * 16 : 15 * 16);
-      return;
-    }
-
-    this.bindingResizeObserver?.disconnect();
-    this.bindingResizeObserver = new ResizeObserver(entries => {
-      const width = entries[0]?.contentRect.width ?? element.clientWidth;
-      this.updateVisibleBindingCount(width);
-    });
-    this.bindingResizeObserver.observe(element);
-    this.destroyRef.onDestroy(() => this.bindingResizeObserver?.disconnect());
-  }
-
-  private updateVisibleBindingCount(width: number): void {
-    if (width >= 280) {
-      this.visibleBindingCount.set(3);
-      return;
-    }
-
-    if (width >= 190) {
-      this.visibleBindingCount.set(2);
-      return;
-    }
-
-    this.visibleBindingCount.set(1);
   }
 
   getVisibleBindings(item: ApiKeyOutputDto): ApiKeyBindingOutputDto[] {

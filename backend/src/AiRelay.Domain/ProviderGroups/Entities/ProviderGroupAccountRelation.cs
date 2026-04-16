@@ -19,16 +19,6 @@ public class ProviderGroupAccountRelation : DeletionAuditedEntity<Guid>
     public Guid AccountTokenId { get; private set; }
 
     /// <summary>
-    /// 优先级（用于 Priority 策略，值越小优先级越高）
-    /// </summary>
-    public int Priority { get; private set; }
-
-    /// <summary>
-    /// 权重（用于 WeightedRandom 策略，1-1000）
-    /// </summary>
-    public int Weight { get; private set; } = 1;
-
-    /// <summary>
     /// 是否启用
     /// </summary>
     public bool IsActive { get; private set; } = true;
@@ -43,30 +33,11 @@ public class ProviderGroupAccountRelation : DeletionAuditedEntity<Guid>
     /// <summary>
     /// 创建关联
     /// </summary>
-    public ProviderGroupAccountRelation(
-        Guid providerGroupId,
-        Guid accountTokenId,
-        int priority = 0,
-        int weight = 1)
+    public ProviderGroupAccountRelation(Guid providerGroupId, Guid accountTokenId)
     {
         Id = Guid.CreateVersion7();
         ProviderGroupId = providerGroupId;
         AccountTokenId = accountTokenId;
-        Priority = priority;
-        Weight = weight;
-    }
-
-    /// <summary>
-    /// 更新优先级
-    /// </summary>
-    public void UpdatePriority(int priority) => Priority = priority;
-
-    /// <summary>
-    /// 更新权重
-    /// </summary>
-    public void UpdateWeight(int weight)
-    {
-        Weight = weight;
     }
 
     /// <summary>

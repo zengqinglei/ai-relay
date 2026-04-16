@@ -1,17 +1,5 @@
 import { CommonModule } from '@angular/common';
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  EventEmitter,
-  inject,
-  input,
-  OnInit,
-  Output,
-  signal,
-  ViewChild
-} from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ChangeDetectionStrategy, Component, EventEmitter, inject, input, OnInit, Output, signal, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ConfirmationService, MenuItem } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
@@ -20,6 +8,8 @@ import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
 import { MenuModule } from 'primeng/menu';
+import { MultiSelectModule } from 'primeng/multiselect';
+import { Popover, PopoverModule } from 'primeng/popover';
 import { SelectModule } from 'primeng/select';
 import { SkeletonModule } from 'primeng/skeleton';
 import { TableLazyLoadEvent, TableModule } from 'primeng/table';
@@ -31,14 +21,24 @@ import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 
 import { PlatformIcon } from '../../../../../../shared/components/platform-icon/platform-icon';
 import { AUTH_METHOD_OPTIONS, PROVIDER_OPTIONS } from '../../../../../../shared/constants/provider.constants';
-import { Provider } from '../../../../../../shared/models/provider.enum';
-import { ProviderLabelPipe } from '../../../../../../shared/pipes/platform-label-pipe';
-import { AuthMethodLabelPipe } from '../../../../../../shared/pipes/auth-method-label.pipe';
-import { FilterStateService } from '../../../../../../shared/services/filter-state.service';
+import { ROUTE_PROFILE_FULL_LABELS, ROUTE_PROFILE_LABELS } from '../../../../../../shared/constants/route-profile.constants';
 import { AuthMethod } from '../../../../../../shared/models/auth-method.enum';
-import { formatDuration, formatDurationVerbose, formatTokenCount } from '../../../../../../shared/utils/format.utils';
-import { GetAccountTokenPagedInputDto, AccountTokenOutputDto, AccountStatus } from '../../../../models/account-token.dto';
+import { Provider } from '../../../../../../shared/models/provider.enum';
+import { RouteProfile } from '../../../../../../shared/models/route-profile.enum';
+import { AuthMethodLabelPipe } from '../../../../../../shared/pipes/auth-method-label.pipe';
+import { ProviderLabelPipe } from '../../../../../../shared/pipes/platform-label-pipe';
+import { FilterStateService } from '../../../../../../shared/services/filter-state.service';
+import { formatDurationVerbose, formatTokenCount } from '../../../../../../shared/utils/format.utils';
+import { AccountStatus, AccountTokenOutputDto, GetAccountTokenPagedInputDto } from '../../../../models/account-token.dto';
+import { ProviderGroupOutputDto } from '../../../../models/provider-group.dto';
+import { ProviderGroupService } from '../../../../services/provider-group-service';
+import {
+  RelationPopoverContentComponent,
+  RelationPopoverItem
+} from '../../../shared/widgets/relation-popover-content/relation-popover-content';
 import { ModelTestDialog } from '../model-test-dialog/model-test-dialog';
+
+type AccountGroupPopoverMode = 'details' | 'summary';
 
 @Component({
   selector: 'app-account-table',
@@ -58,10 +58,13 @@ import { ModelTestDialog } from '../model-test-dialog/model-test-dialog';
     InputIconModule,
     ConfirmPopupModule,
     MenuModule,
+    MultiSelectModule,
+    PopoverModule,
     ProviderLabelPipe,
     AuthMethodLabelPipe,
     ModelTestDialog,
-    PlatformIcon
+    PlatformIcon,
+    RelationPopoverContentComponent
   ],
   templateUrl: './account-table.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -83,8 +86,8 @@ export class AccountTable implements OnInit {
   @ViewChild(ModelTestDialog) modelTestDialog!: ModelTestDialog;
 
   private confirmationService = inject(ConfirmationService);
-  private destroyRef = inject(DestroyRef);
   private filterStateService = inject(FilterStateService);
+  private providerGroupService = inject(ProviderGroupService);
   private searchSubject = new Subject<string>();
 
   private readonly FILTER_KEY = 'account-token';
@@ -94,14 +97,15 @@ export class AccountTable implements OnInit {
   selectedProvider = signal<Provider | null>(null);
   selectedAuthMethod = signal<AuthMethod | null>(null);
   selectedStatus = signal<'active' | 'inactive' | null>(null);
+  selectedProviderGroupIds = signal<string[]>([]);
 
   // Menu
   menuItems = signal<MenuItem[]>([]);
 
   // Dropdown options
   providerOptions = PROVIDER_OPTIONS;
-
   authMethodOptions = AUTH_METHOD_OPTIONS;
+  providerGroupOptions = signal<ProviderGroupOutputDto[]>([]);
 
   statusOptions = [
     { label: '已启用', value: 'active' },
@@ -115,10 +119,13 @@ export class AccountTable implements OnInit {
   rows = 10;
   sortField = signal<string>('creationTime');
   sortOrder = signal<number>(-1);
+  activeProviderGroups = signal<ProviderGroupOutputDto[]>([]);
+  groupPopoverMode = signal<AccountGroupPopoverMode>('summary');
+  visibleGroupCount = signal(2);
 
   constructor() {
     this.searchSubject
-      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .pipe(debounceTime(300), distinctUntilChanged())
       .subscribe(() => this.onFilter());
   }
 
@@ -128,13 +135,17 @@ export class AccountTable implements OnInit {
       provider: Provider | null;
       authMethod: AuthMethod | null;
       isActive: boolean | null;
+      providerGroupIds: string[];
     }>(this.FILTER_KEY);
     if (saved.keyword) this.searchQuery.set(saved.keyword);
     if (saved.provider) this.selectedProvider.set(saved.provider);
     if (saved.authMethod) this.selectedAuthMethod.set(saved.authMethod);
+    if (saved.providerGroupIds?.length) this.selectedProviderGroupIds.set(saved.providerGroupIds);
 
     if (saved.isActive === true) this.selectedStatus.set('active');
     else if (saved.isActive === false) this.selectedStatus.set('inactive');
+
+    this.providerGroupService.getAll().subscribe(groups => this.providerGroupOptions.set(groups));
   }
 
   onSearchQueryChange(value: string) {
@@ -165,7 +176,7 @@ export class AccountTable implements OnInit {
     this.modelTestDialog.open(account);
   }
 
-  showActionMenu(event: Event, menu: any, account: AccountTokenOutputDto) {
+  showActionMenu(event: Event, menu: { toggle: (event: Event) => void }, account: AccountTokenOutputDto) {
     const isRateLimited = account.status === AccountStatus.RateLimited;
 
     // Base items (Detail, Delete) always in menu
@@ -210,7 +221,8 @@ export class AccountTable implements OnInit {
       keyword: this.searchQuery(),
       provider: this.selectedProvider(),
       authMethod: this.selectedAuthMethod(),
-      isActive: isActive
+      isActive,
+      providerGroupIds: this.selectedProviderGroupIds()
     });
 
     const filter: GetAccountTokenPagedInputDto = {
@@ -219,10 +231,88 @@ export class AccountTable implements OnInit {
       keyword: this.searchQuery() || undefined,
       provider: this.selectedProvider() || undefined,
       authMethod: this.selectedAuthMethod() || undefined,
-      isActive: isActive,
+      isActive,
+      providerGroupIds: this.selectedProviderGroupIds().length ? this.selectedProviderGroupIds() : undefined,
       sorting: `${this.sortField()} ${this.sortOrder() === 1 ? 'asc' : 'desc'}`
     };
     this.filterChange.emit(filter);
+  }
+
+  getAccountGroups(account: AccountTokenOutputDto): ProviderGroupOutputDto[] {
+    const groupMap = new Map(this.providerGroupOptions().map(group => [group.id, group]));
+    return account.providerGroupIds.map(id => groupMap.get(id)).filter((group): group is ProviderGroupOutputDto => !!group);
+  }
+
+  getVisibleGroups(account: AccountTokenOutputDto): ProviderGroupOutputDto[] {
+    return this.getAccountGroups(account).slice(0, this.visibleGroupCount());
+  }
+
+  getHiddenGroups(account: AccountTokenOutputDto): ProviderGroupOutputDto[] {
+    return this.getAccountGroups(account).slice(this.visibleGroupCount());
+  }
+
+  openGroupDetailsPopover(event: Event, popover: Popover, group: ProviderGroupOutputDto) {
+    this.groupPopoverMode.set('details');
+    this.activeProviderGroups.set([group]);
+    popover.toggle(event);
+  }
+
+  openGroupSummaryPopover(event: Event, popover: Popover, groups: ProviderGroupOutputDto[]) {
+    this.groupPopoverMode.set('summary');
+    this.activeProviderGroups.set(groups);
+    popover.toggle(event);
+  }
+
+  getGroupPopoverItems(): RelationPopoverItem[] {
+    if (this.groupPopoverMode() === 'details') {
+      return this.activeProviderGroups().flatMap(group => {
+        if (!group.supportedRouteProfiles?.length) {
+          return [
+            {
+              id: `${group.id}-empty`,
+              leftText: group.name,
+              rightText: '空资源池',
+              isWarning: true
+            }
+          ];
+        }
+
+        return group.supportedRouteProfiles.map(profile => ({
+          id: `${group.id}-${profile}`,
+          leftText: this.getRouteProfileLabel(profile),
+          rightText: this.getRouteProfilePath(profile)
+        }));
+      });
+    }
+
+    return this.activeProviderGroups().map(group => ({
+      id: group.id,
+      leftText: group.name,
+      rightText: this.getGroupRouteBadgeSummary(group),
+      isWarning: !group.supportedRouteProfiles?.length
+    }));
+  }
+
+  getGroupRouteBadgeSummary(group: ProviderGroupOutputDto): string {
+    if (!group.supportedRouteProfiles?.length) {
+      return '空资源池';
+    }
+
+    return group.supportedRouteProfiles.map(profile => this.getRouteProfileLabel(profile)).join(' | ');
+  }
+
+  getRouteProfilePath(profile: RouteProfile): string {
+    const fullLabel = this.getRouteProfileFullLabel(profile);
+    const match = /\(([^)]+)\)$/.exec(fullLabel);
+    return match?.[1] ?? fullLabel;
+  }
+
+  getRouteProfileLabel(profile: RouteProfile): string {
+    return ROUTE_PROFILE_LABELS[profile] || profile;
+  }
+
+  getRouteProfileFullLabel(profile: RouteProfile): string {
+    return ROUTE_PROFILE_FULL_LABELS[profile] || profile;
   }
 
   // 简单判断是否过期或接近过期
@@ -237,22 +327,8 @@ export class AccountTable implements OnInit {
     return 'ok';
   }
 
-  formatExpiry(seconds: number): string {
-    const h = (seconds / 3600).toFixed(1);
-    return `${h}h`;
-  }
-
   formatMinutes(seconds: number): string {
     return Math.floor(seconds / 60).toString();
-  }
-
-  formatDuration(seconds?: number): string {
-    if (!seconds) return '-';
-    if (seconds < 60) return `${seconds}秒`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}分${seconds % 60 > 0 ? `${seconds % 60}秒` : ''}`;
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    return `${h}小时${m > 0 ? `${m}分` : ''}`;
   }
 
   /**
@@ -358,3 +434,4 @@ export class AccountTable implements OnInit {
 
   formatTokenCount = formatTokenCount;
 }
+

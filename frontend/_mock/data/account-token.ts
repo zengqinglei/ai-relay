@@ -6,6 +6,7 @@ import {
 import { ModelOptionOutputDto } from '../../src/app/features/platform/models/model-option.dto';
 import { AuthMethod } from '../../src/app/shared/models/auth-method.enum';
 import { Provider } from '../../src/app/shared/models/provider.enum';
+import { RouteProfile } from '../../src/app/shared/models/route-profile.enum';
 
 export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
   {
@@ -31,6 +32,10 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     successRateTotal: 99.5,
     maxConcurrency: 10,
     currentConcurrency: 3,
+    priority: 10,
+    weight: 100,
+    providerGroupIds: ['group-default', 'group-gemini-shared'],
+    supportedRouteProfiles: [RouteProfile.GeminiBeta, RouteProfile.GeminiInternal],
     allowOfficialClientMimic: true,
     isCheckStreamHealth: true,
     modelWhites: ['gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash'],
@@ -59,6 +64,10 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     successRateTotal: 97.8,
     maxConcurrency: 5,
     currentConcurrency: 1,
+    priority: 1,
+    weight: 20,
+    providerGroupIds: ['group-default', 'group-gemini-shared'],
+    supportedRouteProfiles: [RouteProfile.GeminiBeta, RouteProfile.GeminiInternal],
     allowOfficialClientMimic: true,
     isCheckStreamHealth: true
   },
@@ -74,7 +83,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     status: AccountStatus.RateLimited,
     statusDescription: '当前账号已触发限流',
     rateLimitDurationSeconds: 3600,
-    lockedUntil: new Date(Date.now() + 1800000).toISOString(), // 30 minutes from now
+    lockedUntil: new Date(Date.now() + 1800000).toISOString(),
     expiresIn: null,
     tokenObtainedTime: '2023-12-10T09:30:00Z',
     creationTime: '2023-12-10T09:30:00Z',
@@ -89,6 +98,10 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     successRateTotal: 72.3,
     maxConcurrency: 2,
     currentConcurrency: 0,
+    priority: 3,
+    weight: 50,
+    providerGroupIds: ['group-default'],
+    supportedRouteProfiles: [RouteProfile.GeminiBeta],
     allowOfficialClientMimic: false,
     isCheckStreamHealth: false
   },
@@ -115,6 +128,10 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     successRateTotal: 99.2,
     maxConcurrency: 0,
     currentConcurrency: 12,
+    priority: 1,
+    weight: 100,
+    providerGroupIds: ['group-default'],
+    supportedRouteProfiles: [RouteProfile.ClaudeMessages],
     allowOfficialClientMimic: false,
     isCheckStreamHealth: false,
     modelMapping: { 'claude-opus-*': 'claude-3-5-sonnet-20241022' }
@@ -142,6 +159,10 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     successRateTotal: 98.4,
     maxConcurrency: 20,
     currentConcurrency: 5,
+    priority: 2,
+    weight: 90,
+    providerGroupIds: ['group-default'],
+    supportedRouteProfiles: [RouteProfile.ClaudeMessages],
     allowOfficialClientMimic: false,
     isCheckStreamHealth: false
   },
@@ -161,7 +182,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     usageToday: 12500,
     usageTotal: 340000,
     costToday: 18.75,
-    costTotal: 5100.0,
+    costTotal: 5100,
     tokensToday: 1250000,
     tokensTotal: 34000000,
     fullToken: 'sk-proj...0q',
@@ -169,6 +190,10 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     successRateTotal: 99.6,
     maxConcurrency: 50,
     currentConcurrency: 45,
+    priority: 56,
+    weight: 30,
+    providerGroupIds: ['group-default', 'group-openai-vip'],
+    supportedRouteProfiles: [RouteProfile.OpenAiResponses, RouteProfile.OpenAiCodex, RouteProfile.ChatCompletions],
     allowOfficialClientMimic: true,
     isCheckStreamHealth: true
   },
@@ -191,10 +216,14 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     tokensToday: 45000,
     tokensTotal: 220000,
     fullToken: 'sk-dev-...e123',
-    successRateToday: 95.0,
+    successRateToday: 95,
     successRateTotal: 93.5,
     maxConcurrency: 3,
     currentConcurrency: 0,
+    priority: 2,
+    weight: 80,
+    providerGroupIds: ['group-default', 'group-openai-vip'],
+    supportedRouteProfiles: [RouteProfile.OpenAiResponses, RouteProfile.ChatCompletions],
     allowOfficialClientMimic: false,
     isCheckStreamHealth: false
   },
@@ -214,7 +243,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     usageToday: 28500,
     usageTotal: 1250000,
     costToday: 42.75,
-    costTotal: 18750.0,
+    costTotal: 18750,
     tokensToday: 2850000,
     tokensTotal: 125000000,
     fullToken: '1//0gAn...WXYZ',
@@ -222,6 +251,10 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     successRateTotal: 98.8,
     maxConcurrency: 100,
     currentConcurrency: 15,
+    priority: 1,
+    weight: 60,
+    providerGroupIds: ['group-default', 'group-gemini-shared'],
+    supportedRouteProfiles: [RouteProfile.GeminiBeta, RouteProfile.ClaudeMessages],
     allowOfficialClientMimic: true,
     isCheckStreamHealth: true
   },
@@ -236,12 +269,12 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     isActive: true,
     status: AccountStatus.Normal,
     expiresIn: 2800,
-    tokenObtainedTime: new Date(Date.now() - 600000).toISOString(), // 10 minutes ago
+    tokenObtainedTime: new Date(Date.now() - 600000).toISOString(),
     creationTime: '2024-04-10T12:30:00Z',
     usageToday: 12300,
     usageTotal: 580000,
     costToday: 18.45,
-    costTotal: 8700.0,
+    costTotal: 8700,
     tokensToday: 1230000,
     tokensTotal: 58000000,
     fullToken: '1//0gBa...DCBA',
@@ -249,6 +282,10 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     successRateTotal: 97.9,
     maxConcurrency: 100,
     currentConcurrency: 8,
+    priority: 1,
+    weight: 80,
+    providerGroupIds: ['group-default', 'group-gemini-shared'],
+    supportedRouteProfiles: [RouteProfile.GeminiBeta, RouteProfile.ClaudeMessages],
     allowOfficialClientMimic: true,
     isCheckStreamHealth: true
   },
@@ -263,12 +300,12 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     isActive: true,
     status: AccountStatus.Normal,
     expiresIn: 3600,
-    tokenObtainedTime: new Date(Date.now() - 300000).toISOString(), // 5 minutes ago
+    tokenObtainedTime: new Date(Date.now() - 300000).toISOString(),
     creationTime: '2024-04-15T09:15:00Z',
     usageToday: 8900,
     usageTotal: 320000,
     costToday: 13.35,
-    costTotal: 4800.0,
+    costTotal: 4800,
     tokensToday: 890000,
     tokensTotal: 32000000,
     fullToken: '1//0gTh...7890',
@@ -276,6 +313,10 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     successRateTotal: 99.1,
     maxConcurrency: 10,
     currentConcurrency: 10,
+    priority: 2,
+    weight: 60,
+    providerGroupIds: ['group-default', 'group-gemini-shared'],
+    supportedRouteProfiles: [RouteProfile.GeminiBeta, RouteProfile.ClaudeMessages],
     allowOfficialClientMimic: true,
     isCheckStreamHealth: true
   },
@@ -291,12 +332,12 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     status: AccountStatus.Error,
     statusDescription: '认证失败 (401)，Token 可能已过期',
     expiresIn: 0,
-    tokenObtainedTime: new Date(Date.now() - 7200000).toISOString(), // 2 hours ago
+    tokenObtainedTime: new Date(Date.now() - 7200000).toISOString(),
     creationTime: '2024-04-20T14:45:00Z',
     usageToday: 0,
     usageTotal: 45000,
     costToday: 0,
-    costTotal: 675.0,
+    costTotal: 675,
     tokensToday: 0,
     tokensTotal: 4500000,
     fullToken: '1//0gDe...MPLE',
@@ -304,6 +345,10 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     successRateTotal: 85.2,
     maxConcurrency: 5,
     currentConcurrency: 0,
+    priority: 4,
+    weight: 40,
+    providerGroupIds: ['group-default'],
+    supportedRouteProfiles: [RouteProfile.GeminiBeta, RouteProfile.ClaudeMessages],
     allowOfficialClientMimic: true,
     isCheckStreamHealth: true
   },
@@ -330,6 +375,10 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     successRateTotal: 98.9,
     maxConcurrency: 100,
     currentConcurrency: 2,
+    priority: 0,
+    weight: 20,
+    providerGroupIds: ['group-default', 'group-compatible-fallback'],
+    supportedRouteProfiles: [],
     allowOfficialClientMimic: false,
     isCheckStreamHealth: true
   }
@@ -338,8 +387,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
 export const ACCOUNT_METRICS: AccountTokenMetricsOutputDto = {
   totalAccounts: 12,
   activeAccounts: 10,
-  disabledAccounts: 2, // id:3 (RateLimited), id:11 (Error)
-  expiringAccounts: 1, // id:11 token expired
+  disabledAccounts: 2,
+  expiringAccounts: 1,
 
   totalUsageToday: 76320,
   usageGrowthRate: 12.3,
@@ -347,7 +396,7 @@ export const ACCOUNT_METRICS: AccountTokenMetricsOutputDto = {
   averageSuccessRate: 90.8,
   abnormalRequests24h: 28,
 
-  rotationWarnings: 1 // id:11 needs token refresh
+  rotationWarnings: 1
 };
 
 /**

@@ -1,19 +1,19 @@
 <!-- Action Bar -->
-<div class="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 mb-6">
-  <div class="flex flex-col sm:flex-row flex-1 gap-3 items-stretch sm:items-center">
-    <p-iconfield class="w-full sm:flex-1 sm:max-w-xs">
+<div class="mb-6 flex flex-col items-stretch justify-between gap-4 md:flex-row md:items-center">
+  <div class="flex flex-1 flex-col items-stretch gap-3 sm:flex-row sm:items-center">
+    <p-iconfield class="w-full sm:max-w-xs sm:flex-1">
       <p-inputicon class="pi pi-search" />
       <input pInputText type="text" placeholder="搜索分组名称..." [ngModel]="searchQuery()" (ngModelChange)="onSearchQueryChange($event)" class="w-full" />
     </p-iconfield>
   </div>
 
-  <div class="flex gap-3 items-center justify-end shrink-0">
+  <div class="flex shrink-0 items-center justify-end gap-3">
     <p-button icon="pi pi-refresh" label="刷新" (onClick)="onFilter()" styleClass="w-full sm:w-auto" pTooltip="刷新" tooltipPosition="top"></p-button>
     <p-button label="新建分组" icon="pi pi-plus" (click)="add.emit()" [outlined]="true" severity="primary" styleClass="w-full sm:w-auto"></p-button>
   </div>
 </div>
 
-<div class="bg-surface-0 dark:bg-surface-900 rounded-xl shadow-sm border border-surface-200 dark:border-surface-700 overflow-hidden">
+<div class="overflow-hidden rounded-xl border border-surface-200 bg-surface-0 shadow-sm dark:border-surface-700 dark:bg-surface-900">
   <p-table
     #dt
     [value]="groups()"
@@ -33,57 +33,54 @@
     dataKey="id"
     styleClass="w-full"
     responsiveLayout="scroll"
-    [tableStyle]="{'min-width': '75rem'}"
+    [tableStyle]="{'min-width': '62rem'}"
     [breakpoint]="'960px'"
     [sortField]="sortField()"
     [sortOrder]="sortOrder()">
     <ng-template pTemplate="header">
-      <tr class="bg-surface-50 dark:bg-surface-800 text-muted-color text-xs uppercase font-medium backdrop-blur-sm">
-        <th style="width: 3rem" class="!bg-transparent !border-b !border-surface-200 dark:!border-surface-700"></th>
-        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 whitespace-nowrap" pSortableColumn="name">
+      <tr class="bg-surface-50 text-xs font-medium uppercase text-muted-color backdrop-blur-sm dark:bg-surface-800">
+        <th class="whitespace-nowrap border-b border-surface-200 bg-transparent px-6 py-3 text-xs font-medium dark:border-surface-700" pSortableColumn="name">
           <div class="flex items-center gap-1">分组信息 <p-sortIcon field="name"></p-sortIcon></div>
         </th>
-        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden xl:table-cell whitespace-nowrap">
-          <div #routeColumnContainer class="w-full truncate">支持路由</div>
+        <th class="hidden whitespace-nowrap border-b border-surface-200 bg-transparent px-6 py-3 text-xs font-medium lg:table-cell dark:border-surface-700">
+          <div class="w-full truncate">支持路由</div>
         </th>
-        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden lg:table-cell whitespace-nowrap" pSortableColumn="rateMultiplier">
+        <th class="hidden whitespace-nowrap border-b border-surface-200 bg-transparent px-6 py-3 text-xs font-medium lg:table-cell dark:border-surface-700" pSortableColumn="rateMultiplier">
           <div class="flex items-center gap-1">费率倍数 <p-sortIcon field="rateMultiplier"></p-sortIcon></div>
         </th>
-        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden xl:table-cell whitespace-nowrap">调度策略</th>
-        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden xl:table-cell whitespace-nowrap">账号数</th>
-        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden 2xl:table-cell whitespace-nowrap">粘性会话</th>
-        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden 2xl:table-cell whitespace-nowrap" pSortableColumn="creationTime">
+        <th class="hidden whitespace-nowrap border-b border-surface-200 bg-transparent px-6 py-3 text-xs font-medium xl:table-cell dark:border-surface-700">账号数</th>
+        <th class="hidden whitespace-nowrap border-b border-surface-200 bg-transparent px-6 py-3 text-xs font-medium xl:table-cell dark:border-surface-700">粘性会话</th>
+        <th class="hidden whitespace-nowrap border-b border-surface-200 bg-transparent px-6 py-3 text-xs font-medium 2xl:table-cell dark:border-surface-700" pSortableColumn="creationTime">
           <div class="flex items-center gap-1">创建时间 <p-sortIcon field="creationTime"></p-sortIcon></div>
         </th>
-        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 text-right whitespace-nowrap">操作</th>
+        <th class="whitespace-nowrap border-b border-surface-200 bg-transparent px-6 py-3 text-right text-xs font-medium dark:border-surface-700">操作</th>
       </tr>
     </ng-template>
 
-    <ng-template pTemplate="body" let-group let-expanded="expanded">
-      <tr class="transition-colors group border-b border-transparent hover:bg-surface-50 dark:hover:bg-surface-800/50 text-sm text-color-secondary">
-        <td class="!bg-transparent !border-b !border-surface-200 dark:!border-surface-700 px-6 py-4">
-          <p-button type="button" [pRowToggler]="group" [text]="true" severity="secondary" [rounded]="true" [icon]="expanded ? 'pi pi-chevron-down' : 'pi pi-chevron-right'" styleClass="w-8 h-8 !p-0" />
-        </td>
-
-        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4">
-          <div class="flex flex-col gap-1.5 min-w-0">
-            <div class="flex items-center gap-2 flex-wrap">
-              <span class="font-semibold text-color text-sm group-hover:text-primary transition-colors m-0 truncate max-w-[200px]" [pTooltip]="group.name" tooltipPosition="top">{{ group.name }}</span>
+    <ng-template pTemplate="body" let-group>
+      <tr class="group border-b border-transparent text-sm text-color-secondary transition-colors hover:bg-surface-50 dark:hover:bg-surface-800/50">
+        <td class="border-b border-surface-200 bg-transparent px-6 py-4 dark:border-surface-700">
+          <div class="flex min-w-0 flex-col gap-1.5">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="m-0 max-w-[220px] truncate text-sm font-semibold text-color transition-colors group-hover:text-primary" [pTooltip]="group.name" tooltipPosition="top">{{ group.name }}</span>
+              @if (isDefaultGroup(group)) {
+                <p-tag value="默认" severity="info" styleClass="text-[10px] px-2 py-0.5"></p-tag>
+              }
             </div>
             @if (group.description) {
-              <div class="text-[11px] text-muted-color truncate max-w-[250px]" [pTooltip]="group.description" tooltipPosition="top" tooltipStyleClass="max-w-md">
+              <div class="max-w-[260px] truncate text-[11px] text-muted-color" [pTooltip]="group.description" tooltipPosition="top" tooltipStyleClass="max-w-md">
                 {{ group.description }}
               </div>
             }
           </div>
         </td>
 
-        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden xl:table-cell">
-          <div class="flex items-center gap-1 flex-nowrap overflow-hidden whitespace-nowrap">
+        <td class="hidden border-b border-surface-200 bg-transparent px-6 py-4 lg:table-cell dark:border-surface-700">
+          <div class="flex items-center gap-1 overflow-hidden whitespace-nowrap">
             @if (group.supportedRouteProfiles && group.supportedRouteProfiles.length > 0) {
-              @for (profile of group.supportedRouteProfiles.slice(0, visibleRouteCount()); track profile; let last = $last) {
+              @for (profile of group.supportedRouteProfiles.slice(0, visibleRouteCount()); track profile) {
                 <span
-                  class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400 border border-surface-200 dark:border-surface-700 shrink-0 whitespace-nowrap"
+                  class="inline-flex shrink-0 items-center rounded border border-surface-200 bg-surface-100 px-1.5 py-0.5 text-[10px] text-surface-600 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-400"
                   [pTooltip]="getRouteProfileFullLabel(profile)"
                   tooltipPosition="top"
                   tooltipStyleClass="max-w-none whitespace-nowrap">
@@ -91,200 +88,66 @@
                 </span>
               }
               @if (group.supportedRouteProfiles.length > visibleRouteCount()) {
-                <p-tag [value]="'+' + (group.supportedRouteProfiles.length - visibleRouteCount())" severity="secondary" styleClass="text-[10px] cursor-pointer shrink-0 whitespace-nowrap"
+                <p-tag
+                  [value]="'+' + (group.supportedRouteProfiles.length - visibleRouteCount())"
+                  severity="secondary"
+                  styleClass="cursor-pointer shrink-0 whitespace-nowrap text-[10px]"
                   (click)="toggleRouteProfilesPopover($event, routeProfilesPopover, group.supportedRouteProfiles.slice(visibleRouteCount()))">
                 </p-tag>
               }
             } @else {
-              <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-orange-50 dark:bg-orange-950/20 text-orange-600 dark:text-orange-400 border border-orange-200 dark:border-orange-800/30 whitespace-nowrap">
+              <span class="inline-flex items-center rounded border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-[10px] text-orange-600 dark:border-orange-800/30 dark:bg-orange-950/20 dark:text-orange-400">
                 空资源池
               </span>
             }
           </div>
         </td>
 
-        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden lg:table-cell">
-          <div class="font-mono text-sm" [class.text-orange-500]="group.rateMultiplier !== 1" [class.font-bold]="group.rateMultiplier !== 1">
+        <td class="hidden border-b border-surface-200 bg-transparent px-6 py-4 lg:table-cell dark:border-surface-700">
+          <div class="font-mono text-sm" [class.font-bold]="group.rateMultiplier !== 1" [class.text-orange-500]="group.rateMultiplier !== 1">
             {{ group.rateMultiplier | number: '1.1-2' }}x
           </div>
         </td>
 
-        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden xl:table-cell">
-          <div class="flex items-center gap-2 whitespace-nowrap">
-            <p-tag [value]="group.schedulingStrategy | schedulingStrategyLabel" [severity]="group.schedulingStrategy | schedulingStrategySeverity" styleClass="text-[11px] font-bold px-2 py-0.5 uppercase tracking-wide"></p-tag>
-            <i class="pi pi-info-circle text-muted-color cursor-help text-sm hover:text-primary transition-colors" [pTooltip]="getStrategyDescription(group.schedulingStrategy)" tooltipPosition="right" [escape]="false" tooltipStyleClass="max-w-md"></i>
-          </div>
-        </td>
-
-        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden xl:table-cell">
-          <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400 text-xs font-bold border border-surface-200 dark:border-surface-700">
-            {{ group.accounts?.length || 0 }}
+        <td class="hidden border-b border-surface-200 bg-transparent px-6 py-4 xl:table-cell dark:border-surface-700">
+          <span class="inline-flex h-6 min-w-6 items-center justify-center rounded-full border border-surface-200 bg-surface-100 px-2 text-xs font-bold text-surface-600 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-400">
+            {{ group.accountCount }}
           </span>
         </td>
 
-        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden 2xl:table-cell">
+        <td class="hidden border-b border-surface-200 bg-transparent px-6 py-4 xl:table-cell dark:border-surface-700" style="width: 10rem; max-width: 10rem;">
           @if (group.enableStickySession) {
             <div class="flex items-center gap-2 whitespace-nowrap">
               <span class="flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
                 <i class="pi pi-check-circle"></i>已开启
               </span>
-              <span class="text-[10px] text-muted-color border-l border-surface-200 dark:border-surface-700 pl-2">
+              <span class="border-l border-surface-200 pl-2 text-[10px] text-muted-color dark:border-surface-700">
                 {{ group.stickySessionExpirationHours }}h
               </span>
             </div>
           } @else {
-            <span class="flex items-center gap-1.5 text-xs text-muted-color whitespace-nowrap"><i class="pi pi-minus-circle"></i>未开启</span>
+            <span class="flex items-center gap-1.5 whitespace-nowrap text-xs text-muted-color"><i class="pi pi-minus-circle"></i>未开启</span>
           }
         </td>
 
-        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden 2xl:table-cell">
-          <div class="text-[11px] text-muted-color font-mono tracking-tight">{{ group.creationTime | date: 'yyyy-MM-dd HH:mm:ss' }}</div>
+        <td class="hidden border-b border-surface-200 bg-transparent px-6 py-4 2xl:table-cell dark:border-surface-700">
+          <div class="font-mono text-[11px] tracking-tight text-muted-color">{{ group.creationTime | date: 'yyyy-MM-dd HH:mm:ss' }}</div>
         </td>
 
-        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 text-right whitespace-nowrap">
-          <div class="flex justify-end gap-1 opacity-100 xl:opacity-0 group-hover:opacity-100 transition-opacity">
+        <td class="border-b border-surface-200 bg-transparent px-6 py-4 text-right whitespace-nowrap dark:border-surface-700">
+          <div class="flex justify-end gap-1 opacity-100 transition-opacity xl:opacity-0 group-hover:opacity-100">
             <p-button (onClick)="edit.emit(group.id)" [text]="true" [rounded]="true" severity="secondary" styleClass="w-8 h-8 !p-0" pTooltip="编辑" tooltipPosition="left"><i class="pi pi-pencil"></i></p-button>
-            <p-button (onClick)="delete.emit(group.id)" [text]="true" [rounded]="true" severity="danger" styleClass="w-8 h-8 !p-0" pTooltip="删除" tooltipPosition="left"><i class="pi pi-trash"></i></p-button>
-          </div>
-        </td>
-      </tr>
-    </ng-template>
-
-    <ng-template pTemplate="expandedrow" let-group>
-      <tr>
-        <td colspan="9" class="p-0 border-b border-surface-200 dark:border-surface-700 bg-surface-50/50 dark:bg-surface-900/50">
-          <div class="p-4 pl-20 pr-6 py-6">
-            <div class="mb-3 flex items-center gap-2">
-              <span class="text-xs font-bold text-muted-color uppercase tracking-wider bg-surface-200/50 dark:bg-surface-700/50 px-2 py-1 rounded">
-                <i class="pi pi-users text-[10px] mr-1"></i>
-                关联账号 ({{ group.accounts?.length || 0 }})
-              </span>
-            </div>
-
-            @if (!group.accounts || group.accounts.length === 0) {
-              <div class="text-xs text-muted-color p-4 text-center border border-dashed border-surface-300 dark:border-surface-700 rounded-md bg-surface-50/50 dark:bg-surface-800/30">暂无关联账号</div>
-            }
-
-            @if (group.accounts?.length > 0) {
-              <p-table
-                [value]="group.accounts"
-                dataKey="id"
-                styleClass="p-datatable-sm shadow-sm rounded-md overflow-hidden border border-surface-200 dark:border-surface-700"
-                [responsiveLayout]="'scroll'"
-                [tableStyle]="{'min-width': '60rem', 'table-layout': 'fixed'}">
-                <ng-template pTemplate="header">
-                  <tr class="bg-surface-50 dark:bg-surface-800/50 text-muted-color">
-                    <th class="px-4 py-2 font-medium text-xs border-b border-surface-200 dark:border-surface-700" style="width: 18rem">账号名称</th>
-                    <th class="px-4 py-2 font-medium text-xs border-b border-surface-200 dark:border-surface-700 hidden md:table-cell" style="width: 10rem">平台&认证</th>
-                    <th class="px-4 py-2 font-medium text-xs border-b border-surface-200 dark:border-surface-700 hidden xl:table-cell" style="width: 12rem">支持路由</th>
-                    <th class="px-4 py-2 font-medium text-xs border-b border-surface-200 dark:border-surface-700 text-center hidden xl:table-cell" style="width: 10rem">
-                      @if (showWeight(group)) {
-                        权重配置
-                      } @else if (showPriority(group)) {
-                        优先级
-                      } @else {
-                        策略
-                      }
-                    </th>
-                    <th class="px-4 py-2 font-medium text-xs border-b border-surface-200 dark:border-surface-700 text-center hidden xl:table-cell" style="width: 8rem">并发请求</th>
-                    <th class="px-4 py-2 font-medium text-xs border-b border-surface-200 dark:border-surface-700 text-center hidden 2xl:table-cell" style="width: 12rem">有效期</th>
-                    <th class="px-4 py-2 font-medium text-xs border-b border-surface-200 dark:border-surface-700 text-center" style="width: 6rem">状态</th>
-                  </tr>
-                </ng-template>
-                <ng-template pTemplate="body" let-acc>
-                  <tr class="hover:bg-surface-100/30 dark:hover:bg-surface-800/20 transition-colors text-xs text-color-secondary">
-                    <td class="px-4 py-2.5 border-b border-surface-100 dark:border-surface-800">
-                      <div class="flex flex-col gap-1 min-w-0">
-                        <span class="font-medium text-color truncate" [pTooltip]="acc.accountTokenName || acc.accountTokenId" tooltipPosition="top">
-                          {{ acc.accountTokenName || acc.accountTokenId }}
-                        </span>
-                      </div>
-                    </td>
-                    <td class="px-4 py-2.5 border-b border-surface-100 dark:border-surface-800 hidden md:table-cell">
-                      <div class="flex items-center gap-1 flex-nowrap whitespace-nowrap">
-                        <p-tag [value]="acc.provider" severity="secondary" styleClass="text-[10px] h-4.5 px-1.5"></p-tag>
-                        <p-tag [value]="acc.authMethod" severity="secondary" styleClass="text-[10px] h-4.5 px-1.5"></p-tag>
-                      </div>
-                    </td>
-                    <td class="px-4 py-2.5 border-b border-surface-100 dark:border-surface-800 hidden xl:table-cell">
-                      <div class="flex items-center gap-1 flex-nowrap overflow-hidden whitespace-nowrap">
-                        @if (acc.supportedRouteProfiles?.length) {
-                          @for (profile of acc.supportedRouteProfiles.slice(0, visibleRouteCount()); track profile) {
-                            <span
-                              class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400 border border-surface-200 dark:border-surface-700 shrink-0 whitespace-nowrap"
-                              [pTooltip]="getRouteProfileFullLabel(profile)"
-                              tooltipPosition="top"
-                              tooltipStyleClass="max-w-none whitespace-nowrap">
-                              {{ getRouteProfileLabel(profile) }}
-                            </span>
-                          }
-                          @if (acc.supportedRouteProfiles.length > visibleRouteCount()) {
-                            <p-tag [value]="'+' + (acc.supportedRouteProfiles.length - visibleRouteCount())" severity="secondary" styleClass="text-[10px] cursor-pointer shrink-0 whitespace-nowrap"
-                              (click)="toggleRouteProfilesPopover($event, routeProfilesPopover, acc.supportedRouteProfiles.slice(visibleRouteCount()))">
-                            </p-tag>
-                          }
-                        } @else {
-                          <span class="text-[11px] text-orange-500 whitespace-nowrap">空路由</span>
-                        }
-                      </div>
-                    </td>
-                    <td class="px-4 py-2.5 border-b border-surface-100 dark:border-surface-800 text-center hidden xl:table-cell">
-                      @if (showWeight(group)) {
-                        <div class="flex items-center justify-center gap-1 text-[11px] whitespace-nowrap">
-                          <span class="text-muted-color opacity-70">权重:</span>
-                          <span class="font-mono font-bold text-primary">{{ acc.weight }}</span>
-                        </div>
-                      } @else if (showPriority(group)) {
-                        <div class="flex items-center justify-center gap-1 text-[11px] whitespace-nowrap">
-                          <span class="text-muted-color opacity-70">优先级:</span>
-                          <p-tag [value]="acc.priority.toString()" [severity]="acc.priority === 0 ? 'success' : 'warn'" styleClass="text-[10px] h-4.5"></p-tag>
-                        </div>
-                      } @else {
-                        <span class="text-muted-color">-</span>
-                      }
-                    </td>
-                    <td class="px-4 py-2.5 border-b border-surface-100 dark:border-surface-800 text-center font-mono text-[11px] hidden xl:table-cell">
-                      @if (acc.maxConcurrency === 0) {
-                        <span class="text-muted-color whitespace-nowrap">不限制</span>
-                      } @else {
-                        <span class="whitespace-nowrap" [ngClass]="{
-                          'text-color-secondary': acc.currentConcurrency === 0,
-                          'text-orange-500 font-bold': (acc.currentConcurrency || 0) > 0 && (acc.currentConcurrency || 0) < acc.maxConcurrency,
-                          'text-red-500 font-bold': (acc.currentConcurrency || 0) >= acc.maxConcurrency
-                        }">
-                          {{ acc.currentConcurrency || 0 }}/{{ acc.maxConcurrency }}
-                        </span>
-                      }
-                    </td>
-                    <td class="px-4 py-2.5 border-b border-surface-100 dark:border-surface-800 text-center hidden 2xl:table-cell">
-                      <div class="flex items-center justify-center gap-2 whitespace-nowrap">
-                        <span class="text-[11px] font-mono" [ngClass]="{
-                          'text-red-500': getAccountExpiryState(acc) === 'expired',
-                          'text-orange-500': getAccountExpiryState(acc) === 'warning',
-                          'text-surface-500': getAccountExpiryState(acc) === 'ok' || getAccountExpiryState(acc) === 'forever'
-                        }">
-                          {{ acc.expiresAt ? (acc.expiresAt | date: 'yyyy-MM-dd HH:mm') : '永久有效' }}
-                        </span>
-                        @if (getAccountExpiryState(acc) === 'expired') {
-                          <span class="px-1.5 py-0.5 rounded-sm bg-red-50 dark:bg-red-950/20 text-red-500 dark:text-red-400 text-[9px] font-medium border border-red-100 dark:border-red-900/30">已过期</span>
-                        } @else if (getAccountExpiryState(acc) === 'warning') {
-                          <span class="px-1.5 py-0.5 rounded-sm bg-orange-50 dark:bg-orange-950/20 text-orange-500 dark:text-orange-400 text-[9px] font-medium border border-orange-100 dark:border-orange-900/30">即将到期</span>
-                        }
-                      </div>
-                    </td>
-                    <td class="px-4 py-2.5 border-b border-surface-100 dark:border-surface-800 text-center">
-                      <div class="flex justify-center whitespace-nowrap">
-                        @if (acc.isActive !== false) {
-                          <p-tag value="启用" severity="success" styleClass="text-[10px] h-4.5 px-1.5 whitespace-nowrap"></p-tag>
-                        } @else {
-                          <p-tag value="禁用" severity="danger" styleClass="text-[10px] h-4.5 px-1.5 whitespace-nowrap"></p-tag>
-                        }
-                      </div>
-                    </td>
-                  </tr>
-                </ng-template>
-              </p-table>
-            }
+            <p-button
+              (onClick)="delete.emit(group.id)"
+              [text]="true"
+              [rounded]="true"
+              severity="danger"
+              styleClass="w-8 h-8 !p-0"
+              [disabled]="isDefaultGroup(group)"
+              [pTooltip]="isDefaultGroup(group) ? '默认分组不可删除' : '删除'"
+              tooltipPosition="left">
+              <i class="pi pi-trash"></i>
+            </p-button>
           </div>
         </td>
       </tr>
@@ -292,11 +155,11 @@
 
     <ng-template pTemplate="emptymessage">
       <tr class="hover:!bg-transparent">
-        <td colspan="9" class="!p-0 !border-0">
-          <div class="flex flex-col items-center justify-center h-64 text-muted-color">
-            <i class="pi pi-inbox text-5xl opacity-30 mb-3"></i>
-            <p class="text-base font-medium m-0">暂无分组数据</p>
-            <p class="text-sm mt-1 opacity-70">请创建新的分组</p>
+        <td colspan="7" class="!border-0 !p-0">
+          <div class="flex h-64 flex-col items-center justify-center text-muted-color">
+            <i class="pi pi-inbox mb-3 text-5xl opacity-30"></i>
+            <p class="m-0 text-base font-medium">暂无分组数据</p>
+            <p class="mt-1 text-sm opacity-70">请创建新的分组</p>
           </div>
         </td>
       </tr>

@@ -1,6 +1,7 @@
 import { AuthMethod } from '../../../shared/models/auth-method.enum';
 import { PagedRequestDto } from '../../../shared/models/paged-request.dto';
 import { Provider } from '../../../shared/models/provider.enum';
+import { RouteProfile } from '../../../shared/models/route-profile.enum';
 
 // ✅ 使用字符串枚举以匹配后端 JSON 序列化
 export enum AccountStatus {
@@ -25,6 +26,10 @@ export interface AccountTokenOutputDto {
   lockedUntil?: string; // Date string
   maxConcurrency: number;
   currentConcurrency: number;
+  priority: number;
+  weight: number;
+  providerGroupIds: string[];
+  supportedRouteProfiles: RouteProfile[];
 
   fullToken: string; // 敏感信息，通常只在编辑时可能需要（视后端安全策略而定），或者作为 API Key 输入
   accessToken?: string; // OAuth Access Token (用于详情展示)
@@ -59,6 +64,9 @@ export interface CreateAccountTokenInputDto {
   authCode?: string; // OAuth 授权码
   sessionId?: string; // OAuth 会话 ID
   maxConcurrency: number;
+  priority: number;
+  weight: number;
+  providerGroupIds: string[];
   modelWhites?: string[];
   modelMapping?: Record<string, string>;
   allowOfficialClientMimic?: boolean;
@@ -72,6 +80,9 @@ export interface UpdateAccountTokenInputDto {
   description?: string;
   credential?: string; // 可选更新
   maxConcurrency?: number;
+  priority?: number;
+  weight?: number;
+  providerGroupIds?: string[];
   modelWhites?: string[];
   modelMapping?: Record<string, string>;
   allowOfficialClientMimic?: boolean;
@@ -106,6 +117,7 @@ export interface GetAccountTokenPagedInputDto extends PagedRequestDto {
   provider?: Provider;
   authMethod?: AuthMethod;
   isActive?: boolean;
+  providerGroupIds?: string[];
 }
 
 export interface AccountTokenMetricsOutputDto {
