@@ -100,7 +100,14 @@ public class UsageLifecycleAppService(
             return;
         }
 
-        attempt.Complete(input.UpStatusCode, input.DurationMs, input.Status, input.StatusDescription, input.UpResponseBody);
+        attempt.Complete(
+            input.UpStatusCode,
+            input.DurationMs,
+            input.Status,
+            input.StatusDescription,
+            input.UpResponseBody,
+            input.UpRequestHeaders,
+            input.UpRequestBody);
         await attemptRepository.UpdateAsync(attempt, cancellationToken: cancellationToken);
 
         // 累加账号调用次数统计
@@ -152,6 +159,8 @@ public class UsageLifecycleAppService(
             input.AttemptCount,
             input.DownStatusCode,
             upModelId,
+            input.DownRequestHeaders,
+            input.DownRequestBody,
             cancellationToken);
 
         logger.LogDebug(

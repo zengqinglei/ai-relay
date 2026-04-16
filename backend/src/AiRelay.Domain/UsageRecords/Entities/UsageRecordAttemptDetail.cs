@@ -28,9 +28,11 @@ public class UsageRecordAttemptDetail : Entity<Guid>
         UpResponseBody = upResponseBody;
     }
 
-    internal void CompleteAttempt(string? upResponseBody)
+    internal void CompleteAttempt(string? upResponseBody, string? upRequestHeaders = null, string? upRequestBody = null)
     {
         UpResponseBody = upResponseBody;
+        if (upRequestHeaders != null) UpRequestHeaders = upRequestHeaders;
+        if (upRequestBody != null) UpRequestBody = upRequestBody;
     }
 
     private UsageRecordAttemptDetail() { }

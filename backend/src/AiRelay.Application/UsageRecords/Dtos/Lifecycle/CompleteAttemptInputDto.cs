@@ -9,5 +9,7 @@ public record CompleteAttemptInputDto(
     long DurationMs,
     UsageStatus Status,
     string? StatusDescription,
-    string? UpResponseBody
+    string? UpResponseBody,
+    string? UpRequestHeaders = null,
+    string? UpRequestBody = null
 );

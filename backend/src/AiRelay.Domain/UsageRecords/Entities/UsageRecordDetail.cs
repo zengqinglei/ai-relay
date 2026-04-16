@@ -26,9 +26,11 @@ public class UsageRecordDetail : Entity<Guid>
         DownRequestBody = downRequestBody;
     }
 
-    internal void Complete(string? downResponseBody)
+    internal void Complete(string? downResponseBody, string? downRequestHeaders = null, string? downRequestBody = null)
     {
         DownResponseBody = downResponseBody;
+        if (downRequestHeaders != null) DownRequestHeaders = downRequestHeaders;
+        if (downRequestBody != null) DownRequestBody = downRequestBody;
     }
 
     private UsageRecordDetail() { }

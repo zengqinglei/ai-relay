@@ -93,7 +93,9 @@ public class AccountUsageRecordHostedService(
                                 attemptEnd.DurationMs,
                                 attemptEnd.Status,
                                 attemptEnd.StatusDescription,
-                                attemptEnd.UpResponseBody
+                                attemptEnd.UpResponseBody,
+                                attemptEnd.UpRequestHeaders,
+                                attemptEnd.UpRequestBody
                             ));
                         break;
 
@@ -112,7 +114,9 @@ public class AccountUsageRecordHostedService(
                                 end.CacheReadTokens,
                                 end.CacheCreationTokens,
                                 end.AttemptCount,
-                                end.DownStatusCode
+                                end.DownStatusCode,
+                                end.DownRequestHeaders,
+                                end.DownRequestBody
                             ));
                         break;
 
@@ -188,7 +192,9 @@ public record UsageRecordAttemptEndItem(
     long DurationMs,
     UsageStatus Status,
     string? StatusDescription,
-    string? UpResponseBody
+    string? UpResponseBody,
+    string? UpRequestHeaders = null,
+    string? UpRequestBody = null
 ) : IUsageRecordItem;
 
 /// <summary>
@@ -205,5 +211,7 @@ public record UsageRecordEndItem(
     int? CacheReadTokens,
     int? CacheCreationTokens,
     int AttemptCount,
-    int? DownStatusCode
+    int? DownStatusCode,
+    string? DownRequestHeaders = null,
+    string? DownRequestBody = null
 ) : IUsageRecordItem;

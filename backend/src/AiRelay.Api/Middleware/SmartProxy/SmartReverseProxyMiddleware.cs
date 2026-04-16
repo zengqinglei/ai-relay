@@ -56,12 +56,13 @@ public class SmartReverseProxyMiddleware(
         string? downResponseBody = null;
         ResponseUsage? finalUsage = null;
 
-        var downRequestBody = _loggingOptions.IsBodyLoggingEnabled
-            ? (downContext.IsMultipart
-                ? "[Multipart Data - Logging Skipped]"
-                : downContext.PreloadedBodyPreview)
-            : null;
-        var downRequestHeaders = _loggingOptions.IsBodyLoggingEnabled ? CaptureHeaders(downContext.Headers) : null;
+        var downRequestHeaders = CaptureHeaders(downContext.Headers);
+        var downRequestBody = downContext.IsMultipart
+            ? "[Multipart Data - Logging Skipped]"
+            : downContext.PreloadedBodyPreview;
+
+        var loggingDownRequestHeaders = _loggingOptions.IsBodyLoggingEnabled ? downRequestHeaders : null;
+        var loggingDownRequestBody = _loggingOptions.IsBodyLoggingEnabled ? downRequestBody : null;
 
         // Step 1: 入队 StartItem
         usageRecordHostedService.TryEnqueue(new UsageRecordStartItem(
@@ -76,8 +77,8 @@ public class SmartReverseProxyMiddleware(
             DownModelId: downContext.ModelId,
             DownClientIp: context.Connection.RemoteIpAddress?.ToString(),
             DownUserAgent: context.Request.Headers.UserAgent.ToString(),
-            DownRequestHeaders: downRequestHeaders,
-            DownRequestBody: downRequestBody
+            DownRequestHeaders: loggingDownRequestHeaders,
+            DownRequestBody: loggingDownRequestBody
         ));
 
         try
@@ -156,6 +157,14 @@ public class SmartReverseProxyMiddleware(
                         degradationLevel,
                         context.RequestAborted);
 
+                    var upRequestHeaders = CaptureHeaders(upContext.Headers);
+                    var upRequestBody = downContext.IsMultipart
+                        ? "[Multipart Data - Logging Skipped]"
+                        : upContext.GetBodyPreview(downContext.PreloadedBodyPreview, _loggingOptions.MaxBodyLength);
+
+                    var loggingUpRequestHeaders = _loggingOptions.IsBodyLoggingEnabled ? upRequestHeaders : null;
+                    var loggingUpRequestBody = _loggingOptions.IsBodyLoggingEnabled ? upRequestBody : null;
+
                     var attemptStopwatch = Stopwatch.StartNew();
                     attemptNumber++;
                     int? httpStatusCode = null;
@@ -164,11 +173,6 @@ public class SmartReverseProxyMiddleware(
                     string? upResponseBody = null;
 
                     // Step 2: 入队 AttemptStartItem
-                    var upRequestBody = _loggingOptions.IsBodyLoggingEnabled
-                        ? (downContext.IsMultipart
-                            ? "[Multipart Data - Logging Skipped]"
-                            : upContext.GetBodyPreview(downContext.PreloadedBodyPreview, _loggingOptions.MaxBodyLength))
-                        : null;
                     usageRecordHostedService.TryEnqueue(new UsageRecordAttemptStartItem(
                         UsageRecordId: usageRecordId,
                         AttemptNumber: attemptNumber,
@@ -182,8 +186,8 @@ public class SmartReverseProxyMiddleware(
                         UpModelId: upContext.MappedModelId,
                         UpUserAgent: upContext.GetUserAgent(),
                         UpRequestUrl: upContext.GetFullUrl(),
-                        UpRequestHeaders: _loggingOptions.IsBodyLoggingEnabled ? CaptureHeaders(upContext.Headers) : null,
-                        UpRequestBody: upRequestBody
+                        UpRequestHeaders: loggingUpRequestHeaders,
+                        UpRequestBody: loggingUpRequestBody
                     ));
 
                     try
@@ -210,6 +214,7 @@ public class SmartReverseProxyMiddleware(
                                 var (crash, statusDesc, usage) = await HandleSuccessResponseAsync(
                                     context, proxyResponse, selectResult.AccountToken.Id,
                                     isCheckStreamHealth, tempUpBody, tempDownBody,
+                                    true, // 始终允许内部 buffer 捕获，用于诊断流中途断网等异常
                                     context.RequestAborted);
 
                                 finalUsage = usage ?? finalUsage;
@@ -247,7 +252,8 @@ public class SmartReverseProxyMiddleware(
                             if (!isStreamCrash)
                             {
                                 attemptStatus = UsageStatus.Failed;
-                                upResponseBody = LoggingSubBody(proxyResponse.ErrorBody);
+                                // 上游明确报错时，无视配置强制记录 Body
+                                upResponseBody = LoggingSubBody(proxyResponse.ErrorBody, force: true);
                             }
 
                             logger.LogWarning("账号请求失败或流首包崩溃，状态码: {StatusCode}，正在分析错误：{BodyContent}",
@@ -267,12 +273,12 @@ public class SmartReverseProxyMiddleware(
                                     if (retryPolicy.RequiresDowngrade)
                                     {
                                         degradationLevel++;
-                                        attemptStatusDesc = $"启用降级级别 {degradationLevel} 进行重试 (Retry {currentAccountRetryCount})" +
+                                        attemptStatusDesc = $"启用降级级别 {degradationLevel} 进行重试 (状态码: {httpStatusCode}, Retry {currentAccountRetryCount})" +
                                             (attemptStatusDesc != null ? $"：{attemptStatusDesc}" : "");
                                     }
                                     else
                                     {
-                                        attemptStatusDesc = $"同账号重试，延迟 {retryAfter.TotalMilliseconds}ms，重试次数: {currentAccountRetryCount}" +
+                                        attemptStatusDesc = $"同账号重试 (状态码: {httpStatusCode})，延迟 {retryAfter.TotalMilliseconds}ms，重试次数: {currentAccountRetryCount}" +
                                             (attemptStatusDesc != null ? $"：{attemptStatusDesc}" : "");
                                     }
                                     await Task.Delay(retryAfter, context.RequestAborted);
@@ -300,9 +306,10 @@ public class SmartReverseProxyMiddleware(
                                             proxyResponse.ErrorBody,
                                             retryPolicy),
                                         context.RequestAborted);
-                                    attemptStatusDesc = $"请求失败，不进行重试：{upResponseBody}";
+                                    attemptStatusDesc = $"请求最终失败 (状态码: {httpStatusCode})，不进行重试：{upResponseBody}";
                                     WriteResponseHeaders(context, httpStatusCode!.Value, proxyResponse.Headers);
-                                    downResponseBody = LoggingSubBody(proxyResponse.ErrorBody);
+                                    // 无视配置记录最终给下游的报错信息
+                                    downResponseBody = LoggingSubBody(proxyResponse.ErrorBody, force: true);
                                     await context.Response.WriteAsync(proxyResponse.ErrorBody ?? "", context.RequestAborted);
                                     return;
                             }
@@ -324,7 +331,9 @@ public class SmartReverseProxyMiddleware(
                             DurationMs: attemptStopwatch.ElapsedMilliseconds,
                             Status: attemptStatus,
                             StatusDescription: attemptStatusDesc,
-                            UpResponseBody: upResponseBody
+                            UpResponseBody: upResponseBody,
+                            UpRequestHeaders: attemptStatus == UsageStatus.Failed ? upRequestHeaders : loggingUpRequestHeaders,
+                            UpRequestBody: attemptStatus == UsageStatus.Failed ? upRequestBody : loggingUpRequestBody
                         ));
                     }
                 }
@@ -369,7 +378,7 @@ public class SmartReverseProxyMiddleware(
 
             var formatter = errorFormatterFactory.GetFormatter(routeProfile);
             var errorResponse = formatter.Format(ex);
-            downResponseBody = LoggingSubBody(errorResponse.Payload);
+            downResponseBody = LoggingSubBody(errorResponse.Payload, force: true);
 
             context.Response.StatusCode = errorResponse.StatusCode;
             context.Response.ContentType = errorResponse.ContentType;
@@ -391,7 +400,9 @@ public class SmartReverseProxyMiddleware(
                 CacheReadTokens: finalUsage?.CacheReadTokens,
                 CacheCreationTokens: finalUsage?.CacheCreationTokens,
                 AttemptCount: attemptNumber,
-                DownStatusCode: context.Response.StatusCode
+                DownStatusCode: context.Response.StatusCode,
+                DownRequestHeaders: finalStatus == UsageStatus.Failed ? downRequestHeaders : loggingDownRequestHeaders,
+                DownRequestBody: finalStatus == UsageStatus.Failed ? downRequestBody : loggingDownRequestBody
             ));
         }
     }
@@ -488,6 +499,7 @@ public class SmartReverseProxyMiddleware(
         bool isCheckStreamHealth,
         StringBuilder tempUpBody,
         StringBuilder tempDownBody,
+        bool forceBodyCapture,
         CancellationToken ct)
     {
         bool headersWritten = false;
@@ -530,7 +542,7 @@ public class SmartReverseProxyMiddleware(
                         headersWritten = true;
 
                         // 将健康检查期间缓冲的数据一次性冲刷到下游
-                        await FlushBufferedBytesAsync(context, bufferedBytes, tempDownBody, ct);
+                        await FlushBufferedBytesAsync(context, bufferedBytes, tempDownBody, forceBodyCapture, ct);
                     }
                 }
 
@@ -539,7 +551,7 @@ public class SmartReverseProxyMiddleware(
                 if (bytesToForward == null) continue;
 
                 // 上游原始数据日志（不受健康检查状态影响）
-                AppendBodyLog(tempUpBody, evt.OriginalBytes);
+                AppendBodyLog(tempUpBody, evt.OriginalBytes, forceBodyCapture);
 
                 if (isCheckStreamHealth && !headersWritten)
                 {
@@ -549,7 +561,7 @@ public class SmartReverseProxyMiddleware(
                 else
                 {
                     // 直接写入下游
-                    AppendBodyLog(tempDownBody, bytesToForward);
+                    AppendBodyLog(tempDownBody, bytesToForward, forceBodyCapture);
                     await context.Response.Body.WriteAsync(bytesToForward, ct);
                     await context.Response.Body.FlushAsync(ct);
                 }
@@ -596,13 +608,14 @@ public class SmartReverseProxyMiddleware(
         HttpContext context,
         List<byte[]> bufferedBytes,
         StringBuilder tempDownBody,
+        bool forceBodyCapture,
         CancellationToken ct)
+{
+    foreach (var chunk in bufferedBytes)
     {
-        foreach (var chunk in bufferedBytes)
-        {
-            AppendBodyLog(tempDownBody, chunk);
-            await context.Response.Body.WriteAsync(chunk, ct);
-        }
+        AppendBodyLog(tempDownBody, chunk, forceBodyCapture);
+        await context.Response.Body.WriteAsync(chunk, ct);
+    }
         bufferedBytes.Clear();
         await context.Response.Body.FlushAsync(ct);
     }
@@ -611,9 +624,10 @@ public class SmartReverseProxyMiddleware(
     // Body 日志追加（含截断保护）
     // ═══════════════════════════════════════════════════════════════════
 
-    private void AppendBodyLog(StringBuilder target, byte[]? data)
+    private void AppendBodyLog(StringBuilder target, byte[]? data, bool force = false)
     {
-        if (data == null || !_loggingOptions.IsBodyLoggingEnabled) return;
+        if (data == null) return;
+        if (!force && !_loggingOptions.IsBodyLoggingEnabled) return;
         if (target.Length >= _loggingOptions.MaxBodyLength) return;
         var maxLength = _loggingOptions.MaxBodyLength - target.Length;
         var length = Math.Min(data.Length, maxLength);
@@ -625,10 +639,10 @@ public class SmartReverseProxyMiddleware(
     // 通用辅助方法
     // ═══════════════════════════════════════════════════════════════════
 
-    private string? LoggingSubBody(string? sourceStr)
+    private string? LoggingSubBody(string? sourceStr, bool force = false)
     {
         if (string.IsNullOrEmpty(sourceStr)) return sourceStr;
-        if (!_loggingOptions.IsBodyLoggingEnabled) return null;
+        if (!force && !_loggingOptions.IsBodyLoggingEnabled) return null;
         var length = Math.Min(sourceStr.Length, _loggingOptions.MaxBodyLength);
         var content = sourceStr[..length];
         return sourceStr.Length > _loggingOptions.MaxBodyLength ? content + "...[Truncated]" : content;

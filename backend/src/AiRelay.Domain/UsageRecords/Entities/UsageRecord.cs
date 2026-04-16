@@ -101,14 +101,16 @@ public class UsageRecord : CreationAuditedEntity<Guid>
         int? cacheCreationTokens,
         decimal? baseCost,
         int attemptCount,
-        int? downStatusCode)
+        int? downStatusCode,
+        string? downRequestHeaders = null,
+        string? downRequestBody = null)
     {
         DurationMs = duration;
         Status = status;
         StatusDescription = statusDescription?.Length > 2048
             ? statusDescription[..2045] + "..."
             : statusDescription;
-        Detail.Complete(downResponseBody);
+        Detail.Complete(downResponseBody, downRequestHeaders, downRequestBody);
         InputTokens = inputTokens;
         OutputTokens = outputTokens;
         CacheReadTokens = cacheReadTokens;

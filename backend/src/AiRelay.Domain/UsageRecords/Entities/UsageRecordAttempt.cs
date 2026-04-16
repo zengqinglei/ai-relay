@@ -97,7 +97,9 @@ public class UsageRecordAttempt : Entity<Guid>
         long durationMs,
         UsageStatus status,
         string? statusDescription,
-        string? upResponseBody)
+        string? upResponseBody,
+        string? upRequestHeaders = null,
+        string? upRequestBody = null)
     {
         UpStatusCode = upStatusCode;
         DurationMs = durationMs;
@@ -106,7 +108,7 @@ public class UsageRecordAttempt : Entity<Guid>
             ? statusDescription[..2045] + "..."
             : statusDescription;
         EndTime = DateTime.UtcNow;
-        Detail.CompleteAttempt(upResponseBody);
+        Detail.CompleteAttempt(upResponseBody, upRequestHeaders, upRequestBody);
     }
 
     private UsageRecordAttempt() { AccountTokenName = null!; }

@@ -11,7 +11,7 @@
         <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3" pSortableColumn="name">
           <div class="flex items-center gap-1">名称 <p-sortIcon field="name"></p-sortIcon></div>
         </th>
-        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden md:table-cell whitespace-nowrap" style="width: 14rem; max-width: 14rem;">
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden md:table-cell whitespace-nowrap" style="width: 18rem; max-width: 18rem;">
           密钥掩码
         </th>
         <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden lg:table-cell whitespace-nowrap" style="width: 16rem; max-width: 16rem;">
@@ -42,10 +42,10 @@
           <span class="font-semibold text-color text-sm group-hover:text-primary transition-colors whitespace-nowrap">{{ item.name }}</span>
         </td>
 
-        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden md:table-cell" style="width: 14rem; max-width: 14rem;">
+        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden md:table-cell" style="width: 18rem; max-width: 18rem;">
           <div class="flex items-center gap-1.5 min-w-0 overflow-hidden whitespace-nowrap">
             <span
-              class="font-mono text-xs text-muted-color bg-surface-100 dark:bg-surface-800 px-1.5 py-0.5 rounded border border-surface-200 dark:border-surface-700 mr-0.5 truncate min-w-0 max-w-[9rem] shrink"
+              class="font-mono text-xs text-muted-color bg-surface-100 dark:bg-surface-800 px-1.5 py-0.5 rounded border border-surface-200 dark:border-surface-700 mr-0.5 truncate min-w-0 max-w-[13rem] shrink"
               [pTooltip]="getDisplaySecret(item)" tooltipPosition="top" tooltipStyleClass="max-w-none whitespace-nowrap">
               {{ getDisplaySecret(item) }}
             </span>
@@ -185,6 +185,7 @@
     <p-button label="确认并启用" icon="pi pi-check" (onClick)="saveExpiry()" [disabled]="!newExpiryDate()" />
   </ng-template>
 </p-dialog>
+
 
 
 

@@ -14,6 +14,7 @@ import { Provider } from '../../../shared/models/provider.enum';
         'text-blue-600 dark:text-blue-400': provider() === 'Gemini',
         'text-orange-600 dark:text-orange-500': provider() === 'Claude',
         'text-surface-900 dark:text-surface-0': provider() === 'OpenAI',
+        'text-emerald-500 dark:text-emerald-300': provider() === 'OpenAICompatible',
         'text-purple-600 dark:text-purple-400': provider() === 'Antigravity'
       }"
     >

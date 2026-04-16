@@ -23,6 +23,8 @@ public class UsageRecordDomainService(
         int attemptCount,
         int? downStatusCode,
         string? upModelId,
+        string? downRequestHeaders = null,
+        string? downRequestBody = null,
         CancellationToken cancellationToken = default)
     {
         // 1. 获取基础价格
@@ -67,7 +69,9 @@ public class UsageRecordDomainService(
             cacheCreationTokens,
             baseCost,
             attemptCount,
-            downStatusCode);
+            downStatusCode,
+            downRequestHeaders,
+            downRequestBody);
 
         // 3. 持久化记录
         await usageRepository.UpdateAsync(record, cancellationToken);

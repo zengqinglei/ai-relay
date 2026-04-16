@@ -18,5 +18,7 @@ public record FinishUsageInputDto(
     // 尝试次数
     int AttemptCount,
     // 返回下游状态码
-    int? DownStatusCode
+    int? DownStatusCode,
+    string? DownRequestHeaders = null,
+    string? DownRequestBody = null
 );
