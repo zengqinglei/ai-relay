@@ -107,6 +107,11 @@ public class CreateAccountTokenInputDto
     public Dictionary<string, string>? ModelMapping { get; init; }
 
     /// <summary>
+    /// 限流控制范围（按账户 / 按模型）
+    /// </summary>
+    public RateLimitScope RateLimitScope { get; init; } = RateLimitScope.Account;
+
+    /// <summary>
     /// 是否允许伪装为官方客户端
     /// </summary>
     public bool AllowOfficialClientMimic { get; init; } = false;

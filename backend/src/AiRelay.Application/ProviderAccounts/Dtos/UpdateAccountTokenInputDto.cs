@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using AiRelay.Domain.ProviderAccounts.ValueObjects;
 
 namespace AiRelay.Application.ProviderAccounts.Dtos;
 
@@ -78,6 +79,11 @@ public class UpdateAccountTokenInputDto
     /// 模型映射规则
     /// </summary>
     public Dictionary<string, string>? ModelMapping { get; init; }
+
+    /// <summary>
+    /// 限流控制范围（按账户 / 按模型）
+    /// </summary>
+    public RateLimitScope? RateLimitScope { get; init; }
 
     /// <summary>
     /// 是否允许伪装为官方客户端

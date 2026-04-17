@@ -11,12 +11,9 @@
 >
   @if (account) {
     <div class="p-6 pt-2 overflow-y-auto custom-scrollbar space-y-6">
-      <!-- Header Section -->
       <div class="flex items-center justify-between pb-4 border-b border-surface-200 dark:border-surface-700">
         <div class="flex items-center gap-3">
-          <div
-            class="w-12 h-12 rounded-xl bg-surface-50 dark:bg-surface-800 flex items-center justify-center p-2.5 border border-surface-200 dark:border-surface-700"
-          >
+          <div class="w-12 h-12 rounded-xl bg-surface-50 dark:bg-surface-800 flex items-center justify-center p-2.5 border border-surface-200 dark:border-surface-700">
             <div [class]="'w-full h-full ' + getProviderIconClass(account.provider)">
               <app-platform-icon [provider]="account.provider" />
             </div>
@@ -35,119 +32,118 @@
         </span>
       </div>
 
-      <!-- Detail Grid -->
       <div class="grid grid-cols-2 gap-x-6 gap-y-4">
-        <!-- Provider -->
         <div class="flex flex-col gap-2">
           <label class="block text-sm font-medium text-color">服务商</label>
-          <div
-            class="w-full text-sm text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 truncate"
-          >
+          <div class="w-full text-sm text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 truncate">
             {{ getProviderLabel(account.provider) }}
           </div>
         </div>
 
-        <!-- Auth Method -->
         <div class="flex flex-col gap-2">
           <label class="block text-sm font-medium text-color">鉴权方式</label>
-          <div
-            class="w-full text-sm text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 truncate"
-          >
+          <div class="w-full text-sm text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 truncate">
             {{ getAuthMethodLabel(account.authMethod) }}
           </div>
         </div>
 
-        <!-- Name -->
         <div class="flex flex-col gap-2">
           <label class="block text-sm font-medium text-color">账户名称</label>
-          <div
-            class="w-full text-sm text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 truncate"
-          >
+          <div class="w-full text-sm text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 truncate">
             {{ account.name }}
           </div>
         </div>
 
-        <!-- 密钥 + 最大并发数 同行 -->
         <div class="flex flex-col gap-2">
           <label class="block text-sm font-medium text-color">密钥</label>
-          <div
-            class="w-full text-sm font-mono text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 break-all select-all"
-          >
+          <div class="w-full text-sm font-mono text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 break-all select-all">
             {{ account.fullToken }}
           </div>
         </div>
 
-        <!-- Concurrency -->
         <div class="flex flex-col gap-2">
           <label class="block text-sm font-medium text-color">最大并发数</label>
-          <div
-            class="w-full text-sm font-mono text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 truncate"
-          >
+          <div class="w-full text-sm font-mono text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 truncate">
             {{ account.maxConcurrency === 0 ? '不限制' : account.maxConcurrency }}
           </div>
         </div>
 
-        <!-- 上游地址 (API Key Only) -->
+        <div class="flex flex-col gap-2">
+          <label class="block text-sm font-medium text-color">限流控制方式</label>
+          <div class="w-full text-sm text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 truncate">
+            {{ getRateLimitScopeLabel(account.rateLimitScope) }}
+          </div>
+        </div>
+
+        @if (account.rateLimitScope === RateLimitScope.Model) {
+          <div class="col-span-2 flex flex-col gap-2">
+            <label class="block text-sm font-medium text-color">当前受限模型</label>
+            <div class="w-full bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-3 space-y-2">
+              @if (account.limitedModels?.length) {
+                @for (model of account.limitedModels; track model.modelKey) {
+                  <div class="flex items-center justify-between gap-3 rounded-md border border-orange-200 bg-orange-50/80 px-3 py-2 dark:border-orange-800/30 dark:bg-orange-950/20">
+                    <div class="min-w-0 flex-1">
+                      <div class="truncate text-sm font-medium text-color">{{ getLimitedModelLabel(model.modelKey, model.displayName) }}</div>
+                      @if (model.statusDescription) {
+                        <div class="mt-1 text-xs text-muted-color">{{ model.statusDescription }}</div>
+                      }
+                    </div>
+                    <div class="shrink-0 text-[11px] font-mono text-orange-600 dark:text-orange-300">
+                      {{ model.lockedUntil ? (model.lockedUntil | date: 'yyyy-MM-dd HH:mm') : '限流中' }}
+                    </div>
+                  </div>
+                }
+              } @else {
+                <div class="text-sm text-muted-color">当前没有受限模型</div>
+              }
+            </div>
+          </div>
+        }
+
         @if (!isOAuth(account.authMethod)) {
           <div class="col-span-2 flex flex-col gap-2">
             <label class="block text-sm font-medium text-color">上游地址</label>
-            <div
-              class="w-full text-sm font-mono text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 truncate"
-            >
+            <div class="w-full text-sm font-mono text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 truncate">
               {{ account.baseUrl || '未设置' }}
             </div>
           </div>
         }
 
-        <!-- 伪装为官方客户端 + 流健康检查 同行 -->
         <div class="flex flex-col gap-2">
           <label class="block text-sm font-medium text-color">伪装为官方客户端</label>
-          <div
-            class="w-full text-sm text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 truncate"
-          >
+          <div class="w-full text-sm text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 truncate">
             {{ account.allowOfficialClientMimic ? '已开启' : '已关闭' }}
           </div>
         </div>
 
         <div class="flex flex-col gap-2">
           <label class="block text-sm font-medium text-color">流健康检查</label>
-          <div
-            class="w-full text-sm text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 truncate"
-          >
+          <div class="w-full text-sm text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 truncate">
             {{ account.isCheckStreamHealth ? '已开启' : '已关闭' }}
           </div>
         </div>
 
-        <!-- Created At (Always Visible) -->
         <div class="flex flex-col gap-2">
           <label class="block text-sm font-medium text-color">创建时间</label>
-          <div
-            class="w-full text-sm font-mono text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 truncate"
-          >
+          <div class="w-full text-sm font-mono text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 truncate">
             {{ account.creationTime | date: 'yyyy-MM-dd HH:mm:ss' }}
           </div>
         </div>
 
-        <!-- Description (Full Width) -->
         <div class="col-span-2 flex flex-col gap-2">
           <label class="block text-sm font-medium text-color">描述说明</label>
-          <div
-            class="w-full text-sm text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 whitespace-pre-wrap break-words min-h-[4rem] max-h-[8rem] overflow-y-auto custom-scrollbar"
-          >
+          <div class="w-full text-sm text-color-secondary bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md p-2 whitespace-pre-wrap break-words min-h-[4rem] max-h-[8rem] overflow-y-auto custom-scrollbar">
             {{ account.description || '暂无描述信息' }}
           </div>
         </div>
 
-        <!-- Extended Attributes -->
         @if (account.extraProperties && (account.extraProperties | keyvalue).length > 0) {
           <div class="col-span-2 relative py-2">
             <div class="absolute inset-0 flex items-center" aria-hidden="true">
               <div class="w-full border-t border-surface-200 dark:border-surface-700"></div>
             </div>
             <div class="relative flex justify-start">
-              <span class="pr-2 bg-surface-0 dark:bg-surface-900 text-[10px] font-semibold text-muted-color uppercase tracking-wider"
-                >扩展属性</span
-              >
+              <span class="pr-2 bg-surface-0 dark:bg-surface-900 text-[10px] font-semibold text-muted-color uppercase tracking-wider">扩展属性</span>
             </div>
           </div>
 

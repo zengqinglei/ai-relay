@@ -259,6 +259,14 @@
                   {{ formatRemainingTime(getRateLimitRemainingSeconds(acc)) }}
                 </span>
               }
+              @if (acc.status === AccountStatus.PartiallyRateLimited && getLimitedModelCount(acc) > 0) {
+                <p-tag
+                  [value]="'+' + getLimitedModelCount(acc)"
+                  severity="warn"
+                  styleClass="cursor-pointer shrink-0 text-[10px]"
+                  (click)="openLimitedModelsPopover($event, providerGroupsPopover, acc)">
+                </p-tag>
+              }
               @if (getExpiryState(acc) !== 'forever' && getExpiryState(acc) !== 'ok') {
                 <div class="ml-0.5 flex items-center border-l border-surface-200 pl-2 dark:border-surface-700">
                   @switch (getExpiryState(acc)) {
@@ -348,7 +356,7 @@
         <!-- Actions -->
         <td class="border-b border-surface-200 bg-transparent px-6 py-4 text-right dark:border-surface-700">
           <div class="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-            @if (acc.status === AccountStatus.RateLimited || acc.status === AccountStatus.Error) {
+            @if (acc.status === AccountStatus.RateLimited || acc.status === AccountStatus.PartiallyRateLimited || acc.status === AccountStatus.Error) {
               <p-button (onClick)="confirmResetStatus($event, acc)" [text]="true" [rounded]="true" severity="warn" styleClass="w-8 h-8 !p-0" pTooltip="重置状态" tooltipPosition="top">
                 <i class="pi pi-refresh"></i>
               </p-button>
@@ -394,6 +402,9 @@
 </p-popover>
 <p-confirmpopup />
 <app-model-test-dialog />
+
+
+
 
 
 

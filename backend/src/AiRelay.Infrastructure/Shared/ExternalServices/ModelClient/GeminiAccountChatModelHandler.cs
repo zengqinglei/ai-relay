@@ -1,17 +1,18 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Context;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Processor;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.SignatureCache;
+using AiRelay.Domain.Shared.ExternalServices.ModelProvider;
 using AiRelay.Domain.Shared.ExternalServices.ModelProvider.Dto;
+using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Cleaning;
 using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.Common;
 using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.Google;
-using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Cleaning;
 using Microsoft.Extensions.Logging;
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 
 namespace AiRelay.Infrastructure.Shared.ExternalServices.ModelClient;
 
@@ -21,6 +22,7 @@ public class GeminiAccountChatModelHandler(
     GoogleJsonSchemaCleaner googleJsonSchemaCleaner,
     GoogleSignatureCleaner googleSignatureCleaner,
     GeminiSystemPromptInjector geminiSystemPromptInjector,
+    IModelProvider modelProvider,
     ISignatureCache signatureCache,
     ILogger<GeminiAccountChatModelHandler> logger)
     : GoogleInternalChatModelHandlerBase(options, httpClientFactory, signatureCache, logger)
@@ -32,6 +34,7 @@ public class GeminiAccountChatModelHandler(
         DownRequestContext down, int degradationLevel)
     {
         return [
+            new ModelIdMappingRequestProcessor(modelProvider, Options.Provider, Options),
             new GoogleUrlRequestProcessor(Options),
             new GoogleHeaderRequestProcessor(Options),
             new GoogleModifyBodyRequestProcessor(
@@ -207,7 +210,7 @@ public class GeminiAccountChatModelHandler(
         return new DownRequestContext
         {
             Method = HttpMethod.Post,
-            RelativePath = $"/v1internal:streamGenerateContent",
+            RelativePath = "/v1internal:streamGenerateContent",
             QueryString = "?alt=sse",
             ModelId = modelId,
             RawStream = new MemoryStream(Encoding.UTF8.GetBytes(json.ToJsonString()))

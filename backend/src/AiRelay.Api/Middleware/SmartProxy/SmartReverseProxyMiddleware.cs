@@ -213,6 +213,7 @@ public class SmartReverseProxyMiddleware(
                             {
                                 var (crash, statusDesc, usage) = await HandleSuccessResponseAsync(
                                     context, proxyResponse, selectResult.AccountToken.Id,
+                                    upContext.MappedModelId ?? downContext.ModelId,
                                     isCheckStreamHealth, tempUpBody, tempDownBody,
                                     true, // 始终允许内部 buffer 捕获，用于诊断流中途断网等异常
                                     context.RequestAborted);
@@ -260,9 +261,15 @@ public class SmartReverseProxyMiddleware(
                                 httpStatusCode, upResponseBody);
 
                             var retryPolicy = isStreamCrash
-                                ? new ModelErrorAnalysisResult { IsCanRetry = true }
+                                ? new ModelErrorAnalysisResult { RetryType = RetryType.RetrySameAccount }
                                 : await accountedHandler.CheckRetryPolicyAsync(
-                                    httpStatusCode!.Value, proxyResponse.Headers, proxyResponse.ErrorBody);
+                                    httpStatusCode!.Value, downContext.RelativePath, proxyResponse.Headers, proxyResponse.ErrorBody);
+
+                            if (!string.IsNullOrEmpty(retryPolicy.Description))
+                            {
+                                attemptStatusDesc = retryPolicy.Description;
+                                logger.LogDebug("错误分析结果: {Description}", retryPolicy.Description);
+                            }
 
                             var (instruction, retryAfter) = DetermineFailureInstruction(
                                 retryPolicy, currentAccountRetryCount, maxSameAccountRetries, accountSwitchCount);
@@ -270,7 +277,7 @@ public class SmartReverseProxyMiddleware(
                             switch (instruction)
                             {
                                 case FailureInstruction.RetrySameAccount:
-                                    if (retryPolicy.RequiresDowngrade)
+                                    if (retryPolicy.RetryType == RetryType.RetrySameAccountWithDowngrade)
                                     {
                                         degradationLevel++;
                                         attemptStatusDesc = $"启用降级级别 {degradationLevel} 进行重试 (状态码: {httpStatusCode}, Retry {currentAccountRetryCount})" +
@@ -291,6 +298,8 @@ public class SmartReverseProxyMiddleware(
                                             selectResult.AccountToken.Id,
                                             httpStatusCode!.Value,
                                             proxyResponse.ErrorBody,
+                                            downContext.ModelId,
+                                            upContext.MappedModelId ?? downContext.ModelId,
                                             retryPolicy),
                                         context.RequestAborted);
                                     shouldSwitchAccount = true;
@@ -299,16 +308,22 @@ public class SmartReverseProxyMiddleware(
                                     break;
 
                                 case FailureInstruction.Fail:
-                                    await smartProxyAppService.HandleFailureAsync(
-                                        new HandleFailureInputDto(
-                                            selectResult.AccountToken.Id,
-                                            httpStatusCode!.Value,
-                                            proxyResponse.ErrorBody,
-                                            retryPolicy),
-                                        context.RequestAborted);
-                                    attemptStatusDesc = $"请求最终失败 (状态码: {httpStatusCode})，不进行重试：{upResponseBody}";
+                                    if (retryPolicy.RetryType != RetryType.UnsupportedEndpoint)
+                                    {
+                                        await smartProxyAppService.HandleFailureAsync(
+                                            new HandleFailureInputDto(
+                                                selectResult.AccountToken.Id,
+                                                httpStatusCode!.Value,
+                                                proxyResponse.ErrorBody,
+                                                downContext.ModelId,
+                                                upContext.MappedModelId ?? downContext.ModelId,
+                                                retryPolicy),
+                                            context.RequestAborted);
+                                    }
+                                    attemptStatusDesc = retryPolicy.RetryType == RetryType.UnsupportedEndpoint
+                                        ? $"端点不支持 (状态码: {httpStatusCode})，直接透传响应：{retryPolicy.Description}"
+                                        : $"请求最终失败 (状态码: {httpStatusCode})，不进行重试：{upResponseBody}";
                                     WriteResponseHeaders(context, httpStatusCode!.Value, proxyResponse.Headers);
-                                    // 无视配置记录最终给下游的报错信息
                                     downResponseBody = LoggingSubBody(proxyResponse.ErrorBody, force: true);
                                     await context.Response.WriteAsync(proxyResponse.ErrorBody ?? "", context.RequestAborted);
                                     return;
@@ -496,6 +511,7 @@ public class SmartReverseProxyMiddleware(
         HttpContext context,
         ProxyResponse proxyResponse,
         Guid accountTokenId,
+        string? upModelId,
         bool isCheckStreamHealth,
         StringBuilder tempUpBody,
         StringBuilder tempDownBody,
@@ -511,7 +527,7 @@ public class SmartReverseProxyMiddleware(
         if (!isCheckStreamHealth)
         {
             // 未开启健康检查，立即放行，发送响应头
-            await smartProxyAppService.HandleSuccessAsync(accountTokenId, ct);
+            await smartProxyAppService.HandleSuccessAsync(accountTokenId, upModelId, ct);
             WriteResponseHeaders(context, proxyResponse.StatusCode, proxyResponse.Headers);
             headersWritten = true;
         }
@@ -537,7 +553,7 @@ public class SmartReverseProxyMiddleware(
                     if (evt.HasOutput)
                     {
                         // 实际输出产生，解除缓冲，放行响应
-                        await smartProxyAppService.HandleSuccessAsync(accountTokenId, ct);
+                        await smartProxyAppService.HandleSuccessAsync(accountTokenId, upModelId, ct);
                         WriteResponseHeaders(context, proxyResponse.StatusCode, proxyResponse.Headers);
                         headersWritten = true;
 
@@ -610,12 +626,13 @@ public class SmartReverseProxyMiddleware(
         StringBuilder tempDownBody,
         bool forceBodyCapture,
         CancellationToken ct)
-{
-    foreach (var chunk in bufferedBytes)
     {
-        AppendBodyLog(tempDownBody, chunk, forceBodyCapture);
-        await context.Response.Body.WriteAsync(chunk, ct);
-    }
+        foreach (var chunk in bufferedBytes)
+        {
+            AppendBodyLog(tempDownBody, chunk, forceBodyCapture);
+            await context.Response.Body.WriteAsync(chunk, ct);
+        }
+
         bufferedBytes.Clear();
         await context.Response.Body.FlushAsync(ct);
     }
@@ -759,8 +776,15 @@ public class SmartReverseProxyMiddleware(
         int maxRetries,
         int accountSwitchCount)
     {
+        // 0. 端点不支持：直接透传，不重试不切号不计熔断
+        if (retryPolicy.RetryType == RetryType.UnsupportedEndpoint)
+            return (FailureInstruction.Fail, TimeSpan.Zero);
+
+        var canRetry = retryPolicy.RetryType is RetryType.RetrySameAccount
+                                              or RetryType.RetrySameAccountWithDowngrade;
+
         // 1. 同账号重试判定
-        if (retryPolicy.IsCanRetry && currentRetryCount < maxRetries)
+        if (canRetry && currentRetryCount < maxRetries)
         {
             // 如果上游明确要求等待超过 15s，通常意味着该账号被严重限流，直接切号
             if (retryPolicy.RetryAfter.HasValue && retryPolicy.RetryAfter.Value.TotalSeconds >= 15)
@@ -772,20 +796,16 @@ public class SmartReverseProxyMiddleware(
         }
 
         // 2. 切换账号判定
-        // 情况 A: Handler 判定可重试（IsCanRetry = true），但同账号次数已满，则切换到下一个号继续试
-        if (retryPolicy.IsCanRetry)
-        {
+        // 情况 A: Handler 判定可重试，但同账号次数已满，则切换到下一个号继续试
+        if (canRetry)
             return (FailureInstruction.SwitchAccount, TimeSpan.Zero);
-        }
 
-        // 情况 B: Handler 判定不可重试（IsCanRetry = false，如官方 5xx 或 401/403/429 等）
-        // 此时如果是第一个号由于节点、网关或其他未知原因报错，额外给一次切号机会（盲切补偿）
+        // 情况 B: Handler 判定不可重试（如官方 5xx 或 401/403 等）
+        // 第一个号报错时额外给一次切号机会（盲切补偿）
         if (accountSwitchCount == 0)
-        {
             return (FailureInstruction.SwitchAccount, TimeSpan.Zero);
-        }
 
-        // 其他情况（已经切过号但还是报错，或者明确不可重试）则直接失败
+        // 其他情况（已切过号但还是报错）则直接失败
         return (FailureInstruction.Fail, TimeSpan.Zero);
     }
 
@@ -799,3 +819,5 @@ public class SmartReverseProxyMiddleware(
         return string.Join("\n", filtered);
     }
 }
+
+

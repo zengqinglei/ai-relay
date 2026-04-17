@@ -51,6 +51,7 @@ public abstract class GoogleInternalChatModelHandlerBase(
 
     public override async Task<ModelErrorAnalysisResult> CheckRetryPolicyAsync(
         int statusCode,
+        string? relativePath,
         Dictionary<string, IEnumerable<string>>? headers,
         string? responseBody)
     {
@@ -59,8 +60,7 @@ public abstract class GoogleInternalChatModelHandlerBase(
         {
             return new ModelErrorAnalysisResult
             {
-                IsCanRetry = true,
-                RequiresDowngrade = true,
+                RetryType = RetryType.RetrySameAccountWithDowngrade,
                 RetryAfter = TimeSpan.FromSeconds(1), // 特殊信号：降级重试延迟 1s
                 Description = "[协议适配] 检测到 Google 签名无法解密或与 OAuth 协议冲突，正在执行自动降级修复"
             };
@@ -69,12 +69,14 @@ public abstract class GoogleInternalChatModelHandlerBase(
         // 429/503 限流 / 容量不足
         if (statusCode == 429 || statusCode == 503)
         {
-            var retryAfter = ExtractRetryAfter(headers, responseBody);
-
-            return new ModelErrorAnalysisResult { IsCanRetry = true, RetryAfter = retryAfter };
+            return new ModelErrorAnalysisResult
+            {
+                RetryType = RetryType.RetrySameAccount,
+                RetryAfter = ExtractRetryAfter(headers, responseBody)
+            };
         }
 
-        return await base.CheckRetryPolicyAsync(statusCode, headers, responseBody);
+        return await base.CheckRetryPolicyAsync(statusCode, relativePath, headers, responseBody);
     }
 
     protected override TimeSpan? ExtractRetryAfter(Dictionary<string, IEnumerable<string>>? headers, string? body)

@@ -442,6 +442,7 @@ public class AccountTokenAppService(
             input.MaxConcurrency,
             input.ModelWhites,
             input.ModelMapping,
+            input.RateLimitScope,
             input.AllowOfficialClientMimic,
             input.IsCheckStreamHealth,
             input.Priority,
@@ -486,6 +487,7 @@ public class AccountTokenAppService(
             modelMapping: input.ModelMapping,
             clearModelWhites: input.ModelWhites != null && input.ModelWhites.Count == 0,
             clearModelMapping: input.ModelMapping != null && input.ModelMapping.Count == 0,
+            rateLimitScope: input.RateLimitScope,
             allowOfficialClientMimic: input.AllowOfficialClientMimic,
             isCheckStreamHealth: input.IsCheckStreamHealth,
             priority: input.Priority,
@@ -630,3 +632,8 @@ public class AccountTokenAppService(
             .ToList();
     }
 }
+
+
+
+
+

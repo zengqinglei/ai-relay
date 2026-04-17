@@ -1,12 +1,8 @@
-using System.Collections.Generic;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Net.Http;
-using System.IO;
 using Microsoft.Extensions.Logging;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
-using AiRelay.Domain.Shared.ExternalServices.ModelClient;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Context;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Processor;

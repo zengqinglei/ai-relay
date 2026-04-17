@@ -4,7 +4,7 @@ using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.ProviderGroups.DomainServices.SchedulingStrategy.AccountConcurrencyStrategy;
 using AiRelay.Domain.ProviderGroups.Entities;
 using AiRelay.Domain.ProviderGroups.Repositories;
-using Leistd.Ddd.Domain.Repositories;
+using AiRelay.Domain.Shared.ExternalServices.ModelProvider;
 using Leistd.Exception.Core;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
@@ -20,6 +20,7 @@ public class ProviderGroupDomainService(
     IProviderGroupAccountRelationRepository providerGroupAccountRelationRepository,
     AccountTokenDomainService accountTokenDomainService,
     AccountRateLimitDomainService accountRateLimitDomainService,
+    IModelProvider modelProvider,
     IConcurrencyStrategy concurrencyStrategy,
     IDistributedCache cache,
     ILogger<ProviderGroupDomainService> logger)
@@ -283,6 +284,21 @@ public class ProviderGroupDomainService(
                 continue;
             }
 
+            if (!string.IsNullOrEmpty(requestedModel))
+            {
+                var upModelId = AccountTokenDomainService.ResolveUpModelId(requestedModel, account.Provider, account.ModelMapping, modelProvider);
+                if (!account.IsModelAvailable(upModelId))
+                {
+                    logger.LogDebug(
+                        "账号 '{Name}'({Provider}-{AuthMethod}) 的上游模型 {Model} 处于模型级限流，跳过",
+                        account.Name,
+                        account.Provider,
+                        account.AuthMethod,
+                        upModelId ?? requestedModel);
+                    continue;
+                }
+            }
+
             qualifiedRelations.Add(relation);
         }
 
@@ -478,3 +494,11 @@ public class ProviderGroupDomainService(
         public DateTime CreatedAt { get; set; }
     }
 }
+
+
+
+
+
+
+
+

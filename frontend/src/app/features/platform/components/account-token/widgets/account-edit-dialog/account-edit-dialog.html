@@ -14,8 +14,6 @@
   styleClass="overflow-hidden"
 >
   <div class="p-4 pt-2 md:p-6" [formGroup]="form">
-    <p class="mt-0 mb-6 text-sm text-muted-color">请填写账户的基本信息、归组关系与鉴权凭证。</p>
-
     <div class="flex flex-col gap-5">
       <div class="grid grid-cols-1 gap-x-4 gap-y-4 md:grid-cols-4 md:gap-x-6">
         <div class="flex flex-col gap-2 md:col-span-2">
@@ -154,10 +152,9 @@
                 [multiple]="true"
                 [dropdown]="true"
                 [fluid]="true"
-                placeholder="输入或选择模型名称"
+                placeholder="白名单为空时，默认支持全部模型"
                 styleClass="w-full"
               />
-              <small class="text-muted-color">白名单为空时，默认支持全部模型</small>
             </div>
 
             <div class="flex flex-col gap-2">
@@ -190,9 +187,29 @@
       </div>
 
       <div>
-        <p-panel header="分组调度配置" [toggleable]="true" [collapsed]="true">
-          <div class="grid grid-cols-1 gap-x-4 gap-y-4 md:grid-cols-4 md:gap-x-6">
-            <div class="flex flex-col gap-2 md:col-span-2">
+        <p-panel header="调度配置" [toggleable]="true" [collapsed]="true">
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-x-6 md:gap-y-5">
+            <div class="flex items-center justify-between gap-4 rounded-lg border border-surface-200 bg-surface-50/80 px-4 py-3 dark:border-surface-700 dark:bg-surface-900/40">
+              <label class="text-sm font-medium text-color flex items-center gap-2">
+                官方伪装
+                <i class="pi pi-info-circle cursor-help text-sm text-muted-color hover:text-primary transition-colors" pTooltip="开启后将模拟官方客户端特征" tooltipPosition="top"></i>
+              </label>
+              <div class="shrink-0">
+                <p-toggleswitch formControlName="allowOfficialClientMimic" />
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between gap-4 rounded-lg border border-surface-200 bg-surface-50/80 px-4 py-3 dark:border-surface-700 dark:bg-surface-900/40">
+              <label class="text-sm font-medium text-color flex items-center gap-2">
+                流健康检查
+                <i class="pi pi-info-circle cursor-help text-sm text-muted-color hover:text-primary transition-colors" pTooltip="拦截异常空包与报错，触发重试" tooltipPosition="top"></i>
+              </label>
+              <div class="shrink-0">
+                <p-toggleswitch formControlName="isCheckStreamHealth" />
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-2">
               <label class="block text-sm font-medium text-color flex items-center gap-2">
                 优先级 *
                 <i class="pi pi-info-circle cursor-help text-sm text-muted-color hover:text-primary transition-colors" pTooltip="值越小优先级越高，建议主账号使用 1" tooltipPosition="top"></i>
@@ -210,7 +227,7 @@
               </p-inputNumber>
             </div>
 
-            <div class="flex flex-col gap-2 md:col-span-2">
+            <div class="flex flex-col gap-2">
               <label class="block text-sm font-medium text-color flex items-center gap-2">
                 调度权重 *
                 <i class="pi pi-info-circle cursor-help text-sm text-muted-color hover:text-primary transition-colors" pTooltip="同优先级内按权重分配请求，建议范围 1-100" tooltipPosition="top"></i>
@@ -228,7 +245,7 @@
               </p-inputNumber>
             </div>
 
-            <div class="flex flex-col gap-2 md:col-span-2">
+            <div class="flex flex-col gap-2">
               <label class="block text-sm font-medium text-color flex items-center gap-2">
                 最大并发数 *
                 <i class="pi pi-info-circle cursor-help text-sm text-muted-color hover:text-primary transition-colors" pTooltip="设置为 0 表示不限制并发" tooltipPosition="top" tooltipStyleClass="max-w-xs"></i>
@@ -249,30 +266,25 @@
               </p-inputNumber>
             </div>
 
-            <div class="grid grid-cols-2 gap-4 md:col-span-2">
-              <div class="flex flex-col gap-2">
-                <label class="text-sm font-medium text-color flex items-center gap-2">
-                  官方伪装
-                  <i class="pi pi-info-circle cursor-help text-sm text-muted-color hover:text-primary transition-colors" pTooltip="开启后将模拟官方客户端特征" tooltipPosition="top"></i>
-                </label>
-                <div class="flex h-10 items-center gap-2">
-                  <p-toggleswitch formControlName="allowOfficialClientMimic" />
-                </div>
-              </div>
-
-              <div class="flex flex-col gap-2">
-                <label class="text-sm font-medium text-color flex items-center gap-2">
-                  流健康检查
-                  <i class="pi pi-info-circle cursor-help text-sm text-muted-color hover:text-primary transition-colors" pTooltip="拦截异常空包与报错，触发重试" tooltipPosition="top"></i>
-                </label>
-                <div class="flex h-10 items-center gap-2">
-                  <p-toggleswitch formControlName="isCheckStreamHealth" />
-                </div>
-              </div>
+            <div class="flex flex-col gap-2">
+              <label class="block text-sm font-medium text-color flex items-center gap-2">
+                限流控制
+                <i class="pi pi-info-circle cursor-help text-sm text-muted-color hover:text-primary transition-colors"
+                  pTooltip="按账户：任一限流作用于整个账户；按模型：仅锁定当前触发限流的模型"
+                  tooltipPosition="top"
+                  tooltipStyleClass="max-w-xs"></i>
+              </label>
+              <p-selectbutton
+                formControlName="rateLimitScope"
+                [options]="rateLimitScopeOptions"
+                optionLabel="label"
+                optionValue="value"
+                [allowEmpty]="false" />
             </div>
           </div>
         </p-panel>
       </div>
+
 
       <div class="flex flex-col gap-2">
         <label class="block text-sm font-medium text-color">描述说明</label>
@@ -297,3 +309,15 @@
     </div>
   </ng-template>
 </p-dialog>
+
+
+
+
+
+
+
+
+
+
+
+

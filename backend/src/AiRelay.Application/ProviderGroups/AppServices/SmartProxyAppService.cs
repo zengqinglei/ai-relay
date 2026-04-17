@@ -1,5 +1,6 @@
 using AiRelay.Application.ProviderAccounts.Dtos;
 using AiRelay.Application.ProviderGroups.Dtos;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 using AiRelay.Domain.ApiKeys.Entities;
 using AiRelay.Domain.ProviderAccounts.DomainServices;
 using AiRelay.Domain.ProviderAccounts.Entities;
@@ -9,10 +10,10 @@ using AiRelay.Domain.ProviderGroups.DomainServices;
 using AiRelay.Domain.ProviderGroups.DomainServices.SchedulingStrategy.AccountConcurrencyStrategy;
 using Leistd.Ddd.Application.AppService;
 using Leistd.Ddd.Domain.Repositories;
+using Leistd.Ddd.Infrastructure.Persistence.Repositories;
 using Leistd.Exception.Core;
 using Leistd.ObjectMapping.Core;
 using Microsoft.Extensions.Logging;
-using Leistd.Ddd.Infrastructure.Persistence.Repositories;
 
 namespace AiRelay.Application.ProviderGroups.AppServices;
 
@@ -35,7 +36,7 @@ public class SmartProxyAppService(
         // 1. 获取 ApiKey 绑定的分组，按优先级排序
         var bindingGroupQuery = await apiKeyProviderGroupBindingRepository
             .GetQueryIncludingAsync(cancellationToken, p => p.ProviderGroup);
-            
+
         var bindings = await queryableAsyncExecuter.ToListAsync(
             bindingGroupQuery
                 .Where(b => b.ApiKeyId == input.ApiKeyId)
@@ -122,12 +123,26 @@ public class SmartProxyAppService(
 
     public async Task HandleSuccessAsync(
         Guid accountId,
+        string? upModelId,
         CancellationToken cancellationToken = default)
     {
-        await rateLimitDomainService.ClearBackoffCountAsync(accountId, cancellationToken);
-
         var account = await accountRepository.GetByIdAsync(accountId, cancellationToken);
         if (account == null) return;
+
+        if (account.RateLimitScope == RateLimitScope.Model && !string.IsNullOrWhiteSpace(upModelId))
+        {
+            await rateLimitDomainService.ClearModelBackoffCountAsync(accountId, upModelId, cancellationToken);
+            await rateLimitDomainService.ClearModelLockAsync(accountId, upModelId, cancellationToken);
+
+            if (account.ClearModelRateLimit(upModelId))
+            {
+                await accountRepository.UpdateAsync(account, cancellationToken);
+            }
+
+            return;
+        }
+
+        await rateLimitDomainService.ClearBackoffCountAsync(accountId, cancellationToken);
 
         if (account.ResetStatus())
         {
@@ -147,8 +162,10 @@ public class SmartProxyAppService(
             account,
             input.StatusCode,
             input.ErrorContent,
-            input.ErrorAnalysis.IsCanRetry,
+            input.ErrorAnalysis.RetryType is RetryType.RetrySameAccount or RetryType.RetrySameAccountWithDowngrade,
             input.ErrorAnalysis.RetryAfter,
+            input.DownModelId,
+            input.UpModelId,
             cancellationToken);
 
         await accountRepository.UpdateAsync(account, cancellationToken);
@@ -157,3 +174,4 @@ public class SmartProxyAppService(
     public Task<bool> IsRateLimitedAsync(Guid accountId, CancellationToken cancellationToken = default)
         => rateLimitDomainService.IsRateLimitedAsync(accountId, cancellationToken);
 }
+

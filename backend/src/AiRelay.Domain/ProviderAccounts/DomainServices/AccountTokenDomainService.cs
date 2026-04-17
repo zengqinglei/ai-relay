@@ -27,6 +27,8 @@ public class AccountTokenDomainService(
 {
     private static readonly TimeSpan RefreshLockTimeout = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan RefreshLockWait = TimeSpan.FromMilliseconds(200);
+    private static readonly TimeSpan MinTtl = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan MaxTtl = TimeSpan.FromMinutes(60);
 
     /// <summary>
     /// 创建并准备账户
@@ -44,6 +46,7 @@ public class AccountTokenDomainService(
         int? maxConcurrency = null,
         List<string>? modelWhites = null,
         Dictionary<string, string>? modelMapping = null,
+        RateLimitScope rateLimitScope = RateLimitScope.Account,
         bool allowOfficialClientMimic = false,
         bool isCheckStreamHealth = false,
         int priority = 1,
@@ -65,6 +68,7 @@ public class AccountTokenDomainService(
             extraProperties,
             modelWhites,
             modelMapping,
+            rateLimitScope,
             allowOfficialClientMimic,
             isCheckStreamHealth);
 
@@ -118,8 +122,6 @@ public class AccountTokenDomainService(
             return;
 
         var lockKey = $"token:refresh:{accountToken.Id}";
-
-        // 尝试获取分布式锁（超时 30s）
         var lockHandle = await distributedLock.TryLockAsync(lockKey, RefreshLockTimeout, cancellationToken);
 
         if (lockHandle == null)
@@ -183,7 +185,6 @@ public class AccountTokenDomainService(
 
     /// <summary>
     /// 判断账户是否支持指定模型（选号热路径）
-    /// 有白名单则校验白名单；无白名单则用上游模型列表（带缓存）与 baseline 取交集后校验
     /// </summary>
     public async Task<bool> IsModelSupportedAsync(AccountToken account, string requestedModel, CancellationToken ct = default)
     {
@@ -240,9 +241,35 @@ public class AccountTokenDomainService(
         return false;
     }
 
+
     /// <summary>
-    /// 解析模型映射规则（供 Processor 共用）
-    /// 支持通配符：claude-* 或 claude-*-{version}
+    /// 解析当前请求最终会落到的上游模型 ID（供 Processor 与调度共用）。
+    /// </summary>
+    public static string? ResolveUpModelId(
+        string? downModelId,
+        Provider provider,
+        Dictionary<string, string>? accountMapping,
+        IModelProvider modelProvider)
+    {
+        if (string.IsNullOrWhiteSpace(downModelId))
+        {
+            return downModelId;
+        }
+
+        if (accountMapping != null)
+        {
+            var mapped = ResolveMapping(downModelId, accountMapping);
+            if (!string.IsNullOrWhiteSpace(mapped))
+            {
+                return mapped;
+            }
+        }
+
+        return modelProvider.GetMappedModel(provider, downModelId) ?? downModelId;
+    }
+
+    /// <summary>
+    /// 解析模型映射规则（供 Processor 与调度共用）。
     /// </summary>
     public static string? ResolveMapping(string model, Dictionary<string, string> mapping)
     {
@@ -296,9 +323,6 @@ public class AccountTokenDomainService(
 
         return true;
     }
-
-    private static readonly TimeSpan MinTtl = TimeSpan.FromMinutes(30);
-    private static readonly TimeSpan MaxTtl = TimeSpan.FromMinutes(60);
 
     /// <summary>
     /// 获取上游模型ID集合（仅读缓存，不触发网络请求）
@@ -387,3 +411,5 @@ public class AccountTokenDomainService(
 
     private static string CacheKey(Guid accountId) => $"account:upstream-models:{accountId}";
 }
+
+

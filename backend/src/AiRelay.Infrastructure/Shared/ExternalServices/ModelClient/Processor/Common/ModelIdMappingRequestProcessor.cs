@@ -24,20 +24,12 @@ public class ModelIdMappingRequestProcessor(
         if (string.IsNullOrEmpty(down.ModelId))
             return Task.CompletedTask;
 
-        // 1. 账户级映射优先（精确匹配 + 通配符，由 AccountTokenDomainService 处理）
-        var accountMapping = options.ModelMapping;
-        if (accountMapping != null)
-        {
-            var mapped = AccountTokenDomainService.ResolveMapping(down.ModelId, accountMapping);
-            if (mapped != null)
-            {
-                up.MappedModelId = mapped;
-                return Task.CompletedTask;
-            }
-        }
+        up.MappedModelId = AccountTokenDomainService.ResolveUpModelId(
+            down.ModelId,
+            provider,
+            options.ModelMapping,
+            modelProvider);
 
-        // 2. 平台级映射兜底（由 IModelProvider.GetMappedModel 按 Provider 分发）
-        up.MappedModelId = modelProvider.GetMappedModel(provider, down.ModelId);
         return Task.CompletedTask;
     }
 }

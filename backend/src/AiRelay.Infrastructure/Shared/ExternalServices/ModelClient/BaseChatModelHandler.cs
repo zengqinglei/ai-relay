@@ -294,31 +294,42 @@ public abstract partial class BaseChatModelHandler : IChatModelHandler
 
     public virtual Task<ModelErrorAnalysisResult> CheckRetryPolicyAsync(
         int statusCode,
+        string? relativePath,
         Dictionary<string, IEnumerable<string>>? headers,
         string? responseBody)
     {
         var isOfficialAccount = string.IsNullOrEmpty(Options.BaseUrl);
-        var result = new ModelErrorAnalysisResult();
 
         if (statusCode == 429 || statusCode == 503) // 限流 / 容量不足
         {
-            result.RetryAfter = ExtractRetryAfter(headers, responseBody);
-            result.IsCanRetry = true;
-        }
-        else if (statusCode == 502 || statusCode == 504) // 网络层转译错误（Bad Gateway / Gateway Timeout）
-        {
-            // 这种错误通常是瞬时网络抖动或代理故障，允许同号重试，耗尽后由中间件切号
-            result.IsCanRetry = true;
-            result.RetryAfter = ExtractRetryAfter(headers, responseBody);
-        }
-        else
-        {
-            // 其他 5xx：官方账号不允许同账号重试，由外层换号；非官方账号允许重试
-            result.IsCanRetry = !isOfficialAccount;
-            result.RetryAfter = result.IsCanRetry ? ExtractRetryAfter(headers, responseBody) : null;
+            return Task.FromResult(new ModelErrorAnalysisResult
+            {
+                RetryType = RetryType.RetrySameAccount,
+                RetryAfter = ExtractRetryAfter(headers, responseBody)
+            });
         }
 
-        return Task.FromResult(result);
+        if (statusCode == 502 || statusCode == 504) // 网络层转译错误（Bad Gateway / Gateway Timeout）
+        {
+            // 这种错误通常是瞬时网络抖动或代理故障，允许同号重试，耗尽后由中间件切号
+            return Task.FromResult(new ModelErrorAnalysisResult
+            {
+                RetryType = RetryType.RetrySameAccount,
+                RetryAfter = ExtractRetryAfter(headers, responseBody)
+            });
+        }
+
+        // 其他 5xx：官方账号不允许同账号重试，由外层换号；非官方账号允许重试
+        if (!isOfficialAccount)
+        {
+            return Task.FromResult(new ModelErrorAnalysisResult
+            {
+                RetryType = RetryType.RetrySameAccount,
+                RetryAfter = ExtractRetryAfter(headers, responseBody)
+            });
+        }
+
+        return Task.FromResult(new ModelErrorAnalysisResult { RetryType = RetryType.NoRetry });
     }
 
     public abstract void ExtractModelInfo(DownRequestContext down, Guid apiKeyId);

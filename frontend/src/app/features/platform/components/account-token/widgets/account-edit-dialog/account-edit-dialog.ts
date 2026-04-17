@@ -27,10 +27,19 @@ import { TooltipModule } from 'primeng/tooltip';
 import { finalize } from 'rxjs/operators';
 
 import { DIALOG_CONFIGS } from '../../../../../../shared/constants/dialog-config.constants';
-import { AUTH_METHOD_OPTIONS, PROVIDER_OPTIONS } from '../../../../../../shared/constants/provider.constants';
+import {
+  AUTH_METHOD_OPTIONS,
+  PROVIDER_OPTIONS,
+  RATE_LIMIT_SCOPE_OPTIONS
+} from '../../../../../../shared/constants/provider.constants';
 import { AuthMethod } from '../../../../../../shared/models/auth-method.enum';
 import { Provider } from '../../../../../../shared/models/provider.enum';
-import { AccountTokenOutputDto, CreateAccountTokenInputDto, UpdateAccountTokenInputDto } from '../../../../models/account-token.dto';
+import {
+  AccountTokenOutputDto,
+  CreateAccountTokenInputDto,
+  RateLimitScope,
+  UpdateAccountTokenInputDto
+} from '../../../../models/account-token.dto';
 import { ProviderGroupOutputDto } from '../../../../models/provider-group.dto';
 import { AccountTokenService } from '../../../../services/account-token-service';
 import { ProviderGroupService } from '../../../../services/provider-group-service';
@@ -75,26 +84,24 @@ export class AccountEditDialogComponent implements OnChanges {
   currentProvider = signal<Provider>(Provider.Gemini);
   currentAuthMethod = signal<AuthMethod>(AuthMethod.OAuth);
 
-  // OAuth State
   authCodeInput = '';
   generatedAuthUrl = '';
   sessionId = '';
   generatingUrl = false;
   authCodeTouched = false;
 
-  // Model Configuration
   modelWhites: string[] = [];
   filteredModels: string[] = [];
   availableModels: string[] = [];
   modelMappings: Array<{ from: string; to: string }> = [];
 
-  // Provider Groups
   allProviderGroups = signal<ProviderGroupOutputDto[]>([]);
   filteredProviderGroups = signal<ProviderGroupOutputDto[]>([]);
   selectedProviderGroups = signal<ProviderGroupOutputDto[]>([]);
 
   providerOptions = PROVIDER_OPTIONS;
   authMethodOptions = AUTH_METHOD_OPTIONS;
+  rateLimitScopeOptions = RATE_LIMIT_SCOPE_OPTIONS;
   dialogConfig = DIALOG_CONFIGS.SMALL;
 
   constructor() {
@@ -109,6 +116,7 @@ export class AccountEditDialogComponent implements OnChanges {
       maxConcurrency: [10, [Validators.required, Validators.min(0), Validators.max(1000)]],
       priority: [1, [Validators.required, Validators.min(1), Validators.max(1000)]],
       weight: [50, [Validators.required, Validators.min(1), Validators.max(100)]],
+      rateLimitScope: [RateLimitScope.Account, Validators.required],
       allowOfficialClientMimic: [false],
       isCheckStreamHealth: [false]
     });
@@ -205,6 +213,7 @@ export class AccountEditDialogComponent implements OnChanges {
           maxConcurrency: this.account.maxConcurrency,
           priority: this.account.priority,
           weight: this.account.weight,
+          rateLimitScope: this.account.rateLimitScope ?? RateLimitScope.Account,
           allowOfficialClientMimic: this.account.allowOfficialClientMimic ?? false,
           isCheckStreamHealth: this.account.isCheckStreamHealth ?? false
         },
@@ -243,6 +252,7 @@ export class AccountEditDialogComponent implements OnChanges {
           maxConcurrency: 10,
           priority: 1,
           weight: 50,
+          rateLimitScope: RateLimitScope.Account,
           allowOfficialClientMimic: true,
           isCheckStreamHealth: false
         },
@@ -424,6 +434,7 @@ export class AccountEditDialogComponent implements OnChanges {
         providerGroupIds,
         modelWhites: this.modelWhites,
         modelMapping: this.buildModelMapping(),
+        rateLimitScope: formValue.rateLimitScope ?? RateLimitScope.Account,
         allowOfficialClientMimic: formValue.allowOfficialClientMimic ?? false,
         isCheckStreamHealth: formValue.isCheckStreamHealth ?? false
       };
@@ -447,6 +458,7 @@ export class AccountEditDialogComponent implements OnChanges {
           providerGroupIds: createDto.providerGroupIds,
           modelWhites: createDto.modelWhites,
           modelMapping: createDto.modelMapping,
+          rateLimitScope: createDto.rateLimitScope,
           allowOfficialClientMimic: createDto.allowOfficialClientMimic,
           isCheckStreamHealth: createDto.isCheckStreamHealth
         };
@@ -527,8 +539,6 @@ export class AccountEditDialogComponent implements OnChanges {
     }
   }
 
-  // ===== Model Configuration Methods =====
-
   loadAvailableModels(provider: Provider, accountId?: string) {
     this.availableModels = [];
     this.accountService.getAvailableModels(provider, accountId).subscribe({
@@ -574,11 +584,6 @@ export class AccountEditDialogComponent implements OnChanges {
     }
   }
 
-  /**
-   * 校验映射行：
-   * - 只有 1 行：允许两边都为空；不允许只填一边
-   * - 多于 1 行：不允许出现任何空内容（必须每行都填满）
-   */
   get hasMappingError(): boolean {
     if (this.modelMappings.length <= 1) {
       const m = this.modelMappings[0] ?? { from: '', to: '' };

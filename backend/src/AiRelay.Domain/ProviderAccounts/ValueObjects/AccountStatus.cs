@@ -7,5 +7,6 @@ public enum AccountStatus
 {
     Normal = 0,
     RateLimited = 1,
-    Error = 2
+    PartiallyRateLimited = 2,
+    Error = 3
 }

@@ -68,6 +68,21 @@ public class AccountTokenOutputDto
     public DateTime? LockedUntil { get; init; }
 
     /// <summary>
+    /// 限流控制范围（按账户 / 按模型）
+    /// </summary>
+    public RateLimitScope RateLimitScope { get; init; }
+
+    /// <summary>
+    /// 当前处于模型级限流中的模型列表
+    /// </summary>
+    public List<LimitedModelStateDto> LimitedModels { get; init; } = [];
+
+    /// <summary>
+    /// 当前处于模型级限流中的模型数量
+    /// </summary>
+    public int LimitedModelCount { get; init; }
+
+    /// <summary>
     /// 最大并发数（0 表示不限制）
     /// </summary>
     public int MaxConcurrency { get; init; }

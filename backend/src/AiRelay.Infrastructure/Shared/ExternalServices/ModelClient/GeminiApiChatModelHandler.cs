@@ -1,17 +1,18 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient.Context;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient.Processor;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient.SignatureCache;
+using AiRelay.Domain.Shared.ExternalServices.ModelProvider;
+using AiRelay.Domain.Shared.ExternalServices.ModelProvider.Dto;
+using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Cleaning;
 using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.Common;
 using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.Google;
 using Microsoft.Extensions.Logging;
-using System.Text.Json;
-using AiRelay.Domain.Shared.ExternalServices.ModelProvider.Dto;
-using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
-using AiRelay.Domain.Shared.ExternalServices.ModelClient.Context;
-using AiRelay.Domain.Shared.ExternalServices.ModelClient.Processor;
-using AiRelay.Domain.Shared.ExternalServices.ModelClient.SignatureCache;
-using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Cleaning;
 
 namespace AiRelay.Infrastructure.Shared.ExternalServices.ModelClient;
 
@@ -21,6 +22,7 @@ public class GeminiApiChatModelHandler(
     GoogleJsonSchemaCleaner googleJsonSchemaCleaner,
     GoogleSignatureCleaner googleSignatureCleaner,
     GeminiSystemPromptInjector geminiSystemPromptInjector,
+    IModelProvider modelProvider,
     ISignatureCache signatureCache,
     ILogger<GeminiApiChatModelHandler> logger)
     : GoogleInternalChatModelHandlerBase(options, httpClientFactory, signatureCache, logger)
@@ -32,6 +34,7 @@ public class GeminiApiChatModelHandler(
         DownRequestContext down, int degradationLevel)
     {
         return [
+            new ModelIdMappingRequestProcessor(modelProvider, Options.Provider, Options),
             new GoogleUrlRequestProcessor(Options),
             new GoogleHeaderRequestProcessor(Options),
             new GoogleModifyBodyRequestProcessor(
@@ -42,6 +45,7 @@ public class GeminiApiChatModelHandler(
     }
 
     protected override string? GetFallbackBaseUrl(int statusCode) => null;
+
     public override void ExtractModelInfo(DownRequestContext down, Guid apiKeyId)
     {
         // 1. 提取 ModelId — 优先从 URL 路径提取
@@ -183,8 +187,8 @@ public class GeminiApiChatModelHandler(
         };
     }
 
-    public override Task<ModelErrorAnalysisResult> CheckRetryPolicyAsync(int statusCode, Dictionary<string, IEnumerable<string>>? headers, string? responseBody) =>
-        base.CheckRetryPolicyAsync(statusCode, headers, responseBody);
+    public override Task<ModelErrorAnalysisResult> CheckRetryPolicyAsync(int statusCode, string? relativePath, Dictionary<string, IEnumerable<string>>? headers, string? responseBody) =>
+        base.CheckRetryPolicyAsync(statusCode, relativePath, headers, responseBody);
 
     public override Task<ConnectionValidationResult> ValidateConnectionAsync(CancellationToken ct = default) =>
         Task.FromResult(new ConnectionValidationResult(true));

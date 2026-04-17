@@ -6,10 +6,10 @@ import { TooltipModule } from 'primeng/tooltip';
 
 import { PlatformIcon } from '../../../../../../shared/components/platform-icon/platform-icon';
 import { DIALOG_CONFIGS } from '../../../../../../shared/constants/dialog-config.constants';
-import { PROVIDER_LABELS, AUTH_METHOD_LABELS, getProviderAuthLabel } from '../../../../../../shared/constants/provider.constants';
+import { AUTH_METHOD_LABELS, PROVIDER_LABELS, getProviderAuthLabel } from '../../../../../../shared/constants/provider.constants';
 import { AuthMethod } from '../../../../../../shared/models/auth-method.enum';
 import { Provider } from '../../../../../../shared/models/provider.enum';
-import { AccountTokenOutputDto } from '../../../../models/account-token.dto';
+import { AccountTokenOutputDto, RateLimitScope } from '../../../../models/account-token.dto';
 
 @Component({
   selector: 'app-account-detail-dialog',
@@ -19,11 +19,12 @@ import { AccountTokenOutputDto } from '../../../../models/account-token.dto';
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AccountDetailDialogComponent {
+  readonly RateLimitScope = RateLimitScope;
+
   @Input() visible = false;
   @Input() account: AccountTokenOutputDto | null = null;
   @Output() readonly visibleChange = new EventEmitter<boolean>();
 
-  // 使用中型 Dialog 配置
   dialogConfig = DIALOG_CONFIGS.MEDIUM;
 
   onHide() {
@@ -55,6 +56,14 @@ export class AccountDetailDialogComponent {
 
   getProviderAuthLabel(provider: Provider, authMethod: AuthMethod): string {
     return getProviderAuthLabel(provider, authMethod);
+  }
+
+  getRateLimitScopeLabel(scope: RateLimitScope): string {
+    return scope === RateLimitScope.Model ? '按模型' : '按账户';
+  }
+
+  getLimitedModelLabel(modelKey: string, displayName?: string): string {
+    return displayName || modelKey;
   }
 
   isOAuth(authMethod: AuthMethod): boolean {

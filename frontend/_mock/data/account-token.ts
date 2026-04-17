@@ -1,7 +1,8 @@
 import {
   AccountStatus,
   AccountTokenMetricsOutputDto,
-  AccountTokenOutputDto
+  AccountTokenOutputDto,
+  RateLimitScope
 } from '../../src/app/features/platform/models/account-token.dto';
 import { ModelOptionOutputDto } from '../../src/app/features/platform/models/model-option.dto';
 import { AuthMethod } from '../../src/app/shared/models/auth-method.enum';
@@ -17,7 +18,23 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     baseUrl: '',
     description: '主要测试账号，用于日常开发调试。',
     isActive: true,
-    status: AccountStatus.Normal,
+    status: AccountStatus.PartiallyRateLimited,
+    rateLimitScope: RateLimitScope.Model,
+    limitedModelCount: 2,
+    limitedModels: [
+      {
+        modelKey: 'gemini-2.5-pro',
+        displayName: 'Gemini 2.5 Pro',
+        lockedUntil: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(),
+        statusDescription: '上游返回 429，进入指数退避'
+      },
+      {
+        modelKey: 'gemini-2.0-flash',
+        displayName: 'Gemini 2.0 Flash',
+        lockedUntil: new Date(Date.now() + 70 * 60 * 1000).toISOString(),
+        statusDescription: '短期限流，等待自动恢复'
+      }
+    ],
     expiresIn: 3500,
     tokenObtainedTime: new Date().toISOString(),
     creationTime: '2023-12-01T10:00:00Z',
@@ -50,6 +67,9 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     description: '',
     isActive: true,
     status: AccountStatus.Normal,
+    rateLimitScope: RateLimitScope.Model,
+    limitedModelCount: 0,
+    limitedModels: [],
     expiresIn: 2400,
     tokenObtainedTime: new Date().toISOString(),
     creationTime: '2023-12-01T10:00:00Z',
@@ -81,6 +101,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     description: '备用 Key，流量限制较严。',
     isActive: false,
     status: AccountStatus.RateLimited,
+    rateLimitScope: RateLimitScope.Account,
     statusDescription: '当前账号已触发限流',
     rateLimitDurationSeconds: 3600,
     lockedUntil: new Date(Date.now() + 1800000).toISOString(),
@@ -113,7 +134,17 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     baseUrl: 'https://api.example-relay.com/',
     description: '对接第三方聚合网关。',
     isActive: true,
-    status: AccountStatus.Normal,
+    status: AccountStatus.PartiallyRateLimited,
+    rateLimitScope: RateLimitScope.Model,
+    limitedModelCount: 1,
+    limitedModels: [
+      {
+        modelKey: 'claude-opus-4-6',
+        displayName: 'Claude Opus 4.6',
+        lockedUntil: new Date(Date.now() + 18 * 60 * 60 * 1000).toISOString(),
+        statusDescription: '第三方上游额度回退中'
+      }
+    ],
     expiresIn: null,
     tokenObtainedTime: '2024-01-05T08:00:00Z',
     creationTime: '2024-01-05T08:00:00Z',
@@ -145,6 +176,9 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     description: '',
     isActive: true,
     status: AccountStatus.Normal,
+    rateLimitScope: RateLimitScope.Model,
+    limitedModelCount: 0,
+    limitedModels: [],
     expiresIn: null,
     tokenObtainedTime: '2024-02-01T11:11:00Z',
     creationTime: '2024-02-01T11:11:00Z',
@@ -176,6 +210,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     description: '标准企业账号，用于 GPT-4 模型调用。',
     isActive: true,
     status: AccountStatus.Normal,
+    rateLimitScope: RateLimitScope.Account,
     expiresIn: null,
     tokenObtainedTime: '2024-03-01T09:00:00Z',
     creationTime: '2024-03-01T09:00:00Z',
@@ -206,6 +241,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     description: '开发测试用 Key',
     isActive: true,
     status: AccountStatus.Normal,
+    rateLimitScope: RateLimitScope.Account,
     expiresIn: null,
     tokenObtainedTime: '2024-03-15T14:20:00Z',
     creationTime: '2024-03-15T14:20:00Z',
@@ -237,6 +273,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     description: 'Antigravity 生产主账号，支持 Gemini 3 系列和 Claude 4.5 思维模型',
     isActive: true,
     status: AccountStatus.Normal,
+    rateLimitScope: RateLimitScope.Account,
     expiresIn: 3200,
     tokenObtainedTime: new Date().toISOString(),
     creationTime: '2024-04-01T08:00:00Z',
@@ -268,6 +305,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     description: '备用账号，用于流量溢出和故障转移',
     isActive: true,
     status: AccountStatus.Normal,
+    rateLimitScope: RateLimitScope.Account,
     expiresIn: 2800,
     tokenObtainedTime: new Date(Date.now() - 600000).toISOString(),
     creationTime: '2024-04-10T12:30:00Z',
@@ -299,6 +337,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     description: '专用于思维模型（Thinking Models）的账号，支持深度推理任务',
     isActive: true,
     status: AccountStatus.Normal,
+    rateLimitScope: RateLimitScope.Account,
     expiresIn: 3600,
     tokenObtainedTime: new Date(Date.now() - 300000).toISOString(),
     creationTime: '2024-04-15T09:15:00Z',
@@ -330,6 +369,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     description: '开发测试环境专用账号',
     isActive: false,
     status: AccountStatus.Error,
+    rateLimitScope: RateLimitScope.Account,
     statusDescription: '认证失败 (401)，Token 可能已过期',
     expiresIn: 0,
     tokenObtainedTime: new Date(Date.now() - 7200000).toISOString(),
@@ -361,6 +401,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     description: 'DeepSeek 官方 API 账户',
     isActive: true,
     status: AccountStatus.Normal,
+    rateLimitScope: RateLimitScope.Account,
     expiresIn: null,
     tokenObtainedTime: '2024-05-01T10:00:00Z',
     creationTime: '2024-05-01T10:00:00Z',

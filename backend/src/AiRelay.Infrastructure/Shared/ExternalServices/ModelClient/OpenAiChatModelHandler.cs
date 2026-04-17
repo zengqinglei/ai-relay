@@ -139,6 +139,34 @@ public class OpenAiChatModelHandler(
         }
     }
 
+    public override Task<ModelErrorAnalysisResult> CheckRetryPolicyAsync(
+        int statusCode,
+        string? relativePath,
+        Dictionary<string, IEnumerable<string>>? headers,
+        string? responseBody)
+    {
+        // OAuth 账号下 /v1/responses/compact 上游不一定支持，失败直接透传，不触发熔断
+        if (statusCode == 404 && IsUnsupportedOAuthEndpoint(relativePath))
+        {
+            return Task.FromResult(new ModelErrorAnalysisResult
+            {
+                RetryType = RetryType.UnsupportedEndpoint,
+                Description = $"端点 '{relativePath}' 在 OAuth 账号下不被平台支持，直接透传响应"
+            });
+        }
+
+        return base.CheckRetryPolicyAsync(statusCode, relativePath, headers, responseBody);
+    }
+
+    private bool IsUnsupportedOAuthEndpoint(string? relativePath)
+    {
+        if (Options.AuthMethod != AuthMethod.OAuth || string.IsNullOrEmpty(relativePath))
+            return false;
+
+        var path = relativePath.Split('?')[0];
+        return path.Equals("/v1/responses/compact", StringComparison.OrdinalIgnoreCase);
+    }
+
     protected override TimeSpan? ExtractRetryAfter(Dictionary<string, IEnumerable<string>>? headers, string? body)
     {
         // 1. OpenAI 专有 header

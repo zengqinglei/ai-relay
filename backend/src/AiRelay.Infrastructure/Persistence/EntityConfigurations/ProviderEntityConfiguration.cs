@@ -1,4 +1,5 @@
 using AiRelay.Domain.ProviderAccounts.Entities;
+using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.ProviderGroups.Entities;
 using Leistd.Ddd.Infrastructure.Persistence.Extensions;
 using Microsoft.EntityFrameworkCore;
@@ -60,6 +61,22 @@ internal static class ProviderEntityConfiguration
                     (c1, c2) => c1 == c2 || (c1 != null && c2 != null && c1.SequenceEqual(c2)),
                     c => c == null ? 0 : c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
                     c => c == null ? null : c.ToDictionary(e => e.Key, e => e.Value)));
+
+            b.Property(e => e.LimitedModels)
+                .HasMaxLength(4096)
+                .HasConversion(
+                    v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                    v => v == null ? null : JsonSerializer.Deserialize<List<LimitedModelState>>(v, (JsonSerializerOptions?)null))
+                .Metadata.SetValueComparer(new ValueComparer<List<LimitedModelState>?>(
+                    (c1, c2) => c1 == c2 || (c1 != null && c2 != null && JsonSerializer.Serialize(c1, (JsonSerializerOptions?)null) == JsonSerializer.Serialize(c2, (JsonSerializerOptions?)null)),
+                    c => c == null ? 0 : JsonSerializer.Serialize(c, (JsonSerializerOptions?)null).GetHashCode(),
+                    c => c == null ? null : c.Select(item => new LimitedModelState
+                    {
+                        ModelKey = item.ModelKey,
+                        DisplayName = item.DisplayName,
+                        LockedUntil = item.LockedUntil,
+                        StatusDescription = item.StatusDescription
+                    }).ToList()));
 
             b.Property(e => e.CostToday).HasPrecision(18, 8);
             b.Property(e => e.CostTotal).HasPrecision(18, 8);
@@ -126,3 +143,4 @@ internal static class ProviderEntityConfiguration
         });
     }
 }
+

@@ -41,10 +41,11 @@ public interface IChatModelHandler
         CancellationToken ct = default);
 
     /// <summary>
-    /// 检查失败响应的重试策略（是否可重试、等待时间、是否需要降级）
+    /// 检查失败响应的重试策略（RetryType、等待时间、诊断说明）
     /// </summary>
     Task<ModelErrorAnalysisResult> CheckRetryPolicyAsync(
         int statusCode,
+        string? relativePath,
         Dictionary<string, IEnumerable<string>>? headers,
         string? responseBody);
 

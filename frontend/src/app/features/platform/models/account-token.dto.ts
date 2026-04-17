@@ -3,11 +3,24 @@ import { PagedRequestDto } from '../../../shared/models/paged-request.dto';
 import { Provider } from '../../../shared/models/provider.enum';
 import { RouteProfile } from '../../../shared/models/route-profile.enum';
 
-// ✅ 使用字符串枚举以匹配后端 JSON 序列化
+// 使用字符串枚举以匹配后端 JSON 序列化
 export enum AccountStatus {
   Normal = 'Normal',
   RateLimited = 'RateLimited',
+  PartiallyRateLimited = 'PartiallyRateLimited',
   Error = 'Error'
+}
+
+export enum RateLimitScope {
+  Account = 'Account',
+  Model = 'Model'
+}
+
+export interface LimitedModelStateDto {
+  modelKey: string;
+  displayName?: string;
+  lockedUntil?: string;
+  statusDescription?: string;
 }
 
 export interface AccountTokenOutputDto {
@@ -23,7 +36,10 @@ export interface AccountTokenOutputDto {
   status: AccountStatus;
   statusDescription?: string;
   rateLimitDurationSeconds?: number;
-  lockedUntil?: string; // Date string
+  lockedUntil?: string;
+  rateLimitScope: RateLimitScope;
+  limitedModels?: LimitedModelStateDto[];
+  limitedModelCount?: number;
   maxConcurrency: number;
   currentConcurrency: number;
   priority: number;
@@ -31,22 +47,21 @@ export interface AccountTokenOutputDto {
   providerGroupIds: string[];
   supportedRouteProfiles: RouteProfile[];
 
-  fullToken: string; // 敏感信息，通常只在编辑时可能需要（视后端安全策略而定），或者作为 API Key 输入
-  accessToken?: string; // OAuth Access Token (用于详情展示)
-  refreshToken?: string; // OAuth Refresh Token (用于详情展示)
+  fullToken: string;
+  accessToken?: string;
+  refreshToken?: string;
   creationTime: string;
   tokenObtainedTime?: string;
-  expiresIn?: number | null; // 秒
+  expiresIn?: number | null;
 
-  // 统计数据
   usageToday: number;
   usageTotal: number;
   costToday: number;
   costTotal: number;
   tokensToday: number;
   tokensTotal: number;
-  successRateToday: number; // 0-100
-  successRateTotal: number; // 0-100
+  successRateToday: number;
+  successRateTotal: number;
   modelWhites?: string[];
   modelMapping?: Record<string, string>;
   allowOfficialClientMimic: boolean;
@@ -60,15 +75,16 @@ export interface CreateAccountTokenInputDto {
   extraProperties?: Record<string, string>;
   baseUrl?: string;
   description?: string;
-  credential?: string; // token 或 apikey (OAuth 模式下可选，由后端生成)
-  authCode?: string; // OAuth 授权码
-  sessionId?: string; // OAuth 会话 ID
+  credential?: string;
+  authCode?: string;
+  sessionId?: string;
   maxConcurrency: number;
   priority: number;
   weight: number;
   providerGroupIds: string[];
   modelWhites?: string[];
   modelMapping?: Record<string, string>;
+  rateLimitScope?: RateLimitScope;
   allowOfficialClientMimic?: boolean;
   isCheckStreamHealth?: boolean;
 }
@@ -78,13 +94,14 @@ export interface UpdateAccountTokenInputDto {
   extraProperties?: Record<string, string>;
   baseUrl?: string;
   description?: string;
-  credential?: string; // 可选更新
+  credential?: string;
   maxConcurrency?: number;
   priority?: number;
   weight?: number;
   providerGroupIds?: string[];
   modelWhites?: string[];
   modelMapping?: Record<string, string>;
+  rateLimitScope?: RateLimitScope;
   allowOfficialClientMimic?: boolean;
   isCheckStreamHealth?: boolean;
 }
@@ -124,13 +141,13 @@ export interface AccountTokenMetricsOutputDto {
   totalAccounts: number;
   activeAccounts: number;
   disabledAccounts: number;
-  expiringAccounts: number; // 即将过期
+  expiringAccounts: number;
 
   totalUsageToday: number;
-  usageGrowthRate: number; // 较昨日增长率
+  usageGrowthRate: number;
 
   averageSuccessRate: number;
   abnormalRequests24h: number;
 
-  rotationWarnings: number; // 轮换预警数量
+  rotationWarnings: number;
 }

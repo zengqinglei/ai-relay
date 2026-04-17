@@ -219,20 +219,39 @@ public class ClaudeChatModelHandler(
 
     public override Task<ModelErrorAnalysisResult> CheckRetryPolicyAsync(
         int statusCode,
+        string? relativePath,
         Dictionary<string, IEnumerable<string>>? headers,
         string? responseBody)
     {
         if (statusCode == 400 && ClaudeThinkingCleaner.IsThinkingBlockSignatureError(responseBody))
         {
-            Logger.LogWarning("检测到 Claude thinking 签名错误，建议降级重试");
             return Task.FromResult(new ModelErrorAnalysisResult
             {
-                IsCanRetry = true,
-                RequiresDowngrade = true
+                RetryType = RetryType.RetrySameAccountWithDowngrade,
+                Description = "检测到 Claude thinking 签名错误，启用降级重试"
             });
         }
 
-        return base.CheckRetryPolicyAsync(statusCode, headers, responseBody);
+        // OAuth 账号下 claude.ai 平台不支持的端点，直接透传响应，不触发熔断
+        if (statusCode == 404 && IsUnsupportedOAuthEndpoint(relativePath))
+        {
+            return Task.FromResult(new ModelErrorAnalysisResult
+            {
+                RetryType = RetryType.UnsupportedEndpoint,
+                Description = $"端点 '{relativePath}' 在 OAuth 账号下不被平台支持，直接透传响应"
+            });
+        }
+
+        return base.CheckRetryPolicyAsync(statusCode, relativePath, headers, responseBody);
+    }
+
+    private bool IsUnsupportedOAuthEndpoint(string? relativePath)
+    {
+        if (Options.AuthMethod != AuthMethod.OAuth || string.IsNullOrEmpty(relativePath))
+            return false;
+
+        var path = relativePath.Split('?')[0];
+        return path.Equals("/v1/messages/count_tokens", StringComparison.OrdinalIgnoreCase);
     }
 
 }

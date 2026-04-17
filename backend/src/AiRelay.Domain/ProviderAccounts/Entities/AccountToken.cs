@@ -71,6 +71,16 @@ public class AccountToken : DeletionAuditedEntity<Guid>
     public Dictionary<string, string>? ModelMapping { get; private set; }
 
     /// <summary>
+    /// 限流维度（按账户 / 按模型）
+    /// </summary>
+    public RateLimitScope RateLimitScope { get; private set; } = RateLimitScope.Account;
+
+    /// <summary>
+    /// 当前处于模型级限流中的模型状态列表
+    /// </summary>
+    public List<LimitedModelState>? LimitedModels { get; private set; }
+
+    /// <summary>
     /// 是否允许伪装为官方客户端
     /// </summary>
     public bool AllowOfficialClientMimic { get; private set; }
@@ -164,6 +174,7 @@ public class AccountToken : DeletionAuditedEntity<Guid>
         Dictionary<string, string>? extraProperties = null,
         List<string>? modelWhites = null,
         Dictionary<string, string>? modelMapping = null,
+        RateLimitScope rateLimitScope = RateLimitScope.Account,
         bool allowOfficialClientMimic = false,
         bool isCheckStreamHealth = false)
     {
@@ -184,6 +195,7 @@ public class AccountToken : DeletionAuditedEntity<Guid>
         }
         ModelWhites = modelWhites;
         ModelMapping = modelMapping;
+        RateLimitScope = rateLimitScope;
         AllowOfficialClientMimic = allowOfficialClientMimic;
         IsCheckStreamHealth = isCheckStreamHealth;
 
@@ -212,6 +224,7 @@ public class AccountToken : DeletionAuditedEntity<Guid>
         Dictionary<string, string>? modelMapping = null,
         bool clearModelWhites = false,
         bool clearModelMapping = false,
+        RateLimitScope? rateLimitScope = null,
         bool? allowOfficialClientMimic = null,
         bool? isCheckStreamHealth = null,
         int? priority = null,
@@ -252,6 +265,11 @@ public class AccountToken : DeletionAuditedEntity<Guid>
         else if (modelMapping != null)
             ModelMapping = modelMapping;
 
+        if (rateLimitScope.HasValue)
+        {
+            UpdateRateLimitScope(rateLimitScope.Value);
+        }
+
         if (allowOfficialClientMimic.HasValue)
         {
             AllowOfficialClientMimic = allowOfficialClientMimic.Value;
@@ -272,6 +290,23 @@ public class AccountToken : DeletionAuditedEntity<Guid>
     {
         Priority = priority;
         Weight = weight;
+    }
+
+    public void UpdateRateLimitScope(RateLimitScope rateLimitScope)
+    {
+        RateLimitScope = rateLimitScope;
+
+        if (rateLimitScope == RateLimitScope.Account)
+        {
+            LimitedModels = null;
+            if (Status == AccountStatus.PartiallyRateLimited)
+            {
+                Status = AccountStatus.Normal;
+                StatusDescription = null;
+                RateLimitDurationSeconds = null;
+                LastStatusUpdateTime = DateTime.UtcNow;
+            }
+        }
     }
 
     public void UpdateTokens(string accessToken, string? refreshToken, long? expiresIn)
@@ -333,61 +368,186 @@ public class AccountToken : DeletionAuditedEntity<Guid>
 
     public void MarkAsRateLimited(TimeSpan lockDuration, string description)
     {
+        LimitedModels = null;
         Status = AccountStatus.RateLimited;
         RateLimitDurationSeconds = (int)lockDuration.TotalSeconds;
         LockedUntil = DateTime.UtcNow.AddSeconds((int)lockDuration.TotalSeconds);
         StatusDescription = description?.Length > 512 ? description[..512] : description;
+        LastStatusUpdateTime = DateTime.UtcNow;
 
         AddLocalEvent(new AccountCircuitBrokenEvent(Id, lockDuration, StatusDescription));
     }
 
+    public void MarkAsModelRateLimited(string modelKey, string? displayName, TimeSpan lockDuration, string? description)
+    {
+        if (string.IsNullOrWhiteSpace(modelKey))
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        var lockedUntil = now.AddSeconds((int)lockDuration.TotalSeconds);
+        var activeModels = GetActiveLimitedModelsInternal(now);
+        activeModels.RemoveAll(model => string.Equals(model.ModelKey, modelKey, StringComparison.OrdinalIgnoreCase));
+        activeModels.Add(new LimitedModelState
+        {
+            ModelKey = modelKey,
+            DisplayName = string.IsNullOrWhiteSpace(displayName) ? modelKey : displayName,
+            LockedUntil = lockedUntil,
+            StatusDescription = description?.Length > 512 ? description[..512] : description
+        });
+
+        LimitedModels = activeModels;
+        Status = AccountStatus.PartiallyRateLimited;
+        RateLimitDurationSeconds = null;
+        LockedUntil = null;
+        StatusDescription = $"部分模型限流中（{activeModels.Count}）";
+        LastStatusUpdateTime = now;
+    }
+
     public void MarkAsError(string? description)
     {
+        LimitedModels = null;
         Status = AccountStatus.Error;
         RateLimitDurationSeconds = null;
+        LockedUntil = null;
         StatusDescription = description?.Length > 512 ? description[..512] : description;
+        LastStatusUpdateTime = DateTime.UtcNow;
+    }
+
+    public bool ClearModelRateLimit(string? modelKey)
+    {
+        var now = DateTime.UtcNow;
+        var activeModels = GetActiveLimitedModelsInternal(now);
+        var changed = false;
+
+        if (!string.IsNullOrWhiteSpace(modelKey))
+        {
+            changed = activeModels.RemoveAll(model => string.Equals(model.ModelKey, modelKey, StringComparison.OrdinalIgnoreCase)) > 0;
+        }
+        else if (LimitedModels is { Count: > 0 })
+        {
+            changed = activeModels.Count != LimitedModels.Count;
+        }
+
+        if (!changed)
+        {
+            return NormalizePartialStatus(activeModels, now);
+        }
+
+        LimitedModels = activeModels.Count > 0 ? activeModels : null;
+        return NormalizePartialStatus(activeModels, now, true);
     }
 
     public bool ResetStatus()
     {
-        if (Status == AccountStatus.Normal)
+        var hadStatus = Status != AccountStatus.Normal || LockedUntil.HasValue || RateLimitDurationSeconds.HasValue || (LimitedModels?.Count > 0);
+        if (!hadStatus)
             return false;
 
+        LimitedModels = null;
         Status = AccountStatus.Normal;
         RateLimitDurationSeconds = null;
         LockedUntil = null;
         StatusDescription = null;
+        LastStatusUpdateTime = DateTime.UtcNow;
         AddLocalEvent(new AccountRecoveredEvent(Id));
         return true;
     }
 
     /// <summary>
-    /// 获取当前有效状态（限流过期时返回 Normal）
+    /// 获取当前有效状态（限流过期时返回 Normal，模型级限流返回 PartiallyRateLimited）
     /// </summary>
     public AccountStatus GetEffectiveStatus()
     {
-        if (IsRateLimitExpired())
+        if (Status == AccountStatus.Error)
         {
-            return AccountStatus.Normal;
+            return AccountStatus.Error;
         }
-        return Status;
+
+        if (Status == AccountStatus.RateLimited && !IsRateLimitExpired())
+        {
+            return AccountStatus.RateLimited;
+        }
+
+        return GetActiveLimitedModels().Count > 0 ? AccountStatus.PartiallyRateLimited : AccountStatus.Normal;
     }
 
     /// <summary>
-    /// 判断限流是否已过期
+    /// 判断账户级限流是否已过期
     /// </summary>
     public bool IsRateLimitExpired()
     {
         return Status == AccountStatus.RateLimited && LockedUntil.HasValue && LockedUntil.Value <= DateTime.UtcNow;
     }
 
+    public IReadOnlyList<LimitedModelState> GetActiveLimitedModels()
+    {
+        return GetActiveLimitedModelsInternal(DateTime.UtcNow);
+    }
+
+    public bool IsModelRateLimited(string? modelKey)
+    {
+        if (string.IsNullOrWhiteSpace(modelKey))
+        {
+            return false;
+        }
+
+        return GetActiveLimitedModels().Any(model => string.Equals(model.ModelKey, modelKey, StringComparison.OrdinalIgnoreCase));
+    }
+
     public bool IsAvailable()
     {
         if (!IsActive) return false;
 
-        var effectiveStatus = GetEffectiveStatus();
-        if (effectiveStatus == AccountStatus.Normal) return true;
+        return GetEffectiveStatus() != AccountStatus.Error && GetEffectiveStatus() != AccountStatus.RateLimited;
+    }
 
-        return IsRateLimitExpired();
+    public bool IsModelAvailable(string? modelKey)
+    {
+        if (!IsAvailable()) return false;
+        if (string.IsNullOrWhiteSpace(modelKey)) return true;
+        return !IsModelRateLimited(modelKey);
+    }
+
+    private List<LimitedModelState> GetActiveLimitedModelsInternal(DateTime nowUtc)
+    {
+        return (LimitedModels ?? [])
+            .Where(model => !model.IsExpired(nowUtc))
+            .OrderBy(model => model.LockedUntil)
+            .ToList();
+    }
+
+    private bool NormalizePartialStatus(List<LimitedModelState> activeModels, DateTime nowUtc, bool forceChanged = false)
+    {
+        if (activeModels.Count > 0)
+        {
+            LimitedModels = activeModels;
+            if (Status != AccountStatus.RateLimited)
+            {
+                Status = AccountStatus.PartiallyRateLimited;
+                StatusDescription = $"部分模型限流中（{activeModels.Count}）";
+                RateLimitDurationSeconds = null;
+                LockedUntil = null;
+                LastStatusUpdateTime = nowUtc;
+                return true;
+            }
+
+            return forceChanged;
+        }
+
+        if (Status == AccountStatus.PartiallyRateLimited || forceChanged)
+        {
+            LimitedModels = null;
+            Status = AccountStatus.Normal;
+            StatusDescription = null;
+            RateLimitDurationSeconds = null;
+            LockedUntil = null;
+            LastStatusUpdateTime = nowUtc;
+            AddLocalEvent(new AccountRecoveredEvent(Id));
+            return true;
+        }
+
+        return false;
     }
 }

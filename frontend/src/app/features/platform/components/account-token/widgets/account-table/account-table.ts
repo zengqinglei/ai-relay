@@ -29,7 +29,12 @@ import { AuthMethodLabelPipe } from '../../../../../../shared/pipes/auth-method-
 import { ProviderLabelPipe } from '../../../../../../shared/pipes/platform-label-pipe';
 import { FilterStateService } from '../../../../../../shared/services/filter-state.service';
 import { formatDurationVerbose, formatTokenCount } from '../../../../../../shared/utils/format.utils';
-import { AccountStatus, AccountTokenOutputDto, GetAccountTokenPagedInputDto } from '../../../../models/account-token.dto';
+import {
+  AccountStatus,
+  AccountTokenOutputDto,
+  GetAccountTokenPagedInputDto,
+  LimitedModelStateDto
+} from '../../../../models/account-token.dto';
 import { ProviderGroupOutputDto } from '../../../../models/provider-group.dto';
 import { ProviderGroupService } from '../../../../services/provider-group-service';
 import {
@@ -38,7 +43,7 @@ import {
 } from '../../../shared/widgets/relation-popover-content/relation-popover-content';
 import { ModelTestDialog } from '../model-test-dialog/model-test-dialog';
 
-type AccountGroupPopoverMode = 'details' | 'summary';
+type AccountPopoverMode = 'details' | 'summary' | 'limited-models';
 
 @Component({
   selector: 'app-account-table',
@@ -120,13 +125,12 @@ export class AccountTable implements OnInit {
   sortField = signal<string>('creationTime');
   sortOrder = signal<number>(-1);
   activeProviderGroups = signal<ProviderGroupOutputDto[]>([]);
-  groupPopoverMode = signal<AccountGroupPopoverMode>('summary');
+  activeLimitedModels = signal<LimitedModelStateDto[]>([]);
+  groupPopoverMode = signal<AccountPopoverMode>('summary');
   visibleGroupCount = signal(1);
 
   constructor() {
-    this.searchSubject
-      .pipe(debounceTime(300), distinctUntilChanged())
-      .subscribe(() => this.onFilter());
+    this.searchSubject.pipe(debounceTime(300), distinctUntilChanged()).subscribe(() => this.onFilter());
   }
 
   ngOnInit() {
@@ -263,7 +267,24 @@ export class AccountTable implements OnInit {
     popover.toggle(event);
   }
 
+  openLimitedModelsPopover(event: Event, popover: Popover, account: AccountTokenOutputDto) {
+    this.groupPopoverMode.set('limited-models');
+    this.activeLimitedModels.set(account.limitedModels ?? []);
+    popover.toggle(event);
+  }
+
   getGroupPopoverItems(): RelationPopoverItem[] {
+    if (this.groupPopoverMode() === 'limited-models') {
+      return this.activeLimitedModels().map(model => ({
+        id: model.modelKey,
+        leftText: model.displayName || model.modelKey,
+        rightText: model.lockedUntil
+          ? this.formatRemainingTime(this.getRemainingSeconds(model.lockedUntil))
+          : model.statusDescription || '限流中',
+        isWarning: true
+      }));
+    }
+
     if (this.groupPopoverMode() === 'details') {
       return this.activeProviderGroups().flatMap(group => {
         if (!group.supportedRouteProfiles?.length) {
@@ -331,6 +352,16 @@ export class AccountTable implements OnInit {
     return Math.floor(seconds / 60).toString();
   }
 
+  getLimitedModelCount(account: AccountTokenOutputDto): number {
+    return account.limitedModelCount ?? account.limitedModels?.length ?? 0;
+  }
+
+  private getRemainingSeconds(lockedUntil: string): number {
+    const unlockTime = new Date(lockedUntil).getTime();
+    const now = Date.now();
+    return Math.max(0, Math.floor((unlockTime - now) / 1000));
+  }
+
   /**
    * 计算距离解封的剩余时间（秒）
    */
@@ -378,7 +409,8 @@ export class AccountTable implements OnInit {
   }
 
   confirmResetStatus(event: Event, account: AccountTokenOutputDto) {
-    const statusText = account.status === AccountStatus.RateLimited ? '限流' : '异常';
+    const statusText =
+      account.status === AccountStatus.RateLimited ? '限流' : account.status === AccountStatus.PartiallyRateLimited ? '部分限流' : '异常';
     this.confirmationService.confirm({
       target: event.target as EventTarget,
       message: `确定要重置该账户的${statusText}状态吗？`,
@@ -396,6 +428,7 @@ export class AccountTable implements OnInit {
       case AccountStatus.Normal:
         return 'success';
       case AccountStatus.RateLimited:
+      case AccountStatus.PartiallyRateLimited:
         return 'warn';
       case AccountStatus.Error:
         return 'danger';
@@ -410,6 +443,8 @@ export class AccountTable implements OnInit {
         return '正常';
       case AccountStatus.RateLimited:
         return '限流';
+      case AccountStatus.PartiallyRateLimited:
+        return '部分限流';
       case AccountStatus.Error:
         return '异常';
       default:
@@ -418,12 +453,18 @@ export class AccountTable implements OnInit {
   }
 
   shouldShowStatusDetail(account: AccountTokenOutputDto): boolean {
-    return (account.status === AccountStatus.Error || account.status === AccountStatus.RateLimited) && !!account.statusDescription;
+    return (
+      (account.status === AccountStatus.Error ||
+        account.status === AccountStatus.RateLimited ||
+        account.status === AccountStatus.PartiallyRateLimited) &&
+      !!account.statusDescription
+    );
   }
 
   getStatusIconColor(status: AccountStatus): string {
     switch (status) {
       case AccountStatus.RateLimited:
+      case AccountStatus.PartiallyRateLimited:
         return 'text-orange-500';
       case AccountStatus.Error:
         return 'text-red-500';
@@ -434,9 +475,4 @@ export class AccountTable implements OnInit {
 
   formatTokenCount = formatTokenCount;
 }
-
-
-
-
-
 

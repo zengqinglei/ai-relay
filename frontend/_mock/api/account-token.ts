@@ -25,16 +25,26 @@ function inferSupportedRouteProfiles(provider: Provider, authMethod: AuthMethod)
 }
 
 function enrichAccount(account: any) {
-  const isOAuth = account.authMethod === AuthMethod.OAuth;
-  if (isOAuth) {
+  const limitedModels = Array.isArray(account.limitedModels) ? account.limitedModels : [];
+  const limitedModelCount = account.limitedModelCount ?? limitedModels.length;
+  const status = limitedModelCount > 0 && account.status === AccountStatus.Normal ? AccountStatus.PartiallyRateLimited : account.status;
+
+  const normalized = {
+    ...account,
+    limitedModels,
+    limitedModelCount,
+    status
+  };
+
+  if (normalized.authMethod === AuthMethod.OAuth) {
     return {
-      ...account,
+      ...normalized,
       accessToken: `ya29.mock_access_token_${account.id.substring(0, 6)}...`
     };
   }
-  return account;
-}
 
+  return normalized;
+}
 function getAccounts(req: MockRequest) {
   const { keyword, provider, authMethod, isActive, providerGroupIds, offset = 0, limit = 10 } = req.queryParams;
 
@@ -148,6 +158,9 @@ function createAccount(req: MockRequest) {
     successRateToday: 0,
     successRateTotal: 0,
     status: AccountStatus.Normal,
+    rateLimitScope: body.rateLimitScope ?? 'Account',
+    limitedModels: [],
+    limitedModelCount: 0,
     currentConcurrency: 0,
     expiresIn,
     priority: body.priority ?? 1,
@@ -223,6 +236,8 @@ function resetStatus(req: MockRequest) {
     accounts[index].status = AccountStatus.Normal;
     accounts[index].lockedUntil = undefined;
     accounts[index].statusDescription = undefined;
+    accounts[index].limitedModels = [];
+    accounts[index].limitedModelCount = 0;
   }
   return { success: true };
 }

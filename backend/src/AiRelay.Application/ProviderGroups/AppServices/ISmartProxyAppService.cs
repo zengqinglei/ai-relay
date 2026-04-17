@@ -13,10 +13,12 @@ public interface ISmartProxyAppService : IAppService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 处理请求成功
+    /// 处理请求成功。
+    /// 按账户模式下清除整账号熔断；按模型模式下仅清理当前上游模型熔断。
     /// </summary>
     Task HandleSuccessAsync(
         Guid accountId,
+        string? upModelId,
         CancellationToken cancellationToken = default);
 
     /// <summary>

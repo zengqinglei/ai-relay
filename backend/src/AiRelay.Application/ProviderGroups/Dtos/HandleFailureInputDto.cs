@@ -9,4 +9,6 @@ public record HandleFailureInputDto(
     Guid AccountId,
     int StatusCode,
     string? ErrorContent,
+    string? DownModelId,
+    string? UpModelId,
     ModelErrorAnalysisResult ErrorAnalysis);

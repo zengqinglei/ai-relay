@@ -1,5 +1,6 @@
 using AiRelay.Application.ProviderAccounts.Dtos;
 using AiRelay.Domain.ProviderAccounts.Entities;
+using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using Leistd.ObjectMapping.Mapster;
 using Mapster;
 
@@ -9,6 +10,8 @@ public class AccountTokenProfile : MapsterProfile
 {
     protected override void ConfigureMappings()
     {
+        CreateMap<LimitedModelState, LimitedModelStateDto>();
+
         CreateMap<AccountToken, AvailableAccountTokenOutputDto>()
             .Map(dest => dest.CurrentConcurrency, src => ResolveConcurrencyCount(src));
 
@@ -17,6 +20,8 @@ public class AccountTokenProfile : MapsterProfile
                 MaskToken(src.AuthMethod == AiRelay.Domain.ProviderAccounts.ValueObjects.AuthMethod.ApiKey ? src.AccessToken : src.RefreshToken))
             .Map(dest => dest.Status, src => src.GetEffectiveStatus())
             .Map(dest => dest.CurrentConcurrency, src => ResolveConcurrencyCount(src))
+            .Map(dest => dest.LimitedModels, src => src.GetActiveLimitedModels())
+            .Map(dest => dest.LimitedModelCount, src => src.GetActiveLimitedModels().Count)
             .Map(dest => dest.SuccessRateToday, src =>
                 src.UsageToday > 0 ? Math.Round(src.SuccessToday * 100m / src.UsageToday, 1) : 0m)
             .Map(dest => dest.SuccessRateTotal, src =>
@@ -32,7 +37,8 @@ public class AccountTokenProfile : MapsterProfile
             return count;
         }
 
-        return 0; // 预获取已在 AppService 中完成，如果缺失则兜底返回0
+        // 预获取已在 AppService 中完成，如果缺失则兜底返回 0
+        return 0;
     }
 
     private static string MaskToken(string? token)
