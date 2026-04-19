@@ -12,6 +12,20 @@ public class OpenAIProxyErrorFormatter : BaseProxyErrorFormatter
 {
     public override bool Supports(RouteProfile profile) => profile is RouteProfile.ChatCompletions or RouteProfile.OpenAiResponses or RouteProfile.OpenAiCodex;
 
+    /// <summary>
+    /// 将 HTTP 状态码映射为 OpenAI 标准错误类型字符串
+    /// 参考：https://platform.openai.com/docs/guides/error-codes
+    /// </summary>
+    private static string GetOpenAiErrorType(int statusCode) => statusCode switch
+    {
+        400 => "invalid_request_error",
+        401 => "authentication_error",
+        403 => "permission_denied",
+        404 => "not_found",
+        429 => "rate_limit_exceeded",
+        _ => "server_error"
+    };
+
     protected override ProxyErrorResponse BuildResponse(int statusCode, string message)
     {
         var responseObj = new
@@ -19,7 +33,7 @@ public class OpenAIProxyErrorFormatter : BaseProxyErrorFormatter
             error = new
             {
                 message,
-                type = "proxy_failure",
+                type = GetOpenAiErrorType(statusCode),
                 param = (string?)null,
                 code = "gateway_error"
             }

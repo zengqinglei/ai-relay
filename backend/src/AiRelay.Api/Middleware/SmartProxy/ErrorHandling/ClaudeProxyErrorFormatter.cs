@@ -12,6 +12,25 @@ public class ClaudeProxyErrorFormatter : BaseProxyErrorFormatter
 {
     public override bool Supports(RouteProfile profile) => profile is RouteProfile.ClaudeMessages;
 
+    /// <summary>
+    /// 将 HTTP 状态码映射为 Anthropic 标准错误类型字符串
+    /// 参考：https://docs.anthropic.com/en/api/errors
+    /// </summary>
+    private static string GetClaudeErrorType(int statusCode) => statusCode switch
+    {
+        400 => "invalid_request_error",
+        401 => "authentication_error",
+        402 => "billing_error",
+        403 => "permission_error",
+        404 => "not_found_error",
+        413 => "request_too_large",
+        429 => "rate_limit_error",
+        500 => "api_error",
+        503 or 529 => "overloaded_error",
+        504 => "timeout_error",
+        _ => "api_error"
+    };
+
     protected override ProxyErrorResponse BuildResponse(int statusCode, string message)
     {
         var responseObj = new
@@ -19,7 +38,7 @@ public class ClaudeProxyErrorFormatter : BaseProxyErrorFormatter
             type = "error",
             error = new
             {
-                type = "invalid_request_error",
+                type = GetClaudeErrorType(statusCode),
                 message
             }
         };
