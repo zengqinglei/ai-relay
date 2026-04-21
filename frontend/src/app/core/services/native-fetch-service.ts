@@ -4,28 +4,17 @@ import { Injectable, PLATFORM_ID, inject } from '@angular/core';
 import { SSE_MOCK_REGISTRY } from '../../../../_mock/core/sse-mock-registry';
 import { environment } from '../../../environments/environment';
 
-/**
- * NativeFetchService - 封装原生 fetch API，自动处理 gateway 前缀
- * 用于需要使用原生 fetch（如 SSE 流式请求）的场景
- *
- * Mock 模式下会拦截请求并返回模拟的 SSE 流响应
- */
 @Injectable({
   providedIn: 'root'
 })
 export class NativeFetchService {
   private readonly platformId = inject(PLATFORM_ID);
 
-  /**
-   * 构建完整的 URL（自动添加 gateway）
-   */
   private buildFullUrl(url: string): string {
-    // 如果已经是完整 URL，直接返回
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return url;
     }
 
-    // 构建完整 URL
     const gateway = environment.api.gateway || '';
     const pathSegments = [];
 
@@ -40,17 +29,7 @@ export class NativeFetchService {
     return pathSegments.join('/');
   }
 
-  /**
-   * 封装的 fetch 方法，自动添加 gateway 前缀
-   *
-   * Mock 模式下会检查 SSE_MOCK_REGISTRY 并返回模拟响应
-   *
-   * @param url - 请求 URL（相对路径或绝对路径）
-   * @param init - fetch 请求配置
-   * @returns Promise<Response>
-   */
   fetch(url: string, init?: RequestInit): Promise<Response> {
-    // 1. 处理 Headers (类似 TokenInterceptor)
     const headers = new Headers(init?.headers);
 
     if (isPlatformBrowser(this.platformId)) {
@@ -65,28 +44,28 @@ export class NativeFetchService {
       headers
     };
 
-    // Mock 模式：检查是否有注册的 SSE mock
     const useMock = environment.useMock;
     const isMockEnabled = typeof useMock === 'boolean' ? useMock : useMock?.enable;
 
     if (isMockEnabled) {
-      const mockHandler = SSE_MOCK_REGISTRY.match(url, init?.method || 'GET');
+      const method = init?.method || 'GET';
+      const mockHandler = SSE_MOCK_REGISTRY.match(url, method);
       if (mockHandler) {
-        return this.createMockSseResponse(mockHandler, newInit);
+        return this.createMockSseResponse(mockHandler, newInit, url, method);
       }
     }
 
-    // 真实模式：调用原生 fetch
     const fullUrl = this.buildFullUrl(url);
     return fetch(fullUrl, newInit);
   }
 
-  /**
-   * 创建模拟的 SSE Response 对象
-   */
-  private createMockSseResponse(mockHandler: (body?: unknown) => unknown[], init?: RequestInit): Promise<Response> {
+  private createMockSseResponse(
+    mockHandler: (body?: unknown, context?: { url: string; method: string; headers?: Headers }) => unknown[],
+    init: RequestInit | undefined,
+    url: string,
+    method: string
+  ): Promise<Response> {
     return new Promise(resolve => {
-      // 解析请求 body
       let requestBody: unknown;
       if (init?.body) {
         try {
@@ -96,10 +75,12 @@ export class NativeFetchService {
         }
       }
 
-      // 获取 mock 数据
-      const mockData = mockHandler(requestBody);
+      const mockData = mockHandler(requestBody, {
+        url,
+        method,
+        headers: init?.headers instanceof Headers ? init.headers : new Headers(init?.headers)
+      });
 
-      // 创建 ReadableStream
       const stream = new ReadableStream({
         start(controller) {
           let index = 0;
@@ -114,26 +95,23 @@ export class NativeFetchService {
             const sseData = `data: ${JSON.stringify(chunk)}\n\n`;
             const encoder = new TextEncoder();
             controller.enqueue(encoder.encode(sseData));
-
-            // 模拟延迟（150ms）
-            setTimeout(pushChunk, 150);
+            setTimeout(pushChunk, 90);
           };
 
           pushChunk();
         }
       });
 
-      // 创建伪造的 Response
-      const response = new Response(stream, {
-        status: 200,
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          Connection: 'keep-alive'
-        }
-      });
-
-      resolve(response);
+      resolve(
+        new Response(stream, {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            Connection: 'keep-alive'
+          }
+        })
+      );
     });
   }
 }

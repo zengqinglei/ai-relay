@@ -12,13 +12,13 @@ import { finalize, Subscription } from 'rxjs';
 
 import { PlatformIcon } from '../../../../../../shared/components/platform-icon/platform-icon';
 import { DIALOG_CONFIGS } from '../../../../../../shared/constants/dialog-config.constants';
+import { ContentBlock } from '../../../../../../shared/models/content-block';
 import { Provider } from '../../../../../../shared/models/provider.enum';
 import { AccountTokenOutputDto } from '../../../../models/account-token.dto';
 import { ChatMessageInputDto } from '../../../../models/chat-message-input.dto';
 import { ModelOptionOutputDto } from '../../../../models/model-option.dto';
 import { AccountTokenService } from '../../../../services/account-token-service';
 
-export type ContentBlock = { type: 'text'; text: string } | { type: 'image'; mimeType: string; data?: string; url?: string };
 
 @Component({
   selector: 'app-model-test-dialog',
@@ -190,3 +190,5 @@ export class ModelTestDialog {
     this.visible.set(false);
   }
 }
+
+

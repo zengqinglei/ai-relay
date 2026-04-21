@@ -8,3 +8,6 @@ export * from './api/subscription';
 export * from './api/subscription-metric';
 export * from './api/usage-record-metric';
 export * from './api/usage-records';
+
+export * from './api/workspace-chat';
+

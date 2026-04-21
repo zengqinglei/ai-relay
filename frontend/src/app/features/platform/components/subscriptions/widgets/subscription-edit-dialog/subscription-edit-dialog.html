@@ -36,7 +36,7 @@
           </div>
         </div>
 
-        @if (!isEditMode()) {
+        @if (!isEditMode() && !hideCustomSecret) {
           <div class="flex flex-col gap-2">
             <label class="font-bold flex items-center gap-2">
               自定义密钥

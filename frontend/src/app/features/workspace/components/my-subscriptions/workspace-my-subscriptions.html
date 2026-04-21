@@ -1,0 +1,117 @@
+<div class="p-4 md:p-6">
+  <div class="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-surface-900 dark:text-surface-0 tracking-tight">我的订阅</h1>
+      <p class="mt-1 text-sm text-surface-500 dark:text-surface-400">管理你的 API 调用凭证，实时掌控用量与消费详情。</p>
+    </div>
+    <div class="flex gap-3 shrink-0">
+      <p-button icon="pi pi-refresh" label="刷新" severity="secondary" [outlined]="true" (onClick)="reload()" />
+      <p-button icon="pi pi-plus" label="新建订阅" (onClick)="openCreateDialog()" />
+    </div>
+  </div>
+
+  @if (loading()) {
+    <div class="flex h-64 items-center justify-center text-surface-400 dark:text-surface-600">
+      <i class="pi pi-spin pi-spinner text-3xl"></i>
+    </div>
+  } @else {
+    <div class="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+      @for (item of subscriptions(); track item.id) {
+        <div class="group flex flex-col h-full bg-surface-0 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-3xl shadow-sm hover:shadow-md hover:border-primary-200 dark:hover:border-primary-800 transition-all hover:-translate-y-1 overflow-hidden">
+          
+          <!-- Header -->
+          <div class="p-6 pb-4">
+            <div class="flex items-start justify-between gap-4">
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2.5 mb-1.5">
+                  <h2 class="truncate text-lg font-bold text-surface-900 dark:text-surface-0" [pTooltip]="item.name" tooltipPosition="top">{{ item.name }}</h2>
+                  <p-tag [value]="getStatusLabel(item)" [severity]="getStatusSeverity(item)" styleClass="text-[10px] px-1.5 py-0.5 rounded-md"></p-tag>
+                </div>
+                <p class="line-clamp-2 text-xs text-surface-500 dark:text-surface-400 leading-relaxed">{{ item.description || '暂无描述' }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Secret Key -->
+          <div class="px-6 py-3 bg-surface-50/50 dark:bg-surface-950/20 border-y border-surface-100 dark:border-surface-800 transition-colors group-hover:bg-surface-50 dark:group-hover:bg-surface-950/40">
+            <div class="flex items-center justify-between gap-3">
+              <div class="min-w-0 flex-1">
+                <p class="text-[10px] font-bold uppercase tracking-widest text-surface-400 dark:text-surface-500 mb-0.5">API KEY</p>
+                <div class="flex items-center gap-2">
+                  <i class="pi pi-key text-primary/70 text-xs"></i>
+                  <p class="truncate font-mono text-sm font-medium text-surface-700 dark:text-surface-200">{{ getSecret(item) }}</p>
+                </div>
+              </div>
+              <div class="flex gap-1 shrink-0">
+                <p-button [icon]="visibleSecrets()[item.id] ? 'pi pi-eye-slash' : 'pi pi-eye'" [text]="true" [rounded]="true" severity="secondary" styleClass="w-8 h-8 !p-0" [pTooltip]="visibleSecrets()[item.id] ? '隐藏' : '显示'" tooltipPosition="top" (onClick)="toggleSecret(item.id)" />
+                <p-button icon="pi pi-copy" [text]="true" [rounded]="true" severity="secondary" styleClass="w-8 h-8 !p-0" pTooltip="复制" tooltipPosition="top" (onClick)="copySecret(item.secret)" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Metrics -->
+          <div class="p-6 pt-5 grid grid-cols-2 gap-y-6 gap-x-4 flex-1">
+            <!-- Usage -->
+            <div>
+              <p class="text-[10px] font-bold uppercase tracking-widest text-surface-400 dark:text-surface-500 mb-1">调用量 (今日/累计)</p>
+              <div class="flex items-baseline gap-1">
+                <span class="text-xl font-bold text-surface-900 dark:text-surface-0 font-mono">{{ item.usageToday | number }}</span>
+                <span class="text-xs text-surface-500 font-medium">/ {{ item.usageTotal | number }}</span>
+              </div>
+            </div>
+            
+            <!-- Cost -->
+            <div>
+              <p class="text-[10px] font-bold uppercase tracking-widest text-surface-400 dark:text-surface-500 mb-1">消费 (今��)</p>
+              <div class="flex items-baseline gap-1">
+                <span class="text-xl font-bold text-surface-900 dark:text-surface-0 font-mono">${{ item.costToday | number: '1.2-4' }}</span>
+              </div>
+              <p class="text-[11px] text-surface-500 mt-0.5 font-medium flex items-center"><i class="pi pi-bolt text-[10px] text-yellow-500 mr-1"></i>{{ formatTokenCount(item.tokensToday) }}</p>
+            </div>
+          </div>
+          
+          <!-- Footer Info -->
+          <div class="px-6 py-4 bg-surface-50/50 dark:bg-surface-950/20 border-t border-surface-100 dark:border-surface-800 flex items-center justify-between text-xs text-surface-500">
+            <div class="flex items-center gap-1.5 font-medium">
+              @switch (getExpiryState(item)) {
+                @case ('expired') {
+                <span class="text-red-500 flex items-center"><i class="pi pi-exclamation-circle mr-1.5 text-[11px]"></i>已过期</span>
+                }
+                @case ('warning') {
+                <span class="text-orange-500 animate-pulse flex items-center"><i class="pi pi-clock mr-1.5 text-[11px]"></i>{{ item.expiresAt | date: 'MM-dd' }} 过期</span>
+                }
+                @case ('ok') {
+                <span class="text-surface-600 dark:text-surface-400 flex items-center"><i class="pi pi-calendar mr-1.5 text-[11px]"></i>{{ item.expiresAt | date: 'yyyy-MM-dd' }}</span>
+                }
+                @case ('forever') {
+                <span class="flex items-center"><i class="pi pi-infinity mr-1.5 text-[11px]"></i>永不过期</span>
+                }
+              }
+            </div>
+            <div class="flex items-center gap-1.5 font-medium" pTooltip="创建时间" tooltipPosition="top">
+              <i class="pi pi-plus-circle text-[11px]"></i>
+              <span>{{ item.creationTime | date: 'yyyy-MM-dd' }}</span>
+            </div>
+          </div>
+          
+        </div>
+      }
+
+      @if (subscriptions().length === 0) {
+        <div class="col-span-full flex flex-col items-center justify-center py-20 bg-surface-50/50 dark:bg-surface-900/50 rounded-3xl border border-dashed border-surface-200 dark:border-surface-700">
+          <i class="pi pi-inbox text-5xl text-surface-300 dark:text-surface-600 mb-4"></i>
+          <p class="text-lg font-medium text-surface-600 dark:text-surface-400">还没有任何订阅</p>
+          <p class="text-sm text-surface-400 dark:text-surface-500 mt-1">请点击右上角新建订阅</p>
+        </div>
+      }
+    </div>
+  }
+</div>
+
+<app-subscription-edit-dialog
+  [(visible)]="dialogVisible"
+  [subscription]="selectedSubscription()"
+  [saving]="saving()"
+  [hideCustomSecret]="true"
+  (saved)="onSaveSubscription($event)">
+</app-subscription-edit-dialog>

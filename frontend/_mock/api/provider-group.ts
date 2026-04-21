@@ -2,6 +2,8 @@ import { PagedResultDto } from '../../src/app/shared/models/paged-result.dto';
 import { MockException, MockRequest } from '../core/models';
 import { ACCOUNT_TOKENS } from '../data/account-token';
 import { PROVIDER_GROUPS } from '../data/provider-group';
+import { getSubscriptionsByUserId } from '../data/subscriptions';
+import { getCurrentUserId } from '../utils/current-user';
 
 const groups = PROVIDER_GROUPS;
 const accounts = ACCOUNT_TOKENS;
@@ -26,10 +28,22 @@ export function findGroupById(id: string) {
   return buildGroupView(id);
 }
 
+function getVisibleGroupIds(req: MockRequest) {
+  const currentUserId = getCurrentUserId(req);
+  return new Set(
+    getSubscriptionsByUserId(currentUserId)
+      .flatMap(subscription => subscription.bindings.map(binding => binding.providerGroupId))
+  );
+}
+
 function getGroups(req: MockRequest) {
   const { keyword, offset = 0, limit = 10 } = req.queryParams;
+  const visibleGroupIds = getVisibleGroupIds(req);
 
-  let list = groups.map(group => buildGroupView(group.id)!);
+  let list = groups
+    .filter(group => visibleGroupIds.has(group.id))
+    .map(group => buildGroupView(group.id)!)
+    .filter(Boolean);
 
   if (keyword) {
     const query = String(keyword).trim().toLowerCase();
@@ -49,6 +63,11 @@ function getGroups(req: MockRequest) {
 
 function getGroup(req: MockRequest) {
   const id = req.params['id'];
+  const visibleGroupIds = getVisibleGroupIds(req);
+  if (!visibleGroupIds.has(id)) {
+    throw new MockException(404, 'Group not found');
+  }
+
   const group = buildGroupView(id);
 
   if (!group) {

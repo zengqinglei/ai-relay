@@ -6,27 +6,8 @@ import {
   UserOutputDto
 } from '../../src/app/features/account/models/account.dto';
 import { MockException, MockRequest } from '../core/models';
-import { MockUser, USERS, toUserOutput } from '../data/user';
-
-function buildAccessToken(user: MockUser): string {
-  return `fake-jwt-token-${user.id}-${Date.now()}`;
-}
-
-function getUserByToken(req: MockRequest): MockUser {
-  const authHeader = req.headers.get('Authorization');
-  if (!authHeader) {
-    throw new MockException(401, { code: 40100, message: '未提供认证令牌' });
-  }
-
-  const token = authHeader.replace('Bearer ', '');
-  const user = USERS.find(item => token.includes(item.id));
-
-  if (!user) {
-    throw new MockException(401, { code: 40100, message: '无效的认证令牌' });
-  }
-
-  return user;
-}
+import { USERS, toUserOutput } from '../data/user';
+import { buildAccessToken, getUserByToken } from '../utils/current-user';
 
 function ensureUsernameAvailable(username: string, currentUserId: string): void {
   const exists = USERS.some(user => user.username === username && user.id !== currentUserId);
@@ -42,9 +23,6 @@ function ensureEmailAvailable(email: string, currentUserId: string): void {
   }
 }
 
-/**
- * 模拟登录（仅返回 Token，不返回用户信息）
- */
 function login(usernameOrEmail: string, password: string): LoginOutputDto {
   const user = USERS.find(u => u.username === usernameOrEmail || u.email === usernameOrEmail);
 

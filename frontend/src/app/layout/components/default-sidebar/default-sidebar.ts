@@ -33,10 +33,15 @@ export class DefaultSidebar {
     { label: '渠道账户', icon: 'pi-credit-card', route: '/platform/account-tokens' },
     { label: '订阅管理', icon: 'pi-key', route: '/platform/subscriptions' },
     { label: '分组管理', icon: 'pi-sitemap', route: '/platform/provider-groups' },
-    { label: '使用记录', icon: 'pi-chart-line', route: '/platform/usage-records' },
+    { label: '使用记录', icon: 'pi-history', route: '/platform/usage-records' },
     { label: '系统设置', icon: 'pi-cog', route: '/platform/settings' }
   ];
-  private readonly workspaceMenuItems: MenuItem[] = [{ label: '工作区', icon: 'pi-briefcase', route: '/workspace' }];
+  private readonly workspaceMenuItems: MenuItem[] = [
+    { label: '聊天', icon: 'pi-comments', route: '/workspace/chat' },
+    { label: '仪表盘', icon: 'pi-gauge', route: '/workspace/dashboard' },
+    { label: '我的订阅', icon: 'pi-key', route: '/workspace/my-subscriptions' },
+    { label: '使用日志', icon: 'pi-history', route: '/workspace/usage-logs' }
+  ];
 
   // Create a signal for the current URL
   private readonly currentUrl = toSignal(
@@ -54,4 +59,5 @@ export class DefaultSidebar {
     return url.startsWith('/platform') ? this.platformMenuItems : this.workspaceMenuItems;
   });
 }
+
 

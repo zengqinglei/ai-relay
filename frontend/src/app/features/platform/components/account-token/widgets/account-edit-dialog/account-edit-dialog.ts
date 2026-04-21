@@ -206,10 +206,10 @@ export class AccountEditDialogComponent implements OnChanges {
           name: this.account.name,
           provider: this.account.provider,
           authMethod: this.account.authMethod,
-          projectId,
-          baseUrl: this.account.baseUrl,
+          projectId: projectId || null,
+          baseUrl: this.account.baseUrl ?? null,
           credential: '',
-          description: this.account.description,
+          description: this.account.description ?? null,
           maxConcurrency: this.account.maxConcurrency,
           priority: this.account.priority,
           weight: this.account.weight,
@@ -283,9 +283,15 @@ export class AccountEditDialogComponent implements OnChanges {
       return;
     }
 
-    if (this.account?.providerGroupIds?.length) {
-      const selected = groups.filter(group => this.account?.providerGroupIds.includes(group.id));
-      this.selectedProviderGroups.set(selected.length ? selected : this.getDefaultGroupSelection(groups));
+    if (this.isEditMode()) {
+      if (this.account?.providerGroupIds?.length) {
+        const selected = this.account.providerGroupIds
+          .map(id => groups.find(group => group.id === id))
+          .filter((g): g is ProviderGroupOutputDto => g !== undefined);
+        this.selectedProviderGroups.set(selected.length ? selected : this.getDefaultGroupSelection(groups));
+      } else {
+        this.selectedProviderGroups.set([]);
+      }
       return;
     }
 

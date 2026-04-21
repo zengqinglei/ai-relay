@@ -1,8 +1,10 @@
 import { UsageRecordOutputDto, UsageRecordDetailOutputDto } from '../../src/app/features/platform/models/usage.dto';
 import { PagedResultDto } from '../../src/app/shared/models/paged-result.dto';
-import { USAGE_RECORDS, getUsageRecordDetail } from '../data/usage-record';
+import { MockException, MockRequest } from '../core/models';
+import { getUsageRecordDetail, getUsageRecordsByUserId } from '../data/usage-record';
+import { getCurrentUserId } from '../utils/current-user';
 
-function getPagedList(req: any): PagedResultDto<UsageRecordOutputDto> {
+function getPagedList(req: MockRequest): PagedResultDto<UsageRecordOutputDto> {
   const {
     offset = 0,
     limit = 10,
@@ -14,19 +16,19 @@ function getPagedList(req: any): PagedResultDto<UsageRecordOutputDto> {
     startTime,
     endTime,
     sorting,
-    authMethod
+    authMethod,
+    downUserAgent,
+    status
   } = req.queryParams;
 
-  let filteredRecords = USAGE_RECORDS;
+  const currentUserId = getCurrentUserId(req);
+  let filteredRecords = getUsageRecordsByUserId(currentUserId);
 
-
-  // Filter: API Key Name (substring, case-insensitive)
   if (apiKeyName && String(apiKeyName) !== 'undefined') {
     const query = String(apiKeyName).toLowerCase();
     filteredRecords = filteredRecords.filter(r => r.apiKeyName.toLowerCase().includes(query));
   }
 
-  // Filter: Model (substring, case-insensitive)
   if (model && String(model) !== 'undefined') {
     const query = String(model).toLowerCase();
     filteredRecords = filteredRecords.filter(
@@ -34,28 +36,32 @@ function getPagedList(req: any): PagedResultDto<UsageRecordOutputDto> {
     );
   }
 
-  // Filter: Account Token Name (substring, case-insensitive)
+  if (downUserAgent && String(downUserAgent) !== 'undefined') {
+    const query = String(downUserAgent).toLowerCase();
+    filteredRecords = filteredRecords.filter(r => r.downUserAgent?.toLowerCase().includes(query));
+  }
+
+  if (status && String(status) !== 'undefined') {
+    filteredRecords = filteredRecords.filter(r => r.status === String(status));
+  }
+
   if (accountTokenName && String(accountTokenName) !== 'undefined') {
     const query = String(accountTokenName).toLowerCase();
     filteredRecords = filteredRecords.filter(r => r.accountTokenName?.toLowerCase().includes(query));
   }
 
-  // Filter: Provider Group ID (exact)
   if (providerGroupId && String(providerGroupId) !== 'undefined') {
     filteredRecords = filteredRecords.filter(r => r.providerGroupId === String(providerGroupId));
   }
 
-  // Filter: Provider (exact)
   if (provider && String(provider) !== 'undefined') {
     filteredRecords = filteredRecords.filter(r => r.provider === String(provider));
   }
 
-  // Filter: Auth Method (exact)
   if (authMethod) {
     filteredRecords = filteredRecords.filter(r => r.authMethod === String(authMethod));
   }
 
-  // Filter: Time Range
   if (startTime && String(startTime) !== 'undefined') {
     const start = new Date(String(startTime)).getTime();
     if (!isNaN(start)) {
@@ -70,30 +76,27 @@ function getPagedList(req: any): PagedResultDto<UsageRecordOutputDto> {
     }
   }
 
-  // Sorting
   if (sorting && String(sorting) !== 'undefined') {
     const sortParts = String(sorting).trim().split(' ');
     const order = sortParts[sortParts.length - 1].toLowerCase();
     let field = sortParts.slice(0, sortParts.length - 1).join(' ');
 
     if (!field) {
-      // handle case where format might just be "field" (default asc) or just "asc/desc" (invalid)
       field = sortParts[0];
     }
 
     filteredRecords.sort((a, b) => {
-      let valA: any, valB: any;
+      let valA: any;
+      let valB: any;
 
       if (field === 'InputTokens + OutputTokens') {
         valA = (a.inputTokens || 0) + (a.outputTokens || 0);
         valB = (b.inputTokens || 0) + (b.outputTokens || 0);
       } else {
-        // Handle generic fields
         valA = (a as any)[field];
         valB = (b as any)[field];
       }
 
-      // Handle dates specifically if needed, but string comparison often works for ISO
       if (field === 'creationTime') {
         valA = new Date(valA).getTime();
         valB = new Date(valB).getTime();
@@ -106,27 +109,33 @@ function getPagedList(req: any): PagedResultDto<UsageRecordOutputDto> {
   }
 
   const totalCount = filteredRecords.length;
-  // Handle pagination
   const start = +offset;
   const end = start + +limit;
   const items = filteredRecords.slice(start, end);
 
   return {
-    totalCount: totalCount,
-    items: items
+    totalCount,
+    items
   };
 }
 
-function getDetail(req: any): UsageRecordDetailOutputDto {
-  const id = req.url.split('/')[4]; // /api/v1/usage-records/{id}/detail
-  const detail = getUsageRecordDetail(id);
+function getDetail(req: MockRequest): UsageRecordDetailOutputDto {
+  const currentUserId = getCurrentUserId(req);
+  const id = req.url.split('/')[4];
+  const record = getUsageRecordsByUserId(currentUserId).find(item => item.id === id);
+  if (!record) {
+    throw new MockException(404, { message: 'Usage record not found' });
+  }
 
-  if (!detail) throw new Error('Not Found');
+  const detail = getUsageRecordDetail(id);
+  if (!detail) {
+    throw new MockException(404, { message: 'Usage record detail not found' });
+  }
 
   return detail;
 }
 
 export const USAGE_RECORDS_API = {
-  'GET /api/v1/usage-records': (req: any) => getPagedList(req),
-  'GET /api/v1/usage-records/:id/detail': (req: any) => getDetail(req)
+  'GET /api/v1/usage-records': (req: MockRequest) => getPagedList(req),
+  'GET /api/v1/usage-records/:id/detail': (req: MockRequest) => getDetail(req)
 };

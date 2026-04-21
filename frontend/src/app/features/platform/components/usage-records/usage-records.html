@@ -27,31 +27,16 @@
             optionValue="id" placeholder="全部分组" [showClear]="true" styleClass="w-full"></p-select>
         </div>
 
-        <!-- Account -->
-        <div class="flex flex-col gap-1.5">
-          <label for="account" class="text-xs font-medium text-muted-color">供应商账户</label>
-          <input pInputText id="account" [ngModel]="filterAccountTokenName()"
-            (ngModelChange)="filterAccountTokenName.set($event); onTextFilterChange()" placeholder="搜索账户名"
-            class="w-full" />
-        </div>
-
-        <!-- Model -->
-        <div class="flex flex-col gap-1.5">
-          <label for="model" class="text-xs font-medium text-muted-color">模型</label>
-          <input pInputText id="model" [ngModel]="filterModel()"
-            (ngModelChange)="filterModel.set($event); onTextFilterChange()" placeholder="搜索模型" class="w-full" />
-        </div>
-
-        <!-- API Key -->
-        <div class="flex flex-col gap-1.5">
-          <label for="apiKeyName" class="text-xs font-medium text-muted-color">API KEY 名</label>
-          <input pInputText id="apiKeyName" [ngModel]="filterApiKeyName()"
-            (ngModelChange)="filterApiKeyName.set($event); onTextFilterChange()" placeholder="搜索 API KEY 名"
+        <!-- Keyword -->
+        <div class="flex flex-col gap-1.5 lg:col-span-2 xl:col-span-2">
+          <label for="keyword" class="text-xs font-medium text-muted-color">关键字</label>
+          <input pInputText id="keyword" [ngModel]="filterKeyword()"
+            (ngModelChange)="filterKeyword.set($event); onTextFilterChange()" placeholder="搜索 API KEY / 模型 / 账户 / Session / URL / IP / UA"
             class="w-full" />
         </div>
 
         <!-- Date Range -->
-        <div class="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-2 xl:col-span-2">
+        <div class="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-2 xl:col-start-7 xl:col-span-2">
           <label class="text-xs font-medium text-muted-color">时间范围</label>
           <div class="flex flex-col sm:flex-row items-stretch gap-2">
             <p-datepicker #startDatePicker [ngModel]="filterStartTime()"
@@ -244,8 +229,8 @@
                   <span class="text-[10px] text-surface-300 dark:text-surface-600">|</span>
                   <p-tag [value]="getHttpStatusCode(record)" [severity]="record.upStatusCode | httpStatusSeverity"
                     styleClass="text-[10px] px-1.5 py-0.5 font-mono"></p-tag>
-                  <span class="text-[11px] text-surface-500 dark:text-surface-400 font-medium whitespace-nowrap">
-                    <span class="opacity-70 font-normal">耗时:</span> {{ formatDuration(record.durationMs) }}
+                  <span class="text-[12px] text-muted-color shrink-0 ml-1">
+                    <i class="pi pi-clock text-[10px] mr-0.5"></i>{{ formatDuration(record.durationMs) }}
                   </span>
                 </div>
               </div>

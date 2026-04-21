@@ -1,16 +1,25 @@
 import { SubscriptionMetricsOutputDto } from '../../src/app/features/platform/models/subscription.dto';
 import { MockRequest } from '../core/models';
-import { SUBSCRIPTIONS } from '../data/subscriptions';
+import { getSubscriptionsByUserId } from '../data/subscriptions';
+import { getCurrentUserId } from '../utils/current-user';
 
-const subscriptions = [...SUBSCRIPTIONS];
+function getMetrics(req: MockRequest): SubscriptionMetricsOutputDto {
+  const currentUserId = getCurrentUserId(req);
+  const subscriptions = getSubscriptionsByUserId(currentUserId);
+  const now = Date.now();
 
-function getMetrics(_req: MockRequest): SubscriptionMetricsOutputDto {
   return {
     totalSubscriptions: subscriptions.length,
     activeSubscriptions: subscriptions.filter(s => s.isActive).length,
-    expiringSoon: 1,
+    expiringSoon: subscriptions.filter(s => {
+      if (!s.expiresAt) {
+        return false;
+      }
+      const diff = new Date(s.expiresAt).getTime() - now;
+      return diff > 0 && diff <= 7 * 24 * 3600 * 1000;
+    }).length,
     totalUsageToday: subscriptions.reduce((acc, curr) => acc + (curr.usageToday || 0), 0),
-    usageGrowthRate: 5.2,
+    usageGrowthRate: subscriptions.length > 0 ? 5.2 : 0,
     topUsageKeys: subscriptions
       .map(s => ({ name: s.name, usage: s.usageToday || 0 }))
       .sort((a, b) => b.usage - a.usage)

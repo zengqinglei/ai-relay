@@ -40,20 +40,26 @@ public class UsageRecordAppService(
         var query = await usageRecordRepository.GetQueryIncludingAsync(cancellationToken, p => p.Attempts);
 
         // 应用筛选条件
-        if (!string.IsNullOrWhiteSpace(input.ApiKeyName))
+        if (!string.IsNullOrWhiteSpace(input.Keyword))
         {
-            query = query.Where(r => r.ApiKeyName != null && r.ApiKeyName.Contains(input.ApiKeyName));
-        }
-
-        if (!string.IsNullOrWhiteSpace(input.Model))
-        {
+            var keyword = input.Keyword.Trim();
             query = query.Where(r =>
-                (r.DownModelId != null && r.DownModelId.Contains(input.Model)));
+                (r.ApiKeyName != null && r.ApiKeyName.Contains(keyword)) ||
+                (r.DownModelId != null && r.DownModelId.Contains(keyword)) ||
+                (r.SessionId != null && r.SessionId.Contains(keyword)) ||
+                (r.DownRequestUrl != null && r.DownRequestUrl.Contains(keyword)) ||
+                (r.DownUserAgent != null && r.DownUserAgent.Contains(keyword)) ||
+                (r.DownClientIp != null && r.DownClientIp.Contains(keyword)) ||
+                r.Attempts.Any(a => 
+                    (a.AccountTokenName != null && a.AccountTokenName.Contains(keyword)) ||
+                    (a.UpModelId != null && a.UpModelId.Contains(keyword))
+                )
+            );
         }
 
-        if (!string.IsNullOrWhiteSpace(input.AccountTokenName))
+        if (input.Status.HasValue)
         {
-            query = query.Where(r => r.Attempts.Any(a => a.AccountTokenName.Contains(input.AccountTokenName)));
+            query = query.Where(r => r.Status == input.Status.Value);
         }
 
         if (input.Provider.HasValue)

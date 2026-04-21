@@ -9,21 +9,21 @@ import {
   ChangeDetectionStrategy,
   inject,
   OnInit,
-  PLATFORM_ID
+  PLATFORM_ID,
+  input
 } from '@angular/core';
 import { ChartModule } from 'primeng/chart';
 
 import { LayoutService } from '../../../../../../layout/services/layout-service';
 import { ApiKeyTrendOutputDto } from '../../../../models/usage.dto';
 
-// Chart.js 插件：增加图例与图表之间的间距
 const increaseLegendSpacing = {
   id: 'increaseLegendSpacing',
   beforeInit(chart: any) {
     const originalFit = chart.legend.fit;
     chart.legend.fit = function fit() {
       originalFit.bind(chart.legend)();
-      this.height += 10; // 增加10px高度（减少间距）
+      this.height += 10;
     };
   }
 };
@@ -36,6 +36,8 @@ const increaseLegendSpacing = {
 })
 export class ApiKeyTrendChartComponent implements OnChanges, OnInit {
   @Input() data: ApiKeyTrendOutputDto[] = [];
+  title = input('热门 API KEY 调用趋势');
+  description = input('所选时间范围内调用量 TOP 7 的 API KEY');
 
   private readonly platformId = inject(PLATFORM_ID);
   private readonly layoutService = inject(LayoutService);
@@ -45,9 +47,10 @@ export class ApiKeyTrendChartComponent implements OnChanges, OnInit {
   chartPlugins = [increaseLegendSpacing];
 
   constructor() {
-    // 监听数据变化和主题配置变化
     effect(() => {
       const config = this.layoutService.layoutConfig();
+      this.title();
+      this.description();
 
       if (isPlatformBrowser(this.platformId)) {
         requestAnimationFrame(() => {
@@ -89,7 +92,6 @@ export class ApiKeyTrendChartComponent implements OnChanges, OnInit {
       documentStyle.getPropertyValue('--p-red-500')
     ];
 
-    // 获取时间标签（从第一个API Key的趋势数据）
     const rawData = this.data[0]?.trend || [];
     let isDaily = false;
     if (rawData.length > 1) {
@@ -109,7 +111,6 @@ export class ApiKeyTrendChartComponent implements OnChanges, OnInit {
       }
     });
 
-    // 为每个API Key创建一个数据集
     const datasets = this.data.map((apiKey, index) => ({
       label: `${apiKey.apiKeyName} (${this.formatNumber(apiKey.totalRequests)})`,
       data: apiKey.trend.map(t => t.requests),
@@ -138,7 +139,7 @@ export class ApiKeyTrendChartComponent implements OnChanges, OnInit {
       maintainAspectRatio: false,
       layout: {
         padding: {
-          top: 10, // 增加顶部间距
+          top: 10,
           bottom: 10
         }
       },
@@ -165,8 +166,6 @@ export class ApiKeyTrendChartComponent implements OnChanges, OnInit {
               return datasets.map((dataset: any, i: number) => {
                 const meta = chart.getDatasetMeta(i);
                 const hidden = meta.hidden;
-
-                // 未选中状态颜色处理
                 const styleColor = hidden ? textColorSecondary || '#888' : dataset.borderColor;
                 const fontColor = hidden ? textColorSecondary || '#888' : textColor;
 
@@ -183,7 +182,6 @@ export class ApiKeyTrendChartComponent implements OnChanges, OnInit {
               });
             }
           }
-          // 使用默认的图例点击行为
         },
         tooltip: {
           mode: 'index',
@@ -193,7 +191,7 @@ export class ApiKeyTrendChartComponent implements OnChanges, OnInit {
           bodyColor: textColor,
           borderColor: surfaceBorder,
           borderWidth: 1,
-          usePointStyle: true, // 使用点样式
+          usePointStyle: true,
           boxWidth: 10,
           boxHeight: 10,
           boxPadding: 4,

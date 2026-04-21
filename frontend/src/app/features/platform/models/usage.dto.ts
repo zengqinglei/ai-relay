@@ -64,9 +64,8 @@ export interface UsageRecordOutputDto {
 }
 
 export interface UsageRecordPagedInputDto extends PagedRequestDto {
-  apiKeyName?: string;
-  model?: string;
-  accountTokenName?: string;
+  keyword?: string;
+  status?: string;
   sessionId?: string;
   providerGroupId?: string;
   provider?: Provider;

@@ -1,7 +1,8 @@
 import { findGroupById } from './provider-group';
 import { PagedResultDto } from '../../src/app/shared/models/paged-result.dto';
 import { MockException, MockRequest } from '../core/models';
-import { SUBSCRIPTIONS } from '../data/subscriptions';
+import { getSubscriptionsByUserId, SUBSCRIPTIONS } from '../data/subscriptions';
+import { getCurrentUserId } from '../utils/current-user';
 
 const subscriptions = SUBSCRIPTIONS;
 
@@ -20,8 +21,9 @@ function normalizeBindings(bindings: Array<{ priority: number; providerGroupId: 
 
 function getSubscriptions(req: MockRequest) {
   const { keyword, isActive, offset = 0, limit = 10 } = req.queryParams;
+  const currentUserId = getCurrentUserId(req);
 
-  let items = subscriptions;
+  let items = getSubscriptionsByUserId(currentUserId);
 
   if (keyword) {
     const k = (keyword as string).toLowerCase();
@@ -45,19 +47,22 @@ function getSubscriptions(req: MockRequest) {
 }
 
 function getSubscription(req: MockRequest) {
+  const currentUserId = getCurrentUserId(req);
   const id = req.params['id'];
-  const sub = subscriptions.find(s => s.id === id);
+  const sub = subscriptions.find(s => s.id === id && s.userId === currentUserId);
   if (!sub) throw new MockException(404, 'Subscription not found');
   return sub;
 }
 
 function createSubscription(req: MockRequest) {
+  const currentUserId = getCurrentUserId(req);
   const body = req.body;
   const secret = body.customSecret || `sk_mock_auto_generated_${Math.random().toString(36).substring(7)}`;
   const creationTime = new Date().toISOString();
 
   const newSub = {
     ...body,
+    userId: currentUserId,
     id: crypto.randomUUID(),
     secret,
     isActive: true,
@@ -75,9 +80,10 @@ function createSubscription(req: MockRequest) {
 }
 
 function updateSubscription(req: MockRequest) {
+  const currentUserId = getCurrentUserId(req);
   const id = req.params['id'];
   const body = req.body;
-  const index = subscriptions.findIndex(s => s.id === id);
+  const index = subscriptions.findIndex(s => s.id === id && s.userId === currentUserId);
   if (index === -1) throw new MockException(404, 'Subscription not found');
 
   subscriptions[index] = {
@@ -89,8 +95,9 @@ function updateSubscription(req: MockRequest) {
 }
 
 function deleteSubscription(req: MockRequest) {
+  const currentUserId = getCurrentUserId(req);
   const id = req.params['id'];
-  const index = subscriptions.findIndex(s => s.id === id);
+  const index = subscriptions.findIndex(s => s.id === id && s.userId === currentUserId);
   if (index !== -1) {
     subscriptions.splice(index, 1);
   }
@@ -98,8 +105,9 @@ function deleteSubscription(req: MockRequest) {
 }
 
 function enableSubscription(req: MockRequest) {
+  const currentUserId = getCurrentUserId(req);
   const id = req.params['id'];
-  const index = subscriptions.findIndex(s => s.id === id);
+  const index = subscriptions.findIndex(s => s.id === id && s.userId === currentUserId);
   if (index !== -1) {
     subscriptions[index].isActive = true;
     if (req.body?.expiresAt) {
@@ -110,8 +118,9 @@ function enableSubscription(req: MockRequest) {
 }
 
 function disableSubscription(req: MockRequest) {
+  const currentUserId = getCurrentUserId(req);
   const id = req.params['id'];
-  const index = subscriptions.findIndex(s => s.id === id);
+  const index = subscriptions.findIndex(s => s.id === id && s.userId === currentUserId);
   if (index !== -1) {
     subscriptions[index].isActive = false;
   }

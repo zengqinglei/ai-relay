@@ -69,6 +69,7 @@ export class SubscriptionEditDialogComponent {
   @Input() visible = false;
   @Input() loading = false;
   @Input() saving = false;
+  @Input() hideCustomSecret = false;
   @Input() set subscription(value: ApiKeyOutputDto | null) {
     if (value) {
       this.isEditMode.set(true);

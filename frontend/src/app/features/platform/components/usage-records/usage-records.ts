@@ -85,9 +85,7 @@ export class UsageRecords implements OnInit {
   ];
 
   // Filters
-  filterApiKeyName = signal<string>('');
-  filterModel = signal<string>('');
-  filterAccountTokenName = signal<string>('');
+  filterKeyword = signal<string>('');
   filterProviderGroupId = signal<string | null>(null);
   filterProvider = signal<Provider | null>(null);
   filterAuthMethod = signal<AuthMethod | null>(null);
@@ -144,9 +142,7 @@ export class UsageRecords implements OnInit {
       offset: this.first(),
       limit: this.rows(),
       sorting: this.getSorting(),
-      apiKeyName: this.filterApiKeyName() || undefined,
-      model: this.filterModel() || undefined,
-      accountTokenName: this.filterAccountTokenName() || undefined,
+      keyword: this.filterKeyword() || undefined,
       providerGroupId: this.filterProviderGroupId() || undefined,
       provider: this.filterProvider() || undefined,
       authMethod: this.filterAuthMethod() ?? undefined,
@@ -176,9 +172,7 @@ export class UsageRecords implements OnInit {
   }
 
   resetFilters() {
-    this.filterApiKeyName.set('');
-    this.filterModel.set('');
-    this.filterAccountTokenName.set('');
+    this.filterKeyword.set('');
     this.filterProviderGroupId.set(null);
     this.filterProvider.set(null);
     this.filterAuthMethod.set(null);

@@ -9,19 +9,14 @@ namespace AiRelay.Application.UsageRecords.Dtos.Query;
 public record UsageRecordPagedInputDto : PagedRequestDto
 {
     /// <summary>
-    /// API KEY 名称（模糊匹配）
+    /// 关键字（模糊匹配：API KEY 名、模型、供应商账户、UserAgent、SessionId、RequestUrl、IpAddress）
     /// </summary>
-    public string? ApiKeyName { get; init; }
+    public string? Keyword { get; init; }
 
     /// <summary>
-    /// 请求模型（模糊匹配）
+    /// 状态
     /// </summary>
-    public string? Model { get; init; }
-
-    /// <summary>
-    /// 供应商账户名称（模糊匹配）
-    /// </summary>
-    public string? AccountTokenName { get; init; }
+    public UsageStatus? Status { get; init; }
 
     /// <summary>
     /// 供应商

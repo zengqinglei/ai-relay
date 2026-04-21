@@ -1,0 +1,58 @@
+<div class="flex w-full" [class.justify-end]="isUser()" [class.justify-start]="!isUser()">
+  <div class="flex max-w-[min(52rem,88%)] flex-1 items-start gap-3" [class.flex-row-reverse]="isUser()">
+    <div class="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold shadow-sm"
+      [class.bg-primary]="isUser()"
+      [class.text-primary-contrast]="isUser()"
+      [class.bg-surface-0]="!isUser()"
+      [class.border]="!isUser()"
+      [class.border-surface-200]="!isUser()"
+      [class.text-primary]="!isUser()"
+      [class.dark:bg-surface-800]="!isUser()"
+      [class.dark:border-surface-700]="!isUser()"
+      [class.dark:text-primary-400]="!isUser()">
+      @if (isUser()) {
+        <i class="pi pi-user text-lg"></i>
+      } @else {
+        <i class="pi pi-sparkles text-lg"></i>
+      }
+    </div>
+
+    <div class="flex min-w-0 flex-1 flex-col" [class.items-end]="isUser()" [class.items-start]="!isUser()">
+      <div class="mb-1.5 flex items-center gap-2 px-1 text-xs text-muted-color" [class.flex-row-reverse]="isUser()">
+        <span class="font-medium">{{ isUser() ? '我' : 'AI 助手' }}</span>
+        <span>{{ message().creationTime | date: 'HH:mm' }}</span>
+      </div>
+
+      <div class="rounded-2xl border px-5 py-3.5 text-[15px] shadow-sm leading-relaxed"
+        [class.border-primary-200]="isUser()"
+        [class.bg-primary-50]="isUser()"
+        [class.text-surface-900]="isUser()"
+        [class.rounded-tr-sm]="isUser()"
+        [class.dark:border-primary-900]="isUser()"
+        [class.dark:bg-primary-900/40]="isUser()"
+        [class.dark:text-surface-0]="isUser()"
+        [class.border-surface-200]="!isUser()"
+        [class.bg-surface-0]="!isUser()"
+        [class.rounded-tl-sm]="!isUser()"
+        [class.dark:border-surface-700]="!isUser()"
+        [class.dark:bg-surface-800/50]="!isUser()">
+        
+        <div class="message-markdown" [innerHTML]="renderedHtml()"></div>
+
+        @if (message().isStreaming) {
+          <span class="stream-cursor inline-block pt-1 text-sm text-muted-color"></span>
+        }
+
+        @if (message().attachments?.length) {
+          <div class="mt-4 flex flex-wrap gap-3">
+            @for (attachment of message().attachments; track $index) {
+              @if (isImageAttachment(attachment)) {
+                <p-image [src]="getImageSrc(attachment)" [preview]="true" imageClass="max-h-56 rounded-xl border border-surface-200 dark:border-surface-700 object-cover" />
+              }
+            }
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+</div>
