@@ -1,69 +1,82 @@
 # 工作区聊天功能设计方案
 
-> 版本：v1.0 | 日期：2026-04-17 | 状态：待实现
+> 版本：v2.0 | 日期：2026-04-19 | 状态：Phase 1 已实现
 
 ---
 
 ## 一、功能目标
 
-在 `/workspace` 路由下实现类 Gemini/ChatGPT 风格的 AI 聊天界面，支持：
+在 `/workspace` 路由下实现类 Gemini/ChatGPT 风格的 AI 聊天界面，以及普通用户视角的使用日志和订阅管理，支持：
 
 - 多会话管理（创建、切换、删除）
-- 每会话独立配置（分组、账户、模型）
+- 每会话独立配置（分组、模型）
 - SSE 流式响应、Markdown 渲染
-- 图片/视频附件的展示与下载
-- 后端持久化（会话 + 消息）
+- 图片附件展示（InlineDataPart）
+- 使用日志查询（精简字段，普通用户视角）
+- 我的订阅列表（密钥查看/复制，普通用户视角）
+- 后端持久化（Phase 2）
 
 分两阶段交付：
 
-- **Phase 1**：纯前端 + Mock 数据，完整交互可用
+- **Phase 1**：纯前端 + Mock 数据，完整交互可用 ✅
 - **Phase 2**：接入后端真实 API（持久化、流式推送）
 
 ---
 
 ## 二、布局设计
 
-### 2.1 总体结构
+### 2.1 Sidebar 菜单（与 /platform 保持一致的扁平结构）
 
-沿用现有 `DefaultLayout`（Sidebar + Header + router-outlet），**不引入额外的内部 Splitter**。
-
-工作区下 Sidebar 默认展开（`sidebarCollapsed = false`），菜单项如下：
+工作区下 Sidebar **默认折叠**（`sidebarCollapsed = true`），菜单项：
 
 ```
-├── 💬 聊天               ← 带子菜单（会话列表）
-│   ├── [+ 新建会话]       ← 始终置顶的操作按钮
-│   ├── 会话 A            ← 动态列表，点击切换
-│   ├── 会话 B
-│   └── ...
-├── 🔑 ApiKey 使用情况
-└── 📊 仪表盘
+├── 💬 聊天          → /workspace/chat
+├── 📊 仪表盘        → /workspace/dashboard
+├── 🔑 我的订阅      → /workspace/my-subscriptions
+└── 📋 使用日志      → /workspace/usage-logs
 ```
 
-聊天主区域（`router-outlet` 内容）布局：
+### 2.2 聊天页面布局（内容区域）
+
+聊天页面采用**左右双栏**布局（不使用 Splitter，固定宽度）：
 
 ```
-┌──────────────────────────────────────────┐
-│  [会话标题]  [分组▼] [账户▼] [模型▼]  [...] │  ← 配置头（chat-toolbar）
-├──────────────────────────────────────────┤
-│                                          │
-│           消息列表（message-list）          │
-│                                          │
-├──────────────────────────────────────────┤
-│  [📎] [ 输入框（autoResize）         ] [发送] │  ← 输入区
-└──────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│  左侧 w-64（会话列表）  │  右侧 flex-1（对话区）           │
+│  ┌──────────────────┐  │  ┌──────────────────────────┐   │
+│  │ 会话  [↺] [+]    │  │  │ 标题  [分组▼] [模型▼]    │   │
+│  ├──────────────────┤  │  ├──────────────────────────┤   │
+│  │ ● 会话 A         │  │  │                          │   │
+│  │   预览文本...    │  │  │      消息列表             │   │
+│  │ ○ 会话 B         │  │  │                          │   │
+│  │   预览文本...    │  │  ├──────────────────────────┤   │
+│  └──────────────────┘  │  │  [输入框]          [发送] │   │
+│                        │  └──────────────────────────┘   │
+└──────────────────────────────────────────────────────────┘
 ```
 
-### 2.2 Sidebar 子菜单扩展规则
+会话列表特性：
+- 每条会话显示标题 + 最后一条消息预览 + 相对时间
+- hover 时右上角出现删除按钮（`p-confirmpopup` 确认）
+- 活跃会话高亮（`bg-primary-50 dark:bg-primary-950`）
 
-`DefaultSidebar` 当前只支持一级扁平菜单。需扩展 `MenuItem` 接口以支持 `children`，并在模板中条件渲染子列表。
+### 2.3 使用日志页面
 
-子菜单仅在 Sidebar 展开时可见；折叠时，鼠标悬停父项显示 tooltip，子菜单隐藏。
+精简字段（普通用户视角）：时间、API Key、模型、Token、费用、耗时、状态。
+去掉管理员字段：供应商账户、分组、认证方式、IP、会话ID 等。
+
+### 2.4 我的订阅页面
+
+精简字段：名称、密钥（可显示/隐藏/复制）、状态、今日用量、到期时间、创建时间。
+去掉管理员字段：绑定分组详情、路由协议等。
+
+---
 
 ---
 
 ## 三、文件变更树
 
-### 3.1 前端（Phase 1）
+### 3.1 前端（Phase 1）✅
 
 ```
 frontend/
@@ -75,15 +88,39 @@ frontend/
 │   └── index.ts                                 ← 修改：export * from './api/workspace-chat'
 │
 └── src/app/
+    ├── shared/models/
+    │   └── content-block.ts                      ← 新增：ContentBlock 类型（共用）
+    │
     ├── features/workspace/
     │   ├── models/
     │   │   └── chat-session.dto.ts               ← 新增：会话 + 消息 DTO
     │   ├── services/
     │   │   └── chat-session-service.ts           ← 新增：会话 CRUD + SSE 流
-    │   ├── components/chat/
-    │   │   ├── workspace-chat.ts                 ← 新增：Page 组件
-    │   │   ├── workspace-chat.html
-    │   │   └── widgets/
+    │   ├── components/
+    │   │   ├── chat/
+    │   │   │   ├── workspace-chat.ts             ← 新增：聊天 Page（左右双栏）
+    │   │   │   ├── workspace-chat.html
+    │   │   │   └── widgets/
+    │   │   │       └── message-bubble/
+    │   │   │           ├── message-bubble.ts     ← 新增：消息气泡（Markdown + 图片）
+    │   │   │           └── message-bubble.html
+    │   │   ├── usage-logs/
+    │   │   │   ├── workspace-usage-logs.ts       ← 新增：使用日志页（精简版）
+    │   │   │   └── workspace-usage-logs.html
+    │   │   └── my-subscriptions/
+    │   │       ├── workspace-my-subscriptions.ts ← 新增：我的订阅页（精简版）
+    │   │       └── workspace-my-subscriptions.html
+    │   └── workspace.routes.ts                   ← 修改：新增 usage-logs / my-subscriptions 路由
+    │
+    ├── layout/
+    │   ├── components/default-sidebar/
+    │   │   ├── default-sidebar.ts                ← 修改：恢复扁平菜单，新增工作区菜单项
+    │   │   └── default-sidebar.html              ← 修改：移除子菜单逻辑
+    │   └── services/layout-service.ts            ← 修改：移除 workspaceSessions signal
+    │
+    └── features/platform/components/account-token/widgets/model-test-dialog/
+        └── model-test-dialog.ts                  ← 修改：ContentBlock 改为从 shared 导入
+```
     │   │       ├── chat-toolbar/
     │   │       │   ├── chat-toolbar.ts           ← 新增：分组/账户/模型配置头
     │   │       │   └── chat-toolbar.html
