@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -23,6 +22,7 @@ public class OpenAiBufferedChatResponseProcessor(DownRequestContext down) : IRes
     private readonly long _created = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
     private string _model = string.Empty;
     private readonly StringBuilder _content = new();
+    private readonly StringBuilder _reasoning = new();
     private bool _finalized;
     private int _inputTokens;
     private int _outputTokens;
@@ -87,6 +87,11 @@ public class OpenAiBufferedChatResponseProcessor(DownRequestContext down) : IRes
                 case "response.output_text.delta":
                     if (root.TryGetProperty("delta", out var delta) && delta.GetString() is { } text)
                         _content.Append(text);
+                    break;
+
+                case "response.reasoning_summary_text.delta":
+                    if (root.TryGetProperty("delta", out var reasoningDelta) && reasoningDelta.GetString() is { } reasoningText)
+                        _reasoning.Append(reasoningText);
                     break;
 
                 case "response.output_item.added":
@@ -169,6 +174,21 @@ public class OpenAiBufferedChatResponseProcessor(DownRequestContext down) : IRes
                     }
                     continue;
                 }
+
+                if (output.TryGetProperty("type", out var reasoningType) && reasoningType.GetString() == "reasoning")
+                {
+                    if (_reasoning.Length == 0 && output.TryGetProperty("summary", out var summaryArr))
+                    {
+                        foreach (var summary in summaryArr.EnumerateArray())
+                        {
+                            if (summary.TryGetProperty("type", out var summaryType) && summaryType.GetString() == "summary_text" &&
+                                summary.TryGetProperty("text", out var summaryText) && summaryText.GetString() is { } reasoning)
+                                _reasoning.Append(reasoning);
+                        }
+                    }
+                    continue;
+                }
+
                 if (_content.Length == 0 && output.TryGetProperty("content", out var contentArr))
                 {
                     foreach (var part in contentArr.EnumerateArray())
@@ -192,6 +212,8 @@ public class OpenAiBufferedChatResponseProcessor(DownRequestContext down) : IRes
 
         var message = new JsonObject { ["role"] = "assistant" };
         message["content"] = _content.Length > 0 ? _content.ToString() : null;
+        if (_reasoning.Length > 0)
+            message["reasoning_content"] = _reasoning.ToString();
 
         if (_toolCallsBuffer.Count > 0)
         {

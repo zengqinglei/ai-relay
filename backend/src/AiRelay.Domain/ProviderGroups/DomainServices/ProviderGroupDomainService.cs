@@ -443,6 +443,8 @@ public class ProviderGroupDomainService(
         if (string.IsNullOrEmpty(cacheValue))
             return null;
 
+        await cache.RefreshAsync(cacheKey);
+
         try
         {
             var sessionData = JsonSerializer.Deserialize<StickySessionCache>(cacheValue);
@@ -473,7 +475,7 @@ public class ProviderGroupDomainService(
         var cacheValue = JsonSerializer.Serialize(sessionData);
         var options = new DistributedCacheEntryOptions
         {
-            AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(expirationHours)
+            SlidingExpiration = TimeSpan.FromHours(expirationHours)
         };
 
         await cache.SetStringAsync(cacheKey, cacheValue, options);

@@ -21,6 +21,9 @@ public static class ChatCompletionsConverter
             ["include"] = new JsonArray { "reasoning.encrypted_content" }
         };
 
+        if (chatReq.TryGetPropertyValue("instructions", out var instructions) && instructions != null)
+            req["instructions"] = instructions.DeepClone();
+
         // messages → input
         if (chatReq.TryGetPropertyValue("messages", out var messagesNode) && messagesNode is JsonArray messages)
             req["input"] = ConvertMessages(messages);
@@ -189,15 +192,28 @@ public static class ChatCompletionsConverter
                     partObj.TryGetPropertyValue("type", out var t))
                 {
                     var type = t?.GetValue<string>();
-                    if ((type == "thinking" || type == "reasoning") &&
-                        partObj.TryGetPropertyValue("thinking", out var thinkingNode) &&
-                        thinkingNode?.GetValue<string>() is { Length: > 0 } thinkingText)
+                    if (type == "thinking" || type == "reasoning")
                     {
-                        sb.Append("<thinking>").Append(thinkingText).Append("</thinking>");
+                        string? reasoningText = null;
+                        if (partObj.TryGetPropertyValue("thinking", out var thinkingNode) &&
+                            thinkingNode?.GetValue<string>() is { Length: > 0 } thinkingText)
+                        {
+                            reasoningText = thinkingText;
+                        }
+                        else if (partObj.TryGetPropertyValue("text", out var reasoningNode) &&
+                            reasoningNode?.GetValue<string>() is { Length: > 0 } reasoningTextValue)
+                        {
+                            reasoningText = reasoningTextValue;
+                        }
+
+                        if (!string.IsNullOrEmpty(reasoningText))
+                            sb.Append("<thinking>").Append(reasoningText).Append("</thinking>");
                     }
                     else if (type == "text" &&
                         partObj.TryGetPropertyValue("text", out var txt))
+                    {
                         sb.Append(txt?.GetValue<string>());
+                    }
                 }
             }
             if (sb.Length > 0) textContent = sb.ToString();
@@ -365,3 +381,4 @@ public static class ChatCompletionsConverter
         return functionCall.DeepClone();
     }
 }
+

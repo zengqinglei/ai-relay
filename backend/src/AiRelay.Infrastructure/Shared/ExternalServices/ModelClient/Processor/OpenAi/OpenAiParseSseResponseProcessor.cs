@@ -56,6 +56,15 @@ public class OpenAiParseSseResponseProcessor : IResponseProcessor
                         }
                         break;
 
+                    case "response.reasoning_summary_text.delta":
+                        if (root.TryGetProperty("delta", out var reasoningDelta))
+                        {
+                            var reasoningText = reasoningDelta.GetString();
+                            evt.Content = reasoningText;
+                            if (!string.IsNullOrEmpty(reasoningText)) evt.HasOutput = true;
+                        }
+                        break;
+
                     case "response.output_item.added":
                         // 工具调用 item 开始即代表有输出意图
                         if (root.TryGetProperty("item", out var item) &&
@@ -115,9 +124,10 @@ public class OpenAiParseSseResponseProcessor : IResponseProcessor
                                 ExtractInlineData(evt);
                             }
                         }
-                        
-                        // tool_calls 代表有输出意图；reasoning_content 为思考链，不视为有效输出
-                        if (delta.TryGetProperty("tool_calls", out _))
+
+                        // tool_calls 与 reasoning_content 都代表流式输出意图
+                        if (delta.TryGetProperty("tool_calls", out _) ||
+                            delta.TryGetProperty("reasoning_content", out _))
                         {
                             evt.HasOutput = true;
                         }
@@ -126,7 +136,7 @@ public class OpenAiParseSseResponseProcessor : IResponseProcessor
                 else if (root.TryGetProperty("error", out var errorProp))
                 {
                     evt.Type = StreamEventType.Error;
-                    
+
                     string? errorMsg = null;
                     if (errorProp.TryGetProperty("message", out var msg))
                     {
@@ -223,3 +233,4 @@ public class OpenAiParseSseResponseProcessor : IResponseProcessor
         return new ResponseUsage(input, output, cached);
     }
 }
+
