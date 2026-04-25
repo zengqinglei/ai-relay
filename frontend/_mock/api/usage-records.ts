@@ -1,8 +1,20 @@
 import { UsageRecordOutputDto, UsageRecordDetailOutputDto } from '../../src/app/features/platform/models/usage.dto';
 import { PagedResultDto } from '../../src/app/shared/models/paged-result.dto';
 import { MockException, MockRequest } from '../core/models';
-import { getUsageRecordDetail, getUsageRecordsByUserId } from '../data/usage-record';
-import { getCurrentUserId } from '../utils/current-user';
+import { getAllUsageRecords, getUsageRecordDetail, getUsageRecordsByUserId } from '../data/usage-record';
+import { getUserByToken } from '../utils/current-user';
+
+function getVisibleUsageRecords(req: MockRequest) {
+  const currentUser = getUserByToken(req);
+  const onlyCurrentUser = String(req.queryParams['onlyCurrentUser']) === 'true';
+  const isAdmin = currentUser.roles.includes('Admin');
+
+  if (!isAdmin || onlyCurrentUser) {
+    return getUsageRecordsByUserId(currentUser.id);
+  }
+
+  return [...getAllUsageRecords()];
+}
 
 function getPagedList(req: MockRequest): PagedResultDto<UsageRecordOutputDto> {
   const {
@@ -18,11 +30,25 @@ function getPagedList(req: MockRequest): PagedResultDto<UsageRecordOutputDto> {
     sorting,
     authMethod,
     downUserAgent,
-    status
+    status,
+    keyword
   } = req.queryParams;
 
-  const currentUserId = getCurrentUserId(req);
-  let filteredRecords = getUsageRecordsByUserId(currentUserId);
+  let filteredRecords = getVisibleUsageRecords(req);
+
+  const normalizedKeyword = keyword && String(keyword) !== 'undefined' ? String(keyword).toLowerCase() : null;
+  if (normalizedKeyword) {
+    filteredRecords = filteredRecords.filter(r =>
+      r.apiKeyName?.toLowerCase().includes(normalizedKeyword) ||
+      r.downModelId?.toLowerCase().includes(normalizedKeyword) ||
+      r.upModelId?.toLowerCase().includes(normalizedKeyword) ||
+      r.accountTokenName?.toLowerCase().includes(normalizedKeyword) ||
+      r.sessionId?.toLowerCase().includes(normalizedKeyword) ||
+      r.downRequestUrl?.toLowerCase().includes(normalizedKeyword) ||
+      r.downClientIp?.toLowerCase().includes(normalizedKeyword) ||
+      r.downUserAgent?.toLowerCase().includes(normalizedKeyword) || r.username?.toLowerCase().includes(normalizedKeyword)
+    );
+  }
 
   if (apiKeyName && String(apiKeyName) !== 'undefined') {
     const query = String(apiKeyName).toLowerCase();
@@ -120,9 +146,8 @@ function getPagedList(req: MockRequest): PagedResultDto<UsageRecordOutputDto> {
 }
 
 function getDetail(req: MockRequest): UsageRecordDetailOutputDto {
-  const currentUserId = getCurrentUserId(req);
   const id = req.url.split('/')[4];
-  const record = getUsageRecordsByUserId(currentUserId).find(item => item.id === id);
+  const record = getVisibleUsageRecords(req).find(item => item.id === id);
   if (!record) {
     throw new MockException(404, { message: 'Usage record not found' });
   }
@@ -139,3 +164,5 @@ export const USAGE_RECORDS_API = {
   'GET /api/v1/usage-records': (req: MockRequest) => getPagedList(req),
   'GET /api/v1/usage-records/:id/detail': (req: MockRequest) => getDetail(req)
 };
+
+

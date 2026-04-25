@@ -120,7 +120,12 @@ public class AccountTokenAppService(
             modelWhites: accountToken.ModelWhites,
             modelMapping: accountToken.ModelMapping);
 
-        var downContext = handler.CreateDebugDownContext(input.ModelId, input.Message);
+        var downContext = handler.CreateChatDownContext(new ChatDownContextInput(
+            input.ModelId,
+            Guid.CreateVersion7().ToString("N"),
+            [
+                new ChatDownContextMessageInput(ChatDownContextMessageRole.User, input.Message)
+            ]));
         var upContext = await handler.ProcessRequestContextAsync(downContext, 0, cancellationToken);
 
         var mappedModel = upContext.MappedModelId == downContext.ModelId
@@ -560,6 +565,8 @@ public class AccountTokenAppService(
 
         logger.LogInformation("重置账户状态: {Name}({Provider}-{AuthMethod})", account.Name, account.Provider, account.AuthMethod);
         await accountRateLimitDomainService.ClearAsync(account, cancellationToken);
+        await accountTokenDomainService.ClearCacheAsync(account.Id, cancellationToken);
+        await concurrencyStrategy.ClearAsync(account.Id, cancellationToken);
         logger.LogInformation("重置账户状态成功: {Name}({Provider}-{AuthMethod})", account.Name, account.Provider, account.AuthMethod);
     }
 
@@ -632,6 +639,7 @@ public class AccountTokenAppService(
             .ToList();
     }
 }
+
 
 
 

@@ -21,6 +21,7 @@ public class ApiKeyDomainService(
     /// 创建 API Key（如果 customSecret 为空则自动生成）
     /// </summary>
     public async Task<ApiKey> CreateWithKeyAsync(
+        Guid userId,
         string name,
         string? description,
         string? customSecret,
@@ -29,7 +30,7 @@ public class ApiKeyDomainService(
         CancellationToken cancellationToken = default)
     {
         // 1. 唯一性校验（名称）
-        if (await apiKeyRepository.CountAsync(k => k.Name == name, cancellationToken) > 0)
+        if (await apiKeyRepository.CountAsync(k => k.UserId == userId && k.Name == name, cancellationToken) > 0)
         {
             throw new BadRequestException($"API Key 名称 '{name}' 已存在");
         }
@@ -52,14 +53,14 @@ public class ApiKeyDomainService(
         var encryptedSecret = aesEncryptionProvider.Encrypt(plainSecret);
 
         // 6. 创建实体
-        var apiKey = new ApiKey(name, description, encryptedSecret, secretHash, expiresAt);
+        var apiKey = new ApiKey(userId, name, description, encryptedSecret, secretHash, expiresAt);
 
         // 7. 处理绑定
         await AddBindingsAsync(apiKey, bindings);
 
         await apiKeyRepository.InsertAsync(apiKey, cancellationToken: cancellationToken);
 
-        logger.LogInformation("创建 API Key 成功: {Name} (ID: {Id})", name, apiKey.Id);
+        logger.LogInformation("创建 API Key 成功: {Name} (ID: {Id}, UserId: {UserId})", name, apiKey.Id, userId);
         return apiKey;
     }
 
@@ -77,7 +78,7 @@ public class ApiKeyDomainService(
         // 如果名称变更，检查唯一性
         if (!string.IsNullOrWhiteSpace(name) && name != apiKey.Name)
         {
-            if (await apiKeyRepository.CountAsync(k => k.Name == name, cancellationToken) > 0)
+            if (await apiKeyRepository.CountAsync(k => k.UserId == apiKey.UserId && k.Name == name, cancellationToken) > 0)
             {
                 throw new BadRequestException($"API Key 名称 '{name}' 已存在");
             }
@@ -203,7 +204,7 @@ public class ApiKeyDomainService(
         var randomBytes = new byte[randomPartLength];
         rng.GetBytes(randomBytes);
 
-        for (int i = 0; i < randomPartLength; i++)
+        for (var i = 0; i < randomPartLength; i++)
         {
             randomPart[i] = chars[randomBytes[i] % chars.Length];
         }
@@ -214,12 +215,14 @@ public class ApiKeyDomainService(
     /// <summary>
     /// 添加绑定关系
     /// </summary>
-    private async Task AddBindingsAsync(
+    private Task AddBindingsAsync(
         ApiKey apiKey,
         List<(int Priority, Guid GroupId)> bindings)
     {
         if (bindings == null || !bindings.Any())
-            return;
+        {
+            return Task.CompletedTask;
+        }
 
         // 校验分组唯一性
         var duplicateGroups = bindings
@@ -237,6 +240,8 @@ public class ApiKeyDomainService(
         {
             apiKey.Bindings.Add(new ApiKeyProviderGroupBinding(apiKey.Id, binding.Priority, binding.GroupId));
         }
+
+        return Task.CompletedTask;
     }
 
     private async Task UpdateBindingsAsync(

@@ -43,7 +43,6 @@ export class DefaultSidebar {
     { label: '使用日志', icon: 'pi-history', route: '/workspace/usage-logs' }
   ];
 
-  // Create a signal for the current URL
   private readonly currentUrl = toSignal(
     this.router.events.pipe(
       filter((event): event is NavigationEnd => event instanceof NavigationEnd),
@@ -53,11 +52,17 @@ export class DefaultSidebar {
     { initialValue: this.router.url }
   );
 
-  // Derive menu items based on the URL signal
   readonly menuItems = computed(() => {
     const url = this.currentUrl();
     return url.startsWith('/platform') ? this.platformMenuItems : this.workspaceMenuItems;
   });
+
+  isItemActive(item: MenuItem) {
+    const currentUrl = this.currentUrl();
+    if (item.route === '/platform') {
+      return currentUrl === item.route;
+    }
+
+    return currentUrl === item.route || currentUrl.startsWith(`${item.route}/`);
+  }
 }
-
-

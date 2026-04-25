@@ -197,12 +197,33 @@ public abstract partial class BaseChatModelHandler : IChatModelHandler
             await using var responseStream = await response.Content.ReadAsStreamAsync(ct);
             var buffer = ArrayPool<byte>.Shared.Rent(8192);
             bool requiresMutation = processors.Any(p => p.RequiresMutation);
+            bool firstChunkRead = false;
 
             try
             {
                 int bytesRead;
                 while ((bytesRead = await responseStream.ReadAsync(buffer, ct)) > 0)
                 {
+                    // ── 首包 HTML 检测（WAF/网关拦截页识别）──
+                    // 仅检查第一个读取块的前缀，避免对每个块都做字符串扫描的性能开销。
+                    // 上游返回 HTTP 200 + HTML body（如阿里云 WAF 验证页）时，
+                    // 直接产出 Error 事件并终止枚举，触发健康检查的流崩溃重试逻辑。
+                    if (!firstChunkRead)
+                    {
+                        firstChunkRead = true;
+                        var prefix = Encoding.UTF8.GetString(buffer.AsSpan(0, Math.Min(bytesRead, 256)));
+                        if (IsHtmlContent(prefix))
+                        {
+                            yield return new StreamEvent
+                            {
+                                Type = StreamEventType.Error,
+                                Content = "上游返回非预期 HTML 内容（疑似 WAF/网关拦截页），拒绝转发",
+                                OriginalBytes = buffer.AsSpan(0, bytesRead).ToArray()
+                            };
+                            yield break;
+                        }
+                    }
+
                     // Fast-pass：非变换路径整块透传，SSE 解析仅用于 Usage/IsComplete 元数据采集
                     if (!requiresMutation)
                         yield return new StreamEvent { OriginalBytes = buffer.AsSpan(0, bytesRead).ToArray() };
@@ -333,7 +354,7 @@ public abstract partial class BaseChatModelHandler : IChatModelHandler
     }
 
     public abstract void ExtractModelInfo(DownRequestContext down, Guid apiKeyId);
-    public abstract DownRequestContext CreateDebugDownContext(string modelId, string message);
+    public abstract DownRequestContext CreateChatDownContext(ChatDownContextInput input);
     public virtual Task<ConnectionValidationResult> ValidateConnectionAsync(CancellationToken ct = default) =>
         Task.FromResult(new ConnectionValidationResult(true));
     public virtual Task<IReadOnlyList<AccountQuotaInfo>?> FetchQuotaAsync(CancellationToken ct = default) =>
@@ -542,4 +563,18 @@ public abstract partial class BaseChatModelHandler : IChatModelHandler
 
     [GeneratedRegex(@"(?<![\d.])(\d+(?:\.\d+)?)s")]
     private static partial Regex DurationSecondRegex();
+
+    // ═══════════════════════════════════════════════════════════════════
+    // WAF HTML 检测辅助方法
+    // ═══════════════════════════════════════════════════════════════════
+
+    private static bool IsHtmlContent(string prefix)
+    {
+        var trimmed = prefix.TrimStart();
+        return trimmed.StartsWith("<!doctype", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("<html", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("<meta", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("<head", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("<script", StringComparison.OrdinalIgnoreCase);
+    }
 }

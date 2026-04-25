@@ -13,7 +13,7 @@
   (onHide)="onHide()"
 >
   @if (loading) {
-    <div class="flex items-center justify-center py-20 text-sm text-muted-color">正在加载分组信息...</div>
+    <app-dialog-loading text="正在加载分组信息..." />
   } @else {
     <div class="flex flex-col gap-5">
       @if (isEditMode()) {
@@ -61,20 +61,63 @@
         </div>
 
         <div class="flex flex-col gap-2">
+          <label class="font-bold">分配给用户</label>
+          <p-multiselect
+            [ngModel]="selectedAssignedUsers()"
+            (ngModelChange)="onAssignedUsersChange($event)"
+            [options]="userOptions()"
+            optionLabel="username"
+            [filter]="true"
+            filterBy="username,email"
+            [fluid]="true"
+            [showClear]="true"
+            [loading]="userOptionsLoading()"
+            [maxSelectedLabels]="2"
+            selectedItemsLabel="已选择 {0} 个用户"
+            display="chip"
+            styleClass="w-full"
+            appendTo="body"
+            placeholder="不分配则为公开分组"
+            [disabled]="readonly">
+            <ng-template let-user pTemplate="item">
+              <div class="flex min-w-0 flex-col">
+                <span class="truncate text-sm text-color">{{ user.username }}</span>
+                <span class="truncate text-xs text-muted-color">{{ user.email }}</span>
+              </div>
+            </ng-template>
+            <ng-template let-user pTemplate="selectedItem">
+              <span class="truncate text-sm">{{ user.username }}</span>
+            </ng-template>
+            <ng-template pTemplate="emptyfilter">
+              <div class="px-3 py-2 text-sm text-muted-color">没有匹配的用户</div>
+            </ng-template>
+            <ng-template pTemplate="empty">
+              <div class="px-3 py-2 text-sm text-muted-color">
+                {{ userOptionsLoading() ? '正在加载用户列表...' : '暂无可分配用户' }}
+              </div>
+            </ng-template>
+          </p-multiselect>
+          <small class="text-muted-color">清空后即恢复为公开分组。</small>
+        </div>
+
+        <div class="flex flex-col gap-2">
           <label class="font-bold">粘性会话</label>
-          <div class="flex flex-wrap items-center gap-4">
-            <p-toggleswitch [(ngModel)]="formModel().enableStickySession" [disabled]="readonly" />
+          <div class="flex min-h-10 items-center gap-4">
+            <div class="flex items-center self-center">
+              <p-toggleswitch [(ngModel)]="formModel().enableStickySession" [disabled]="readonly" />
+            </div>
 
             @if (formModel().enableStickySession) {
-              <div class="flex items-center gap-2">
-                <span class="text-sm text-muted-color">过期时间(小时)</span>
+              <div class="flex min-w-0 items-center self-center gap-2 whitespace-nowrap">
+                <span class="self-center text-sm leading-none text-muted-color">过期时间(小时)</span>
                 <p-inputNumber
                   [(ngModel)]="formModel().stickySessionExpirationHours"
                   [min]="1"
                   [max]="8760"
                   [showButtons]="true"
                   buttonLayout="horizontal"
-                  inputStyleClass="w-16 text-center !py-1"
+                  inputStyleClass="w-14 text-center !py-1"
+                  styleClass="self-center"
                   [disabled]="readonly"
                 >
                   <ng-template pTemplate="incrementbuttonicon">

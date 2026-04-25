@@ -1,7 +1,8 @@
 import { ACCOUNT_TOKENS } from './account-token';
 import { PROVIDER_GROUPS } from './provider-group';
-import { getSubscriptionsByUserId, SUBSCRIPTIONS } from './subscriptions';
-import { UsageRecordOutputDto } from '../../src/app/features/platform/models/usage.dto';
+import { getSubscriptionsByUserId } from './subscriptions';
+import { USERS } from './user';
+import { UsageRecordOutputDto, UsageRecordDetailOutputDto } from '../../src/app/features/platform/models/usage.dto';
 import { UsageStatus } from '../../src/app/shared/models/usage-status.enum';
 import { AuthMethod } from '../../src/app/shared/models/auth-method.enum';
 
@@ -45,7 +46,9 @@ function seededNumber(seed: number) {
 }
 
 function generateRecordsForUser(userId: string, count: number): MockUsageRecord[] {
+  const user = USERS.find(item => item.id === userId)!;
   const userSubscriptions = getSubscriptionsByUserId(userId);
+
   return Array.from({ length: count }).map((_, i) => {
     const seed = Number(userId.slice(-4)) + i * 17;
     const apiKey = userSubscriptions[i % userSubscriptions.length];
@@ -86,6 +89,8 @@ function generateRecordsForUser(userId: string, count: number): MockUsageRecord[
       creationTime: createdAt,
       apiKeyId: apiKey.id,
       userId,
+      username: user.username,
+      email: user.email,
       apiKeyName: apiKey.name,
       sessionId: `sess-${userId.slice(-4)}-${Math.floor(seededNumber(seed + 11) * 100000)}`,
       providerGroupName: group.name,
@@ -125,7 +130,11 @@ export function getUsageRecordsByUserId(userId: string) {
   return USAGE_RECORDS.filter(item => item.userId === userId);
 }
 
-export const getUsageRecordDetail = (id: string) => {
+export function getAllUsageRecords() {
+  return USAGE_RECORDS;
+}
+
+export const getUsageRecordDetail = (id: string): UsageRecordDetailOutputDto | null => {
   const record = USAGE_RECORDS.find(r => r.id === id);
   if (!record) return null;
 

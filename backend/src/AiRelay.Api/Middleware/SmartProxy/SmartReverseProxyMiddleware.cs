@@ -26,7 +26,7 @@ public class SmartReverseProxyMiddleware(
     ISmartProxyAppService smartProxyAppService,
     IChatModelHandlerFactory chatModelHandlerFactory,
     ProxyErrorFormatterFactory errorFormatterFactory,
-    AccountUsageRecordHostedService usageRecordHostedService,
+    AccountUsageRecordWorker usageRecordWorker,
     IOptions<UsageLoggingOptions> loggingOptions,
     IConcurrencyStrategy concurrencyStrategy,
     ICorrelationIdProvider correlationIdProvider,
@@ -41,7 +41,7 @@ public class SmartReverseProxyMiddleware(
 
     public async Task InvokeAsync(HttpContext context)
     {
-        var (routeProfile, apiKeyId, apiKeyName) = ValidateAndGetContext(context);
+        var (routeProfile, apiKeyId, apiKeyName, userId) = ValidateAndGetContext(context);
         var correlationId = correlationIdProvider.Get() ?? correlationIdProvider.Create();
 
         var chatModelHandler = chatModelHandlerFactory.CreateHandler(routeProfile);
@@ -65,8 +65,10 @@ public class SmartReverseProxyMiddleware(
         var loggingDownRequestBody = _loggingOptions.IsBodyLoggingEnabled ? downRequestBody : null;
 
         // Step 1: 入队 StartItem
-        usageRecordHostedService.TryEnqueue(new UsageRecordStartItem(
+        usageRecordWorker.TryEnqueue(new UsageRecordStartItem(
             UsageRecordId: usageRecordId,
+            UserId: userId,
+            Source: Domain.UsageRecords.ValueObjects.UsageSource.ApiProxy,
             CorrelationId: correlationId,
             SessionId: downContext.SessionId,
             ApiKeyId: apiKeyId,
@@ -173,7 +175,7 @@ public class SmartReverseProxyMiddleware(
                     string? upResponseBody = null;
 
                     // Step 2: 入队 AttemptStartItem
-                    usageRecordHostedService.TryEnqueue(new UsageRecordAttemptStartItem(
+                    usageRecordWorker.TryEnqueue(new UsageRecordAttemptStartItem(
                         UsageRecordId: usageRecordId,
                         AttemptNumber: attemptNumber,
                         AccountTokenId: selectResult.AccountToken.Id,
@@ -323,9 +325,12 @@ public class SmartReverseProxyMiddleware(
                                     attemptStatusDesc = retryPolicy.RetryType == RetryType.UnsupportedEndpoint
                                         ? $"端点不支持 (状态码: {httpStatusCode})，直接透传响应：{retryPolicy.Description}"
                                         : $"请求最终失败 (状态码: {httpStatusCode})，不进行重试：{upResponseBody}";
-                                    WriteResponseHeaders(context, httpStatusCode!.Value, proxyResponse.Headers);
-                                    downResponseBody = LoggingSubBody(proxyResponse.ErrorBody, force: true);
-                                    await context.Response.WriteAsync(proxyResponse.ErrorBody ?? "", context.RequestAborted);
+                                    var formatter = errorFormatterFactory.GetFormatter(routeProfile);
+                                    var normalized = formatter.Normalize(httpStatusCode!.Value, proxyResponse.ErrorBody);
+
+                                    WriteResponseHeaders(context, normalized.StatusCode, proxyResponse.Headers);
+                                    downResponseBody = LoggingSubBody(normalized.Payload, force: true);
+                                    await context.Response.WriteAsync(normalized.Payload, context.RequestAborted);
                                     return;
                             }
 
@@ -339,7 +344,7 @@ public class SmartReverseProxyMiddleware(
                         await concurrencyStrategy.ReleaseSlotAsync(selectResult.AccountToken.Id, activeRequestId);
 
                         // Step 3: 入队 AttemptEndItem
-                        usageRecordHostedService.TryEnqueue(new UsageRecordAttemptEndItem(
+                        usageRecordWorker.TryEnqueue(new UsageRecordAttemptEndItem(
                             UsageRecordId: usageRecordId,
                             AttemptNumber: attemptNumber,
                             UpStatusCode: httpStatusCode,
@@ -404,7 +409,7 @@ public class SmartReverseProxyMiddleware(
             overallStopwatch.Stop();
 
             // Step 4: 入队 EndItem
-            usageRecordHostedService.TryEnqueue(new UsageRecordEndItem(
+            usageRecordWorker.TryEnqueue(new UsageRecordEndItem(
                 UsageRecordId: usageRecordId,
                 Duration: overallStopwatch.ElapsedMilliseconds,
                 Status: finalStatus,
@@ -547,6 +552,7 @@ public class SmartReverseProxyMiddleware(
                     {
                         isStreamCrash = true;
                         statusDesc = $"流健康检查到内部错误事件节点 '{evt.Content ?? "unknown"}'";
+                        AppendBodyLog(tempUpBody, evt.OriginalBytes, forceBodyCapture);
                         break;
                     }
 
@@ -735,21 +741,23 @@ public class SmartReverseProxyMiddleware(
         return result;
     }
 
-    private static (RouteProfile Profile, Guid ApiKeyId, string ApiKeyName) ValidateAndGetContext(HttpContext context)
+    private static (RouteProfile Profile, Guid ApiKeyId, string ApiKeyName, Guid UserId) ValidateAndGetContext(HttpContext context)
     {
         var metadata = context.GetEndpoint()?.Metadata.GetMetadata<PlatformMetadata>();
         if (metadata == null) throw new NotFoundException("平台路由未配置");
 
         var apiKeyIdClaim = context.User.FindFirst(AuthenticationConstants.ApiKeyIdClaimType);
         var apiKeyNameClaim = context.User.FindFirst(AuthenticationConstants.ApiKeyNameClaimType);
+        var userIdClaim = context.User.FindFirst(AuthenticationConstants.UserIdClaimType);
 
         if (apiKeyIdClaim == null || !Guid.TryParse(apiKeyIdClaim.Value, out var apiKeyId) ||
-            apiKeyNameClaim == null)
+            apiKeyNameClaim == null ||
+            userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
         {
             throw new UnauthorizedException("请求未经认证");
         }
 
-        return (metadata.Profile, apiKeyId, apiKeyNameClaim.Value);
+        return (metadata.Profile, apiKeyId, apiKeyNameClaim.Value, userId);
     }
 
     private static bool IsHopByHopHeader(string headerName) => headerName.ToLowerInvariant() switch
@@ -819,5 +827,3 @@ public class SmartReverseProxyMiddleware(
         return string.Join("\n", filtered);
     }
 }
-
-

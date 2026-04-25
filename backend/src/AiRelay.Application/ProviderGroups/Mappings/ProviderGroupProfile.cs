@@ -13,7 +13,10 @@ public class ProviderGroupProfile : MapsterProfile
 {
     protected override void ConfigureMappings()
     {
-        CreateMap<ProviderGroup, ProviderGroupOutputDto>();
+        CreateMap<ProviderGroup, ProviderGroupOutputDto>()
+            .Map(d => d.AssignedUserIds, s => s.AssignedUsers.Select(x => x.UserId).ToList())
+            .Map(d => d.IsPublic, s => !s.AssignedUsers.Any())
+            .Map(d => d.ScopeType, s => s.AssignedUsers.Any() ? "Private" : "Public");
 
         CreateMap<ApiKeyProviderGroupBinding, ApiKeyBindingOutputDto>()
             .Map(d => d.ProviderGroupName, s => s.ProviderGroup.Name);

@@ -1,6 +1,7 @@
 import { AuthMethod } from '../../../shared/models/auth-method.enum';
 import { PagedRequestDto } from '../../../shared/models/paged-request.dto';
 import { Provider } from '../../../shared/models/provider.enum';
+import { UsageSource } from '../../../shared/models/usage-source.enum';
 
 export interface UsageMetricsOutputDto {
   totalRequests: number;
@@ -36,7 +37,11 @@ export interface ModelDistributionOutputDto {
 
 export interface UsageRecordOutputDto {
   id: string;
+  userId: string;
+  username?: string;
+  email?: string;
   creationTime: string;
+  source?: UsageSource;
   apiKeyName: string;
   sessionId: string;
   provider?: Provider;
@@ -72,6 +77,7 @@ export interface UsageRecordPagedInputDto extends PagedRequestDto {
   startTime?: string;
   endTime?: string;
   authMethod?: AuthMethod;
+  onlyCurrentUser?: boolean;
 }
 
 export interface UsageRecordAttemptOutputDto {

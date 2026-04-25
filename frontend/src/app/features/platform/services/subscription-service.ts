@@ -27,6 +27,9 @@ export class SubscriptionService {
     if (input?.isActive !== undefined) {
       params = params.set('isActive', input.isActive.toString());
     }
+    if (input?.onlyCurrentUser !== undefined) {
+      params = params.set('onlyCurrentUser', input.onlyCurrentUser.toString());
+    }
     if (input?.sorting) {
       params = params.set('sorting', input.sorting);
     }

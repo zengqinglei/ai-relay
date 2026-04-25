@@ -60,18 +60,12 @@
     <ng-template pTemplate="body" let-group>
       <tr class="group border-b border-transparent text-sm text-color-secondary transition-colors hover:bg-surface-50 dark:hover:bg-surface-800/50">
         <td class="border-b border-surface-200 bg-transparent px-6 py-4 dark:border-surface-700">
-          <div class="flex min-w-0 flex-col gap-1.5">
-            <div class="flex flex-wrap items-center gap-2">
-              <span class="m-0 max-w-[220px] truncate text-sm font-semibold text-color transition-colors group-hover:text-primary" [pTooltip]="group.name" tooltipPosition="top">{{ group.name }}</span>
-              @if (isDefaultGroup(group)) {
-                <p-tag value="默认" severity="info" styleClass="text-[10px] px-2 py-0.5"></p-tag>
-              }
-            </div>
-            @if (group.description) {
-              <div class="max-w-[260px] truncate text-[11px] text-muted-color" [pTooltip]="group.description" tooltipPosition="top" tooltipStyleClass="max-w-md">
-                {{ group.description }}
-              </div>
+          <div class="flex min-w-0 items-center gap-2">
+            <span class="m-0 max-w-[220px] truncate text-sm font-semibold text-color transition-colors group-hover:text-primary" [pTooltip]="group.name" tooltipPosition="top">{{ group.name }}</span>
+            @if (isDefaultGroup(group)) {
+              <p-tag value="默认" severity="info" styleClass="text-[10px] px-2 py-0.5"></p-tag>
             }
+            <p-tag [value]="getScopeLabel(group)" [severity]="getScopeSeverity(group)" styleClass="text-[10px] px-2 py-0.5"></p-tag>
           </div>
         </td>
 

@@ -39,6 +39,11 @@ public class NoOpConcurrencyStrategy : IConcurrencyStrategy
         return Task.FromResult(0);
     }
 
+    public Task ClearAsync(Guid accountTokenId, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
     public Task<bool> WaitForSlotAsync(
         Guid accountTokenId,
         Guid requestId,

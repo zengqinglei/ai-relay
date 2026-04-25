@@ -22,6 +22,9 @@ public record CreateProviderGroupInputDto
     [MaxLength(1000, ErrorMessage = "{0}长度不能超过 {1} 个字符")]
     public string? Description { get; init; }
 
+    [Display(Name = "分配用户")]
+    public List<Guid> AssignedUserIds { get; init; } = [];
+
     /// <summary>
     /// 是否启用粘性会话
     /// </summary>

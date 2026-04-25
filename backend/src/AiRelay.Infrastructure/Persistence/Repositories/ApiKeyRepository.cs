@@ -38,19 +38,30 @@ public class ApiKeyRepository(
         int offset,
         int limit,
         string? sorting = null,
+        Guid? userId = null,
         CancellationToken cancellationToken = default)
     {
-        var dbSet = await GetDbSetAsync(cancellationToken);
-        var query = dbSet
+        var dbContext = await GetDbContextAsync(cancellationToken);
+        var query = dbContext.ApiKeys
             .Include(x => x.Bindings)
                 .ThenInclude(b => b.ProviderGroup)
                     .ThenInclude(g => g.Relations)
                         .ThenInclude(r => r.AccountToken)
             .AsQueryable();
 
+        if (userId.HasValue)
+        {
+            query = query.Where(k => k.UserId == userId.Value);
+        }
+
         if (!string.IsNullOrWhiteSpace(keyword))
         {
-            query = query.Where(k => k.Name.Contains(keyword));
+            var matchedUserIds = await dbContext.Users
+                .Where(u => u.Username.Contains(keyword))
+                .Select(u => u.Id)
+                .ToListAsync(cancellationToken);
+
+            query = query.Where(k => k.Name.Contains(keyword) || matchedUserIds.Contains(k.UserId));
         }
 
         if (isActive.HasValue)

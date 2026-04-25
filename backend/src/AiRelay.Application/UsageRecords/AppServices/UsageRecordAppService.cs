@@ -1,5 +1,7 @@
 using System.Linq.Dynamic.Core;
 using AiRelay.Application.UsageRecords.Dtos.Query;
+using AiRelay.Domain.Users.Entities;
+using AiRelay.Domain.Users.Specifications;
 using AiRelay.Domain.UsageRecords.Entities;
 using Leistd.Ddd.Application.AppService;
 using Leistd.Ddd.Application.Contracts.Dtos;
@@ -7,6 +9,7 @@ using Leistd.Ddd.Domain.Repositories;
 using Leistd.Ddd.Infrastructure.Persistence.Repositories;
 using Leistd.Exception.Core;
 using Leistd.ObjectMapping.Core;
+using Leistd.Security.Users;
 using Microsoft.EntityFrameworkCore;
 
 namespace AiRelay.Application.UsageRecords.AppServices;
@@ -16,13 +19,23 @@ namespace AiRelay.Application.UsageRecords.AppServices;
 /// </summary>
 public class UsageRecordAppService(
     IRepository<UsageRecord, Guid> usageRecordRepository,
+    IRepository<User, Guid> userRepository,
     IQueryableAsyncExecuter asyncExecuter,
+    ICurrentUser currentUser,
     IObjectMapper objectMapper) : BaseAppService, IUsageRecordAppService
 {
     public async Task<UsageRecordDetailOutputDto> GetDetailAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var baseQuery = await usageRecordRepository.GetQueryIncludingAsync(cancellationToken, x => x.Detail);
-        var query = baseQuery.Include(x => x.Attempts).ThenInclude(a => a.Detail);
+        IQueryable<UsageRecord> query = (await usageRecordRepository.GetQueryIncludingAsync(cancellationToken, x => x.Detail))
+            .Include(x => x.Attempts)
+            .ThenInclude(a => a.Detail);
+
+        var scopedUserId = UserScopeSpecifications.ResolveScopedUserId(currentUser);
+        if (scopedUserId.HasValue)
+        {
+            query = query.Where(x => x.UserId == scopedUserId.Value);
+        }
+
         var record = await asyncExecuter.FirstOrDefaultAsync(query.Where(x => x.Id == id), cancellationToken);
 
         if (record == null)
@@ -37,12 +50,20 @@ public class UsageRecordAppService(
         UsageRecordPagedInputDto input,
         CancellationToken cancellationToken = default)
     {
-        var query = await usageRecordRepository.GetQueryIncludingAsync(cancellationToken, p => p.Attempts);
+        IQueryable<UsageRecord> query = await usageRecordRepository.GetQueryIncludingAsync(cancellationToken, p => p.Attempts);
+        var scopedUserId = UserScopeSpecifications.ResolveScopedUserId(currentUser, input.OnlyCurrentUser);
+        if (scopedUserId.HasValue)
+        {
+            query = query.Where(r => r.UserId == scopedUserId.Value);
+        }
 
-        // 应用筛选条件
         if (!string.IsNullOrWhiteSpace(input.Keyword))
         {
             var keyword = input.Keyword.Trim();
+            var matchedUserIds = await userRepository
+                .GetListAsync(u => u.Username.Contains(keyword), cancellationToken);
+            var userIds = matchedUserIds.Select(u => u.Id).ToList();
+
             query = query.Where(r =>
                 (r.ApiKeyName != null && r.ApiKeyName.Contains(keyword)) ||
                 (r.DownModelId != null && r.DownModelId.Contains(keyword)) ||
@@ -50,7 +71,8 @@ public class UsageRecordAppService(
                 (r.DownRequestUrl != null && r.DownRequestUrl.Contains(keyword)) ||
                 (r.DownUserAgent != null && r.DownUserAgent.Contains(keyword)) ||
                 (r.DownClientIp != null && r.DownClientIp.Contains(keyword)) ||
-                r.Attempts.Any(a => 
+                userIds.Contains(r.UserId) ||
+                r.Attempts.Any(a =>
                     (a.AccountTokenName != null && a.AccountTokenName.Contains(keyword)) ||
                     (a.UpModelId != null && a.UpModelId.Contains(keyword))
                 )
@@ -60,6 +82,11 @@ public class UsageRecordAppService(
         if (input.Status.HasValue)
         {
             query = query.Where(r => r.Status == input.Status.Value);
+        }
+
+        if (input.Source.HasValue)
+        {
+            query = query.Where(r => r.Source == input.Source.Value);
         }
 
         if (input.Provider.HasValue)
@@ -77,7 +104,6 @@ public class UsageRecordAppService(
             query = query.Where(r => r.Attempts.Any(a => a.AuthMethod == input.AuthMethod.Value));
         }
 
-
         if (input.StartTime.HasValue)
         {
             query = query.Where(r => r.CreationTime >= input.StartTime.Value);
@@ -88,10 +114,8 @@ public class UsageRecordAppService(
             query = query.Where(r => r.CreationTime <= input.EndTime.Value);
         }
 
-        // 获取总数
         var totalCount = await asyncExecuter.CountAsync(query, cancellationToken);
 
-        // 使用动态排序，null 值按 0 处理
         var sorting = input.Sorting ?? $"{nameof(UsageRecord.CreationTime)} desc";
         sorting = System.Text.RegularExpressions.Regex.Replace(
             sorting,
@@ -101,7 +125,6 @@ public class UsageRecordAppService(
 
         var sortedQuery = query.OrderBy(sorting);
 
-        // 分页 + LEFT JOIN 最新一次 Attempt
         var pagedRecords = await asyncExecuter.ToListAsync(
             sortedQuery
                 .Skip(input.Offset)
@@ -127,6 +150,30 @@ public class UsageRecordAppService(
             return dto;
         }).ToList();
 
+        await FillOwnerInfoAsync(items, cancellationToken);
         return new PagedResultDto<UsageRecordOutputDto>(totalCount, items);
+    }
+
+    private async Task FillOwnerInfoAsync(List<UsageRecordOutputDto> items, CancellationToken cancellationToken)
+    {
+        if (items.Count == 0)
+        {
+            return;
+        }
+
+        var userIds = items.Select(x => x.UserId).Distinct().ToList();
+        var users = await userRepository.GetListAsync(x => userIds.Contains(x.Id), cancellationToken);
+        var userLookup = users.ToDictionary(x => x.Id);
+
+        foreach (var item in items)
+        {
+            if (!userLookup.TryGetValue(item.UserId, out var user))
+            {
+                continue;
+            }
+
+            item.Username = user.Username;
+            item.Email = user.Email;
+        }
     }
 }

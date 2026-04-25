@@ -12,6 +12,25 @@ public class OpenAIProxyErrorFormatter : BaseProxyErrorFormatter
 {
     public override bool Supports(RouteProfile profile) => profile is RouteProfile.ChatCompletions or RouteProfile.OpenAiResponses or RouteProfile.OpenAiCodex;
 
+    protected override ProxyErrorResponse BuildResponse(int statusCode, string message)
+    {
+        var responseObj = new
+        {
+            error = new
+            {
+                message, // 包含前置 Normalize 注入的 (Overloaded) 关键字
+                type = GetOpenAiErrorType(statusCode),
+                param = (string?)null,
+                code = GetOpenAiErrorCode(statusCode)
+            }
+        };
+
+        return new ProxyErrorResponse(
+            statusCode,
+            MediaTypeNames.Application.Json,
+            JsonSerializer.Serialize(responseObj));
+    }
+
     /// <summary>
     /// 将 HTTP 状态码映射为 OpenAI 标准错误类型字符串
     /// 参考：https://platform.openai.com/docs/guides/error-codes
@@ -26,22 +45,10 @@ public class OpenAIProxyErrorFormatter : BaseProxyErrorFormatter
         _ => "server_error"
     };
 
-    protected override ProxyErrorResponse BuildResponse(int statusCode, string message)
+    private static string GetOpenAiErrorCode(int statusCode) => statusCode switch
     {
-        var responseObj = new
-        {
-            error = new
-            {
-                message,
-                type = GetOpenAiErrorType(statusCode),
-                param = (string?)null,
-                code = "gateway_error"
-            }
-        };
-
-        return new ProxyErrorResponse(
-            statusCode,
-            MediaTypeNames.Application.Json,
-            JsonSerializer.Serialize(responseObj));
-    }
+        429 => "rate_limit_exceeded",
+        503 => "service_unavailable",
+        _ => "gateway_error"
+    };
 }

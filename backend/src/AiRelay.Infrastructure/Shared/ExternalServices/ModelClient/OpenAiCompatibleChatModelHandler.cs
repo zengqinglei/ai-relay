@@ -121,28 +121,91 @@ public class OpenAiCompatibleChatModelHandler(
         return Task.FromResult(new ConnectionValidationResult(true));
     }
 
-    public override DownRequestContext CreateDebugDownContext(string modelId, string message)
+    public override DownRequestContext CreateChatDownContext(ChatDownContextInput input)
     {
+        var messages = new JsonArray();
+        var systemMessages = input.Messages
+            .Where(message => message.Role == ChatDownContextMessageRole.System && !string.IsNullOrWhiteSpace(message.Content))
+            .Select(message => message.Content!.Trim())
+            .ToList();
+
+        foreach (var message in input.Messages.Where(message => message.Role != ChatDownContextMessageRole.System))
+        {
+            var contentParts = new JsonArray();
+            if (!string.IsNullOrWhiteSpace(message.Content))
+            {
+                contentParts.Add(new JsonObject
+                {
+                    ["type"] = "text",
+                    ["text"] = message.Content
+                });
+            }
+
+            foreach (var attachment in message.Attachments ?? [])
+            {
+                var imageUrl = !string.IsNullOrWhiteSpace(attachment.Data)
+                    ? $"data:{attachment.MimeType};base64,{attachment.Data}"
+                    : attachment.Url;
+
+                if (string.IsNullOrWhiteSpace(imageUrl))
+                {
+                    continue;
+                }
+
+                contentParts.Add(new JsonObject
+                {
+                    ["type"] = "image_url",
+                    ["image_url"] = new JsonObject
+                    {
+                        ["url"] = imageUrl
+                    }
+                });
+            }
+
+            JsonNode contentNode = contentParts.Count switch
+            {
+                0 => string.Empty,
+                1 when contentParts[0]?["type"]?.GetValue<string>() == "text" => contentParts[0]!["text"]!.GetValue<string>(),
+                _ => contentParts
+            };
+
+            messages.Add(new JsonObject
+            {
+                ["role"] = message.Role == ChatDownContextMessageRole.Assistant ? "assistant" : "user",
+                ["content"] = contentNode
+            });
+        }
+
+        if (systemMessages.Count > 0)
+        {
+            messages.Insert(0, new JsonObject
+            {
+                ["role"] = "system",
+                ["content"] = string.Join("\n\n", systemMessages)
+            });
+        }
+
         var json = new JsonObject
         {
-            ["model"] = modelId,
-            ["messages"] = new JsonArray
-            {
-                new JsonObject
-                {
-                    ["role"] = "user",
-                    ["content"] = message
-                }
-            },
-            ["stream"] = true
+            ["model"] = input.ModelId,
+            ["messages"] = messages,
+            ["stream"] = input.Stream,
+            ["max_tokens"] = input.MaxTokens ?? 4096
         };
+        var body = json.ToJsonString();
 
         return new DownRequestContext
         {
             Method = HttpMethod.Post,
             RelativePath = "/v1/chat/completions",
-            ModelId = modelId,
-            RawStream = new MemoryStream(Encoding.UTF8.GetBytes(json.ToJsonString()))
+            ModelId = input.ModelId,
+            SessionId = input.SessionId,
+            Headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["content-type"] = "application/json"
+            },
+            RawStream = new MemoryStream(Encoding.UTF8.GetBytes(body)),
+            PreloadedBodyPreview = body
         };
     }
 }

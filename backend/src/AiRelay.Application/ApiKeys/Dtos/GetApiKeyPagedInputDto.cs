@@ -20,4 +20,10 @@ public record GetApiKeyPagedInputDto : PagedRequestDto
     /// </summary>
     [Display(Name = "是否启用")]
     public bool? IsActive { get; init; }
+
+    /// <summary>
+    /// 是否仅显示当前用户数据
+    /// </summary>
+    [Display(Name = "仅当前用户")]
+    public bool? OnlyCurrentUser { get; init; }
 }

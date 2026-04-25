@@ -10,7 +10,11 @@ public record ProviderGroupOutputDto
     public Guid Id { get; init; }
     public required string Name { get; init; }
     public string? Description { get; init; }
+    public List<Guid> AssignedUserIds { get; init; } = [];
+    public List<string> AssignedUsernames { get; set; } = [];
     public bool IsDefault { get; init; }
+    public bool IsPublic { get; init; }
+    public string ScopeType { get; init; } = "Public";
     public bool EnableStickySession { get; init; }
     public int StickySessionExpirationHours { get; init; }
     public decimal RateMultiplier { get; init; }

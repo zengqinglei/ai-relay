@@ -126,6 +126,8 @@ public class OpenAiParseSseResponseProcessor : IResponseProcessor
                         }
 
                         // tool_calls 与 reasoning_content 都代表流式输出意图
+                        // reasoning_content 标记 HasOutput 是为了让健康检查通过——
+                        // reasoning-only 的响应（无文本但有思考链）应被视为有效输出而非空流
                         if (delta.TryGetProperty("tool_calls", out _) ||
                             delta.TryGetProperty("reasoning_content", out _))
                         {

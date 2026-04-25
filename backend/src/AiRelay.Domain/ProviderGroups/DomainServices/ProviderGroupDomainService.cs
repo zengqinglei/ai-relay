@@ -5,6 +5,8 @@ using AiRelay.Domain.ProviderGroups.DomainServices.SchedulingStrategy.AccountCon
 using AiRelay.Domain.ProviderGroups.Entities;
 using AiRelay.Domain.ProviderGroups.Repositories;
 using AiRelay.Domain.Shared.ExternalServices.ModelProvider;
+using AiRelay.Domain.Users.Entities;
+using Leistd.Ddd.Domain.Repositories;
 using Leistd.Exception.Core;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
@@ -18,6 +20,7 @@ namespace AiRelay.Domain.ProviderGroups.DomainServices;
 public class ProviderGroupDomainService(
     IProviderGroupRepository providerGroupRepository,
     IProviderGroupAccountRelationRepository providerGroupAccountRelationRepository,
+    IRepository<User, Guid> userRepository,
     AccountTokenDomainService accountTokenDomainService,
     AccountRateLimitDomainService accountRateLimitDomainService,
     IModelProvider modelProvider,
@@ -65,6 +68,7 @@ public class ProviderGroupDomainService(
     public async Task<ProviderGroup> CreateGroupAsync(
         string name,
         string? description,
+        IReadOnlyCollection<Guid>? assignedUserIds,
         bool enableStickySession,
         int stickySessionExpirationHours,
         decimal rateMultiplier,
@@ -75,9 +79,13 @@ public class ProviderGroupDomainService(
             throw new BadRequestException($"已存在同名分组: {name}");
         }
 
+        var normalizedAssignedUserIds = NormalizeAssignedUserIds(assignedUserIds);
+        await EnsureAssignedUsersExistAsync(normalizedAssignedUserIds, cancellationToken);
+
         var group = new ProviderGroup(
             name: name,
             description: description,
+            assignedUserIds: normalizedAssignedUserIds,
             enableStickySession: enableStickySession,
             stickySessionExpirationHours: stickySessionExpirationHours,
             rateMultiplier: rateMultiplier);
@@ -93,6 +101,7 @@ public class ProviderGroupDomainService(
         Guid id,
         string name,
         string? description,
+        IReadOnlyCollection<Guid>? assignedUserIds,
         bool enableStickySession,
         int stickySessionExpirationHours,
         decimal rateMultiplier,
@@ -106,13 +115,22 @@ public class ProviderGroupDomainService(
             throw new BadRequestException("默认分组名称不可修改");
         }
 
+        var normalizedAssignedUserIds = NormalizeAssignedUserIds(assignedUserIds);
+
+        if (group.IsDefault && normalizedAssignedUserIds.Count > 0)
+        {
+            throw new BadRequestException("默认分组必须保持公开，不能分配给指定用户");
+        }
+
         if (!string.Equals(group.Name, name, StringComparison.OrdinalIgnoreCase) &&
             await providerGroupRepository.CountAsync(g => g.Id != id && g.Name == name, cancellationToken) > 0)
         {
             throw new BadRequestException($"已存在同名分组: {name}");
         }
 
-        group.Update(group.IsDefault ? DefaultGroupName : name, description, rateMultiplier);
+        await EnsureAssignedUsersExistAsync(normalizedAssignedUserIds, cancellationToken);
+
+        group.Update(group.IsDefault ? DefaultGroupName : name, description, normalizedAssignedUserIds, rateMultiplier);
         group.UpdateStickySession(enableStickySession, stickySessionExpirationHours);
         await providerGroupRepository.UpdateAsync(group, cancellationToken);
         return group;
@@ -212,21 +230,35 @@ public class ProviderGroupDomainService(
         return defaultGroup.Id;
     }
 
+    private static List<Guid> NormalizeAssignedUserIds(IReadOnlyCollection<Guid>? assignedUserIds)
+    {
+        return assignedUserIds?
+            .Where(x => x != Guid.Empty)
+            .Distinct()
+            .ToList() ?? [];
+    }
+
+    private async Task EnsureAssignedUsersExistAsync(IReadOnlyCollection<Guid> assignedUserIds, CancellationToken cancellationToken)
+    {
+        if (assignedUserIds.Count == 0)
+        {
+            return;
+        }
+
+        var existingUsers = (await userRepository.GetListAsync(x => assignedUserIds.Contains(x.Id), cancellationToken)).ToList();
+        if (existingUsers.Count != assignedUserIds.Count)
+        {
+            var existingUserIds = existingUsers.Select(x => x.Id).ToHashSet();
+            var missingUserIds = assignedUserIds.Where(x => !existingUserIds.Contains(x)).ToList();
+            throw new NotFoundException($"用户不存在: {string.Join(", ", missingUserIds)}");
+        }
+    }
+
     /// <summary>
-    /// 为 ApiKey 选择账户（返回账户和分组）
+    /// 在指定分组内选择账户（可供 ApiKey 代理与工作区聊天共同复用）
     /// </summary>
-    /// <param name="group">资源池分组实例</param>
-    /// <param name="apiKeyId">API密钥ID</param>
-    /// <param name="apiKeyName">API密钥名称</param>
-    /// <param name="sessionHash">会话哈希</param>
-    /// <param name="excludedIds">排除的账号ID列表（用于重试时排除已失败的账号）</param>
-    /// <param name="requestedModel">可选：请求的模型</param>
-    /// <param name="allowedCombinations">可选：当前路由端点允许的 (Provider, AuthMethod) 组合，为 null 时跳过此过滤</param>
-    /// <returns>选中的账户、分组信息、是否为粘性绑定、可用账号总数</returns>
-    public async Task<(AccountToken? AccountToken, ProviderGroup Group, bool IsStickyBound, int AvailableCount)?> SelectAccountForApiKeyAsync(
+    public async Task<(AccountToken? AccountToken, ProviderGroup Group, bool IsStickyBound, int AvailableCount)?> SelectAccountFromGroupAsync(
         ProviderGroup group,
-        Guid apiKeyId,
-        string? apiKeyName,
         string? sessionHash = null,
         IEnumerable<Guid>? excludedIds = null,
         string? requestedModel = null,
@@ -234,8 +266,6 @@ public class ProviderGroupDomainService(
     {
         Guid groupId = group.Id;
         var excludedIdList = excludedIds?.ToList() ?? [];
-
-        logger.LogDebug("ApiKey '{ApiKeyName}' 使用分组 '{GroupName}'", apiKeyName ?? "未知", group.Name);
 
         // 1. SQL 下压过滤：获取符合协议、排除列表且活跃的原始账号列表
         var relations = await providerGroupAccountRelationRepository.GetCandidatesAsync(
@@ -367,6 +397,36 @@ public class ProviderGroupDomainService(
         return (null, group, false, qualifiedRelations.Count);
     }
 
+    /// <summary>
+    /// 为 ApiKey 选择账户（返回账户和分组）
+    /// </summary>
+    /// <param name="group">资源池分组实例</param>
+    /// <param name="apiKeyId">API密钥ID</param>
+    /// <param name="apiKeyName">API密钥名称</param>
+    /// <param name="sessionHash">会话哈希</param>
+    /// <param name="excludedIds">排除的账号ID列表（用于重试时排除已失败的账号）</param>
+    /// <param name="requestedModel">可选：请求的模型</param>
+    /// <param name="allowedCombinations">可选：当前路由端点允许的 (Provider, AuthMethod) 组合，为 null 时跳过此过滤</param>
+    /// <returns>选中的账户、分组信息、是否为粘性绑定、可用账号总数</returns>
+    public async Task<(AccountToken? AccountToken, ProviderGroup Group, bool IsStickyBound, int AvailableCount)?> SelectAccountForApiKeyAsync(
+        ProviderGroup group,
+        Guid apiKeyId,
+        string? apiKeyName,
+        string? sessionHash = null,
+        IEnumerable<Guid>? excludedIds = null,
+        string? requestedModel = null,
+        IReadOnlyList<(Provider Provider, AuthMethod AuthMethod)>? allowedCombinations = null)
+    {
+        logger.LogDebug("ApiKey '{ApiKeyName}' 使用分组 '{GroupName}'", apiKeyName ?? "未知", group.Name);
+
+        return await SelectAccountFromGroupAsync(
+            group,
+            sessionHash,
+            excludedIds,
+            requestedModel,
+            allowedCombinations);
+    }
+
     private static ProviderGroupAccountRelation? SelectAccountByPriorityAndWeight(
         List<ProviderGroupAccountRelation> relations,
         IReadOnlyDictionary<Guid, int> concurrencyCounts)
@@ -496,8 +556,6 @@ public class ProviderGroupDomainService(
         public DateTime CreatedAt { get; set; }
     }
 }
-
-
 
 
 

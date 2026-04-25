@@ -24,6 +24,12 @@ public class ProviderGroupController(IProviderGroupAppService providerGroupAppSe
         return await providerGroupAppService.GetPagedListAsync(input, cancellationToken);
     }
 
+    [HttpGet("visible")]
+    public async Task<List<ProviderGroupOutputDto>> GetVisibleListAsync(CancellationToken cancellationToken)
+    {
+        return await providerGroupAppService.GetVisibleListAsync(cancellationToken);
+    }
+
     /// <summary>
     /// 获取分组详情
     /// </summary>

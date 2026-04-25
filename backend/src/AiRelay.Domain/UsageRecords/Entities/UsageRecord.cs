@@ -1,5 +1,6 @@
 using AiRelay.Domain.ApiKeys.Entities;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
+using AiRelay.Domain.UsageRecords.ValueObjects;
 using Leistd.Ddd.Domain.Entities.Auditing;
 
 namespace AiRelay.Domain.UsageRecords.Entities;
@@ -9,13 +10,19 @@ namespace AiRelay.Domain.UsageRecords.Entities;
 /// </summary>
 public class UsageRecord : CreationAuditedEntity<Guid>
 {
+    /// <summary>归属用户 Id</summary>
+    public Guid UserId { get; private set; }
+
+    /// <summary>使用来源</summary>
+    public UsageSource Source { get; private set; }
+
     public string? SessionId { get; private set; }
 
     public string CorrelationId { get; private set; }
 
-    public Guid ApiKeyId { get; private set; }
+    public Guid? ApiKeyId { get; private set; }
 
-    public string ApiKeyName { get; private set; }
+    public string? ApiKeyName { get; private set; }
 
     public bool IsStreaming { get; private set; }
 
@@ -53,7 +60,7 @@ public class UsageRecord : CreationAuditedEntity<Guid>
     public int? DownStatusCode { get; private set; }
 
     // 导航属性
-    public ApiKey ApiKey { get; private set; } = null!;
+    public ApiKey? ApiKey { get; private set; }
     public UsageRecordDetail Detail { get; private set; } = null!;
 
     private readonly List<UsageRecordAttempt> _attempts = [];
@@ -61,10 +68,12 @@ public class UsageRecord : CreationAuditedEntity<Guid>
 
     public UsageRecord(
         Guid usageRecordId,
+        Guid userId,
+        UsageSource source,
         string correlationId,
         string? sessionId,
-        Guid apiKeyId,
-        string apiKeyName,
+        Guid? apiKeyId,
+        string? apiKeyName,
         bool isStreaming,
         string downRequestMethod,
         string downRequestUrl,
@@ -75,6 +84,8 @@ public class UsageRecord : CreationAuditedEntity<Guid>
         string? downRequestBody)
     {
         Id = usageRecordId;
+        UserId = userId;
+        Source = source;
         CorrelationId = correlationId;
         SessionId = sessionId;
         ApiKeyId = apiKeyId;

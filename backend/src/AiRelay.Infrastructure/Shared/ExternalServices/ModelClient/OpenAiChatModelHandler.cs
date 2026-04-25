@@ -35,43 +35,91 @@ public class OpenAiChatModelHandler(
             new OpenAiBufferedChatResponseProcessor(down)
         ];
     }
-
-    public override DownRequestContext CreateDebugDownContext(string modelId, string message)
+    public override DownRequestContext CreateChatDownContext(ChatDownContextInput input)
     {
+        var systemMessages = input.Messages
+            .Where(message => message.Role == ChatDownContextMessageRole.System && !string.IsNullOrWhiteSpace(message.Content))
+            .Select(message => message.Content!.Trim())
+            .ToList();
+
         var json = new JsonObject
         {
-            ["model"] = modelId,
-            ["input"] = new JsonArray
-            {
-                new JsonObject
-                {
-                    ["role"] = "user",
-                    ["content"] = new JsonArray
-                    {
-                        new JsonObject
-                        {
-                            ["type"] = "input_text",
-                            ["text"] = message
-                        }
-                    }
-                }
-            },
-            ["stream"] = true,
-            ["instructions"] = "You are a helpful AI assistant."
+            ["model"] = input.ModelId,
+            ["input"] = new JsonArray(
+                input.Messages
+                    .Where(message => message.Role != ChatDownContextMessageRole.System)
+                    .Select(message => (JsonNode)BuildMessage(message))
+                    .ToArray()),
+            ["stream"] = input.Stream,
+            ["instructions"] = systemMessages.Count > 0
+                ? string.Join("\n\n", systemMessages)
+                : "You are a helpful AI assistant."
         };
 
-        if (Options.AuthMethod == AuthMethod.OAuth)
+        if (input.DisableStore || Options.AuthMethod == AuthMethod.OAuth)
+        {
             json["store"] = false;
-        string path = Options.AuthMethod == AuthMethod.OAuth
+        }
+
+        var relativePath = Options.AuthMethod == AuthMethod.OAuth
             ? "/backend-api/codex/responses"
             : "/v1/responses";
+        var body = json.ToJsonString();
 
         return new DownRequestContext
         {
             Method = HttpMethod.Post,
-            RelativePath = path,
-            ModelId = modelId,
-            RawStream = new MemoryStream(Encoding.UTF8.GetBytes(json.ToJsonString()))
+            RelativePath = relativePath,
+            ModelId = input.ModelId,
+            SessionId = input.SessionId,
+            Headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["content-type"] = "application/json"
+            },
+            RawStream = new MemoryStream(Encoding.UTF8.GetBytes(body)),
+            PreloadedBodyPreview = body
+        };
+    }
+
+    private static JsonObject BuildMessage(ChatDownContextMessageInput message)
+    {
+        var content = new JsonArray();
+        if (!string.IsNullOrWhiteSpace(message.Content))
+        {
+            content.Add(new JsonObject
+            {
+                ["type"] = message.Role == ChatDownContextMessageRole.Assistant ? "output_text" : "input_text",
+                ["text"] = message.Content
+            });
+        }
+
+        if (message.Role != ChatDownContextMessageRole.Assistant)
+        {
+            foreach (var attachment in message.Attachments ?? [])
+            {
+                if (!string.IsNullOrWhiteSpace(attachment.Data))
+                {
+                    content.Add(new JsonObject
+                    {
+                        ["type"] = "input_image",
+                        ["image_url"] = $"data:{attachment.MimeType};base64,{attachment.Data}"
+                    });
+                }
+                else if (!string.IsNullOrWhiteSpace(attachment.Url))
+                {
+                    content.Add(new JsonObject
+                    {
+                        ["type"] = "input_image",
+                        ["image_url"] = attachment.Url
+                    });
+                }
+            }
+        }
+
+        return new JsonObject
+        {
+            ["role"] = message.Role == ChatDownContextMessageRole.Assistant ? "assistant" : "user",
+            ["content"] = content
         };
     }
 

@@ -62,6 +62,13 @@ public interface IConcurrencyStrategy
     Task<int> GetWaitingCountAsync(Guid accountTokenId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// 清除指定账户的所有并发槽位和等待队列状态
+    /// </summary>
+    /// <param name="accountTokenId">账户ID</param>
+    /// <param name="cancellationToken"></param>
+    Task ClearAsync(Guid accountTokenId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// 等待获取并发槽位（指数退避策略）
     /// </summary>
     /// <param name="accountTokenId">账户ID</param>

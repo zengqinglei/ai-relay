@@ -7,6 +7,7 @@ using AiRelay.Domain.UsageRecords.Entities;
 using Leistd.Ddd.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using AiRelay.Domain.ApiKeys.Entities;
+using AiRelay.Domain.ChatSessions.Entities;
 using AiRelay.Infrastructure.Persistence.EntityConfigurations;
 
 namespace AiRelay.Infrastructure.Persistence;
@@ -22,9 +23,13 @@ public class AiRelayDbContext(
     public DbSet<UsageRecordAttempt> UsageRecordAttempts { get; set; } = null!;
     public DbSet<UsageRecordAttemptDetail> UsageRecordAttemptDetails { get; set; } = null!;
     public DbSet<ApiKey> ApiKeys { get; set; } = null!;
+    public DbSet<ChatSession> ChatSessions { get; set; } = null!;
+    public DbSet<ChatMessage> ChatMessages { get; set; } = null!;
+    public DbSet<ChatAttachment> ChatAttachments { get; set; } = null!;
 
     // Provider Groups
     public DbSet<ProviderGroup> ProviderGroups { get; set; } = null!;
+    public DbSet<ProviderGroupAssignedUser> ProviderGroupAssignedUsers { get; set; } = null!;
     public DbSet<ProviderGroupAccountRelation> ProviderGroupAccountRelations { get; set; } = null!;
     public DbSet<ApiKeyProviderGroupBinding> ApiKeyProviderGroupBindings { get; set; } = null!;
 
@@ -50,5 +55,7 @@ public class AiRelayDbContext(
         modelBuilder.ConfigureApiKeys();
         modelBuilder.ConfigureProviders();
         modelBuilder.ConfigureUsageRecords();
+        modelBuilder.ConfigureChatSessions();
     }
 }
+

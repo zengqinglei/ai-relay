@@ -17,6 +17,8 @@ public class UsageRecordProfile : MapsterProfile
 
         CreateMap<UsageRecord, UsageRecordDetailOutputDto>()
             .Map(d => d.UsageRecordId, s => s.Id)
+            .Map(d => d.ApiKeyName, s => s.ApiKeyName)
+            .Map(d => d.Source, s => s.Source)
             .Map(d => d.DownRequestUrl, s => s.DownRequestUrl)
             .Map(d => d.DownRequestHeaders, s => s.Detail != null ? s.Detail.DownRequestHeaders : null)
             .Map(d => d.DownRequestBody, s => s.Detail != null ? s.Detail.DownRequestBody : null)

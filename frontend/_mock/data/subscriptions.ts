@@ -9,6 +9,8 @@ export const SUBSCRIPTIONS: MockSubscription[] = [
   {
     id: 'sub-001',
     userId: '00000000-0000-0000-0000-000000000001',
+    username: 'admin',
+    email: 'admin@example.com',
     name: '开发环境默认 Key',
     description: '用于本地开发测试',
     secret: 'sk_dev_test_key_123456',
@@ -40,6 +42,8 @@ export const SUBSCRIPTIONS: MockSubscription[] = [
   {
     id: 'sub-002',
     userId: '00000000-0000-0000-0000-000000000001',
+    username: 'admin',
+    email: 'admin@example.com',
     name: '生产环境 - 移动端',
     description: '移动端 APP 专用，限流',
     secret: 'sk_mobile-app_prod_987654',
@@ -87,6 +91,8 @@ export const SUBSCRIPTIONS: MockSubscription[] = [
   {
     id: 'sub-003',
     userId: '00000000-0000-0000-0000-000000000001',
+    username: 'admin',
+    email: 'admin@example.com',
     name: '已过期测试 Key',
     description: '测试过期逻辑',
     secret: 'sk_expired-test_key_000',
@@ -104,6 +110,8 @@ export const SUBSCRIPTIONS: MockSubscription[] = [
   {
     id: 'sub-004',
     userId: '00000000-0000-0000-0000-000000000002',
+    username: 'zengql',
+    email: 'zengql@example.com',
     name: '个人实验 Key',
     description: '用于个人工作区实验与日常对话',
     secret: 'sk_personal_lab_222222',
@@ -136,6 +144,8 @@ export const SUBSCRIPTIONS: MockSubscription[] = [
   {
     id: 'sub-005',
     userId: '00000000-0000-0000-0000-000000000002',
+    username: 'zengql',
+    email: 'zengql@example.com',
     name: '移动端灰度 Key',
     description: '验证移动端灰度策略与成本表现',
     secret: 'sk_mobile_gray_555555',
@@ -163,6 +173,10 @@ export const SUBSCRIPTIONS: MockSubscription[] = [
 
 export function getSubscriptionsByUserId(userId: string) {
   return SUBSCRIPTIONS.filter(item => item.userId === userId);
+}
+
+export function getAllSubscriptions() {
+  return SUBSCRIPTIONS;
 }
 
 export function getSubscriptionById(id: string) {

@@ -94,6 +94,15 @@ export class DefaultHeader implements OnDestroy {
     this.closeMenuAndNavigate('/auth/login');
   }
 
+  handleMenuToggle(): void {
+    if (this.layoutService.isMobileSidebarMode()) {
+      this.toggleMobileMenu.emit();
+      return;
+    }
+
+    this.layoutService.toggleSidebarCollapse();
+  }
+
   private closeMenuAndNavigate(path: string): void {
     this.forceCloseMenu();
     this.router.navigate([path]);

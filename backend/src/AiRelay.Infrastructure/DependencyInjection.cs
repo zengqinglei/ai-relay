@@ -272,3 +272,5 @@ public static class DependencyInjection
         return StackExchange.Redis.ConfigurationOptions.Parse(connectionString);
     }
 }
+
+

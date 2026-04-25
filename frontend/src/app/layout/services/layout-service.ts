@@ -18,11 +18,21 @@ export interface LayoutConfig {
   providedIn: 'root'
 })
 export class LayoutService {
+  private readonly mobileBreakpoint = 768;
+  private readonly autoCollapseBreakpoint = 1400;
+
   /**
    * 控制侧边栏的可见性
    * 主要用于移动端的显示/隐藏
    */
   sidebarVisible = signal<boolean>(true);
+
+  /**
+   * 当前是否处于移动端侧边栏模式
+   * true: 侧边栏以抽屉/覆盖层形式展示
+   * false: 侧边栏以内联形式展示
+   */
+  isMobileSidebarMode = signal<boolean>(false);
 
   /**
    * 控制侧边栏的折叠状态
@@ -38,9 +48,9 @@ export class LayoutService {
 
   private readonly platformId = inject(PLATFORM_ID);
   private readonly destroyRef = inject(DestroyRef);
-  private mediaQueryList?: MediaQueryList;
-  private mediaQueryHandler?: (e: MediaQueryListEvent) => void;
+  private resizeHandler?: () => void;
   private initialized = false;
+  private wasAboveAutoCollapseBreakpoint = true;
   private readonly LAYOUT_CONFIG_KEY = 'layout_config';
 
   /**
@@ -142,26 +152,40 @@ export class LayoutService {
 
   /**
    * 初始化响应式布局
-   * 在浏览器环境中监听屏幕宽度变化，自动调整侧边栏折叠状态
-   * 断点: 1024px (Tailwind 的 lg 断点)
+   * 在桌面宽度进入窄屏区间时自动折叠侧边栏，但放大时不自动展开。
    */
   private initResponsive(): void {
     if (isPlatformBrowser(this.platformId)) {
-      this.mediaQueryList = window.matchMedia('(max-width: 1024px)');
+      this.applyResponsiveSidebarState(window.innerWidth, true);
 
-      // 根据当前屏幕宽度初始化状态
-      if (this.mediaQueryList.matches) {
+      this.resizeHandler = () => {
+        this.applyResponsiveSidebarState(window.innerWidth);
+      };
+
+      window.addEventListener('resize', this.resizeHandler);
+    }
+  }
+
+  private applyResponsiveSidebarState(width: number, initialize = false): void {
+    const isMobileSidebarMode = width < this.mobileBreakpoint;
+    const isBelowOrEqualAutoCollapseBreakpoint = width <= this.autoCollapseBreakpoint;
+
+    this.isMobileSidebarMode.set(isMobileSidebarMode);
+
+    if (initialize) {
+      if (isBelowOrEqualAutoCollapseBreakpoint || isMobileSidebarMode) {
         this.sidebarCollapsed.set(true);
       }
 
-      // 保存处理函数引用以便后续移除
-      this.mediaQueryHandler = (e: MediaQueryListEvent) => {
-        this.sidebarCollapsed.set(e.matches);
-      };
-
-      // 监听屏幕宽度变化
-      this.mediaQueryList.addEventListener('change', this.mediaQueryHandler);
+      this.wasAboveAutoCollapseBreakpoint = !isBelowOrEqualAutoCollapseBreakpoint;
+      return;
     }
+
+    if (isMobileSidebarMode || (this.wasAboveAutoCollapseBreakpoint && isBelowOrEqualAutoCollapseBreakpoint)) {
+      this.sidebarCollapsed.set(true);
+    }
+
+    this.wasAboveAutoCollapseBreakpoint = !isBelowOrEqualAutoCollapseBreakpoint;
   }
 
   /**
@@ -169,8 +193,8 @@ export class LayoutService {
    * 移除 MediaQuery 监听器，防止内存泄漏
    */
   private cleanup(): void {
-    if (this.mediaQueryList && this.mediaQueryHandler) {
-      this.mediaQueryList.removeEventListener('change', this.mediaQueryHandler);
+    if (isPlatformBrowser(this.platformId) && this.resizeHandler) {
+      window.removeEventListener('resize', this.resizeHandler);
     }
   }
 

@@ -13,6 +13,7 @@ import { TooltipModule } from 'primeng/tooltip';
 import { LayoutService } from '../../../../layout/services/layout-service';
 import { formatDuration, formatTokenCount } from '../../../../shared/utils/format.utils';
 import { UsageStatus } from '../../../../shared/models/usage-status.enum';
+import { UsageSourceLabelPipe } from '../../../../shared/pipes/usage-source-label.pipe';
 import { UsageRecordOutputDto } from '../../../platform/models/usage.dto';
 import { UsageRecordService } from '../../../platform/services/usage-record-service';
 import { finalize } from 'rxjs/operators';
@@ -21,7 +22,7 @@ import { PagedResultDto } from '../../../../shared/models/paged-result.dto';
 @Component({
   selector: 'app-workspace-usage-logs',
   standalone: true,
-  imports: [ButtonModule, CommonModule, FormsModule, DatePickerModule, InputTextModule, SelectModule, TableModule, TagModule, TooltipModule],
+  imports: [ButtonModule, CommonModule, FormsModule, DatePickerModule, InputTextModule, SelectModule, TableModule, TagModule, TooltipModule, UsageSourceLabelPipe],
   templateUrl: './workspace-usage-logs.html',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
@@ -142,6 +143,10 @@ export class WorkspaceUsageLogsPage {
 
   getTotalTokens(item: UsageRecordOutputDto) {
     return (item.inputTokens || 0) + (item.outputTokens || 0);
+  }
+
+  getModelWithGroupTooltip(record: UsageRecordOutputDto) {
+    return `模型: ${record.downModelId || '-'} | 分组: ${record.providerGroupName || '无'}`;
   }
 
   formatTokenCount = formatTokenCount;

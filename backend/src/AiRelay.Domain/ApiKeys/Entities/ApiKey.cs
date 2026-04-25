@@ -9,6 +9,11 @@ namespace AiRelay.Domain.ApiKeys.Entities;
 public class ApiKey : DeletionAuditedEntity<Guid>
 {
     /// <summary>
+    /// 归属用户 Id
+    /// </summary>
+    public Guid UserId { get; private set; }
+
+    /// <summary>
     /// 名称
     /// </summary>
     public string Name { get; private set; }
@@ -121,6 +126,7 @@ public class ApiKey : DeletionAuditedEntity<Guid>
     }
 
     public ApiKey(
+        Guid userId,
         string name,
         string? description,
         string encryptedSecret,
@@ -128,6 +134,7 @@ public class ApiKey : DeletionAuditedEntity<Guid>
         DateTime? expiresAt = null)
     {
         Id = Guid.CreateVersion7();
+        UserId = userId;
         Name = name;
         Description = description;
         EncryptedSecret = encryptedSecret;

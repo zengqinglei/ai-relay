@@ -27,6 +27,8 @@ internal static class ApiKeyEntityConfiguration
             b.Property(e => e.CostTotal).HasPrecision(18, 8);
 
             b.HasIndex(e => e.SecretHash).IsUnique();
+            b.HasIndex(e => new { e.UserId, e.CreationTime });
+            b.HasIndex(e => new { e.UserId, e.Name });
         });
     }
 

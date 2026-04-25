@@ -11,6 +11,21 @@ public record ApiKeyOutputDto
     public required Guid Id { get; init; }
 
     /// <summary>
+    /// 所属用户 ID
+    /// </summary>
+    public Guid UserId { get; init; }
+
+    /// <summary>
+    /// 所属用户名
+    /// </summary>
+    public string? Username { get; set; }
+
+    /// <summary>
+    /// 所属用户邮箱
+    /// </summary>
+    public string? Email { get; set; }
+
+    /// <summary>
     /// 名称
     /// </summary>
     public required string Name { get; init; }

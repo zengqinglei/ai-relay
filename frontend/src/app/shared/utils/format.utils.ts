@@ -13,7 +13,11 @@
  * formatTokenCount(1234567) => "1.23M"
  * formatTokenCount(1234567890) => "1.23B"
  */
-export function formatTokenCount(num: number): string {
+export function formatTokenCount(num: number | undefined | null): string {
+  if (num == null || Number.isNaN(num)) {
+    return '0';
+  }
+
   if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(2)}B`;
   if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(2)}M`;
   if (num >= 1_000) return `${(num / 1_000).toFixed(2)}K`;
@@ -79,3 +83,6 @@ export function formatDurationVerbose(ms: number | undefined | null): string {
   if (minutes > 0) return `${minutes}分${seconds > 0 ? seconds + '秒' : ''}`;
   return `${seconds}秒`;
 }
+
+
+

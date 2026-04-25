@@ -24,5 +24,6 @@ public interface IApiKeyRepository : IRepository<ApiKey, Guid>
         int offset,
         int limit,
         string? sorting = null,
+        Guid? userId = null,
         CancellationToken cancellationToken = default);
 }

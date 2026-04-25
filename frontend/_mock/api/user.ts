@@ -1,16 +1,23 @@
 import { MockException, MockRequest } from '../core/models';
 import { USERS, toUserOutput } from '../data/user';
+import { PagedResultDto } from '../../src/app/shared/models/paged-result.dto';
 
-export function getUsers(params: any): { total: number; items: any[] } {
+export function getUsers(params: any): PagedResultDto<any> {
   let users = [...USERS];
-  const offset = +params.offset;
-  const limit = +params.limit;
+  const offset = +(params.offset ?? 0);
+  const limit = +(params.limit ?? 10);
 
-  if (params.username) {
-    users = users.filter(user => user.username.indexOf(params.username) > -1);
+  if (params.keyword) {
+    const keyword = String(params.keyword).toLowerCase();
+    users = users.filter(user => user.username.toLowerCase().includes(keyword) || user.email.toLowerCase().includes(keyword));
   }
 
-  return { total: users.length, items: users.slice(offset, offset + limit).map(toUserOutput) };
+  if (params.isActive !== undefined && params.isActive !== '') {
+    const isActive = String(params.isActive) === 'true';
+    users = users.filter(user => user.isActive === isActive);
+  }
+
+  return { totalCount: users.length, items: users.slice(offset, offset + limit).map(toUserOutput) };
 }
 
 export function getUserById(id: string) {
@@ -47,10 +54,10 @@ export function updateUser(id: string, value: any) {
 }
 
 export const USER_API = {
-  'GET /api/v1/user': (req: MockRequest) => getUsers(req.queryParams),
-  'GET /api/v1/user/:id': (req: MockRequest) => getUserById(req.params.id),
-  'POST /api/v1/user': (req: MockRequest) => addUser(req.body),
-  'PUT /api/v1/user/:id': (req: MockRequest) => updateUser(req.params.id, req.body),
+  'GET /api/v1/users': (req: MockRequest) => getUsers(req.queryParams),
+  'GET /api/v1/users/:id': (req: MockRequest) => getUserById(req.params.id),
+  'POST /api/v1/users': (req: MockRequest) => addUser(req.body),
+  'PUT /api/v1/users/:id': (req: MockRequest) => updateUser(req.params.id, req.body),
   'POST /api/v1/user/avatar': 'ok',
   'POST /api/v1/register': { msg: 'ok' }
 };

@@ -9,7 +9,9 @@
   header="账户详情"
   (onHide)="onHide()"
 >
-  @if (account) {
+  @if (visible && !account) {
+    <app-dialog-loading text="正在加载账户详情..." />
+  } @else if (account) {
     <div class="p-6 pt-2 overflow-y-auto custom-scrollbar space-y-6">
       <div class="flex items-center justify-between pb-4 border-b border-surface-200 dark:border-surface-700">
         <div class="flex items-center gap-3">

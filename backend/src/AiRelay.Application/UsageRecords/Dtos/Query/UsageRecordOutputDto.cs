@@ -1,4 +1,5 @@
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
+using AiRelay.Domain.UsageRecords.ValueObjects;
 
 namespace AiRelay.Application.UsageRecords.Dtos.Query;
 
@@ -10,11 +11,23 @@ public class UsageRecordOutputDto
     /// <summary>记录 ID</summary>
     public Guid Id { get; set; }
 
+    /// <summary>所属用户 ID</summary>
+    public Guid UserId { get; set; }
+
+    /// <summary>所属用户名</summary>
+    public string? Username { get; set; }
+
+    /// <summary>所属用户邮箱</summary>
+    public string? Email { get; set; }
+
     /// <summary>请求时间</summary>
     public DateTime CreationTime { get; set; }
 
+    /// <summary>来源</summary>
+    public UsageSource Source { get; set; }
+
     /// <summary>API KEY 名称</summary>
-    public string ApiKeyName { get; set; } = string.Empty;
+    public string? ApiKeyName { get; set; }
 
     /// <summary>会话ID</summary>
     public string? SessionId { get; set; }

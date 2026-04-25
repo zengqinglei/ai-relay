@@ -1,19 +1,35 @@
 <!-- 应用主布局容器 -->
 <!-- 使用 bg-surface-ground 作为全局背景色，自动适配 Light/Dark -->
 <div class="flex h-screen overflow-hidden bg-surface-ground">
-  <!-- 侧边栏：移动端fixed overlay，桌面端relative -->
+  <!-- 桌面端侧边栏 -->
   <app-default-sidebar
-    [isMobileMenuOpen]="isMobileMenuOpen()"
-    (mobileMenuClosed)="closeMobileMenu()"
-    class="fixed md:relative z-30 md:z-20 h-full transition-transform duration-300 ease-in-out -translate-x-full md:translate-x-0"
-    [class.translate-x-0]="isMobileMenuOpen()"
+    [isMobileMenuOpen]="false"
+    class="hidden md:block h-full shrink-0"
   >
   </app-default-sidebar>
 
-  <!-- 移动端遮罩层 -->
-  @if (isMobileMenuOpen()) {
-    <div class="fixed inset-0 bg-black/50 z-20 md:hidden" (click)="closeMobileMenu()"> </div>
-  }
+  <!-- 移动端抽屉 -->
+  <p-drawer
+    class="md:hidden"
+    position="left"
+    [visible]="isMobileMenuOpen()"
+    [modal]="true"
+    [dismissible]="true"
+    [showCloseIcon]="false"
+    [closable]="false"
+    [blockScroll]="true"
+    styleClass="!w-64 max-w-full overflow-hidden"
+    (visibleChange)="isMobileMenuOpen.set($event)"
+  >
+    <ng-template #headless>
+      <app-default-sidebar
+        [isMobileMenuOpen]="true"
+        (mobileMenuClosed)="closeMobileMenu()"
+        class="h-full w-full"
+      >
+      </app-default-sidebar>
+    </ng-template>
+  </p-drawer>
 
   <!-- 右侧：Header + 内容区域 + Footer -->
   <div class="flex-1 flex flex-col min-w-0">

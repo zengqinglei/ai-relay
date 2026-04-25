@@ -10,7 +10,6 @@
     [class.gap-0]="layoutService.sidebarCollapsed() && !isMobileMenuOpen()"
     class="h-16 px-6 flex items-center justify-between border-b border-surface-200 dark:border-surface-800 shrink-0 overflow-hidden transition-all duration-300 ease-in-out"
   >
-    <!-- LOGO -->
     <div class="flex items-center gap-3">
       <div
         class="h-8 w-8 flex items-center justify-center bg-gradient-to-tr from-primary-900/40 to-primary-800/40 backdrop-blur-md rounded-lg border border-primary-400/30 shadow-[0_0_10px_rgba(var(--p-primary-500),0.2)] shrink-0"
@@ -38,7 +37,6 @@
       >
     </div>
 
-    <!-- 移动端关闭按钮 -->
     <p-button
       icon="pi pi-times"
       [text]="true"
@@ -53,17 +51,19 @@
 
   <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto custom-scrollbar overflow-x-hidden">
     <ul class="list-none p-0 m-0">
-      @for (item of menuItems(); track item.route; let i = $index) {
+      @for (item of menuItems(); track item.route) {
         <li>
           <a
             [routerLink]="item.route"
-            routerLinkActive="!text-primary-600 dark:!text-primary-400 font-bold"
-            [routerLinkActiveOptions]="i === 0 ? { exact: true } : { exact: false }"
             [pTooltip]="layoutService.sidebarCollapsed() && !isMobileMenuOpen() ? item.label : undefined"
             tooltipPosition="right"
             class="flex items-center cursor-pointer px-3 py-4 md:py-3 rounded-md text-color hover:bg-surface-100 dark:hover:bg-surface-800 transition-all duration-300 ease-in-out focus:outline-none min-h-[44px] md:min-h-0"
             [class.gap-3]="!layoutService.sidebarCollapsed() || isMobileMenuOpen()"
             [class.gap-0]="layoutService.sidebarCollapsed() && !isMobileMenuOpen()"
+            [class.!text-primary-600]="isItemActive(item)"
+            [class.dark:!text-primary-400]="isItemActive(item)"
+            [class.font-bold]="isItemActive(item)"
+            (click)="isMobileMenuOpen() && mobileMenuClosed.emit()"
           >
             <div class="w-8 h-8 flex items-center justify-center shrink-0">
               <i class="pi {{ item.icon }} text-xl"></i>

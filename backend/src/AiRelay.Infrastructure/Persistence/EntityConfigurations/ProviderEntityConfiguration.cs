@@ -15,6 +15,7 @@ internal static class ProviderEntityConfiguration
         builder.ConfigureAccountTokens();
         builder.ConfigureAccountFingerprints();
         builder.ConfigureProviderGroups();
+        builder.ConfigureProviderGroupAssignedUsers();
         builder.ConfigureProviderGroupAccountRelations();
     }
 
@@ -121,6 +122,22 @@ internal static class ProviderEntityConfiguration
         });
     }
 
+    private static void ConfigureProviderGroupAssignedUsers(this ModelBuilder builder)
+    {
+        builder.Entity<ProviderGroupAssignedUser>(b =>
+        {
+            b.ConfigureByConvention();
+
+            b.HasIndex(e => new { e.ProviderGroupId, e.UserId }).IsUnique();
+
+            b.HasOne(e => e.ProviderGroup)
+                .WithMany(pg => pg.AssignedUsers)
+                .HasForeignKey(e => e.ProviderGroupId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .IsRequired();
+        });
+    }
+
     private static void ConfigureProviderGroupAccountRelations(this ModelBuilder builder)
     {
         builder.Entity<ProviderGroupAccountRelation>(b =>
@@ -143,4 +160,3 @@ internal static class ProviderEntityConfiguration
         });
     }
 }
-

@@ -21,5 +21,7 @@ public interface IProviderGroupAppService : IApplicationService
 
     Task<PagedResultDto<ProviderGroupOutputDto>> GetPagedListAsync(GetProviderGroupPagedInputDto input, CancellationToken cancellationToken = default);
 
+    Task<List<ProviderGroupOutputDto>> GetVisibleListAsync(CancellationToken cancellationToken = default);
+
     #endregion
 }

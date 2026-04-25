@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Leistd.Exception.AspNetCore.Handlers;
 using Leistd.Exception.AspNetCore.Options;
+using Leistd.Exception.Core;
 
 namespace Leistd.Exception.AspNetCore;
 
@@ -44,8 +45,8 @@ public static class DependencyInjection
             ExceptionHandler = null,
             // .NET 10: 客户端主动断开（OperationCanceledException）不记录 diagnostics/ERR
             SuppressDiagnosticsCallback = ctx =>
-                ctx.Exception is OperationCanceledException
-                    && ctx.HttpContext.RequestAborted.IsCancellationRequested
+                (ctx.Exception is OperationCanceledException && ctx.HttpContext.RequestAborted.IsCancellationRequested)
+                || ctx.Exception is BusinessException
         });
     }
 }

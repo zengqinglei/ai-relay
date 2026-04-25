@@ -409,6 +409,15 @@ public class AccountTokenDomainService(
         }
     }
 
+    /// <summary>
+    /// 清除上游模型列表缓存
+    /// </summary>
+    public async Task ClearCacheAsync(Guid accountId, CancellationToken ct = default)
+    {
+        await cache.RemoveAsync(CacheKey(accountId), ct);
+        logger.LogInformation("已清除上游模型缓存: AccountId={AccountId}", accountId);
+    }
+
     private static string CacheKey(Guid accountId) => $"account:upstream-models:{accountId}";
 }
 

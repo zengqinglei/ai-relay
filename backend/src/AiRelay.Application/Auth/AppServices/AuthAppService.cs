@@ -46,7 +46,7 @@ public class AuthAppService(
         var refreshToken = jwtTokenProvider.GenerateRefreshToken();
         var expiryMinutes = _jwtOptions.ExpiryMinutes;
 
-        logger.LogInformation("用户登录成功 (ID: {UserId})", user.Id);
+        logger.LogInformation("用户 {UsernameOrEmail}登录成功", input.UsernameOrEmail);
 
         // 构建响应
         return new LoginOutputDto

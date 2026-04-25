@@ -5,9 +5,9 @@ namespace AiRelay.Api.HostedServices.BackgroundServices;
 /// <summary>
 /// 账号配额刷新后台服务
 /// </summary>
-public class AccountQuotaRefreshHostedService(
+public class AccountQuotaRefreshBackgroundService(
     IServiceProvider serviceProvider,
-    ILogger<AccountQuotaRefreshHostedService> logger) : BackgroundService
+    ILogger<AccountQuotaRefreshBackgroundService> logger) : BackgroundService
 {
     private const int REFRESH_INTERVAL_MINUTES = 5;
 

@@ -1,26 +1,43 @@
-import { ChatModelOptionOutputDto, ChatSessionOutputDto } from '../../src/app/features/workspace/models/chat-session.dto';
+import { ChatMessageOutputDto, ChatModelOptionOutputDto, ChatSessionOutputDto } from '../../src/app/features/workspace/models/chat-session.dto';
 
-export interface MockChatSession extends ChatSessionOutputDto {
+export interface MockChatSession extends Omit<ChatSessionOutputDto, 'messageCount'> {
   userId: string;
+  messages: ChatMessageOutputDto[];
 }
 
-export const WORKSPACE_CHAT_MODEL_OPTIONS: ChatModelOptionOutputDto[] = [
-  { label: 'Gemini 2.5 Pro', value: 'gemini-2.5-pro' },
-  { label: 'Gemini 2.5 Flash', value: 'gemini-2.5-flash' },
-  { label: 'Claude Sonnet 4.6', value: 'claude-sonnet-4-6' },
-  { label: 'GPT-4.1', value: 'gpt-4.1' },
-  { label: 'GPT-4o', value: 'gpt-4o' }
+export interface MockChatModelOptions {
+  all: ChatModelOptionOutputDto[];
+  byGroup: Record<string, ChatModelOptionOutputDto[]>;
+}
+
+const ALL_MODEL_OPTIONS: ChatModelOptionOutputDto[] = [
+  { label: 'Gemini 2.5 Pro', value: 'gemini-2.5-pro', providerGroupId: 'group-gemini-shared', providerGroupName: 'gemini-shared' },
+  { label: 'Gemini 2.5 Flash', value: 'gemini-2.5-flash', providerGroupId: 'group-gemini-shared', providerGroupName: 'gemini-shared' },
+  { label: 'Claude Sonnet 4.6', value: 'claude-sonnet-4-6', providerGroupId: 'group-compatible-fallback', providerGroupName: 'compatible-fallback' },
+  { label: 'GPT-4.1', value: 'gpt-4.1', providerGroupId: 'group-openai-vip', providerGroupName: 'openai-vip' },
+  { label: 'GPT-4o', value: 'gpt-4o', providerGroupId: 'group-openai-vip', providerGroupName: 'openai-vip' }
 ];
+
+export const WORKSPACE_CHAT_MODEL_OPTIONS: MockChatModelOptions = {
+  all: ALL_MODEL_OPTIONS,
+  byGroup: {
+    'group-default': ALL_MODEL_OPTIONS,
+    'group-openai-vip': ALL_MODEL_OPTIONS.filter(item => ['gpt-4.1', 'gpt-4o'].includes(item.value)),
+    'group-gemini-shared': ALL_MODEL_OPTIONS.filter(item => item.value.startsWith('gemini-')),
+    'group-compatible-fallback': ALL_MODEL_OPTIONS.filter(item => ['gpt-4o', 'claude-sonnet-4-6'].includes(item.value))
+  }
+};
 
 export const WORKSPACE_CHAT_SESSIONS: MockChatSession[] = [
   {
     id: 'session-1',
     userId: '00000000-0000-0000-0000-000000000001',
     title: 'Gemini 2.5 Pro 方案讨论',
-    providerGroupId: 'group-default',
+    providerGroupId: undefined,
     modelId: 'gemini-2.5-pro',
     creationTime: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
     lastMessageTime: new Date(Date.now() - 1000 * 60 * 9).toISOString(),
+    lastMessagePreview: '可以把页面拆成三个稳定区域：会话列表、上下文头部、消息流与输入区。这样首屏结构清晰，后续扩展日志和订阅页也不会互相干扰。',
     messages: [
       {
         id: 'session-1-msg-1',
@@ -43,10 +60,11 @@ export const WORKSPACE_CHAT_SESSIONS: MockChatSession[] = [
     id: 'session-2',
     userId: '00000000-0000-0000-0000-000000000001',
     title: 'Claude Code Review',
-    providerGroupId: 'group-default',
+    providerGroupId: undefined,
     modelId: 'claude-sonnet-4-6',
     creationTime: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(),
     lastMessageTime: new Date(Date.now() - 1000 * 60 * 42).toISOString(),
+    lastMessagePreview: '重点先看状态来源是否单一、是否把路由态和视图态混在一起，以及流式消息结束后有没有正确清理临时字段。',
     messages: [
       {
         id: 'session-2-msg-1',
@@ -73,6 +91,7 @@ export const WORKSPACE_CHAT_SESSIONS: MockChatSession[] = [
     modelId: 'gpt-4o',
     creationTime: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(),
     lastMessageTime: new Date(Date.now() - 1000 * 60 * 18).toISOString(),
+    lastMessagePreview: '可以重点看请求量、模型分布、最高频 API Key 和失败率，避免只看单日调用次数。',
     messages: [
       {
         id: 'session-3-msg-1',

@@ -11,4 +11,5 @@ public static class AuthenticationConstants
     // Claims
     public const string ApiKeyIdClaimType = "api_key_id";
     public const string ApiKeyNameClaimType = "api_key_name";
+    public const string UserIdClaimType = "user_id";
 }

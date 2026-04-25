@@ -31,6 +31,8 @@ public class UsageLifecycleAppService(
     {
         var record = new UsageRecord(
             input.UsageRecordId,
+            input.UserId,
+            input.Source,
             input.CorrelationId,
             input.SessionId,
             input.ApiKeyId,
@@ -47,9 +49,10 @@ public class UsageLifecycleAppService(
         await usageRepository.InsertAsync(record, cancellationToken);
 
         logger.LogDebug(
-            "开始记录 Usage: Id={UsageId}, CorrelationId={CorrelationId}, Path={Path}",
+            "开始记录 Usage: Id={UsageId}, UserId={UserId}, Source={Source}, Path={Path}",
             record.Id,
-            record.CorrelationId,
+            record.UserId,
+            record.Source,
             input.DownRequestUrl);
 
         return new StartUsageOutputDto { UsageRecordId = record.Id };
@@ -164,8 +167,9 @@ public class UsageLifecycleAppService(
             cancellationToken);
 
         logger.LogDebug(
-            "完成 Usage: Id={UsageRecordId}, Tokens={In}/{Out}, Cost={Cost}",
+            "完成 Usage: Id={UsageRecordId}, Source={Source}, Tokens={In}/{Out}, Cost={Cost}",
             input.UsageRecordId,
+            record.Source,
             input.InputTokens,
             input.OutputTokens,
             record.FinalCost);
@@ -175,7 +179,10 @@ public class UsageLifecycleAppService(
         var cost = record.FinalCost ?? 0m;
         var isSuccess = record.Status == UsageStatus.Success;
 
-        await AccumulateApiKeyStatsAsync(record.ApiKeyId, tokens, cost, isSuccess, cancellationToken);
+        if (record.ApiKeyId.HasValue)
+        {
+            await AccumulateApiKeyStatsAsync(record.ApiKeyId.Value, tokens, cost, isSuccess, cancellationToken);
+        }
 
         // 若有最终账号，累加 token/cost 统计
         if (accountTokenId.HasValue)

@@ -1,12 +1,15 @@
+using AiRelay.Domain.UsageRecords.ValueObjects;
+
 namespace AiRelay.Application.UsageRecords.Dtos.Lifecycle;
 
 public record StartUsageInputDto(
     Guid UsageRecordId,
+    Guid UserId,
+    UsageSource Source,
     string CorrelationId,
     string? SessionId,
-    Guid ApiKeyId,
-    string ApiKeyName,
-    // 下游请求信息
+    Guid? ApiKeyId,
+    string? ApiKeyName,
     bool IsStreaming,
     string DownRequestMethod,
     string DownRequestUrl,
@@ -16,3 +19,4 @@ public record StartUsageInputDto(
     string? DownRequestHeaders,
     string? DownRequestBody
 );
+

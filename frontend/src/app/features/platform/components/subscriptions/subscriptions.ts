@@ -9,17 +9,21 @@ import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
+import { TooltipModule } from 'primeng/tooltip';
 import { Subject } from 'rxjs';
 import { debounceTime, distinctUntilChanged, finalize } from 'rxjs/operators';
 
+import { LayoutService } from '../../../../layout/services/layout-service';
+import { UserScopeFilterComponent } from '../../../../shared/components/user-scope-filter/user-scope-filter';
+import { FilterStateService } from '../../../../shared/services/filter-state.service';
 import { ApiKeyOutputDto, SubscriptionMetricsOutputDto } from '../../models/subscription.dto';
-import { SubscriptionMetricService } from '../../services/subscription-metric-service'; // Import
+import { SubscriptionMetricService } from '../../services/subscription-metric-service';
 import { SubscriptionService } from '../../services/subscription-service';
 import { SubscriptionEditDialogComponent } from './widgets/subscription-edit-dialog/subscription-edit-dialog';
 import { SubscriptionMetricsCards } from './widgets/subscription-metrics-cards/subscription-metrics-cards';
 import { SubscriptionTable } from './widgets/subscription-table/subscription-table';
-import { LayoutService } from '../../../../layout/services/layout-service';
-import { FilterStateService } from '../../../../shared/services/filter-state.service';
+
+type UserScope = 'all' | 'mine';
 
 @Component({
   selector: 'app-subscriptions',
@@ -35,14 +39,16 @@ import { FilterStateService } from '../../../../shared/services/filter-state.ser
     IconFieldModule,
     InputIconModule,
     InputTextModule,
-    ButtonModule
+    ButtonModule,
+    TooltipModule,
+    UserScopeFilterComponent
   ],
   providers: [ConfirmationService],
   templateUrl: './subscriptions.html'
 })
 export class SubscriptionsPage implements OnInit {
   private service = inject(SubscriptionService);
-  private metricService = inject(SubscriptionMetricService); // Inject
+  private metricService = inject(SubscriptionMetricService);
   private destroyRef = inject(DestroyRef);
   private confirmationService = inject(ConfirmationService);
   private messageService = inject(MessageService);
@@ -63,17 +69,15 @@ export class SubscriptionsPage implements OnInit {
   });
   loading = signal(false);
 
-  // Dialogs
   editDialogVisible = signal(false);
-  editDialogLoading = signal(false); // Loading for fetching subscription details
-  editDialogSaving = signal(false); // Loading for saving operation
+  editDialogLoading = signal(false);
+  editDialogSaving = signal(false);
   selectedSubscription = signal<ApiKeyOutputDto | null>(null);
 
-  // Filters
   searchQuery = signal('');
   selectedStatus = signal<'active' | 'inactive' | null>(null);
+  userScope = signal<UserScope>('all');
 
-  // Pagination
   offset = signal(0);
   limit = signal(10);
   sorting = signal<string>('creationTime desc');
@@ -81,6 +85,11 @@ export class SubscriptionsPage implements OnInit {
   statusOptions = [
     { label: '启用', value: 'active' },
     { label: '禁用', value: 'inactive' }
+  ];
+
+  userScopeOptions: Array<{ label: string; value: UserScope }> = [
+    { label: '所有用户', value: 'all' },
+    { label: '当前用户', value: 'mine' }
   ];
 
   private searchSubject = new Subject<string>();
@@ -94,11 +103,16 @@ export class SubscriptionsPage implements OnInit {
   ngOnInit() {
     this.layoutService.title.set('订阅管理');
 
-    const saved = this.filterStateService.load<{ searchQuery: string; selectedStatus: 'active' | 'inactive' | null }>(this.FILTER_KEY);
+    const saved = this.filterStateService.load<{
+      searchQuery: string;
+      selectedStatus: 'active' | 'inactive' | null;
+      userScope: UserScope;
+    }>(this.FILTER_KEY);
+
     if (saved.searchQuery) this.searchQuery.set(saved.searchQuery);
     if (saved.selectedStatus !== undefined) this.selectedStatus.set(saved.selectedStatus ?? null);
+    if (saved.userScope) this.userScope.set(saved.userScope);
 
-    // 只加载 metrics，列表由表格 lazy loading 触发
     this.metricService
       .getMetrics()
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -106,7 +120,6 @@ export class SubscriptionsPage implements OnInit {
   }
 
   loadData() {
-    // 已废弃：改为只加载 metrics
     this.metricService
       .getMetrics()
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -115,14 +128,15 @@ export class SubscriptionsPage implements OnInit {
 
   reloadList() {
     this.loading.set(true);
-    let isActive: boolean | undefined = undefined;
+    let isActive: boolean | undefined;
     if (this.selectedStatus() === 'active') isActive = true;
     if (this.selectedStatus() === 'inactive') isActive = false;
 
     this.service
       .getSubscriptions({
         keyword: this.searchQuery(),
-        isActive: isActive,
+        isActive,
+        onlyCurrentUser: this.userScope() === 'mine',
         offset: this.offset(),
         limit: this.limit(),
         sorting: this.sorting()
@@ -146,11 +160,25 @@ export class SubscriptionsPage implements OnInit {
     this.onFilter();
   }
 
+  setUserScope(scope: string) {
+    if (scope !== 'all' && scope !== 'mine') {
+      return;
+    }
+
+    if (this.userScope() === scope) {
+      return;
+    }
+
+    this.userScope.set(scope);
+    this.onFilter();
+  }
+
   onFilter() {
-    this.offset.set(0); // Reset to first page
+    this.offset.set(0);
     this.filterStateService.save(this.FILTER_KEY, {
       searchQuery: this.searchQuery(),
-      selectedStatus: this.selectedStatus()
+      selectedStatus: this.selectedStatus(),
+      userScope: this.userScope()
     });
     this.reloadList();
   }
@@ -184,7 +212,6 @@ export class SubscriptionsPage implements OnInit {
     this.editDialogSaving.set(true);
 
     if (this.selectedSubscription()) {
-      // Update
       const { name: _name, ...rest } = dto;
       const updateDto = { ...rest, id: this.selectedSubscription()!.id };
       this.service
@@ -201,7 +228,6 @@ export class SubscriptionsPage implements OnInit {
           }
         });
     } else {
-      // Create
       this.service
         .createSubscription(dto)
         .pipe(
@@ -213,7 +239,6 @@ export class SubscriptionsPage implements OnInit {
             this.messageService.add({ severity: 'success', summary: '成功', detail: '订阅创建成功' });
             this.editDialogVisible.set(false);
             this.reloadList();
-            // Update metrics
             this.metricService.getMetrics().subscribe(data => this.metrics.set(data));
           }
         });
@@ -248,7 +273,6 @@ export class SubscriptionsPage implements OnInit {
   }
 
   handleExpiryUpdate(event: { id: string; date: Date }) {
-    // Direct atomic update: Enable with new expiry date
     this.service.toggleStatus(event.id, true, event.date).subscribe(() => {
       this.messageService.add({
         severity: 'success',
@@ -260,3 +284,8 @@ export class SubscriptionsPage implements OnInit {
     });
   }
 }
+
+
+
+
+

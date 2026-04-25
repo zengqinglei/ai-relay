@@ -3,16 +3,19 @@ import { AfterViewChecked, ChangeDetectionStrategy, Component, DestroyRef, Eleme
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { ConfirmationService } from 'primeng/api';
+import { ConfirmationService, MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { ConfirmPopupModule } from 'primeng/confirmpopup';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
+import { AutoCompleteCompleteEvent, AutoCompleteModule } from 'primeng/autocomplete';
 import { SelectModule } from 'primeng/select';
+import { MessageModule } from 'primeng/message';
 import { TextareaModule } from 'primeng/textarea';
+import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
-import { finalize } from 'rxjs';
+import { finalize, Subject, switchMap } from 'rxjs';
 
 import { LayoutService } from '../../../../layout/services/layout-service';
 import { ProviderGroupOutputDto } from '../../../platform/models/provider-group.dto';
@@ -32,21 +35,26 @@ import { MessageBubble } from './widgets/message-bubble/message-bubble';
   imports: [
     CommonModule,
     FormsModule,
+    AutoCompleteModule,
     ButtonModule,
     ConfirmPopupModule,
     IconFieldModule,
     InputIconModule,
     InputTextModule,
     MessageBubble,
+    MessageModule,
     SelectModule,
     TextareaModule,
+    ToastModule,
     TooltipModule
   ],
   templateUrl: './workspace-chat.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  providers: [ConfirmationService]
+  providers: [ConfirmationService, MessageService]
 })
 export class WorkspaceChatPage implements AfterViewChecked {
+  private static readonly MESSAGE_PAGE_SIZE = 30;
+
   @ViewChild('messageScrollContainer') private messageScrollContainer?: ElementRef<HTMLDivElement>;
 
   private readonly route = inject(ActivatedRoute);
@@ -57,24 +65,47 @@ export class WorkspaceChatPage implements AfterViewChecked {
   private readonly chatSessionService = inject(ChatSessionService);
   private readonly providerGroupService = inject(ProviderGroupService);
   private readonly confirmationService = inject(ConfirmationService);
+  private readonly messageService = inject(MessageService);
 
   readonly sessions = signal<ChatSessionOutputDto[]>([]);
   readonly activeSessionId = signal<string | null>(null);
   readonly routeSessionId = signal<string | null>(null);
   readonly providerGroups = signal<ProviderGroupOutputDto[]>([]);
   readonly modelOptions = signal<ChatModelOptionOutputDto[]>([]);
+  readonly activeMessages = signal<ChatMessageOutputDto[]>([]);
   readonly loading = signal(false);
+  readonly messagesLoading = signal(false);
+  readonly loadingMoreMessages = signal(false);
+  readonly hasMoreMessages = signal(false);
   readonly sending = signal(false);
   readonly inputText = signal('');
   readonly sessionListOpen = signal(false);
   readonly sessionSearchQuery = signal('');
   readonly editingTitle = signal(false);
   readonly titleDraft = signal('');
+  readonly errorMessage = signal('');
+  readonly modelOptionsLoading = signal(false);
+  readonly modelDraft = signal('');
+  readonly filteredModelSuggestions = signal<string[]>([]);
+  readonly selectedProviderGroupValue = signal<string | null>(null);
 
   private shouldAutoScroll = false;
+  private loadedMessagesSessionId: string | null = null;
+  private cursorMessageId: string | undefined;
+  private pendingScrollRestore: { previousHeight: number; previousTop: number } | null = null;
+  private modelOptionsGroupId: string | null = null;
+  private loadingModelOptionsGroupId: string | null = null;
+  private committingModelDraft = false;
+  private readonly groupChange$ = new Subject<{ sessionId: string; providerGroupId: string | null }>();
 
   readonly activeSession = computed(() => this.sessions().find(session => session.id === this.activeSessionId()) ?? null);
-  readonly canCreateSession = computed(() => this.providerGroups().length > 0 && this.modelOptions().length > 0);
+  readonly canCreateSession = computed(() => this.providerGroups().length > 0);
+  readonly providerGroupOptions = computed(() => this.providerGroups().map(group => ({
+      label: group.name,
+      value: group.id,
+      icon: group.isPublic ? 'pi pi-globe' : 'pi pi-lock',
+      hint: group.isPublic ? '公开分组' : '专属分组'
+    })));
   readonly filteredSessions = computed(() => {
     const keyword = this.sessionSearchQuery().trim().toLowerCase();
     if (!keyword) {
@@ -95,28 +126,50 @@ export class WorkspaceChatPage implements AfterViewChecked {
       this.syncActiveSession();
       this.sessionListOpen.set(false);
       this.editingTitle.set(false);
-      this.requestAutoScroll();
+      this.ensureActiveSessionContext(true);
+      this.syncModelDraft();
     });
 
     this.providerGroupService
-      .getAll()
+      .getVisibleGroups()
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(groups => this.providerGroups.set(groups));
-
-    this.chatSessionService
-      .getModelOptions()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(options => this.modelOptions.set(options));
+      .subscribe(groups => {
+        this.providerGroups.set(groups);
+        if (!this.activeSession()) {
+          this.selectedProviderGroupValue.set(null);
+          this.loadModelOptions();
+        }
+      });
 
     this.loadSessions();
+
+    this.groupChange$.pipe(
+      takeUntilDestroyed(this.destroyRef),
+      switchMap(({ sessionId, providerGroupId }) =>
+        this.chatSessionService.updateSession(sessionId, providerGroupId
+          ? { providerGroupId, useAutoProviderGroup: false }
+          : { useAutoProviderGroup: true }
+        )
+      )
+    ).subscribe(updated => {
+      this.upsertSession(updated);
+      this.loadModelOptions(updated.providerGroupId, updated.modelId, updated.id);
+      this.syncModelDraft();
+    });
   }
 
   ngAfterViewChecked() {
+    const container = this.messageScrollContainer?.nativeElement;
+    if (this.pendingScrollRestore && container) {
+      const { previousHeight, previousTop } = this.pendingScrollRestore;
+      container.scrollTop = container.scrollHeight - previousHeight + previousTop;
+      this.pendingScrollRestore = null;
+    }
+
     if (!this.shouldAutoScroll) {
       return;
     }
 
-    const container = this.messageScrollContainer?.nativeElement;
     if (container) {
       container.scrollTop = container.scrollHeight;
     }
@@ -135,7 +188,8 @@ export class WorkspaceChatPage implements AfterViewChecked {
       .subscribe(list => {
         this.sessions.set(this.sortSessions(list));
         this.syncActiveSession();
-        this.requestAutoScroll();
+        this.ensureActiveSessionContext(true);
+        this.syncModelDraft();
       });
   }
 
@@ -144,23 +198,28 @@ export class WorkspaceChatPage implements AfterViewChecked {
       return;
     }
 
-    const firstGroup = this.providerGroups()[0];
     const firstModel = this.modelOptions()[0];
-    if (!firstGroup || !firstModel) {
+    if (firstModel) {
+      this.createSession(null, firstModel.value);
       return;
     }
 
+    this.modelOptionsLoading.set(true);
     this.chatSessionService
-      .createSession({
-        title: '新会话',
-        providerGroupId: firstGroup.id,
-        modelId: firstModel.value
-      })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(session => {
-        this.sessions.update(list => this.sortSessions([session, ...list]));
-        this.sessionListOpen.set(false);
-        this.router.navigate(['/workspace/chat', session.id]);
+      .getModelOptions()
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.modelOptionsLoading.set(false))
+      )
+      .subscribe(options => {
+        this.modelOptions.set(options);
+        this.modelOptionsGroupId = null;
+        const fallbackModel = options[0];
+        if (!fallbackModel) {
+          return;
+        }
+
+        this.createSession(null, fallbackModel.value);
       });
   }
 
@@ -182,16 +241,84 @@ export class WorkspaceChatPage implements AfterViewChecked {
     });
   }
 
-  onSessionConfigChange(field: 'providerGroupId' | 'modelId', value: string) {
+  onSessionConfigChange(field: 'providerGroupId' | 'modelId', value: string | null) {
     const session = this.activeSession();
-    if (!session || !value) {
+    if (!session) {
+      return;
+    }
+
+    if (field === 'providerGroupId') {
+      this.selectedProviderGroupValue.set(value);
+      this.groupChange$.next({ sessionId: session.id, providerGroupId: value });
+      return;
+    }
+
+    if (!value) {
+      return;
+    }
+
+    if (field === 'modelId' && !this.selectedProviderGroupValue()) {
+      this.chatSessionService
+        .updateSession(session.id, { modelId: value, useAutoProviderGroup: true })
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(updated => {
+          this.upsertSession(updated);
+          this.syncModelDraft();
+        });
       return;
     }
 
     this.chatSessionService
       .updateSession(session.id, { [field]: value })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(updated => this.upsertSession(updated));
+      .subscribe(updated => {
+        this.upsertSession(updated);
+        this.syncModelDraft();
+      });
+  }
+
+  filterModelSuggestions(event: AutoCompleteCompleteEvent) {
+    const query = (event.query ?? '').trim().toLowerCase();
+    const suggestions = this.modelOptions()
+      .filter(option => !query || option.value.toLowerCase().includes(query) || option.label.toLowerCase().includes(query))
+      .map(option => option.value);
+    const uniqueSuggestions = suggestions.filter((item, index, list) => list.indexOf(item) === index);
+    if (query && !uniqueSuggestions.some(item => item.toLowerCase() === query)) {
+      uniqueSuggestions.unshift(event.query.trim());
+    }
+
+    this.filteredModelSuggestions.set(uniqueSuggestions);
+  }
+
+  onModelDraftChange(value: string | null | undefined) {
+    this.modelDraft.set(value?.trim() ?? '');
+  }
+
+  onModelSelect(value: string) {
+    this.modelDraft.set(value);
+    this.commitModelDraft();
+  }
+
+  onModelInputBlur() {
+    this.commitModelDraft();
+  }
+
+  onModelInputKeydown(event: KeyboardEvent) {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      this.commitModelDraft();
+    }
+  }
+
+  onMessageScroll() {
+    const container = this.messageScrollContainer?.nativeElement;
+    if (!container || this.messagesLoading() || this.loadingMoreMessages() || !this.hasMoreMessages()) {
+      return;
+    }
+
+    if (container.scrollTop <= 80) {
+      this.loadMoreMessages();
+    }
   }
 
   startRenameSession() {
@@ -263,14 +390,21 @@ export class WorkspaceChatPage implements AfterViewChecked {
       isStreaming: true
     };
 
+    let assistantContent = '';
+    let assistantCompleted = false;
+
     this.inputText.set('');
     this.sending.set(true);
+    this.errorMessage.set('');
+    this.activeMessages.update(list => [...list, userMessage, assistantMessage]);
     this.patchSession(session.id, current => ({
       ...current,
       title: current.title === '新会话' ? this.buildSessionTitle(content) : current.title,
       lastMessageTime: now,
-      messages: [...current.messages, userMessage, assistantMessage]
+      lastMessagePreview: content,
+      messageCount: current.messageCount + 1
     }));
+    this.requestAutoScroll();
 
     const input: SendChatMessageInputDto = { content };
     this.chatSessionService
@@ -279,33 +413,64 @@ export class WorkspaceChatPage implements AfterViewChecked {
         takeUntilDestroyed(this.destroyRef),
         finalize(() => {
           this.sending.set(false);
-          this.patchSession(session.id, current => ({
-            ...current,
-            messages: current.messages.map(message =>
-              message.id === assistantMessage.id ? { ...message, isStreaming: false } : message
-            )
-          }));
+          if (assistantCompleted) {
+            this.patchSession(session.id, current => ({
+              ...current,
+              lastMessageTime: new Date().toISOString(),
+              lastMessagePreview: assistantContent || current.lastMessagePreview,
+              messageCount: current.messageCount + 1
+            }));
+          }
+
+          this.activeMessages.update(list => list.map(message =>
+            message.id === assistantMessage.id ? { ...message, isStreaming: false } : message
+          ));
         })
       )
       .subscribe({
         next: event => {
-          if (event.type === 'Content' && event.content && !event.isComplete) {
-            this.patchSession(session.id, current => ({
-              ...current,
-              lastMessageTime: new Date().toISOString(),
-              messages: current.messages.map(message =>
-                message.id === assistantMessage.id ? { ...message, content: message.content + event.content } : message
-              )
-            }));
+          switch (event.type) {
+            case 'Error': {
+              this.errorMessage.set(this.resolveErrorMessage(event.content));
+              this.activeMessages.update(list => list.filter(item => item.id !== assistantMessage.id));
+              this.requestAutoScroll();
+              return;
+            }
+            case 'Content': {
+              if (event.inlineData?.length) {
+                this.activeMessages.update(list => list.map(message =>
+                  message.id === assistantMessage.id
+                    ? { ...message, attachments: [...(message.attachments ?? []), ...event.inlineData!] }
+                    : message
+                ));
+                this.requestAutoScroll();
+              }
+
+              if (event.content && !event.isComplete) {
+                assistantContent += event.content;
+                this.activeMessages.update(list => list.map(message =>
+                  message.id === assistantMessage.id ? { ...message, content: message.content + event.content } : message
+                ));
+                this.patchSession(session.id, current => ({
+                  ...current,
+                  lastMessageTime: new Date().toISOString(),
+                  lastMessagePreview: assistantContent
+                }));
+                this.requestAutoScroll();
+                return;
+              }
+
+              if (event.isComplete) {
+                assistantCompleted = true;
+              }
+              return;
+            }
           }
         },
         error: error => {
-          this.patchSession(session.id, current => ({
-            ...current,
-            messages: current.messages.map(message =>
-              message.id === assistantMessage.id ? { ...message, content: `错误：${error.message}`, isStreaming: false } : message
-            )
-          }));
+          this.errorMessage.set(this.resolveErrorMessage(error));
+          this.activeMessages.update(list => list.filter(messageItem => messageItem.id !== assistantMessage.id));
+          this.requestAutoScroll();
         }
       });
   }
@@ -330,12 +495,7 @@ export class WorkspaceChatPage implements AfterViewChecked {
   }
 
   getSessionPreview(session: ChatSessionOutputDto) {
-    const lastMessage = session.messages[session.messages.length - 1];
-    if (!lastMessage?.content) {
-      return '还没有消息，开始新的对话。';
-    }
-
-    return lastMessage.content.replace(/\s+/g, ' ').trim();
+    return session.lastMessagePreview?.trim() || '还没有消息，开始新的对话。';
   }
 
   formatRelativeTime(value?: string) {
@@ -364,6 +524,195 @@ export class WorkspaceChatPage implements AfterViewChecked {
     return session.id;
   }
 
+  getProviderGroupName(providerGroupId?: string | null) {
+    if (!providerGroupId) {
+      return '未选择';
+    }
+
+    return this.providerGroups().find(group => group.id === providerGroupId)?.name ?? '未选择';
+  }
+
+  getSelectedProviderGroupLabel(session: ChatSessionOutputDto) {
+    if (!this.selectedProviderGroupValue()) {
+      return '自动';
+    }
+
+    return this.getProviderGroupName(session.providerGroupId);
+  }
+
+  getSelectedProviderGroupHint() {
+    const selectedValue = this.selectedProviderGroupValue();
+    if (!selectedValue) {
+      return '自动匹配全部可见分组';
+    }
+
+    const matched = this.providerGroups().find(group => group.id === selectedValue);
+    if (!matched) {
+      return '';
+    }
+
+    return matched.isPublic ? '公开分组' : '专属分组';
+  }
+
+  private syncModelDraft() {
+    this.modelDraft.set(this.activeSession()?.modelId ?? '');
+    this.filteredModelSuggestions.set(this.modelOptions().map(option => option.value));
+  }
+
+  private commitModelDraft() {
+    const session = this.activeSession();
+    const value = this.modelDraft().trim();
+    if (!session || !value || this.committingModelDraft) {
+      if (!value) {
+        this.syncModelDraft();
+      }
+      return;
+    }
+
+    if (value === session.modelId) {
+      return;
+    }
+
+    this.committingModelDraft = true;
+    this.onSessionConfigChange('modelId', value);
+    // 延迟重置，确保 blur/select 短时间内的第二次调用被过滤
+    setTimeout(() => this.committingModelDraft = false, 300);
+  }
+
+  private createSession(providerGroupId: string | null, modelId: string) {
+    this.chatSessionService
+      .createSession({
+        title: '新会话',
+        providerGroupId: providerGroupId ?? undefined,
+        modelId
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(session => {
+        this.sessions.update(list => this.sortSessions([session, ...list]));
+        this.sessionListOpen.set(false);
+        this.router.navigate(['/workspace/chat', session.id]);
+      });
+  }
+
+  private loadMoreMessages() {
+    const sessionId = this.activeSessionId();
+    const cursorMessageId = this.cursorMessageId;
+    const container = this.messageScrollContainer?.nativeElement;
+    if (!sessionId || !cursorMessageId) {
+      return;
+    }
+
+    if (container) {
+      this.pendingScrollRestore = {
+        previousHeight: container.scrollHeight,
+        previousTop: container.scrollTop
+      };
+    }
+
+    this.loadingMoreMessages.set(true);
+    this.chatSessionService
+      .getMessagePagedList(sessionId, { limit: WorkspaceChatPage.MESSAGE_PAGE_SIZE, cursorMessageId })
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.loadingMoreMessages.set(false))
+      )
+      .subscribe(page => {
+        this.cursorMessageId = page.items[0]?.id;
+        this.hasMoreMessages.set(page.totalCount > page.items.length);
+        this.activeMessages.update(list => [...page.items, ...list]);
+      });
+  }
+
+  private loadModelOptions(providerGroupId?: string, preferredModelId?: string, sessionId?: string) {
+    const groupId = providerGroupId ?? null;
+
+    if (this.loadingModelOptionsGroupId === groupId) {
+      return;
+    }
+
+    if (this.modelOptionsGroupId === groupId && this.modelOptions().length > 0) {
+      if (!sessionId || !preferredModelId) {
+        return;
+      }
+
+      const exists = this.modelOptions().some(option => option.value === preferredModelId);
+      if (exists) {
+        return;
+      }
+    }
+
+    this.loadingModelOptionsGroupId = groupId;
+    this.modelOptionsLoading.set(true);
+    this.chatSessionService
+      .getModelOptions(providerGroupId)
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => {
+          if (this.loadingModelOptionsGroupId === groupId) {
+            this.loadingModelOptionsGroupId = null;
+          }
+          this.modelOptionsLoading.set(false);
+        })
+      )
+      .subscribe(options => {
+        this.modelOptions.set(options);
+        this.modelOptionsGroupId = groupId;
+        this.filteredModelSuggestions.set(options.map(option => option.value));
+
+        if (!sessionId || !preferredModelId || options.length === 0) {
+          this.syncModelDraft();
+          return;
+        }
+
+        const exists = options.some(option => option.value === preferredModelId);
+        if (exists) {
+          return;
+        }
+
+        const fallbackModel = options[0].value;
+        this.messageService.add({
+          severity: 'info',
+          summary: '模型已自动切换',
+          detail: `"${preferredModelId}" 在当前分组下不可用，已切换为 "${fallbackModel}"`,
+          life: 4000
+        });
+        this.chatSessionService
+          .updateSession(sessionId, {
+            modelId: fallbackModel,
+            providerGroupId: groupId ? options[0].providerGroupId : undefined,
+            useAutoProviderGroup: !groupId
+          })
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe(updated => {
+            this.upsertSession(updated);
+            this.syncModelDraft();
+          });
+      });
+  }
+
+  private loadSessionMessages(sessionId: string, reset: boolean) {
+    if (reset) {
+      this.messagesLoading.set(true);
+      this.activeMessages.set([]);
+      this.cursorMessageId = undefined;
+      this.hasMoreMessages.set(false);
+    }
+
+    this.chatSessionService
+      .getMessagePagedList(sessionId, { limit: WorkspaceChatPage.MESSAGE_PAGE_SIZE })
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.messagesLoading.set(false))
+      )
+      .subscribe(page => {
+        this.loadedMessagesSessionId = sessionId;
+        this.activeMessages.set(page.items);
+        this.cursorMessageId = page.items[0]?.id;
+        this.hasMoreMessages.set(page.totalCount > page.items.length);
+        this.requestAutoScroll();
+      });
+  }
+
   private deleteSession(sessionId: string) {
     this.chatSessionService
       .deleteSession(sessionId)
@@ -373,6 +722,9 @@ export class WorkspaceChatPage implements AfterViewChecked {
         this.sessions.set(this.sortSessions(remaining));
 
         if (this.activeSessionId() === sessionId) {
+          this.loadedMessagesSessionId = null;
+          this.activeMessages.set([]);
+
           if (remaining.length > 0) {
             this.router.navigate(['/workspace/chat', remaining[0].id]);
           } else {
@@ -383,6 +735,27 @@ export class WorkspaceChatPage implements AfterViewChecked {
       });
   }
 
+  private resolveErrorMessage(error: unknown) {
+    if (typeof error === 'string') {
+      const message = error.trim();
+      return message || '请求失败，请稍后重试';
+    }
+
+    if (error instanceof Error) {
+      const message = error.message.trim();
+      return message || '请求失败，请稍后重试';
+    }
+
+    if (error && typeof error === 'object') {
+      const message = 'message' in error && typeof error.message === 'string' ? error.message.trim() : '';
+      if (message) {
+        return message;
+      }
+    }
+
+    return '请求失败，请稍后重试';
+  }
+
   private syncActiveSession() {
     const sessions = this.sessions();
     const routeSessionId = this.routeSessionId();
@@ -391,17 +764,47 @@ export class WorkspaceChatPage implements AfterViewChecked {
       const matched = sessions.find(session => session.id === routeSessionId);
       if (matched) {
         this.activeSessionId.set(matched.id);
+        this.selectedProviderGroupValue.set(matched.providerGroupId ?? null);
         return;
       }
     }
 
     if (sessions.length > 0) {
       this.activeSessionId.set(sessions[0].id);
-      this.router.navigate(['/workspace/chat', sessions[0].id], { replaceUrl: true });
+      this.selectedProviderGroupValue.set(sessions[0].providerGroupId ?? null);
       return;
     }
 
     this.activeSessionId.set(null);
+    this.selectedProviderGroupValue.set(null);
+  }
+
+  private ensureActiveSessionContext(resetMessages: boolean) {
+    const session = this.activeSession();
+    if (!session) {
+      this.activeMessages.set([]);
+      this.loadedMessagesSessionId = null;
+      const defaultProviderGroupId = this.providerGroups()[0]?.id;
+      if (defaultProviderGroupId) {
+        this.selectedProviderGroupValue.set(null);
+        this.loadModelOptions();
+      } else {
+        this.modelOptions.set([]);
+        this.modelOptionsGroupId = null;
+        this.filteredModelSuggestions.set([]);
+      }
+      return;
+    }
+
+    this.loadModelOptions(
+      this.selectedProviderGroupValue() ?? undefined,
+      session.modelId,
+      session.id
+    );
+    this.syncModelDraft();
+    if (resetMessages || this.loadedMessagesSessionId !== session.id) {
+      this.loadSessionMessages(session.id, true);
+    }
   }
 
   private upsertSession(updated: ChatSessionOutputDto) {
@@ -412,12 +815,10 @@ export class WorkspaceChatPage implements AfterViewChecked {
       return this.sortSessions(next);
     });
     this.activeSessionId.set(updated.id);
-    this.requestAutoScroll();
   }
 
   private patchSession(sessionId: string, updater: (session: ChatSessionOutputDto) => ChatSessionOutputDto) {
     this.sessions.update(list => this.sortSessions(list.map(session => (session.id === sessionId ? updater(session) : session))));
-    this.requestAutoScroll();
   }
 
   private sortSessions(list: ChatSessionOutputDto[]) {
@@ -435,5 +836,27 @@ export class WorkspaceChatPage implements AfterViewChecked {
 
   private requestAutoScroll() {
     this.shouldAutoScroll = true;
+    this.scheduleScrollToBottom();
+  }
+
+  private scheduleScrollToBottom() {
+    if (!isPlatformBrowser(this.platformId)) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const container = this.messageScrollContainer?.nativeElement;
+        if (!container) {
+          return;
+        }
+
+        container.scrollTop = container.scrollHeight;
+        this.shouldAutoScroll = false;
+      });
+    });
   }
 }
+
+
+

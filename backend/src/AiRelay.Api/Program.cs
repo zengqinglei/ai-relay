@@ -1,5 +1,6 @@
 using AiRelay.Api.Authentication;
 using AiRelay.Api.Extensions;
+using AiRelay.Api.HostedServices.BackgroundServices;
 using AiRelay.Api.HostedServices.Initializer;
 using AiRelay.Api.HostedServices.Workers;
 using AiRelay.Api.Middleware.SmartProxy;
@@ -52,6 +53,9 @@ try
         builder.Configuration.GetSection(DefaultAdminOptions.SectionName));
     builder.Services.Configure<UsageLoggingOptions>(
         builder.Configuration.GetSection(UsageLoggingOptions.SectionName));
+    builder.Services.Configure<UsageCleanupOptions>(
+        builder.Configuration.GetSection(UsageCleanupOptions.SectionName));
+
     builder.Services.Configure<ExternalAuthOptions>(
         builder.Configuration.GetSection(ExternalAuthOptions.SectionName));
 
@@ -68,8 +72,10 @@ try
 
     // 3.5. 注册后台服务
     // builder.Services.AddHostedService<AccountQuotaRefreshHostedService>();
-    builder.Services.AddSingleton<AccountUsageRecordHostedService>();
-    builder.Services.AddHostedService(sp => sp.GetRequiredService<AccountUsageRecordHostedService>());
+    builder.Services.AddSingleton<AccountUsageRecordWorker>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<AccountUsageRecordWorker>());
+    builder.Services.AddHostedService<UsageRecordCleanupBackgroundService>();
+
 
     // [New] Register SmartProxy Components
     builder.Services.AddScoped<ProxyErrorFormatterFactory>();
@@ -208,6 +214,7 @@ try
     }
 
     // 7. 中间件管道配置
+    app.UseSerilogRequestLogging();
     app.UseGlobalExceptionHandler();
     app.UseCorrelationId();
     app.MapHealthChecks("/api/health").AllowAnonymous();
@@ -221,7 +228,6 @@ try
     // 添加静态文件支持，用于托管前端应用
     app.UseDefaultFiles();
     app.UseStaticFiles();
-    app.UseSerilogRequestLogging();
 
     app.MapControllers();
 

@@ -58,11 +58,16 @@ public class ApiKeyAuthenticationHandler : AuthenticationHandler<AuthenticationS
             return AuthenticateResult.Fail(validationResult.FailureReason ?? "Invalid ApiKey");
         }
 
-        var claims = new[]
+        var claims = new List<Claim>
         {
-            new Claim(AuthenticationConstants.ApiKeyIdClaimType, validationResult.ApiKeyId!.Value.ToString()),
-            new Claim(AuthenticationConstants.ApiKeyNameClaimType, validationResult.Name!.ToString())
+            new(AuthenticationConstants.ApiKeyIdClaimType, validationResult.ApiKeyId!.Value.ToString()),
+            new(AuthenticationConstants.ApiKeyNameClaimType, validationResult.Name!)
         };
+
+        if (validationResult.UserId.HasValue)
+        {
+            claims.Add(new Claim(AuthenticationConstants.UserIdClaimType, validationResult.UserId.Value.ToString()));
+        }
 
         var identity = new ClaimsIdentity(claims, Scheme.Name);
         var principal = new ClaimsPrincipal(identity);
@@ -70,5 +75,4 @@ public class ApiKeyAuthenticationHandler : AuthenticationHandler<AuthenticationS
 
         return AuthenticateResult.Success(ticket);
     }
-
 }

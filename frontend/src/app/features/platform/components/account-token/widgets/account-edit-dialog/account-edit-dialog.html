@@ -13,6 +13,9 @@
   (onHide)="onHide()"
   styleClass="overflow-hidden"
 >
+  @if (dialogLoading()) {
+    <app-dialog-loading text="正在加载账户配置..." />
+  } @else {
   <div class="p-4 pt-2 md:p-6" [formGroup]="form">
     <div class="flex flex-col gap-5">
       <div class="grid grid-cols-1 gap-x-4 gap-y-4 md:grid-cols-4 md:gap-x-6">
@@ -301,6 +304,7 @@
       }
     </div>
   </div>
+  }
 
   <ng-template pTemplate="footer">
     <div class="flex justify-end gap-3 p-4">

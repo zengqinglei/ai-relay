@@ -20,7 +20,7 @@ public class ApiKeyUsageStatisticsDomainService(
         long TotalUsageToday,
         decimal UsageGrowthRate,
         List<(string Name, long Usage)> TopUsageKeys
-    )> GetMetricsAsync(CancellationToken cancellationToken = default)
+    )> GetMetricsAsync(Guid? userId, CancellationToken cancellationToken = default)
     {
         var now = DateTime.UtcNow;
         var today = now.Date;
@@ -28,6 +28,10 @@ public class ApiKeyUsageStatisticsDomainService(
         var next7Days = now.AddDays(7);
 
         var query = await apiKeyRepository.GetQueryableAsync(cancellationToken);
+        if (userId.HasValue)
+        {
+            query = query.Where(k => k.UserId == userId.Value);
+        }
 
         // 单次条件聚合：订阅数、活跃数、即将过期数、今日用量、昨日用量
         var stats = await asyncExecuter.FirstOrDefaultAsync(query

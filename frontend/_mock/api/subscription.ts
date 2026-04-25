@@ -1,8 +1,9 @@
 import { findGroupById } from './provider-group';
+import { getVisibleGroupsForCurrentUser } from './provider-group';
 import { PagedResultDto } from '../../src/app/shared/models/paged-result.dto';
 import { MockException, MockRequest } from '../core/models';
-import { getSubscriptionsByUserId, SUBSCRIPTIONS } from '../data/subscriptions';
-import { getCurrentUserId } from '../utils/current-user';
+import { getAllSubscriptions, SUBSCRIPTIONS } from '../data/subscriptions';
+import { getUserByToken } from '../utils/current-user';
 
 const subscriptions = SUBSCRIPTIONS;
 
@@ -19,15 +20,26 @@ function normalizeBindings(bindings: Array<{ priority: number; providerGroupId: 
   });
 }
 
+function getVisibleSubscriptions(req: MockRequest) {
+  const currentUser = getUserByToken(req);
+  const onlyCurrentUser = String(req.queryParams['onlyCurrentUser']) === 'true';
+  const isAdmin = currentUser.roles.includes('Admin');
+
+  if (!isAdmin || onlyCurrentUser) {
+    return getAllSubscriptions().filter(item => item.userId === currentUser.id);
+  }
+
+  return [...getAllSubscriptions()];
+}
+
 function getSubscriptions(req: MockRequest) {
   const { keyword, isActive, offset = 0, limit = 10 } = req.queryParams;
-  const currentUserId = getCurrentUserId(req);
 
-  let items = getSubscriptionsByUserId(currentUserId);
+  let items = getVisibleSubscriptions(req);
 
   if (keyword) {
-    const k = (keyword as string).toLowerCase();
-    items = items.filter(s => s.name.toLowerCase().includes(k));
+    const k = String(keyword).trim().toLowerCase();
+    items = items.filter(s => s.name.toLowerCase().includes(k) || s.username?.toLowerCase().includes(k));
   }
 
   if (isActive !== undefined && isActive !== null && isActive !== '') {
@@ -47,22 +59,28 @@ function getSubscriptions(req: MockRequest) {
 }
 
 function getSubscription(req: MockRequest) {
-  const currentUserId = getCurrentUserId(req);
   const id = req.params['id'];
-  const sub = subscriptions.find(s => s.id === id && s.userId === currentUserId);
+  const sub = getVisibleSubscriptions(req).find(s => s.id === id);
   if (!sub) throw new MockException(404, 'Subscription not found');
   return sub;
 }
 
 function createSubscription(req: MockRequest) {
-  const currentUserId = getCurrentUserId(req);
+  const currentUser = getUserByToken(req);
   const body = req.body;
+  const visibleGroupIds = new Set(getVisibleGroupsForCurrentUser(req).map(group => group.id));
+  const invalidBinding = (body.bindings || []).find((binding: { providerGroupId: string }) => !visibleGroupIds.has(binding.providerGroupId));
+  if (invalidBinding) {
+    throw new MockException(400, { message: `分组不可访问: ${invalidBinding.providerGroupId}` });
+  }
   const secret = body.customSecret || `sk_mock_auto_generated_${Math.random().toString(36).substring(7)}`;
   const creationTime = new Date().toISOString();
 
   const newSub = {
     ...body,
-    userId: currentUserId,
+    userId: currentUser.id,
+    username: currentUser.username,
+    email: currentUser.email,
     id: crypto.randomUUID(),
     secret,
     isActive: true,
@@ -80,10 +98,14 @@ function createSubscription(req: MockRequest) {
 }
 
 function updateSubscription(req: MockRequest) {
-  const currentUserId = getCurrentUserId(req);
   const id = req.params['id'];
   const body = req.body;
-  const index = subscriptions.findIndex(s => s.id === id && s.userId === currentUserId);
+  const visibleGroupIds = new Set(getVisibleGroupsForCurrentUser(req).map(group => group.id));
+  const invalidBinding = (body.bindings || []).find((binding: { providerGroupId: string }) => !visibleGroupIds.has(binding.providerGroupId));
+  if (invalidBinding) {
+    throw new MockException(400, { message: `分组不可访问: ${invalidBinding.providerGroupId}` });
+  }
+  const index = subscriptions.findIndex(s => s.id === id && getVisibleSubscriptions(req).some(item => item.id === id));
   if (index === -1) throw new MockException(404, 'Subscription not found');
 
   subscriptions[index] = {
@@ -95,9 +117,8 @@ function updateSubscription(req: MockRequest) {
 }
 
 function deleteSubscription(req: MockRequest) {
-  const currentUserId = getCurrentUserId(req);
   const id = req.params['id'];
-  const index = subscriptions.findIndex(s => s.id === id && s.userId === currentUserId);
+  const index = subscriptions.findIndex(s => s.id === id && getVisibleSubscriptions(req).some(item => item.id === id));
   if (index !== -1) {
     subscriptions.splice(index, 1);
   }
@@ -105,9 +126,8 @@ function deleteSubscription(req: MockRequest) {
 }
 
 function enableSubscription(req: MockRequest) {
-  const currentUserId = getCurrentUserId(req);
   const id = req.params['id'];
-  const index = subscriptions.findIndex(s => s.id === id && s.userId === currentUserId);
+  const index = subscriptions.findIndex(s => s.id === id && getVisibleSubscriptions(req).some(item => item.id === id));
   if (index !== -1) {
     subscriptions[index].isActive = true;
     if (req.body?.expiresAt) {
@@ -118,9 +138,8 @@ function enableSubscription(req: MockRequest) {
 }
 
 function disableSubscription(req: MockRequest) {
-  const currentUserId = getCurrentUserId(req);
   const id = req.params['id'];
-  const index = subscriptions.findIndex(s => s.id === id && s.userId === currentUserId);
+  const index = subscriptions.findIndex(s => s.id === id && getVisibleSubscriptions(req).some(item => item.id === id));
   if (index !== -1) {
     subscriptions[index].isActive = false;
   }
@@ -136,3 +155,5 @@ export const SUBSCRIPTION_API = {
   'PATCH /api/v1/api-keys/:id/enable': (req: MockRequest) => enableSubscription(req),
   'PATCH /api/v1/api-keys/:id/disable': (req: MockRequest) => disableSubscription(req)
 };
+
+

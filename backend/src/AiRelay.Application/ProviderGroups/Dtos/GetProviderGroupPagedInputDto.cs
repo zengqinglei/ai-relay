@@ -14,6 +14,13 @@ public record GetProviderGroupPagedInputDto : PagedRequestDto
     [Display(Name = "分组名称")]
     [MaxLength(256, ErrorMessage = "{0}长度不能超过 {1} 个字符")]
     public string? Keyword { get; init; }
+    
+    [Display(Name = "分配用户")]
+    public Guid? AssignedUserId { get; init; }
 
+    [Display(Name = "是否公开")]
+    public bool? IsPublic { get; init; }
 
+    [Display(Name = "仅当前用户可见")]
+    public bool? OnlyCurrentUserVisible { get; init; }
 }

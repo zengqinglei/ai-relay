@@ -109,10 +109,17 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
                     b.Property<long>("UsageTotal")
                         .HasColumnType("bigint");
 
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("SecretHash")
                         .IsUnique();
+
+                    b.HasIndex("UserId", "CreationTime");
+
+                    b.HasIndex("UserId", "Name");
 
                     b.ToTable("ApiKeys");
                 });
@@ -243,6 +250,175 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("ExternalLoginConnections");
+                });
+
+            modelBuilder.Entity("AiRelay.Domain.ChatSessions.Entities.ChatAttachment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatorId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Data")
+                        .HasColumnType("text");
+
+                    b.Property<string>("DeleterId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastModifierId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("MimeType")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("Url")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MessageId");
+
+                    b.ToTable("ChatAttachments");
+                });
+
+            modelBuilder.Entity("AiRelay.Domain.ChatSessions.Entities.ChatMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatorId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("DeleterId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastModifierId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SessionId", "CreationTime");
+
+                    b.ToTable("ChatMessages");
+                });
+
+            modelBuilder.Entity("AiRelay.Domain.ChatSessions.Entities.ChatSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatorId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("DeleterId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LastMessagePreview")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<DateTime?>("LastMessageTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastModifierId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("MessageCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ModelId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<Guid?>("ProviderGroupId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "CreationTime");
+
+                    b.HasIndex("UserId", "LastMessageTime");
+
+                    b.ToTable("ChatSessions");
                 });
 
             modelBuilder.Entity("AiRelay.Domain.Permissions.Entities.PermissionGrant", b =>
@@ -631,17 +807,60 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
                     b.ToTable("ProviderGroupAccountRelations");
                 });
 
+            modelBuilder.Entity("AiRelay.Domain.ProviderGroups.Entities.ProviderGroupAssignedUser", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatorId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("DeleterId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastModifierId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("ProviderGroupId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProviderGroupId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("ProviderGroupAssignedUsers");
+                });
+
             modelBuilder.Entity("AiRelay.Domain.UsageRecords.Entities.UsageRecord", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("ApiKeyId")
+                    b.Property<Guid?>("ApiKeyId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("ApiKeyName")
-                        .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
@@ -715,6 +934,11 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -724,13 +948,20 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
                         .HasMaxLength(2048)
                         .HasColumnType("character varying(2048)");
 
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ApiKeyId", "CreationTime");
 
                     b.HasIndex("SessionId", "CreationTime");
 
+                    b.HasIndex("UserId", "CreationTime");
+
                     b.HasIndex("ApiKeyId", "Status", "CreationTime");
+
+                    b.HasIndex("UserId", "Source", "CreationTime");
 
                     b.ToTable("UsageRecords");
                 });
@@ -1099,6 +1330,24 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("AiRelay.Domain.ChatSessions.Entities.ChatAttachment", b =>
+                {
+                    b.HasOne("AiRelay.Domain.ChatSessions.Entities.ChatMessage", null)
+                        .WithMany("Attachments")
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AiRelay.Domain.ChatSessions.Entities.ChatMessage", b =>
+                {
+                    b.HasOne("AiRelay.Domain.ChatSessions.Entities.ChatSession", null)
+                        .WithMany("Messages")
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AiRelay.Domain.ProviderGroups.Entities.ProviderGroupAccountRelation", b =>
                 {
                     b.HasOne("AiRelay.Domain.ProviderAccounts.Entities.AccountToken", "AccountToken")
@@ -1114,6 +1363,17 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("AccountToken");
+
+                    b.Navigation("ProviderGroup");
+                });
+
+            modelBuilder.Entity("AiRelay.Domain.ProviderGroups.Entities.ProviderGroupAssignedUser", b =>
+                {
+                    b.HasOne("AiRelay.Domain.ProviderGroups.Entities.ProviderGroup", "ProviderGroup")
+                        .WithMany("AssignedUsers")
+                        .HasForeignKey("ProviderGroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("ProviderGroup");
                 });
@@ -1177,9 +1437,21 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
                     b.Navigation("Bindings");
                 });
 
+            modelBuilder.Entity("AiRelay.Domain.ChatSessions.Entities.ChatMessage", b =>
+                {
+                    b.Navigation("Attachments");
+                });
+
+            modelBuilder.Entity("AiRelay.Domain.ChatSessions.Entities.ChatSession", b =>
+                {
+                    b.Navigation("Messages");
+                });
+
             modelBuilder.Entity("AiRelay.Domain.ProviderGroups.Entities.ProviderGroup", b =>
                 {
                     b.Navigation("ApiKeyBindings");
+
+                    b.Navigation("AssignedUsers");
 
                     b.Navigation("Relations");
                 });

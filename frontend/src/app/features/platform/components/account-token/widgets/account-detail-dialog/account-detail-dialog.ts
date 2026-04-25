@@ -10,11 +10,12 @@ import { AUTH_METHOD_LABELS, PROVIDER_LABELS, getProviderAuthLabel } from '../..
 import { AuthMethod } from '../../../../../../shared/models/auth-method.enum';
 import { Provider } from '../../../../../../shared/models/provider.enum';
 import { AccountTokenOutputDto, RateLimitScope } from '../../../../models/account-token.dto';
+import { DialogLoadingComponent } from '../../../../../../shared/components/dialog-loading/dialog-loading';
 
 @Component({
   selector: 'app-account-detail-dialog',
   standalone: true,
-  imports: [CommonModule, DialogModule, ButtonModule, TooltipModule, PlatformIcon],
+  imports: [CommonModule, DialogModule, ButtonModule, TooltipModule, PlatformIcon, DialogLoadingComponent],
   templateUrl: './account-detail-dialog.html',
   changeDetection: ChangeDetectionStrategy.OnPush
 })

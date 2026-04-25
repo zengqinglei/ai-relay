@@ -1,0 +1,21 @@
+<div class="flex items-center gap-3" [class.flex-col]="isStacked()" [class.items-stretch]="isStacked()" [class.gap-1.5]="isStacked()" [class.max-md:flex-col]="true" [class.max-md:items-stretch]="true" [class.max-md:gap-1.5]="true">
+  @if (showLabel()) {
+    <span class="text-xs font-medium text-muted-color whitespace-nowrap">{{ label() }}</span>
+  }
+
+  <div class="scope-filter-field">
+    @for (option of options(); track option.value) {
+      <div class="inline-flex items-center gap-2 min-h-6 whitespace-nowrap">
+        <p-radiobutton
+          [name]="name()"
+          [inputId]="getOptionInputId(option.value)"
+          [value]="option.value"
+          [ngModel]="selected()"
+          (ngModelChange)="onSelectedChange($event)"
+          size="small"
+        />
+        <label [for]="getOptionInputId(option.value)" class="text-sm text-color cursor-pointer">{{ option.label }}</label>
+      </div>
+    }
+  </div>
+</div>

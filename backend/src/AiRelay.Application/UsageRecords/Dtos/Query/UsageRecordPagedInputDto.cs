@@ -1,4 +1,5 @@
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
+using AiRelay.Domain.UsageRecords.ValueObjects;
 using Leistd.Ddd.Application.Contracts.Dtos;
 
 namespace AiRelay.Application.UsageRecords.Dtos.Query;
@@ -42,4 +43,14 @@ public record UsageRecordPagedInputDto : PagedRequestDto
     /// 认证方式
     /// </summary>
     public AuthMethod? AuthMethod { get; init; }
+
+    /// <summary>
+    /// 使用来源
+    /// </summary>
+    public UsageSource? Source { get; init; }
+
+    /// <summary>
+    /// 是否仅显示当前用户数据
+    /// </summary>
+    public bool? OnlyCurrentUser { get; init; }
 }

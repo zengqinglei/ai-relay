@@ -1,9 +1,10 @@
 using System.Security.Claims;
-using AiRelay.Domain.Users.Entities;
 using AiRelay.Domain.Permissions.Entities;
 using AiRelay.Domain.Permissions.Specifications;
-using Leistd.Ddd.Domain.Repositories;
+using AiRelay.Domain.Users.Constants;
+using AiRelay.Domain.Users.Entities;
 using Leistd.Ddd.Application.Permission;
+using Leistd.Ddd.Domain.Repositories;
 using Leistd.Security.Users;
 
 namespace AiRelay.Application.Permissions.Checker;
@@ -16,8 +17,6 @@ public class PermissionChecker(
     IRepository<PermissionGrant, Guid> permissionGrantRepository,
     IRepository<UserRole, Guid> userRoleRepository) : IPermissionChecker
 {
-    private const string AdminRoleName = "Admin";
-
     public Task<bool> IsGrantedAsync(string name, CancellationToken cancellationToken = default)
     {
         return IsGrantedAsync(null, name, cancellationToken);
@@ -31,7 +30,6 @@ public class PermissionChecker(
         if (string.IsNullOrWhiteSpace(name))
             return false;
 
-        // 获取用户 ID 和角色
         Guid? userId;
         string[] roles;
 
@@ -49,19 +47,16 @@ public class PermissionChecker(
             roles = currentUser.GetRoles();
         }
 
-        // 检查用户是否已登录
         if (!userId.HasValue)
             return false;
 
-        // 🔥 策略：Admin 角色自动拥有所有权限
-        if (roles.Contains(AdminRoleName, StringComparer.OrdinalIgnoreCase))
+        if (roles.Contains(AdminConstant.RoleName, StringComparer.OrdinalIgnoreCase))
         {
             return true;
         }
 
         var userIdValue = userId.Value;
 
-        // 1. 检查用户级别的权限授予
         var userGrant = await permissionGrantRepository.GetFirstAsync(
             PermissionGrantSpecifications.ByPermissionAndProvider(name, "User", userIdValue.ToString()),
             cancellationToken
@@ -70,8 +65,6 @@ public class PermissionChecker(
         if (userGrant != null)
             return true;
 
-        // 2. 检查角色级别的权限授予
-        // 获取用户的所有角色
         var userRoles = await userRoleRepository.GetListAsync(ur => ur.UserId == userIdValue, cancellationToken);
         var roleIds = userRoles.Select(ur => ur.RoleId).ToList();
 

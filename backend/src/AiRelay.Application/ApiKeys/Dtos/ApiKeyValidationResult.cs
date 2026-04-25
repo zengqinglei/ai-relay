@@ -18,6 +18,11 @@ public class ApiKeyValidationResult
     public Guid? ApiKeyId { get; set; }
 
     /// <summary>
+    /// 归属用户 ID（验证成功时）
+    /// </summary>
+    public Guid? UserId { get; set; }
+
+    /// <summary>
     /// API Key 名称（验证成功时）
     /// </summary>
     public string? Name { get; set; }
@@ -33,6 +38,7 @@ public class ApiKeyValidationResult
         {
             IsValid = true,
             ApiKeyId = apiKey.Id,
+            UserId = apiKey.UserId,
             Name = apiKey.Name
         };
     }

@@ -35,6 +35,15 @@ export class ProviderGroupService {
     if (input?.sorting) {
       params = params.set('sorting', input.sorting);
     }
+    if (input?.assignedUserId) {
+      params = params.set('assignedUserId', input.assignedUserId);
+    }
+    if (input?.isPublic !== undefined) {
+      params = params.set('isPublic', input.isPublic.toString());
+    }
+    if (input?.onlyCurrentUserVisible !== undefined) {
+      params = params.set('onlyCurrentUserVisible', input.onlyCurrentUserVisible.toString());
+    }
 
     return this.http.get<PagedResultDto<ProviderGroupOutputDto>>(this.baseUrl, { params });
   }
@@ -53,6 +62,10 @@ export class ProviderGroupService {
 
   getGroup(id: string): Observable<ProviderGroupOutputDto> {
     return this.http.get<ProviderGroupOutputDto>(`${this.baseUrl}/${id}`);
+  }
+
+  getVisibleGroups(): Observable<ProviderGroupOutputDto[]> {
+    return this.http.get<ProviderGroupOutputDto[]>(`${this.baseUrl}/visible`);
   }
 
   createGroup(data: CreateProviderGroupInputDto): Observable<ProviderGroupOutputDto> {

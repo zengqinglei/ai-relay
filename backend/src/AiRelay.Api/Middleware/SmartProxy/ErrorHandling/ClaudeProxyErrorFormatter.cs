@@ -39,7 +39,7 @@ public class ClaudeProxyErrorFormatter : BaseProxyErrorFormatter
             error = new
             {
                 type = GetClaudeErrorType(statusCode),
-                message
+                message // 包含前置 Normalize 注入的 (Overloaded) 关键字
             }
         };
 

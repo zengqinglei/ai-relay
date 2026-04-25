@@ -13,11 +13,12 @@ import { formatDuration, formatTokenCount } from '../../../../shared/utils/forma
 import { UsageRecordDetailOutputDto, UsageRecordOutputDto } from '../../models/usage.dto';
 import { UsageRecordService } from '../../services/usage-record-service';
 import { AuthMethodLabelPipe } from '../../../../shared/pipes/auth-method-label.pipe';
+import { DialogLoadingComponent } from '../../../../shared/components/dialog-loading/dialog-loading';
 
 @Component({
   selector: 'app-usage-record-detail-dialog',
   standalone: true,
-  imports: [CommonModule, DialogModule, ButtonModule, TabsModule, TagModule, TooltipModule, AuthMethodLabelPipe],
+  imports: [CommonModule, DialogModule, ButtonModule, TabsModule, TagModule, TooltipModule, AuthMethodLabelPipe, DialogLoadingComponent],
   template: `
     <p-dialog
       header="请求详情"
@@ -31,9 +32,7 @@ import { AuthMethodLabelPipe } from '../../../../shared/pipes/auth-method-label.
       (onHide)="onHide()"
     >
       @if (loading()) {
-        <div class="flex justify-center items-center h-64">
-          <i class="pi pi-spin pi-spinner text-4xl text-primary"></i>
-        </div>
+        <app-dialog-loading text="正在加载请求详情..." />
       } @else if (detail()) {
         <div class="flex flex-col gap-6">
           <!-- Basic Info Summary - 2行4列布局 -->

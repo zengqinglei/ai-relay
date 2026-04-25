@@ -1,6 +1,7 @@
 using AiRelay.Application.ApiKeys.AppServices;
 using AiRelay.Application.ApiKeys.EventHandlers;
 using AiRelay.Application.Auth.AppServices;
+using AiRelay.Application.ChatSessions.AppServices;
 using AiRelay.Application.Initialization;
 using AiRelay.Application.ProviderAccounts.AppServices;
 using AiRelay.Application.ProviderAccounts.EventHandlers;
@@ -31,6 +32,8 @@ public static class DependencyInjection
         services.AddTransient<IAccountTokenAppService, AccountTokenAppService>();
         services.AddTransient<IApiKeyAppService, ApiKeyAppService>();
         services.AddTransient<IApiKeyMetricAppService, ApiKeyMetricAppService>();
+        services.AddScoped<IWorkspaceChatExecutionAppService, WorkspaceChatExecutionAppService>();
+        services.AddScoped<IChatSessionAppService, ChatSessionAppService>();
 
         // Smart Proxy AppService
         services.AddScoped<ISmartProxyAppService, SmartProxyAppService>();
@@ -69,3 +72,4 @@ public static class DependencyInjection
         return services;
     }
 }
+

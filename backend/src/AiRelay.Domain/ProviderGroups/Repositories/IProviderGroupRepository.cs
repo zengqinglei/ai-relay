@@ -12,4 +12,8 @@ public interface IProviderGroupRepository : IRepository<ProviderGroup, Guid>
     /// 获取包含详情的分组
     /// </summary>
     Task<ProviderGroup?> GetWithDetailsAsync(Guid id, CancellationToken cancellationToken = default);
+
+    Task<List<ProviderGroup>> GetVisibleGroupsAsync(Guid userId, CancellationToken cancellationToken = default);
+
+    Task<ProviderGroup?> GetVisibleByIdAsync(Guid id, Guid userId, CancellationToken cancellationToken = default);
 }

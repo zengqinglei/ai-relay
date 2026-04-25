@@ -57,6 +57,9 @@ export type UpdateSubscriptionInputDto = UpdateApiKeyInputDto;
  */
 export interface ApiKeyOutputDto {
   id: string;
+  userId: string;
+  username?: string;
+  email?: string;
   name: string;
   description?: string;
   secret: string; // 完整密钥，前端控制显示/隐藏
@@ -99,4 +102,7 @@ export interface GetSubscriptionsInputDto extends PagedRequestDto {
 
   /** 是否启用：true | false | undefined（全部） */
   isActive?: boolean;
+
+  /** 是否仅显示当前用户 */
+  onlyCurrentUser?: boolean;
 }

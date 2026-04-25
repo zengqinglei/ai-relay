@@ -74,12 +74,18 @@
           <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-3 whitespace-nowrap hidden md:table-cell">
             <div class="flex items-center gap-1.5">
               <i class="pi pi-key text-xs text-primary/70"></i>
-              <span class="text-sm font-semibold text-surface-900 dark:text-surface-0 truncate max-w-[12rem]" [pTooltip]="record.apiKeyName" tooltipPosition="top" tooltipStyleClass="max-w-md">{{ record.apiKeyName || '-' }}</span>
+              <span class="text-sm font-semibold text-surface-900 dark:text-surface-0 truncate max-w-[12rem]" [pTooltip]="record.apiKeyName" tooltipPosition="top" tooltipStyleClass="max-w-md">{{ record.apiKeyName || (record.source | usageSourceLabel) }}</span>
             </div>
           </td>
           
           <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-3 whitespace-nowrap hidden lg:table-cell">
-            <span class="text-sm font-medium text-color">{{ record.downModelId || '-' }}</span>
+            <div class="flex items-center gap-1.5 overflow-hidden">
+              <span class="text-sm font-medium text-color truncate max-w-[13rem]">{{ record.downModelId || '-' }}</span>
+              @if (record.providerGroupName) {
+                <i class="pi pi-info-circle shrink-0 cursor-help text-xs text-muted-color"
+                  [pTooltip]="getModelWithGroupTooltip(record)" tooltipPosition="top" tooltipStyleClass="max-w-md"></i>
+              }
+            </div>
           </td>
           
           <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-3 whitespace-nowrap hidden xl:table-cell" style="width: 24rem; max-width: 24rem;">

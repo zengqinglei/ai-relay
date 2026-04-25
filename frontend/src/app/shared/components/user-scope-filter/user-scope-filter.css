@@ -1,0 +1,23 @@
+:host {
+  display: block;
+}
+
+.scope-filter-field {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-height: 2.625rem;
+  width: 100%;
+  padding: 0 0.875rem;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: var(--p-border-radius-xl);
+  background: var(--p-content-background);
+  box-shadow: var(--p-inputtext-shadow);
+}
+
+@media (max-width: 767px) {
+  .scope-filter-field {
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+}

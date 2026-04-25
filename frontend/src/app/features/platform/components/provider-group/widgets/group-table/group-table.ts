@@ -120,6 +120,14 @@ export class GroupTable implements OnInit {
     return group.isDefault === true;
   }
 
+  getScopeSeverity(group: ProviderGroupOutputDto): 'info' | 'success' {
+    return group.isPublic ? 'info' : 'success';
+  }
+
+  getScopeLabel(group: ProviderGroupOutputDto): string {
+    return group.isPublic ? '公开' : '专属';
+  }
+
   toggleRouteProfilesPopover(event: Event, popover: Popover, profiles: RouteProfile[]) {
     this.activeRouteProfiles.set(profiles);
     popover.toggle(event);

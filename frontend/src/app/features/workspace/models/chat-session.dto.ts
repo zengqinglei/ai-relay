@@ -12,20 +12,26 @@ export interface ChatMessageOutputDto {
   isStreaming?: boolean;
 }
 
+export interface GetChatMessagePagedInputDto {
+  cursorMessageId?: string;
+  limit?: number;
+}
+
 export interface ChatSessionOutputDto {
   id: string;
   title: string;
-  providerGroupId: string;
+  providerGroupId?: string;
   modelId: string;
   accountId?: string;
-  messages: ChatMessageOutputDto[];
   creationTime: string;
   lastMessageTime?: string;
+  lastMessagePreview?: string;
+  messageCount: number;
 }
 
 export interface CreateChatSessionInputDto {
   title?: string;
-  providerGroupId: string;
+  providerGroupId?: string;
   modelId: string;
   accountId?: string;
 }
@@ -33,6 +39,7 @@ export interface CreateChatSessionInputDto {
 export interface UpdateChatSessionInputDto {
   title?: string;
   providerGroupId?: string;
+  useAutoProviderGroup?: boolean;
   modelId?: string;
   accountId?: string;
 }
@@ -45,4 +52,6 @@ export interface SendChatMessageInputDto {
 export interface ChatModelOptionOutputDto {
   label: string;
   value: string;
+  providerGroupId?: string;
+  providerGroupName?: string;
 }

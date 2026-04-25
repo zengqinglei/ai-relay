@@ -8,7 +8,6 @@ import { DialogModule } from 'primeng/dialog';
 import { DividerModule } from 'primeng/divider';
 import { InputTextModule } from 'primeng/inputtext';
 import { Popover, PopoverModule } from 'primeng/popover';
-import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
 import { TooltipModule } from 'primeng/tooltip';
@@ -19,6 +18,7 @@ import { RouteProfile } from '../../../../../../shared/models/route-profile.enum
 import { ProviderGroupOutputDto } from '../../../../models/provider-group.dto';
 import { ApiKeyBindGroupInputDto, ApiKeyOutputDto } from '../../../../models/subscription.dto';
 import { ProviderGroupService } from '../../../../services/provider-group-service';
+import { DialogLoadingComponent } from '../../../../../../shared/components/dialog-loading/dialog-loading';
 import {
   RelationPopoverContentComponent,
   RelationPopoverItem
@@ -56,12 +56,12 @@ type SubscriptionEditFormModel = {
     TextareaModule,
     DatePickerModule,
     DividerModule,
-    ProgressSpinnerModule,
     TooltipModule,
     AutoCompleteModule,
     TagModule,
     PopoverModule,
-    RelationPopoverContentComponent
+    RelationPopoverContentComponent,
+    DialogLoadingComponent
   ],
   templateUrl: './subscription-edit-dialog.html'
 })
@@ -106,7 +106,7 @@ export class SubscriptionEditDialogComponent {
   activeRouteProfiles = signal<RouteProfile[]>([]);
 
   constructor() {
-    this.groupService.getGroups({ offset: 0, limit: 1000 }).subscribe(result => this.allGroups.set(result.items));
+    this.groupService.getVisibleGroups().subscribe(result => this.allGroups.set(result));
   }
 
   createEmptyModel(): SubscriptionEditFormModel {

@@ -92,30 +92,91 @@ public class ClaudeChatModelHandler(
         return models.Count > 0 ? models : null;
     }
 
-    public override DownRequestContext CreateDebugDownContext(string modelId, string message)
+    public override DownRequestContext CreateChatDownContext(ChatDownContextInput input)
     {
+        var messages = new JsonArray();
+        var systemMessages = new List<string>();
+
+        foreach (var message in input.Messages)
+        {
+            if (message.Role == ChatDownContextMessageRole.System)
+            {
+                if (!string.IsNullOrWhiteSpace(message.Content))
+                {
+                    systemMessages.Add(message.Content);
+                }
+
+                continue;
+            }
+
+            var content = new JsonArray();
+            if (!string.IsNullOrWhiteSpace(message.Content))
+            {
+                content.Add(new JsonObject
+                {
+                    ["type"] = "text",
+                    ["text"] = message.Content
+                });
+            }
+
+            foreach (var attachment in message.Attachments ?? [])
+            {
+                if (!string.IsNullOrWhiteSpace(attachment.Data))
+                {
+                    content.Add(new JsonObject
+                    {
+                        ["type"] = "image",
+                        ["source"] = new JsonObject
+                        {
+                            ["type"] = "base64",
+                            ["media_type"] = attachment.MimeType,
+                            ["data"] = attachment.Data
+                        }
+                    });
+                }
+                else if (!string.IsNullOrWhiteSpace(attachment.Url))
+                {
+                    content.Add(new JsonObject
+                    {
+                        ["type"] = "text",
+                        ["text"] = $"附件链接: {attachment.Url}"
+                    });
+                }
+            }
+
+            messages.Add(new JsonObject
+            {
+                ["role"] = message.Role == ChatDownContextMessageRole.Assistant ? "assistant" : "user",
+                ["content"] = content
+            });
+        }
+
         var json = new JsonObject
         {
-            ["model"] = modelId,
-            ["messages"] = new JsonArray
-            {
-                new JsonObject
-                {
-                    ["role"] = "user",
-                    ["content"] = message
-                }
-            },
-            ["max_tokens"] = 1024,
-            ["stream"] = true
+            ["model"] = input.ModelId,
+            ["messages"] = messages,
+            ["max_tokens"] = input.MaxTokens ?? 1024,
+            ["stream"] = input.Stream
         };
 
+        if (systemMessages.Count > 0)
+        {
+            json["system"] = string.Join("\n\n", systemMessages);
+        }
+
+        var body = json.ToJsonString();
         return new DownRequestContext
         {
             Method = HttpMethod.Post,
             RelativePath = "/v1/messages",
-            ModelId = modelId,
-            RawStream = new MemoryStream(Encoding.UTF8.GetBytes(json.ToJsonString())),
-            Headers = []
+            ModelId = input.ModelId,
+            SessionId = input.SessionId,
+            RawStream = new MemoryStream(Encoding.UTF8.GetBytes(body)),
+            PreloadedBodyPreview = body,
+            Headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["content-type"] = "application/json"
+            }
         };
     }
 

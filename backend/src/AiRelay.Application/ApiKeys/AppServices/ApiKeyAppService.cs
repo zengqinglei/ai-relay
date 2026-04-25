@@ -2,32 +2,40 @@ using AiRelay.Application.ApiKeys.Dtos;
 using AiRelay.Domain.ApiKeys.DomainServices;
 using AiRelay.Domain.ApiKeys.Entities;
 using AiRelay.Domain.ApiKeys.Repositories;
+using AiRelay.Domain.ProviderGroups.Repositories;
+using AiRelay.Domain.Shared.Security.Aes;
+using AiRelay.Domain.Users.Entities;
+using AiRelay.Domain.Users.Specifications;
 using Leistd.Ddd.Application.AppService;
 using Leistd.Ddd.Application.Contracts.Dtos;
+using Leistd.Ddd.Domain.Repositories;
 using Leistd.Exception.Core;
 using Leistd.ObjectMapping.Core;
+using Leistd.Security.Users;
 using Microsoft.Extensions.Logging;
-
-using AiRelay.Domain.Shared.Security.Aes;
 
 namespace AiRelay.Application.ApiKeys.AppServices;
 
 public class ApiKeyAppService(
     ApiKeyDomainService apiKeyDomainService,
     IApiKeyRepository apiKeyRepository,
+    IProviderGroupRepository providerGroupRepository,
+    IRepository<User, Guid> userRepository,
     ILogger<ApiKeyAppService> logger,
     IObjectMapper objectMapper,
-    IAesEncryptionProvider aesEncryptionProvider) : BaseAppService, IApiKeyAppService
+    IAesEncryptionProvider aesEncryptionProvider,
+    ICurrentUser currentUser) : BaseAppService, IApiKeyAppService
 {
     public async Task<ApiKeyOutputDto> CreateAsync(CreateApiKeyInputDto input, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("开始创建 API Key {Name}...", input.Name);
 
         var bindings = input.Bindings?.Select(b => (b.Priority, b.ProviderGroupId)).ToList()
-                       ?? new List<(int, Guid)>();
+                       ?? [];
+        await EnsureBindingsAccessibleAsync(bindings.Select(x => x.ProviderGroupId).ToList(), cancellationToken);
 
-        // 如果 CustomSecret 为空则自动生成，否则使用自定义值
         var apiKey = await apiKeyDomainService.CreateWithKeyAsync(
+            currentUser.Id!.Value,
             input.Name,
             input.Description,
             input.CustomSecret,
@@ -35,11 +43,11 @@ public class ApiKeyAppService(
             bindings,
             cancellationToken);
 
-        // ✅ 统一传递上下文（即使当前统计为空）
         var contextItems = new Dictionary<string, object>();
 
         var result = objectMapper.Map<ApiKey, ApiKeyOutputDto>(apiKey, contextItems);
         result.Secret = DecryptSecret(apiKey.EncryptedSecret);
+        await FillOwnerInfoAsync([result], cancellationToken);
 
         logger.LogInformation("创建 ApiKey 成功 (ID: {Id})", apiKey.Id);
         return result;
@@ -49,14 +57,9 @@ public class ApiKeyAppService(
     {
         logger.LogInformation("开始更新 ApiKey {Id}...", id);
 
-        var apiKey = await apiKeyRepository.GetWithDetailsAsync(id, cancellationToken);
-
-        if (apiKey == null)
-        {
-            throw new UnauthorizedException($"ApiKey 不存在: {id}");
-        }
-
+        var apiKey = RequireAccessibleApiKey(await apiKeyRepository.GetWithDetailsAsync(id, cancellationToken), id);
         var bindings = input.Bindings?.Select(b => (b.Priority, b.ProviderGroupId)).ToList();
+        await EnsureBindingsAccessibleAsync(bindings?.Select(x => x.ProviderGroupId).ToList() ?? [], cancellationToken);
 
         await apiKeyDomainService.UpdateAsync(
             apiKey,
@@ -73,6 +76,8 @@ public class ApiKeyAppService(
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("开始删除 ApiKey {Id}...", id);
+
+        RequireAccessibleApiKey(await apiKeyRepository.GetByIdAsync(id, cancellationToken), id);
         await apiKeyDomainService.DeleteAsync(id, cancellationToken);
         logger.LogInformation("删除 ApiKey 成功 (ID: {Id})", id);
     }
@@ -80,6 +85,8 @@ public class ApiKeyAppService(
     public async Task EnableAsync(Guid id, DateTime? newExpiresAt = null, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("开始启用 ApiKey {Id}...", id);
+
+        RequireAccessibleApiKey(await apiKeyRepository.GetByIdAsync(id, cancellationToken), id);
         await apiKeyDomainService.EnableAsync(id, newExpiresAt, cancellationToken);
         logger.LogInformation("启用 ApiKey 成功 (ID: {Id})", id);
     }
@@ -87,25 +94,20 @@ public class ApiKeyAppService(
     public async Task DisableAsync(Guid id, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("开始禁用 ApiKey {Id}...", id);
+
+        RequireAccessibleApiKey(await apiKeyRepository.GetByIdAsync(id, cancellationToken), id);
         await apiKeyDomainService.DisableAsync(id, cancellationToken);
         logger.LogInformation("禁用 ApiKey 成功 (ID: {Id})", id);
     }
 
     public async Task<ApiKeyOutputDto> GetAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var apiKey = await apiKeyRepository.GetWithDetailsAsync(id, cancellationToken);
-
-        if (apiKey == null)
-        {
-            throw new UnauthorizedException($"API Key 不存在: {id}");
-        }
-
-        // 预取统计数据 (避免 Resolver 中的 Sync-over-Async)
+        var apiKey = RequireAccessibleApiKey(await apiKeyRepository.GetWithDetailsAsync(id, cancellationToken), id);
         var contextItems = new Dictionary<string, object>();
 
-        // 映射 (传递统计数据)
         var result = objectMapper.Map<ApiKey, ApiKeyOutputDto>(apiKey, contextItems);
         result.Secret = DecryptSecret(apiKey.EncryptedSecret);
+        await FillOwnerInfoAsync([result], cancellationToken);
         return result;
     }
 
@@ -117,6 +119,7 @@ public class ApiKeyAppService(
             input.Offset,
             input.Limit,
             input.Sorting,
+            UserScopeSpecifications.ResolveScopedUserId(currentUser, input.OnlyCurrentUser),
             cancellationToken);
 
         if (apiKeys.Count == 0)
@@ -124,19 +127,16 @@ public class ApiKeyAppService(
             return new PagedResultDto<ApiKeyOutputDto>(totalCount, []);
         }
 
-        // 映射
         var results = objectMapper.Map<List<ApiKey>, List<ApiKeyOutputDto>>(apiKeys);
-        for (int i = 0; i < apiKeys.Count; i++)
+        for (var i = 0; i < apiKeys.Count; i++)
         {
             results[i].Secret = DecryptSecret(apiKeys[i].EncryptedSecret);
         }
 
+        await FillOwnerInfoAsync(results, cancellationToken);
         return new PagedResultDto<ApiKeyOutputDto>(totalCount, results);
     }
 
-    /// <summary>
-    /// 验证 API Key
-    /// </summary>
     public async Task<ApiKeyValidationResult> ValidateAsync(string plainKey, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(plainKey))
@@ -163,6 +163,61 @@ public class ApiKeyAppService(
         {
             logger.LogError(ex, "解密 API Key 失败");
             return "***DECRYPT_ERROR***";
+        }
+    }
+
+    private ApiKey RequireAccessibleApiKey(ApiKey? apiKey, Guid id)
+    {
+        if (apiKey == null)
+        {
+            throw new UnauthorizedException($"ApiKey 不存在: {id}");
+        }
+
+        if (apiKey.UserId != currentUser.Id!.Value && !UserScopeSpecifications.IsAdmin(currentUser))
+        {
+            throw new UnauthorizedException($"ApiKey 不存在: {id}");
+        }
+
+        return apiKey;
+    }
+
+    private async Task FillOwnerInfoAsync(List<ApiKeyOutputDto> items, CancellationToken cancellationToken)
+    {
+        if (items.Count == 0)
+        {
+            return;
+        }
+
+        var userIds = items.Select(x => x.UserId).Distinct().ToList();
+        var users = await userRepository.GetListAsync(x => userIds.Contains(x.Id), cancellationToken);
+        var userLookup = users.ToDictionary(x => x.Id);
+
+        foreach (var item in items)
+        {
+            if (!userLookup.TryGetValue(item.UserId, out var user))
+            {
+                continue;
+            }
+
+            item.Username = user.Username;
+            item.Email = user.Email;
+        }
+    }
+
+    private async Task EnsureBindingsAccessibleAsync(IReadOnlyCollection<Guid> providerGroupIds, CancellationToken cancellationToken)
+    {
+        if (providerGroupIds.Count == 0)
+        {
+            return;
+        }
+
+        var visibleGroupIds = (await providerGroupRepository.GetVisibleGroupsAsync(currentUser.Id!.Value, cancellationToken))
+            .Select(x => x.Id)
+            .ToHashSet();
+        var invalidIds = providerGroupIds.Where(x => !visibleGroupIds.Contains(x)).Distinct().ToList();
+        if (invalidIds.Count > 0)
+        {
+            throw new UnauthorizedException($"分组不可访问: {string.Join(", ", invalidIds)}");
         }
     }
 }

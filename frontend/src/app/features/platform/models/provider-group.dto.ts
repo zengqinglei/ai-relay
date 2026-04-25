@@ -6,7 +6,11 @@ export interface ProviderGroupOutputDto {
   id: string;
   name: string;
   description?: string;
+  assignedUserIds?: string[];
+  assignedUsernames?: string[];
   isDefault?: boolean;
+  isPublic: boolean;
+  scopeType: 'Public' | 'Private' | string;
   enableStickySession: boolean;
   stickySessionExpirationHours: number;
   rateMultiplier: number;
@@ -18,6 +22,7 @@ export interface ProviderGroupOutputDto {
 export interface CreateProviderGroupInputDto {
   name: string;
   description?: string;
+  assignedUserIds?: string[];
   enableStickySession: boolean;
   stickySessionExpirationHours: number;
   rateMultiplier: number;
@@ -26,6 +31,7 @@ export interface CreateProviderGroupInputDto {
 export interface UpdateProviderGroupInputDto {
   name: string;
   description?: string;
+  assignedUserIds?: string[];
   enableStickySession: boolean;
   stickySessionExpirationHours: number;
   rateMultiplier: number;
@@ -34,4 +40,7 @@ export interface UpdateProviderGroupInputDto {
 export interface GetProviderGroupsInputDto extends PagedRequestDto {
   keyword?: string;
   provider?: Provider;
+  assignedUserId?: string;
+  isPublic?: boolean;
+  onlyCurrentUserVisible?: boolean;
 }

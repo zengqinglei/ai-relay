@@ -2,6 +2,8 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { Subject } from 'rxjs';
+import { debounceTime, finalize } from 'rxjs/operators';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
 import { IconFieldModule } from 'primeng/iconfield';
@@ -12,25 +14,27 @@ import { SelectModule } from 'primeng/select';
 import { TableLazyLoadEvent, TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
-import { AuthMethod } from '../../../../shared/models/auth-method.enum';
-import { Subject } from 'rxjs';
-import { debounceTime, finalize } from 'rxjs/operators';
 
-import { UsageRecordDetailDialog } from './usage-record-detail-dialog';
 import { LayoutService } from '../../../../layout/services/layout-service';
 import { PROVIDER_OPTIONS } from '../../../../shared/constants/provider.constants';
+import { AuthMethod } from '../../../../shared/models/auth-method.enum';
 import { PagedResultDto } from '../../../../shared/models/paged-result.dto';
 import { Provider } from '../../../../shared/models/provider.enum';
 import { UsageStatus } from '../../../../shared/models/usage-status.enum';
 import { HttpStatusSeverityPipe } from '../../../../shared/pipes/http-status-severity.pipe';
+import { AuthMethodLabelPipe } from '../../../../shared/pipes/auth-method-label.pipe';
+import { ProviderLabelPipe } from '../../../../shared/pipes/platform-label-pipe';
+import { UsageSourceLabelPipe } from '../../../../shared/pipes/usage-source-label.pipe';
+import { UserScopeFilterComponent } from '../../../../shared/components/user-scope-filter/user-scope-filter';
 import { FilterStateService } from '../../../../shared/services/filter-state.service';
 import { formatDuration, formatTokenCount } from '../../../../shared/utils/format.utils';
 import { ProviderGroupOutputDto } from '../../models/provider-group.dto';
 import { UsageRecordOutputDto, UsageRecordPagedInputDto } from '../../models/usage.dto';
 import { ProviderGroupService } from '../../services/provider-group-service';
 import { UsageRecordService } from '../../services/usage-record-service';
-import { ProviderLabelPipe } from '../../../../shared/pipes/platform-label-pipe';
-import { AuthMethodLabelPipe } from '../../../../shared/pipes/auth-method-label.pipe';
+import { UsageRecordDetailDialog } from './usage-record-detail-dialog';
+
+type UserScope = 'all' | 'mine';
 
 @Component({
   selector: 'app-usage-records',
@@ -51,7 +55,9 @@ import { AuthMethodLabelPipe } from '../../../../shared/pipes/auth-method-label.
     UsageRecordDetailDialog,
     HttpStatusSeverityPipe,
     ProviderLabelPipe,
-    AuthMethodLabelPipe
+    AuthMethodLabelPipe,
+    UsageSourceLabelPipe,
+    UserScopeFilterComponent
   ],
   templateUrl: './usage-records.html',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -66,12 +72,10 @@ export class UsageRecords implements OnInit {
 
   private readonly FILTER_KEY = 'usage-records';
 
-  // Data Signals
   records = signal<UsageRecordOutputDto[]>([]);
   totalRecords = signal<number>(0);
   loading = signal<boolean>(false);
 
-  // Filter Options
   groups = signal<ProviderGroupOutputDto[]>([]);
 
   providers = Object.values(PROVIDER_OPTIONS).map(p => ({
@@ -84,21 +88,24 @@ export class UsageRecords implements OnInit {
     { label: 'API Key', value: AuthMethod.ApiKey }
   ];
 
-  // Filters
+  userScopeOptions: Array<{ label: string; value: UserScope }> = [
+    { label: '所有用户', value: 'all' },
+    { label: '当前用户', value: 'mine' }
+  ];
+
   filterKeyword = signal<string>('');
   filterProviderGroupId = signal<string | null>(null);
   filterProvider = signal<Provider | null>(null);
   filterAuthMethod = signal<AuthMethod | null>(null);
   filterStartTime = signal<Date | null>(null);
   filterEndTime = signal<Date | null>(null);
+  userScope = signal<UserScope>('all');
 
-  // Pagination & Sorting
   first = signal<number>(0);
   rows = signal<number>(10);
   sortField = signal<string>('creationTime');
-  sortOrder = signal<number>(-1); // -1 for desc, 1 for asc
+  sortOrder = signal<number>(-1);
 
-  // Detail Dialog
   detailDialogVisible = signal<boolean>(false);
   selectedRecord = signal<UsageRecordOutputDto | null>(null);
 
@@ -106,9 +113,10 @@ export class UsageRecords implements OnInit {
     this.layoutService.title.set('使用记录');
     this.loadFilterOptions();
 
-    const saved = this.filterStateService.load<{ provider: Provider | null; providerGroupId: string | null }>(this.FILTER_KEY);
+    const saved = this.filterStateService.load<{ provider: Provider | null; providerGroupId: string | null; userScope: UserScope }>(this.FILTER_KEY);
     if (saved.provider !== undefined) this.filterProvider.set(saved.provider ?? null);
     if (saved.providerGroupId !== undefined) this.filterProviderGroupId.set(saved.providerGroupId ?? null);
+    if (saved.userScope) this.userScope.set(saved.userScope);
 
     this.textFilterSubject.pipe(debounceTime(300), takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.first.set(0);
@@ -120,11 +128,21 @@ export class UsageRecords implements OnInit {
     this.textFilterSubject.next();
   }
 
+  setUserScope(scope: string) {
+    if (scope !== 'all' && scope !== 'mine') {
+      return;
+    }
+
+    if (this.userScope() === scope) {
+      return;
+    }
+
+    this.userScope.set(scope);
+    this.onSelectFilterChange();
+  }
+
   onSelectFilterChange() {
-    this.filterStateService.save(this.FILTER_KEY, {
-      provider: this.filterProvider(),
-      providerGroupId: this.filterProviderGroupId()
-    });
+    this.persistFilterState();
     this.first.set(0);
     this.loadData();
   }
@@ -147,7 +165,8 @@ export class UsageRecords implements OnInit {
       provider: this.filterProvider() || undefined,
       authMethod: this.filterAuthMethod() ?? undefined,
       startTime: this.filterStartTime() ? this.filterStartTime()!.toISOString() : undefined,
-      endTime: this.filterEndTime() ? this.filterEndTime()!.toISOString() : undefined
+      endTime: this.filterEndTime() ? this.filterEndTime()!.toISOString() : undefined,
+      onlyCurrentUser: this.userScope() === 'mine'
     };
 
     this.usageRecordService
@@ -178,10 +197,9 @@ export class UsageRecords implements OnInit {
     this.filterAuthMethod.set(null);
     this.filterStartTime.set(null);
     this.filterEndTime.set(null);
-
-    // Reset pagination
+    this.userScope.set('all');
     this.first.set(0);
-
+    this.persistFilterState();
     this.loadData();
   }
 
@@ -189,15 +207,11 @@ export class UsageRecords implements OnInit {
     const end = new Date();
     const start = new Date();
 
-    // Reset hours to start of day for start date, end of day for end date?
-    // Usually quick select sets full days.
     end.setHours(23, 59, 59, 999);
     start.setHours(0, 0, 0, 0);
 
-    if (range === 'today') {
-      // Start is already today 00:00
-    } else if (range === 'week') {
-      start.setDate(start.getDate() - 6); // Last 7 days including today
+    if (range === 'week') {
+      start.setDate(start.getDate() - 6);
     } else if (range === 'month') {
       start.setMonth(start.getMonth() - 1);
     }
@@ -212,11 +226,18 @@ export class UsageRecords implements OnInit {
     this.detailDialogVisible.set(true);
   }
 
+  private persistFilterState() {
+    this.filterStateService.save(this.FILTER_KEY, {
+      provider: this.filterProvider(),
+      providerGroupId: this.filterProviderGroupId(),
+      userScope: this.userScope()
+    });
+  }
+
   private getSorting(): string {
     let field = this.sortField();
     const order = this.sortOrder() === 1 ? 'asc' : 'desc';
 
-    // Handle special sorting fields mapping
     if (field === 'token') {
       field = 'InputTokens + OutputTokens';
     }
@@ -254,30 +275,25 @@ export class UsageRecords implements OnInit {
     return record.upStatusCode?.toString() || '...';
   }
 
-  /**
-   * 判断是否显示失败详情图标
-   */
   shouldShowFailureDetail(record: UsageRecordOutputDto): boolean {
     return record.status === UsageStatus.Failed && !!record.statusDescription;
   }
 
-  /**
-   * 格式化 Token 数量（K, M, B）
-   */
-  formatTokenCount(num: number | null | undefined): string {
-    return formatTokenCount(num || 0);
-  }
+  formatTokenCount = formatTokenCount;
+  formatDuration = formatDuration;
 
-  formatDuration(ms: number | undefined | null): string {
-    return formatDuration(ms);
-  }
-
-  /**
-   * 获取模型显示文本
-   */
   getModelDisplay(record: UsageRecordOutputDto): string {
     const down = record.downModelId || 'N/A';
     const up = record.upModelId || 'N/A';
     return down === up ? down : `${down} → ${up}`;
   }
+
+  getUpstreamSummary(record: UsageRecordOutputDto): string {
+    return `分组: ${record.providerGroupName || '无'} | 模型: ${this.getModelDisplay(record)}`;
+  }
 }
+
+
+
+
+

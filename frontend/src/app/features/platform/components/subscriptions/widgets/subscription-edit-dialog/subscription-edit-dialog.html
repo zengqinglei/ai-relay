@@ -12,9 +12,7 @@
   [closeOnEscape]="!saving"
   (onHide)="onHide()">
   @if (loading) {
-    <div class="flex h-64 items-center justify-center">
-      <p-progressSpinner ariaLabel="loading" />
-    </div>
+    <app-dialog-loading text="正在加载订阅信息..." />
   } @else if (formModel()) {
     <div class="flex flex-col gap-6">
       <div class="flex flex-col gap-4">

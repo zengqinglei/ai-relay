@@ -1,6 +1,7 @@
 using AiRelay.Application.UsageRecords.AppServices;
 using AiRelay.Application.UsageRecords.Dtos.Lifecycle;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
+using AiRelay.Domain.UsageRecords.ValueObjects;
 using System.Threading.Channels;
 
 namespace AiRelay.Api.HostedServices.Workers;
@@ -8,9 +9,9 @@ namespace AiRelay.Api.HostedServices.Workers;
 /// <summary>
 /// 账户使用记录后台服务（使用 Channel 实现生产者-消费者模式）
 /// </summary>
-public class AccountUsageRecordHostedService(
+public class AccountUsageRecordWorker(
     IServiceProvider serviceProvider,
-    ILogger<AccountUsageRecordHostedService> logger) : BackgroundService
+    ILogger<AccountUsageRecordWorker> logger) : BackgroundService
 {
     private readonly Channel<IUsageRecordItem> _channel = Channel.CreateUnbounded<IUsageRecordItem>(
         new UnboundedChannelOptions
@@ -45,6 +46,8 @@ public class AccountUsageRecordHostedService(
                         await usageLifecycleAppService.StartUsageAsync(
                             new StartUsageInputDto(
                                 start.UsageRecordId,
+                                start.UserId,
+                                start.Source,
                                 start.CorrelationId,
                                 start.SessionId,
                                 start.ApiKeyId,
@@ -56,12 +59,11 @@ public class AccountUsageRecordHostedService(
                                 start.DownClientIp,
                                 start.DownUserAgent,
                                 start.DownRequestHeaders,
-                                start.DownRequestBody
-                            ));
+                                start.DownRequestBody));
                         break;
 
                     case UsageRecordAttemptStartItem attemptStart:
-                        logger.LogDebug("接收到 UsageRecordAttemptStartItem: UsageRecordId={UsageRecordId}, Attempt={Attempt}", 
+                        logger.LogDebug("接收到 UsageRecordAttemptStartItem: UsageRecordId={UsageRecordId}, Attempt={Attempt}",
                             attemptStart.UsageRecordId, attemptStart.AttemptNumber);
                         await usageLifecycleAppService.StartAttemptAsync(
                             new StartAttemptInputDto(
@@ -78,12 +80,11 @@ public class AccountUsageRecordHostedService(
                                 attemptStart.UpUserAgent,
                                 attemptStart.UpRequestUrl,
                                 attemptStart.UpRequestHeaders,
-                                attemptStart.UpRequestBody
-                            ));
+                                attemptStart.UpRequestBody));
                         break;
 
                     case UsageRecordAttemptEndItem attemptEnd:
-                        logger.LogDebug("接收到 UsageRecordAttemptEndItem: UsageRecordId={UsageRecordId}, Attempt={Attempt}, Status={Status}", 
+                        logger.LogDebug("接收到 UsageRecordAttemptEndItem: UsageRecordId={UsageRecordId}, Attempt={Attempt}, Status={Status}",
                             attemptEnd.UsageRecordId, attemptEnd.AttemptNumber, attemptEnd.Status);
                         await usageLifecycleAppService.CompleteAttemptAsync(
                             new CompleteAttemptInputDto(
@@ -95,12 +96,11 @@ public class AccountUsageRecordHostedService(
                                 attemptEnd.StatusDescription,
                                 attemptEnd.UpResponseBody,
                                 attemptEnd.UpRequestHeaders,
-                                attemptEnd.UpRequestBody
-                            ));
+                                attemptEnd.UpRequestBody));
                         break;
 
                     case UsageRecordEndItem end:
-                        logger.LogDebug("接收到 UsageRecordEndItem: UsageRecordId={UsageRecordId}, FinalStatus={Status}, AttemptCount={Count}", 
+                        logger.LogDebug("接收到 UsageRecordEndItem: UsageRecordId={UsageRecordId}, FinalStatus={Status}, AttemptCount={Count}",
                             end.UsageRecordId, end.Status, end.AttemptCount);
                         await usageLifecycleAppService.FinishUsageAsync(
                             new FinishUsageInputDto(
@@ -116,8 +116,7 @@ public class AccountUsageRecordHostedService(
                                 end.AttemptCount,
                                 end.DownStatusCode,
                                 end.DownRequestHeaders,
-                                end.DownRequestBody
-                            ));
+                                end.DownRequestBody));
                         break;
 
                     default:
@@ -131,6 +130,7 @@ public class AccountUsageRecordHostedService(
                     item.UsageRecordId, item.GetType().Name, ex.Message);
             }
         }
+
         logger.LogInformation("账户使用记录后台服务已停止");
     }
 }
@@ -148,10 +148,12 @@ public interface IUsageRecordItem
 /// </summary>
 public record UsageRecordStartItem(
     Guid UsageRecordId,
+    Guid UserId,
+    UsageSource Source,
     string CorrelationId,
     string? SessionId,
-    Guid ApiKeyId,
-    string ApiKeyName,
+    Guid? ApiKeyId,
+    string? ApiKeyName,
     bool IsStreaming,
     string DownRequestMethod,
     string DownRequestUrl,
@@ -215,3 +217,4 @@ public record UsageRecordEndItem(
     string? DownRequestHeaders = null,
     string? DownRequestBody = null
 ) : IUsageRecordItem;
+

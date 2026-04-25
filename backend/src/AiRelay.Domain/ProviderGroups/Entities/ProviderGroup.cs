@@ -22,6 +22,7 @@ public class ProviderGroup : FullAuditedEntity<Guid>
 
     // 导航属性
     public virtual ICollection<ProviderGroupAccountRelation> Relations { get; private set; } = new List<ProviderGroupAccountRelation>();
+    public virtual ICollection<ProviderGroupAssignedUser> AssignedUsers { get; private set; } = new List<ProviderGroupAssignedUser>();
 
     /// <summary>
     /// ApiKey 绑定关系 (反向导航)
@@ -33,6 +34,7 @@ public class ProviderGroup : FullAuditedEntity<Guid>
     public ProviderGroup(
         string name,
         string? description,
+        IEnumerable<Guid>? assignedUserIds = null,
         bool isDefault = false,
         bool enableStickySession = false,
         int stickySessionExpirationHours = 1,
@@ -45,13 +47,15 @@ public class ProviderGroup : FullAuditedEntity<Guid>
         EnableStickySession = enableStickySession;
         StickySessionExpirationHours = stickySessionExpirationHours;
         RateMultiplier = rateMultiplier;
+        ReplaceAssignedUsers(assignedUserIds);
     }
 
-    public void Update(string name, string? description, decimal rateMultiplier)
+    public void Update(string name, string? description, IEnumerable<Guid>? assignedUserIds, decimal rateMultiplier)
     {
         Name = name;
         Description = description;
         RateMultiplier = rateMultiplier;
+        ReplaceAssignedUsers(assignedUserIds);
     }
 
     public void UpdateStickySession(bool enable, int expirationHours = 1)
@@ -67,5 +71,29 @@ public class ProviderGroup : FullAuditedEntity<Guid>
     {
         IsDefault = true;
         Name = name;
+        AssignedUsers.Clear();
+    }
+
+    public bool IsAssignedTo(Guid userId)
+    {
+        return AssignedUsers.Any(x => x.UserId == userId);
+    }
+
+    public bool IsPublic()
+    {
+        return AssignedUsers.Count == 0;
+    }
+
+    private void ReplaceAssignedUsers(IEnumerable<Guid>? assignedUserIds)
+    {
+        AssignedUsers.Clear();
+
+        foreach (var userId in assignedUserIds?
+                     .Where(x => x != Guid.Empty)
+                     .Distinct()
+                 ?? [])
+        {
+            AssignedUsers.Add(new ProviderGroupAssignedUser(Id, userId));
+        }
     }
 }

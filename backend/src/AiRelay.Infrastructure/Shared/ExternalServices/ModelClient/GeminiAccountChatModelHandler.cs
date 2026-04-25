@@ -192,28 +192,87 @@ public class GeminiAccountChatModelHandler(
 
         return upstreamModels.Select(m => new ModelOption(m!, m!)).ToList();
     }
-
-    public override DownRequestContext CreateDebugDownContext(string modelId, string message)
+    public override DownRequestContext CreateChatDownContext(ChatDownContextInput input)
     {
         var json = new JsonObject
         {
-            ["contents"] = new JsonArray
-            {
-                new JsonObject
-                {
-                    ["role"] = "user",
-                    ["parts"] = new JsonArray { new JsonObject { ["text"] = message } }
-                }
-            }
+            ["contents"] = new JsonArray(
+                input.Messages
+                    .Where(message => message.Role != ChatDownContextMessageRole.System)
+                    .Select(message => (JsonNode)BuildGoogleMessage(message))
+                    .ToArray())
         };
+
+        var systemMessages = input.Messages
+            .Where(message => message.Role == ChatDownContextMessageRole.System && !string.IsNullOrWhiteSpace(message.Content))
+            .Select(message => message.Content!.Trim())
+            .ToList();
+
+        if (systemMessages.Count > 0)
+        {
+            json["systemInstruction"] = new JsonObject
+            {
+                ["parts"] = new JsonArray(
+                    systemMessages.Select(text => (JsonNode)new JsonObject { ["text"] = text }).ToArray())
+            };
+        }
+
+        var body = json.ToJsonString();
 
         return new DownRequestContext
         {
             Method = HttpMethod.Post,
             RelativePath = "/v1internal:streamGenerateContent",
             QueryString = "?alt=sse",
-            ModelId = modelId,
-            RawStream = new MemoryStream(Encoding.UTF8.GetBytes(json.ToJsonString()))
+            ModelId = input.ModelId,
+            SessionId = input.SessionId,
+            Headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["content-type"] = "application/json"
+            },
+            RawStream = new MemoryStream(Encoding.UTF8.GetBytes(body)),
+            PreloadedBodyPreview = body
+        };
+    }
+
+    private static JsonObject BuildGoogleMessage(ChatDownContextMessageInput message)
+    {
+        var parts = new JsonArray();
+        if (!string.IsNullOrWhiteSpace(message.Content))
+        {
+            parts.Add(new JsonObject { ["text"] = message.Content });
+        }
+
+        foreach (var attachment in message.Attachments ?? [])
+        {
+            if (!string.IsNullOrWhiteSpace(attachment.Data))
+            {
+                parts.Add(new JsonObject
+                {
+                    ["inlineData"] = new JsonObject
+                    {
+                        ["mimeType"] = attachment.MimeType,
+                        ["data"] = attachment.Data
+                    }
+                });
+            }
+            else if (!string.IsNullOrWhiteSpace(attachment.Url))
+            {
+                parts.Add(new JsonObject
+                {
+                    ["fileData"] = new JsonObject
+                    {
+                        ["mimeType"] = attachment.MimeType,
+                        ["fileUri"] = attachment.Url
+                    }
+                });
+            }
+        }
+
+        return new JsonObject
+        {
+            ["role"] = message.Role == ChatDownContextMessageRole.Assistant ? "model" : "user",
+            ["parts"] = parts
         };
     }
 }

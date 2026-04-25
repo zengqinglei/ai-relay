@@ -204,6 +204,16 @@ public class RedisConcurrencyStrategy(IConnectionMultiplexer connectionMultiplex
         return value.HasValue ? (int)value : 0;
     }
 
+    public async Task ClearAsync(Guid accountTokenId, CancellationToken cancellationToken = default)
+    {
+        var slotKey = GetAccountKey(accountTokenId);
+        var waitKey = GetWaitKey(accountTokenId);
+
+        await Task.WhenAll(
+            _database.KeyDeleteAsync((RedisKey)slotKey),
+            _database.KeyDeleteAsync((RedisKey)waitKey));
+    }
+
     public async Task<bool> WaitForSlotAsync(
         Guid accountTokenId,
         Guid requestId,
@@ -243,3 +253,5 @@ public class RedisConcurrencyStrategy(IConnectionMultiplexer connectionMultiplex
     private static string GetAccountKey(Guid accountTokenId) => $"{AccountSlotKeyPrefix}{accountTokenId}";
     private static string GetWaitKey(Guid accountTokenId) => $"{AccountWaitKeyPrefix}{accountTokenId}";
 }
+
+

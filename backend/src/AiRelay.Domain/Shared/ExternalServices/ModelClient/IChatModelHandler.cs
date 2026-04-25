@@ -1,6 +1,6 @@
-using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Context;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
+using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.Shared.ExternalServices.ModelProvider.Dto;
 
 namespace AiRelay.Domain.Shared.ExternalServices.ModelClient;
@@ -50,9 +50,9 @@ public interface IChatModelHandler
         string? responseBody);
 
     /// <summary>
-    /// 创建测试上下文
+    /// 创建统一聊天下游上下文
     /// </summary>
-    DownRequestContext CreateDebugDownContext(string modelId, string message);
+    DownRequestContext CreateChatDownContext(ChatDownContextInput input);
 
     /// <summary>
     /// 验证连接有效性

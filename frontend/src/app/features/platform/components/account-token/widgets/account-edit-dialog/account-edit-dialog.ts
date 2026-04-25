@@ -43,6 +43,7 @@ import {
 import { ProviderGroupOutputDto } from '../../../../models/provider-group.dto';
 import { AccountTokenService } from '../../../../services/account-token-service';
 import { ProviderGroupService } from '../../../../services/provider-group-service';
+import { DialogLoadingComponent } from '../../../../../../shared/components/dialog-loading/dialog-loading';
 
 @Component({
   selector: 'app-account-edit-dialog',
@@ -62,7 +63,8 @@ import { ProviderGroupService } from '../../../../services/provider-group-servic
     PanelModule,
     SelectButtonModule,
     ToggleSwitchModule,
-    TagModule
+    TagModule,
+    DialogLoadingComponent
   ],
   templateUrl: './account-edit-dialog.html',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -98,6 +100,7 @@ export class AccountEditDialogComponent implements OnChanges {
   allProviderGroups = signal<ProviderGroupOutputDto[]>([]);
   filteredProviderGroups = signal<ProviderGroupOutputDto[]>([]);
   selectedProviderGroups = signal<ProviderGroupOutputDto[]>([]);
+  dialogLoading = signal(false);
 
   providerOptions = PROVIDER_OPTIONS;
   authMethodOptions = AUTH_METHOD_OPTIONS;
@@ -189,11 +192,19 @@ export class AccountEditDialogComponent implements OnChanges {
   }
 
   private loadProviderGroups() {
-    this.providerGroupService.getAll().subscribe(groups => {
-      this.allProviderGroups.set(groups);
-      this.syncSelectedProviderGroups();
-      this.cdr.markForCheck();
-    });
+    this.dialogLoading.set(true);
+    this.providerGroupService
+      .getAll()
+      .pipe(
+        finalize(() => {
+          this.dialogLoading.set(false);
+          this.cdr.markForCheck();
+        })
+      )
+      .subscribe(groups => {
+        this.allProviderGroups.set(groups);
+        this.syncSelectedProviderGroups();
+      });
   }
 
   initForm() {
