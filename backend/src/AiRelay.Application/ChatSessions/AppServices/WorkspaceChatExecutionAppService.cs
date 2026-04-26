@@ -32,7 +32,7 @@ public class WorkspaceChatExecutionAppService(
     IProviderGroupAccountRelationRepository relationRepository,
     ProviderGroupDomainService providerGroupDomainService,
     AccountTokenDomainService accountTokenDomainService,
-    IModelRouteAppService smartProxyAppService,
+    IModelRouteAppService modelRouteAppService,
     IChatModelHandlerFactory chatModelHandlerFactory,
     IConcurrencyStrategy concurrencyStrategy,
     AccountFingerprintAppService fingerprintAppService,
@@ -164,7 +164,7 @@ public class WorkspaceChatExecutionAppService(
             throw new UnauthorizedException($"{account.Provider} 账户 '{account.Name}' 的凭证为空");
         }
 
-        if (await smartProxyAppService.IsRateLimitedAsync(account.Id, cancellationToken))
+        if (await modelRouteAppService.IsRateLimitedAsync(account.Id, cancellationToken))
         {
             throw new ServiceUnavailableException($"账号 {account.Name} 当前处于限流状态，请稍后重试");
         }
@@ -234,7 +234,7 @@ public class WorkspaceChatExecutionAppService(
 
                 if (retryPolicy.RetryType != RetryType.UnsupportedEndpoint)
                 {
-                    await smartProxyAppService.HandleFailureAsync(
+                    await modelRouteAppService.HandleFailureAsync(
                         new HandleFailureInputDto(
                             account.Id,
                             proxyResponse.StatusCode,
@@ -252,7 +252,7 @@ public class WorkspaceChatExecutionAppService(
             var healthCheckPassed = !account.IsCheckStreamHealth;
             if (healthCheckPassed)
             {
-                await smartProxyAppService.HandleSuccessAsync(account.Id, upModelId, cancellationToken);
+                await modelRouteAppService.HandleSuccessAsync(account.Id, upModelId, cancellationToken);
             }
 
             await foreach (var evt in proxyResponse.Events!.WithCancellation(cancellationToken))
@@ -282,7 +282,7 @@ public class WorkspaceChatExecutionAppService(
                     if (evt.HasOutput)
                     {
                         healthCheckPassed = true;
-                        await smartProxyAppService.HandleSuccessAsync(account.Id, upModelId, cancellationToken);
+                        await modelRouteAppService.HandleSuccessAsync(account.Id, upModelId, cancellationToken);
                     }
                 }
 

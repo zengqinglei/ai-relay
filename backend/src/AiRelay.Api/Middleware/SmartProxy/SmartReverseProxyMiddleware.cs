@@ -23,7 +23,7 @@ using AiRelay.Application.ModelRoutes.Dtos;
 namespace AiRelay.Api.Middleware.SmartProxy;
 
 public class SmartReverseProxyMiddleware(
-    IModelRouteAppService smartProxyAppService,
+    IModelRouteAppService modelRouteAppService,
     IChatModelHandlerFactory chatModelHandlerFactory,
     ProxyErrorFormatterFactory errorFormatterFactory,
     AccountUsageRecordWorker usageRecordWorker,
@@ -95,7 +95,7 @@ public class SmartReverseProxyMiddleware(
                     throw new ServiceUnavailableException($"已尝试 {MaxAccountSwitches} 个账号，均不可用");
 
                 // ── 1. 选号 ──
-                var selectResult = await smartProxyAppService.SelectAccountAsync(
+                var selectResult = await modelRouteAppService.SelectAccountAsync(
                     new SelectProxyAccountInputDto
                     {
                         ApiKeyId = apiKeyId,
@@ -128,7 +128,7 @@ public class SmartReverseProxyMiddleware(
                 while (!shouldSwitchAccount)
                 {
                     // 并发熔断感知
-                    if (await smartProxyAppService.IsRateLimitedAsync(selectResult.AccountToken.Id, context.RequestAborted))
+                    if (await modelRouteAppService.IsRateLimitedAsync(selectResult.AccountToken.Id, context.RequestAborted))
                     {
                         shouldSwitchAccount = true;
                         logger.LogDebug("账号 {AccountName} 已被并发请求触发熔断，跳过重试直接切换账号", selectResult.AccountToken.Name);
@@ -295,7 +295,7 @@ public class SmartReverseProxyMiddleware(
                                     break;
 
                                 case FailureInstruction.SwitchAccount:
-                                    await smartProxyAppService.HandleFailureAsync(
+                                    await modelRouteAppService.HandleFailureAsync(
                                         new HandleFailureInputDto(
                                             selectResult.AccountToken.Id,
                                             httpStatusCode!.Value,
@@ -312,7 +312,7 @@ public class SmartReverseProxyMiddleware(
                                 case FailureInstruction.Fail:
                                     if (retryPolicy.RetryType != RetryType.UnsupportedEndpoint)
                                     {
-                                        await smartProxyAppService.HandleFailureAsync(
+                                        await modelRouteAppService.HandleFailureAsync(
                                             new HandleFailureInputDto(
                                                 selectResult.AccountToken.Id,
                                                 httpStatusCode!.Value,
@@ -532,7 +532,7 @@ public class SmartReverseProxyMiddleware(
         if (!isCheckStreamHealth)
         {
             // 未开启健康检查，立即放行，发送响应头
-            await smartProxyAppService.HandleSuccessAsync(accountTokenId, upModelId, ct);
+            await modelRouteAppService.HandleSuccessAsync(accountTokenId, upModelId, ct);
             WriteResponseHeaders(context, proxyResponse.StatusCode, proxyResponse.Headers);
             headersWritten = true;
         }
@@ -559,7 +559,7 @@ public class SmartReverseProxyMiddleware(
                     if (evt.HasOutput)
                     {
                         // 实际输出产生，解除缓冲，放行响应
-                        await smartProxyAppService.HandleSuccessAsync(accountTokenId, upModelId, ct);
+                        await modelRouteAppService.HandleSuccessAsync(accountTokenId, upModelId, ct);
                         WriteResponseHeaders(context, proxyResponse.StatusCode, proxyResponse.Headers);
                         headersWritten = true;
 
