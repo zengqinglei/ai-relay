@@ -1,10 +1,8 @@
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
+using AiRelay.Application.ModelRoutes;
+using AiRelay.Application.ModelRoutes.Dtos;
 using AiRelay.Application.ProviderAccounts.AppServices;
-using AiRelay.Application.ProviderGroups.AppServices;
-using AiRelay.Application.ProviderGroups.Dtos;
 using AiRelay.Application.UsageRecords.AppServices;
 using AiRelay.Application.UsageRecords.Dtos.Lifecycle;
 using AiRelay.Domain.ChatSessions.Entities;
@@ -19,7 +17,6 @@ using AiRelay.Domain.ProviderGroups.Repositories;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Context;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
-using AiRelay.Domain.UsageRecords.Entities;
 using AiRelay.Domain.UsageRecords.ValueObjects;
 using Leistd.Ddd.Application.AppService;
 using Leistd.Exception.Core;
@@ -35,7 +32,7 @@ public class WorkspaceChatExecutionAppService(
     IProviderGroupAccountRelationRepository relationRepository,
     ProviderGroupDomainService providerGroupDomainService,
     AccountTokenDomainService accountTokenDomainService,
-    ISmartProxyAppService smartProxyAppService,
+    IModelRouteAppService smartProxyAppService,
     IChatModelHandlerFactory chatModelHandlerFactory,
     IConcurrencyStrategy concurrencyStrategy,
     AccountFingerprintAppService fingerprintAppService,

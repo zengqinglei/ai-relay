@@ -1,4 +1,4 @@
-namespace AiRelay.Application.ProviderGroups.Dtos;
+namespace AiRelay.Application.ModelRoutes.Dtos;
 
 /// <summary>
 /// 等待计划

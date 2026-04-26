@@ -1,7 +1,7 @@
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using System.ComponentModel.DataAnnotations;
 
-namespace AiRelay.Application.ProviderGroups.Dtos;
+namespace AiRelay.Application.ModelRoutes.Dtos;
 
 public record SelectProxyAccountInputDto
 {

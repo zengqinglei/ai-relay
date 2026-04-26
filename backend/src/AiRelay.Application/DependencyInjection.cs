@@ -16,6 +16,7 @@ using Microsoft.Extensions.DependencyInjection;
 using AiRelay.Application.Permissions.Checker;
 using AiRelay.Application.Permissions.Provider;
 using AiRelay.Domain.ProviderAccounts.Events;
+using AiRelay.Application.ModelRoutes;
 
 namespace AiRelay.Application;
 
@@ -36,7 +37,7 @@ public static class DependencyInjection
         services.AddScoped<IChatSessionAppService, ChatSessionAppService>();
 
         // Smart Proxy AppService
-        services.AddScoped<ISmartProxyAppService, SmartProxyAppService>();
+        services.AddScoped<IModelRouteAppService, ModelRouteAppService>();
 
         // Provider Groups
         services.AddScoped<IProviderGroupAppService, ProviderGroupAppService>();

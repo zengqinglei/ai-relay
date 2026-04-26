@@ -1,4 +1,3 @@
-using System.Net.Mime;
 using System.Text.Json;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using Leistd.Exception.Core;

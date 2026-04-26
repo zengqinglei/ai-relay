@@ -1,6 +1,6 @@
 using AiRelay.Application.ProviderAccounts.Dtos;
 
-namespace AiRelay.Application.ProviderGroups.Dtos;
+namespace AiRelay.Application.ModelRoutes.Dtos;
 
 /// <summary>
 /// 选择账号结果（包含分组信息）

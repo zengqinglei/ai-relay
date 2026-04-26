@@ -1,9 +1,9 @@
-using AiRelay.Application.ProviderGroups.Dtos;
+using AiRelay.Application.ModelRoutes.Dtos;
 using Leistd.Ddd.Application.Contracts.AppService;
 
-namespace AiRelay.Application.ProviderGroups.AppServices;
+namespace AiRelay.Application.ModelRoutes;
 
-public interface ISmartProxyAppService : IAppService
+public interface IModelRouteAppService : IAppService
 {
     /// <summary>
     /// 选择代理账号（包含分组倍率信息）

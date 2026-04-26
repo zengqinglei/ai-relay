@@ -1,6 +1,6 @@
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 
-namespace AiRelay.Application.ProviderGroups.Dtos;
+namespace AiRelay.Application.ModelRoutes.Dtos;
 
 /// <summary>
 /// 处理失败请求输入 DTO（仅用于状态更新）

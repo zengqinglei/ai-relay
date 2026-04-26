@@ -2,8 +2,6 @@ using AiRelay.Api.Authentication;
 using AiRelay.Api.HostedServices.Workers;
 using AiRelay.Api.Middleware.SmartProxy.ErrorHandling;
 using AiRelay.Application.ProviderAccounts.AppServices;
-using AiRelay.Application.ProviderGroups.AppServices;
-using AiRelay.Application.ProviderGroups.Dtos;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.ProviderGroups.DomainServices.SchedulingStrategy.AccountConcurrencyStrategy;
 using AiRelay.Domain.ProviderGroups.ValueObjects;
@@ -19,11 +17,13 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
 using System.Diagnostics;
 using System.Text;
+using AiRelay.Application.ModelRoutes;
+using AiRelay.Application.ModelRoutes.Dtos;
 
 namespace AiRelay.Api.Middleware.SmartProxy;
 
 public class SmartReverseProxyMiddleware(
-    ISmartProxyAppService smartProxyAppService,
+    IModelRouteAppService smartProxyAppService,
     IChatModelHandlerFactory chatModelHandlerFactory,
     ProxyErrorFormatterFactory errorFormatterFactory,
     AccountUsageRecordWorker usageRecordWorker,

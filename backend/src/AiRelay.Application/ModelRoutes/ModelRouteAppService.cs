@@ -1,5 +1,4 @@
 using AiRelay.Application.ProviderAccounts.Dtos;
-using AiRelay.Application.ProviderGroups.Dtos;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 using AiRelay.Domain.ApiKeys.Entities;
 using AiRelay.Domain.ProviderAccounts.DomainServices;
@@ -14,10 +13,11 @@ using Leistd.Ddd.Infrastructure.Persistence.Repositories;
 using Leistd.Exception.Core;
 using Leistd.ObjectMapping.Core;
 using Microsoft.Extensions.Logging;
+using AiRelay.Application.ModelRoutes.Dtos;
 
-namespace AiRelay.Application.ProviderGroups.AppServices;
+namespace AiRelay.Application.ModelRoutes;
 
-public class SmartProxyAppService(
+public class ModelRouteAppService(
     ProviderGroupDomainService providerGroupDomainService,
     AccountTokenDomainService accountTokenDomainService,
     AccountResultHandlerDomainService accountResultHandlerDomainService,
@@ -27,7 +27,7 @@ public class SmartProxyAppService(
     IObjectMapper objectMapper,
     IConcurrencyStrategy concurrencyStrategy,
     IQueryableAsyncExecuter queryableAsyncExecuter,
-    ILogger<SmartProxyAppService> logger) : BaseAppService, ISmartProxyAppService
+    ILogger<ModelRouteAppService> logger) : BaseAppService, IModelRouteAppService
 {
     public async Task<SelectAccountResultDto> SelectAccountAsync(
         SelectProxyAccountInputDto input,

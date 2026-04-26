@@ -2,7 +2,7 @@
 
 > 日期：2026-04-24  
 > 范围：模型测试入口 `AccountTokenController.DebugModelAsync`、代理入口 `SmartReverseProxyMiddleware.InvokeAsync`、聊天入口 `ChatSessionController.SendMessageAsync` 及其下游执行链路  
-> 核心约束：工作区聊天的调度能力（同账号重试、切号重试、异常记录机制）应尽可能与代理入口保持一致
+> 核心约束：工作区聊天的调度能力（并发槽位/等待队列、粘性会话机制、同账号重试、切号重试、降级重试、异常格式化机制、usage 生命周期记录）必须与代理入口保持一致
 
 ---
 
@@ -89,16 +89,149 @@
 
 聊天入口真正需要与代理入口保持一致的，不只是 handler 调用，而是完整调度语义：
 
-- 资源池内选号
-- 同账号重试
-- 降级重试
-- 切号重试
-- 流健康检查
-- 错误分类与失败决策
-- usage 生命周期记录
+- 资源池选号（粘性会话哈希绑定、级联穿透、BackoffCount 返回）
+- 并发槽位控制（含 WaitPlan 等待队列策略）
+- 同账号重试（指数退避、RetryAfter 感知、降级重试）
+- 切号重试（最多 5 次、盲切补偿、excludedAccountIds 排除）
+- 统一失败决策（`DetermineFailureInstruction` 三路分支）
+- 并发熔断感知（重试前检测）
+- 流健康检查（缓冲 → 判空/判错 → 放行或触发重试）
+- 异常错误事件格式统一
+- 错误分类与失败状态回写
+- usage 多 attempt 生命周期记录
 - 最终命中账号/模型/状态回传
 
-因此，这次方案优化的重点不是“再抽一个共享聊天执行器”，而是把三个入口的执行主链都收敛到 `ISmartProxyAppService`。
+因此，这次方案优化的重点不是”再抽一个共享聊天执行器”，而是把三个入口的执行主链都收敛到 `ISmartProxyAppService`。
+
+### 1.6 聊天入口与代理入口的调度能力逐项差异（代码级对照）
+
+以下逐项列举代理入口已具备、而聊天入口缺失或降级的调度能力，作为本次改造的精确靶标。
+
+#### 1.6.1 并发槽位获取：等待队列缺失
+
+代理入口 `SmartReverseProxyMiddleware.TryAcquireConcurrencySlotAsync`（行 464-498）实现了三级策略：
+1. 先尝试直接获取槽位 (`AcquireSlotAsync`)
+2. 获取失败且 `WaitPlan.ShouldWait=false` 时返回 false 交由调用方切号
+3. 获取失败且 `WaitPlan.ShouldWait=true` 时进入等待队列 (`IncrementWaitCountAsync` → `WaitForSlotAsync`)，超时后抛 `ServiceUnavailableException`
+
+聊天入口 `WorkspaceChatExecutionAppService.TryAcquireConcurrencySlotAsync`（行 427-442）只实现了第一级：
+- 直接调用 `AcquireSlotAsync`，获取失败即返回 false
+- **无等待队列**：不调用 `IncrementWaitCountAsync` / `WaitForSlotAsync`
+- **无 WaitPlan 概念**：不感知粘性绑定带来的等待策略差异
+
+影响：聊天入口在并发高峰时直接丢弃请求，无法像代理入口那样排队等待槽位释放。
+
+#### 1.6.2 粘性会话（Sticky Session）机制缺失
+
+代理入口的选号通过 `SmartProxyAppService.SelectAccountAsync`（行 32-122），该方法：
+- 调用 `providerGroupDomainService.SelectAccountForApiKeyAsync`，内部实现粘性哈希绑定
+- 返回 `SelectAccountResultDto.WaitPlan`，其中 `IsStickyBound` 标记该请求是否命中粘性账号
+- 粘性命中时 `ShouldWait=true, Timeout=30s`（愿意等更久），非粘性时 `Timeout=10s`
+- 返回 `BackoffCount` 用于动态调整同账号重试次数上限
+
+聊天入口的选号通过 `WorkspaceChatExecutionAppService.ResolveAccountAsync`（行 340-400），该方法：
+- 直接调用 `providerGroupDomainService.SelectAccountFromGroupAsync`（非 `ForApiKey` 版本）
+- **不返回 WaitPlan**：没有粘性绑定感知
+- **不返回 BackoffCount**：无法动态调整重试策略
+- **不返回 AvailableAccountCount**：无法感知资源池水位
+
+影响：聊天入口无法利用粘性会话优化（同一会话固定到同一账号），也无法根据 BackoffCount 动态收缩重试次数。
+
+#### 1.6.3 同账号重试完全缺失
+
+代理入口的内层循环（`SmartReverseProxyMiddleware` 行 128-359）：
+- 根据 `BackoffCount` 动态计算 `maxSameAccountRetries`（0→3次，1→2次，≥2→1次）
+- 重试前检测并发熔断 (`IsRateLimitedAsync`)
+- 支持指数退避+抖动延迟：`1000 * 2^retry * (random*0.4+0.8)`
+- 支持上游 `RetryAfter` 指定延迟（超过 15s 自动切号）
+- 支持降级重试 (`RetrySameAccountWithDowngrade` → `degradationLevel++`)
+
+聊天入口 `ExecuteCoreAsync`（行 152-338）：
+- **无任何重试循环**：请求失败直接 yield error event 并 yield break
+- **无降级机制**：`ProcessRequestContextAsync` 始终传 `degradationLevel=0`
+- **无延迟策略**：无指数退避，无 RetryAfter 感知
+
+影响：聊天入口遇到临时 429/5xx 直接失败，不给账号恢复机会；代理入口会重试 1-3 次后才放弃。
+
+#### 1.6.4 切号重试完全缺失
+
+代理入口的外层循环（`SmartReverseProxyMiddleware` 行 92-368）：
+- 最多尝试 5 个不同账号 (`MaxAccountSwitches=5`)
+- 维护 `excludedAccountIds` 排除已失败账号
+- `DetermineFailureInstruction` 返回 `SwitchAccount` 时切号
+- 首个账号不可重试时也给一次”盲切补偿”（`accountSwitchCount==0` 时额外切号）
+
+聊天入口 `ExecuteCoreAsync`：
+- **无切号循环**：只调用一次 `ResolveAccountAsync`，选到的账号失败即整体失败
+- **无 excludedAccountIds**：不排除已失败账号
+- **无盲切补偿**
+
+影响：聊天入口的可用性远低于代理入口——代理可在 5 个账号间容灾，聊天只有 1 次机会。
+
+#### 1.6.5 失败决策逻辑独立维护
+
+代理入口使用 `DetermineFailureInstruction`（行 781-818）统一决策：
+- `UnsupportedEndpoint` → 直接透传，不熔断
+- 可重试且未超限 → `RetrySameAccount`（含 RetryAfter>15s 自动升级为切号）
+- 可重试但同账号次数已满 → `SwitchAccount`
+- 不可重试但首次 → 盲切补偿
+- 其他 → `Fail`
+
+聊天入口（行 224-253）自行维护了简化版失败处理：
+- 不可重试且非 `UnsupportedEndpoint` → `HandleFailureAsync`（熔断/禁用）
+- **无 Instruction 枚举**：没有 `RetrySameAccount` / `SwitchAccount` / `Fail` 三路分支
+- **无盲切补偿**
+- `UnsupportedEndpoint` 特判逻辑存在但不完整（只跳过 `HandleFailureAsync`，仍返回 error event 而非透传原始响应）
+
+影响：两套失败处理逻辑行为不一致，同一个错误在代理入口可能重试成功，在聊天入口直接失败。
+
+#### 1.6.6 异常格式化机制缺失
+
+代理入口在最终失败时（`FailureInstruction.Fail` 分支，行 328-334）：
+- 通过 `ProxyErrorFormatterFactory.GetFormatter(routeProfile)` 获取对应 provider 的错误格式化器
+- 调用 `formatter.Normalize(httpStatusCode, errorBody)` 将原始错误标准化为符合下游 SDK 预期的格式
+- 确保下游 SDK（OpenAI/Claude Client）能正确识别 503/429 等状态码并触发自身重试
+
+聊天入口（行 226-230, 470-482）：
+- **无错误格式化**：直接将原始 error body 拼装为 `StreamEvent.Content` 返回前端
+- 错误消息格式为 `”上游请求失败，状态码: {statusCode}，详情: {content}”`，不区分 provider
+- 代理入口的 `context.Abort()`（流中途断开触发下游 SDK 自动重试）在聊天入口无对应处理
+
+影响：聊天入口的错误信息格式不统一，前端无法按 provider 标准化展示错误。
+
+#### 1.6.7 usage 记录机制不一致
+
+代理入口通过 `AccountUsageRecordWorker` 四步异步入队：
+- `UsageRecordStartItem`（请求开始）
+- `UsageRecordAttemptStartItem`（每次 attempt 开始，含账号/分组/模型信息）
+- `UsageRecordAttemptEndItem`（每次 attempt 结束，含状态码/耗时/响应体）
+- `UsageRecordEndItem`（请求结束，含最终状态/总耗时/token usage）
+
+聊天入口通过 `IUsageLifecycleAppService` 四步 await 调用：
+- `StartUsageAsync` / `StartAttemptAsync` / `CompleteAttemptAsync` / `FinishUsageAsync`
+
+两套机制在字段上基本对齐，但存在以下差异：
+- 代理入口支持多 attempt（每次重试/切号都产生独立 attempt 记录），聊天入口固定 `AttemptNumber=1`
+- 代理入口失败时强制记录请求/响应 body（`force: true`），聊天入口无此逻辑
+- 代理入口在 `OperationCanceledException` 时仍记录 `UsageRecordEndItem`，聊天入口在 cancel 时 `FinalStatusDescription` 设置但 `FinishUsageAsync` 仍被调用（行为一致但代码路径不同）
+
+#### 1.6.8 差异总结矩阵
+
+| 调度能力 | 代理入口 | 聊天入口（当前） | 聊天入口（目标） | 模型测试（目标） |
+|---|---|---|---|---|
+| 选号（粘性哈希 + 级联穿透） | `SelectAccountForApiKeyAsync` | `SelectAccountFromGroupAsync` | 统一 `SelectAccountAsync` | 不需要（固定账号） |
+| WaitPlan（粘性等待策略） | 有（30s/10s） | 无 | 有 | 不需要 |
+| BackoffCount 动态重试次数 | 有（0→3, 1→2, ≥2→1） | 无 | 有 | 不需要 |
+| 并发槽位 + 等待队列 | 有（含 WaitForSlot） | 仅 AcquireSlot | 有 | 不需要 |
+| 同账号重试 | 1-3 次，指数退避 | 无 | 1-3 次，指数退避 | 不需要 |
+| 降级重试 | 有（degradationLevel++） | 无 | 有 | 不需要 |
+| 切号重试 | 最多 5 次，含盲切补偿 | 无 | 最多 5 次，含盲切补偿 | 不需要 |
+| `DetermineFailureInstruction` | 有 | 无（简化版自行维护） | 统一复用 | 不需要（失败直接返回） |
+| 失败状态回写（熔断） | 有 | 有 | 统一复用 | 不需要 |
+| 异常格式化 | `ProxyErrorFormatter` | 无（拼字符串） | 统一错误事件格式 | 直接返回错误事件 |
+| usage 多 attempt | 有 | 固定 1 attempt | 多 attempt | 可选（单 attempt） |
+| 首包健康检查 | 有（缓冲 → 判定 → 放行/崩溃） | 有（逻辑重复） | 统一复用 | 统一复用 |
+| 指纹注入 | 有 | 有（逻辑重复） | 统一复用 | 不需要 |
 
 ---
 
@@ -132,20 +265,23 @@
 
 扩展后的 `ISmartProxyAppService` 统一承接以下职责：
 
-- 资源池选号
-- 固定账号执行
-- 资源池模式执行
+- 固定账号直连执行（`FixedAccount` 轻量路径：仅 handler 创建 + 请求发送 + 首包健康检查，无重试/切号/槽位）
+- 资源池选号（含粘性会话哈希绑定、级联穿透、BackoffCount 返回）
+- 资源池模式执行（`ProviderGroup` / `ApiProxy` 完整调度路径）
 - 成功/失败状态回写
-- 限流状态判断
-- 账号可用性相关策略
-- 同账号重试
-- 降级重试
-- 切号重试
-- 并发槽位控制
+- 限流状态判断（并发请求熔断感知）
+- 同账号重试（指数退避 + 抖动、RetryAfter 感知、超 15s 自动切号）
+- 降级重试（`degradationLevel` 逐级提升）
+- 切号重试（最多 5 次，含盲切补偿、excludedAccountIds 排除）
+- 并发槽位控制（含 WaitPlan 等待队列策略：粘性账号等 30s，非粘性等 10s）
 - 指纹注入
 - 首包健康检查
-- usage 生命周期记录
+- 统一失败决策（`DetermineFailureInstruction`：RetrySameAccount / SwitchAccount / Fail 三路分支）
+- 统一异常错误事件格式
+- usage 生命周期记录（支持多 attempt）
 - 统一执行结果输出
+
+其中重试/切号/槽位/失败决策/指纹注入仅 `ProviderGroup` / `ApiProxy` 模式使用，`FixedAccount` 不参与。
 
 这样合并后，系统中只保留一套真正的“路由+执行”核心服务。
 
@@ -196,11 +332,12 @@
 
 - 根据执行模式决定是固定账号还是资源池选号
 - 统一 handler 创建与上游调用
-- 统一并发槽位获取与释放
+- 统一并发槽位获取（含等待队列 + WaitPlan 粘性策略）与释放
 - 统一指纹注入
-- 统一同账号重试、降级、切号策略
-- 统一首包健康检查
-- 统一 usage/attempt 生命周期记录
+- 统一同账号重试（指数退避、RetryAfter 感知、降级提升）、切号策略（盲切补偿、excludedAccountIds）
+- 统一首包健康检查（缓冲 → 判空/判错 → 放行/触发重试）
+- 统一失败决策（`DetermineFailureInstruction`，三路分支 + 并发熔断感知）
+- 统一 usage/attempt 生命周期记录（多 attempt 支持）
 - 输出标准化执行结果与 `StreamEvent` 流
 
 说明：
@@ -239,24 +376,31 @@
 
 说明：
 
-- 模型测试不需要资源池选号，但应复用同一套单账号执行、健康检查、异常分类能力。
+- 模型测试的本质是"指定账号直连打一发看结果"——管理员需要看到账号此刻的真实状态。
+- 不需要同账号重试、切号重试、并发槽位控制、失败决策（`DetermineFailureInstruction`）。
+  - 如果加了重试，429/5xx 被掩盖，反而误导诊断判断。
+  - 并发槽位控制会让测试请求排队等待，违背"穿透看真实情况"的目的。
+- 仍需要首包健康检查（检测空流/假成功）和 handler 创建 + 请求发送（这些是基础能力）。
+- usage 记录可选（记录测试行为便于审计），仅单 attempt。
 
 核心实现代码应调整为：
 
 - `AccountTokenController.DebugModelAsync` 不再手写 SSE 循环，改为调用 `ISseEventWriter.WriteAsync(...)`
 - `AccountTokenAppService.DebugModelAsync` 负责把 `ChatMessageInputDto` 组装为 `ExecuteModelRouteInput`
-- `ISmartProxyAppService.ExecuteAsync(...)` 负责：
+- `ISmartProxyAppService.ExecuteAsync(Mode=FixedAccount)` 负责：
   - 加载指定账号
   - 调用 handler 构造上游请求
-  - 执行单账号重试与首包健康检查
+  - 首包健康检查
+  - 失败时直接返回错误事件，不触发重试/切号/熔断回写
   - 返回标准化 `StreamEvent` 流
 
 这一入口的关键差异：
 
 - 输入来源是单条调试消息，不依赖聊天会话
 - 执行模式固定为 `FixedAccount`
-- 不需要资源池选号，不需要会话持久化
-- 仍需要错误分析、流健康检查、usage 记录
+- 不需要资源池选号、不需要会话持久化
+- 不需要同账号重试、切号重试、并发槽位控制、失败决策、指纹注入
+- 仍需要首包健康检查、handler 创建、请求发送
 
 #### 2.6.2 代理入口
 
@@ -308,6 +452,7 @@
 说明：
 
 - 聊天入口保留会话与消息语义，但不再持有独立调度逻辑。
+- 聊天入口的调度能力必须与代理入口完全一致（见 1.6 差异矩阵），具体包括：粘性会话选号、并发槽位等待队列、同账号重试（1-3 次，指数退避）、降级重试、切号重试（最多 5 次，含盲切补偿）、`DetermineFailureInstruction` 统一失败决策、统一异常格式化、多 attempt usage 记录。
 
 核心实现代码应调整为：
 
@@ -346,16 +491,24 @@
 
 其中复用边界应为：
 
-- 三个入口共用：
+- 三个入口共用（基础执行能力）：
   - handler 创建
   - 上游请求发送
-  - 同账号重试
-  - 切号重试
-  - 降级重试
-  - 并发槽位控制
-  - 首包健康检查
-  - usage / attempt 记录
-  - 成功/失败状态回写
+  - 首包健康检查（缓冲 → 判空/判错 → 放行或触发重试）
+  - 成功状态回写（`HandleSuccessAsync`）
+
+- 仅 ProviderGroup / ApiProxy 共用（完整调度能力，FixedAccount 不参与）：
+  - 资源池选号（粘性哈希 + 级联穿透 + BackoffCount）
+  - 同账号重试（指数退避 + 抖动、RetryAfter 感知、超 15s 切号）
+  - 切号重试（excludedAccountIds 排除、盲切补偿、MaxAccountSwitches=5）
+  - 降级重试（`degradationLevel` 逐级递增）
+  - 并发槽位控制（含 WaitPlan 等待队列、粘性/非粘性超时差异）
+  - 并发熔断感知（重试前 `IsRateLimitedAsync` 检测）
+  - 统一失败决策（`DetermineFailureInstruction` 三路分支）
+  - 失败状态回写（熔断/禁用）
+  - 指纹注入
+  - 统一异常错误事件格式
+  - usage / attempt 记录（多 attempt 支持）
 
 - 三个入口不共用：
   - 输入解析
@@ -472,25 +625,46 @@ backend/
 
 - `ExecuteModelRouteMode Mode`
 - `Guid UserId`
+- `Guid? ApiKeyId`
+- `string? ApiKeyName`
 - `Guid? ProviderGroupId`
 - `Guid? FixedAccountId`
-- `string ModelId`
 - `string SessionId`
-- `ChatDownContextInput ChatInput`
+- `string ModelId`
+- `ChatDownContextInput? ChatInput`
+- `DownRequestContext? DownRequestContext`
 - `RouteProfile? RouteProfile`
 - `UsageSource UsageSource`
-- `string? DownRequestPath`
 - `string? CorrelationId`
-- `bool EnableRateLimitRetry`
-- `bool EnableAccountSwitch`
-- `bool EnableUsageLogging`
-- `bool EnableStreamHealthCheck`
 
 其中：
 
 - `Mode = FixedAccount`：模型测试
 - `Mode = ProviderGroup`：工作区聊天
 - `Mode = ApiProxy`：代理入口
+
+**Mode 驱动行为，不使用 `bool Enable*` 标志位。** 各模式下的能力由 Mode 本身决定：
+
+| 能力 | FixedAccount | ProviderGroup | ApiProxy |
+|---|---|---|---|
+| 选号（粘性 + 级联） | 不需要 | 需要 | 需要 |
+| 并发槽位 + 等待队列 | 不需要 | 需要 | 需要 |
+| 同账号重试 | 不需要 | 需要 | 需要 |
+| 切号重试 | 不需要 | 需要 | 需要 |
+| 降级重试 | 不需要 | 需要 | 需要 |
+| `DetermineFailureInstruction` | 不需要 | 需要 | 需要 |
+| 失败状态回写（熔断） | 不需要 | 需要 | 需要 |
+| 指纹注入 | 不需要 | 需要 | 需要 |
+| 首包健康检查 | 需要 | 需要 | 需要 |
+| handler 创建 + 请求发送 | 需要 | 需要 | 需要 |
+| usage 记录 | 可选（单 attempt） | 需要（多 attempt） | 需要（多 attempt） |
+
+设计原则：
+
+- Mode 就是语义——调用方不需要自己配置一堆 flag 来"模拟"某种模式
+- 聊天 / 模型测试使用 `ChatInput`
+- 代理入口使用 `DownRequestContext`
+- `ExecuteFixedAccountAsync` 是独立的轻量方法，不走重试循环 + flag 跳过的路径
 
 #### 2.10.2 统一执行结果模型
 
@@ -514,15 +688,20 @@ backend/
 应从 `SmartReverseProxyMiddleware` 收敛到 `SmartProxyAppService` 的逻辑包括：
 
 - `DetermineFailureInstruction(...)`
-- 同账号重试次数决策
-- 降级重试级别提升
-- 切号判定
+- 同账号重试次数决策（基于 BackoffCount 动态调整 `maxSameAccountRetries`）
+- 降级重试级别提升（`degradationLevel++`）
+- 切号判定（含盲切补偿）
 - UnsupportedEndpoint 特判
+
+适用范围：
+
+- `ProviderGroup` 和 `ApiProxy` 模式共用完整失败决策链
+- `FixedAccount` 模式**不使用** `DetermineFailureInstruction`——失败直接返回错误事件，不触发重试、切号、熔断回写（模型测试需要看到真实错误）
 
 这样才能真正保证：
 
-- 工作区聊天与代理入口的失败策略一致
-- 模型测试也不会单独维护一套临时异常逻辑
+- 工作区聊天与代理入口的失败策略完全一致
+- 模型测试保持"直连诊断"语义，不被重试逻辑干扰
 
 #### 2.10.4 统一成功流处理能力，但保留不同出口适配
 
@@ -541,6 +720,19 @@ backend/
 这样既能统一核心执行语义，又不会把代理的原始字节转发逻辑硬塞给聊天入口。
 
 #### 2.10.5 usage 记录统一，但来源区分
+
+当前存在两套 usage 记录机制：
+
+- 代理入口：通过 `AccountUsageRecordWorker.TryEnqueue` 四步异步入队（非阻塞 channel），支持多 attempt
+- 聊天入口：通过 `IUsageLifecycleAppService` 四步 await 调用（阻塞），固定 1 attempt
+
+统一后策略：
+
+- `SmartProxyAppService` 内部统一使用 `IUsageLifecycleAppService` 的 async 接口记录 usage
+- 代理入口的 `AccountUsageRecordWorker` 四步入队由 middleware 外围保留（请求级 start/end），attempt 级记录下沉到 `SmartProxyAppService`
+- 多 attempt 支持：每次同账号重试、切号重试都产生独立 `StartAttemptAsync` / `CompleteAttemptAsync` 对
+- 失败时强制记录请求/响应 body（当前仅代理入口 `force: true`，聊天入口缺失）
+- 来源通过 `UsageSource` 区分，attempt 记录结构完全相同
 
 #### 2.10.6 三个入口的输出适配策略
 
@@ -798,12 +990,11 @@ backend/
 - `DownRequestContext? DownRequestContext`
 - `RouteProfile? RouteProfile`
 - `UsageSource UsageSource`
-- `bool EnableRateLimitRetry`
-- `bool EnableAccountSwitch`
-- `bool EnableStreamHealthCheck`
+- `string? CorrelationId`
 
 设计原则：
 
+- **不使用 `bool Enable*` 标志位**，所有调度行为由 `Mode` 决定（见 2.10.1 能力矩阵）
 - 聊天 / 模型测试使用 `ChatInput`
 - 代理入口使用 `DownRequestContext`
 - 统一入口只接受一个 DTO，不接受几十个散参
@@ -913,51 +1104,65 @@ backend/
 
 任务：
 
-1. 新增 `ExecuteModelRouteInput`、`ExecuteModelRouteResult` 等 DTO
-2. 在 `SmartProxyAppService` 中建立三种模式：
-   - `FixedAccount`
-   - `ProviderGroup`
-   - `ApiProxy`
-3. 收敛以下逻辑：
-   - handler 创建
-   - 并发槽位申请/释放
+1. 新增 `ExecuteModelRouteInput`、`ExecuteModelRouteResult` 等 DTO（不含 `bool Enable*` 标志位，由 Mode 驱动行为）
+2. 在 `SmartProxyAppService` 中建立三种模式的独立方法：
+   - `ExecuteFixedAccountAsync`：轻量路径（无重试/切号/槽位/失败决策），仅 handler 创建 + 请求发送 + 首包健康检查
+   - `ExecuteProviderGroupAsync`：完整调度路径（选号 + 槽位 + 重试 + 切号 + 失败决策 + ...）
+   - `ExecuteApiProxyAsync`：完整调度 + 原始字节透传
+3. 收敛以下逻辑到 ProviderGroup / ApiProxy 共享的内层方法：
+   - 并发槽位申请/释放（含等待队列）
    - 指纹注入
-   - 单账号执行
-   - 首包健康检查
-   - retry policy 解析
    - 同账号重试/切号决策
+   - `DetermineFailureInstruction`
+   - retry policy 解析
+4. 收敛以下逻辑到三模式共享的基础方法：
+   - handler 创建
+   - 单次 attempt 执行（请求发送 + 流枚举）
+   - 首包健康检查
 
 验收标准：
 
-- 模型测试走统一执行器的 `FixedAccount` 分支
-- 代理入口走统一执行器的 `ApiProxy` 分支
-- 工作区聊天可开始接入 `ProviderGroup` 分支
+- 模型测试走 `ExecuteFixedAccountAsync`：无重试循环，失败直接返回错误事件
+- 代理入口走 `ExecuteApiProxyAsync`：完整调度
+- 工作区聊天可开始接入 `ExecuteProviderGroupAsync`：完整调度
 
 ### 3.4 Phase 4：工作区聊天接入统一调度
 
 目标：
 
-- 工作区聊天的调度能力尽量与代理入口一致
+- 工作区聊天的调度能力与代理入口完全一致（见 1.6 差异矩阵）
 
 任务：
 
 1. 保留 `WorkspaceChatExecutionAppService` 的业务上下文组装职责
 2. 保留 `MapToChatDownContextInput` 这类手写业务映射
-3. 去掉其内部独立调度细节
+3. 去掉其内部全部独立调度细节（`ExecuteCoreAsync`、`ResolveAccountAsync`、`TryAcquireConcurrencySlotAsync`、`SetupFingerprintIfRequiredAsync`、`CaptureHeaders`、`CreateErrorEvent`、`WorkspaceChatExecutionContext`）
 4. 让 `ChatSessionAppService.SendMessageAsync` 继续负责：
    - 用户消息落库
    - assistant 内容聚合
    - assistant 消息持久化
-5. 让 `ISmartProxyAppService` 负责：
-   - 资源池选号
-   - 同账号重试
-   - 切号重试
-   - 错误分析
-   - usage 生命周期记录
+5. 让 `ISmartProxyAppService.ExecuteAsync(Mode=ProviderGroup)` 负责：
+   - 通过统一 `SelectAccountAsync` 选号（粘性哈希 + 级联穿透 + BackoffCount）
+   - 并发槽位获取（含 WaitPlan 等待队列策略）
+   - 指纹注入
+   - 同账号重试（1-3 次，指数退避 + 抖动，RetryAfter 感知，超 15s 自动切号）
+   - 降级重试（`degradationLevel` 递增）
+   - 切号重试（最多 5 次，含盲切补偿，excludedAccountIds 排除）
+   - 重试前并发熔断感知（`IsRateLimitedAsync`）
+   - 统一失败决策（`DetermineFailureInstruction` 三路分支）
+   - 首包健康检查（缓冲 → 判空/判错 → 放行或触发同账号/切号重试）
+   - 异常错误事件格式统一
+   - 错误分析（`CheckRetryPolicyAsync`）
+   - 成功/失败状态回写（含模型级/账号级熔断清理）
+   - usage 多 attempt 生命周期记录
 
 验收标准：
 
-- 聊天入口发生 429、5xx、空流、首包失败时，处理策略与代理入口尽量一致
+- 聊天入口发生 429、5xx 时，与代理入口行为一致：先同账号重试（指数退避），超限后切号，最多 5 账号
+- 聊天入口命中粘性账号时，与代理入口行为一致：并发槽位满时进入等待队列（30s 超时）
+- 聊天入口遇到空流/首包错误时，与代理入口行为一致：触发同账号重试或切号，而非直接报错
+- 聊天入口的 usage 记录支持多 attempt，每次重试/切号产生独立 attempt 条目
+- `WorkspaceChatExecutionAppService` 不再包含任何调度/重试/选号/槽位/指纹/usage 逻辑
 - 聊天消息持久化逻辑不受影响
 
 ### 3.5 Phase 5：代理入口瘦身
@@ -1001,15 +1206,39 @@ backend/
 
 当前没有必要。它仍应保持手写，直到出现多个明确重复调用点。
 
+#### 风险 4：聊天入口的重试/切号导致 assistant 消息聚合复杂化
+
+代理入口重试时只是重新发请求，不涉及业务状态。但聊天入口在 `ChatSessionAppService.SendMessageAsync` 中需要边枚举 `StreamEvent` 边聚合 assistant 文本。如果 `ISmartProxyAppService.ExecuteAsync` 内部多次重试/切号，返回给调用方的 `IAsyncEnumerable<StreamEvent>` 必须是"最终成功的那次 attempt 的事件流"，不能包含前几次失败 attempt 的残余事件。
+
+保障措施：`SmartProxyAppService` 内部重试循环在 attempt 失败时丢弃该 attempt 的事件流，只有最终成功的 attempt 才将事件 yield 出去。对调用方而言，`EventStream` 看起来就像一次性成功。
+
+#### 风险 5：聊天入口选号方式切换（从 `SelectAccountFromGroupAsync` 到统一 `SelectAccountAsync`）
+
+当前聊天入口通过 `SelectAccountFromGroupAsync` 选号，不经过 `ApiKey` 绑定链路。统一到 `SelectAccountAsync` 后，聊天入口需要提供 `ApiKeyId` 或走一条不依赖 `ApiKeyId` 的选号分支。
+
+保障措施：`SelectAccountAsync` 新增 `ApiKeyId` 可选逻辑——当 `ApiKeyId` 为空时，直接从 `ProviderGroupId` 选号（保留当前聊天入口的行为），同时仍返回 `WaitPlan`、`BackoffCount` 等调度元数据。
+
 ---
 
 ## 四、结论
 
-基于现有代码结构和你的补充约束，最佳方案不是新增一个并列的 `ISharedChatExecutionAppService`，也不是这一步再引入一个全新的服务命名，而是：
+基于现有代码结构和补充约束，最佳方案不是新增一个并列的 `ISharedChatExecutionAppService`，也不是这一步再引入一个全新的服务命名，而是：
 
 1. 直接扩展现有 `ISmartProxyAppService`，让它承接统一执行能力
 2. 将其从 `ProviderGroups` 模块迁移到独立的 `ModelRouting` 模块
 3. 让模型测试、工作区聊天、代理入口共同依赖这一套统一执行服务
 4. 同时补齐 `SseEventWriter`，统一 API 层流式输出
 
-这样既能保证工作区聊天的同账号重试、切号重试、异常记录机制尽可能与代理入口保持一致，也能避免应用层同时存在两套职责相邻的执行服务。 
+改造后，工作区聊天入口将获得与代理入口完全一致的调度能力：
+
+- 粘性会话选号 + 级联穿透 + BackoffCount 动态策略
+- 并发槽位获取 + 等待队列（粘性 30s / 非粘性 10s 超时）
+- 同账号重试（1-3 次，指数退避 + 抖动，RetryAfter 感知）
+- 降级重试（`degradationLevel` 递增）
+- 切号重试（最多 5 次，含盲切补偿）
+- 统一失败决策（`DetermineFailureInstruction` 三路分支 + 并发熔断感知）
+- 统一异常错误事件格式
+- 首包健康检查（缓冲 → 判定 → 放行/触发重试，非一次性失败）
+- 多 attempt usage 生命周期记录
+
+这不是"尽可能保持一致"，而是共享同一套代码实现——只保留输入组装、消息持久化、HTTP 输出方式三类入口特有的差异。
