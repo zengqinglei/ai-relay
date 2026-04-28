@@ -131,15 +131,17 @@ public class ModelRouteAppService(
         return singleGroupCandidates;
     }
 
-    private async Task<SelectAccountResultDto> FinalizeAccountSelectionAsync(
-        AccountToken accountToken,
-        ProviderGroup providerGroup,
-        bool isStickyBound,
-        int availableCount,
+    private async Task<SelectAccountResultDto> PrepareSelectedAccountAsync(
+        RouteAccountSchedulingResult selectedAccount,
         string sessionHash,
         Dictionary<string, string> downHeaders,
         CancellationToken cancellationToken)
     {
+        var accountToken = selectedAccount.AccountToken;
+        var providerGroup = selectedAccount.ProviderGroup;
+        var isStickyBound = selectedAccount.IsStickyBound;
+        var availableCount = selectedAccount.AvailableCount;
+
         await accountTokenDomainService.RefreshTokenIfNeededAsync(accountToken, cancellationToken);
 
         if (string.IsNullOrEmpty(accountToken.AccessToken) && accountToken.AuthMethod != AuthMethod.ApiKey) // 仅非APIKey检查AccessToken
@@ -243,16 +245,82 @@ public class ModelRouteAppService(
         try
         {
             var excludedAccountIds = new HashSet<Guid>();
+            var maxCandidateAttempts = Math.Min(
+                candidateGroups.SelectMany(group => group.CandidateRelations)
+                    .Select(relation => relation.AccountTokenId)
+                    .Distinct()
+                    .Count(),
+                _schedulingOptions.MaxAccountSwitches);
 
             while (true)
             {
-                var selectResult = await SelectRouteAccountAsync(
+                var selectedAccount = await SelectRouteAccountAsync(
                     candidateGroups,
                     baseDownContext.SessionId ?? string.Empty,
                     baseDownContext.ModelId,
                     baseDownContext.Headers,
                     excludedAccountIds,
                     cancellationToken);
+
+                SelectAccountResultDto selectResult;
+                try
+                {
+                    selectResult = await PrepareSelectedAccountAsync(
+                        selectedAccount,
+                        baseDownContext.SessionId ?? string.Empty,
+                        baseDownContext.Headers,
+                        cancellationToken);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    var prepareFailureStatusCode = ResolveInternalExceptionStatusCode(ex);
+                    var prepareFailureDesc = $"账号 '{selectedAccount.AccountToken.Name}' 在发起上游请求前准备失败: {ex.Message}";
+                    var prepareFailureBody = LoggingSubBody(ex.Message);
+
+                    attemptNumber++;
+                    EnqueueAttemptStart(
+                        metadata.UsageRecordId,
+                        attemptNumber,
+                        selectedAccount.AccountToken,
+                        selectedAccount.ProviderGroup,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+                    EnqueueAttemptEnd(
+                        metadata.UsageRecordId,
+                        attemptNumber,
+                        prepareFailureStatusCode,
+                        0,
+                        UsageStatus.Failed,
+                        prepareFailureDesc,
+                        prepareFailureBody,
+                        null,
+                        null);
+
+                    logger.LogWarning(ex, prepareFailureDesc);
+
+                    await HandleFailureAsync(new HandleFailureInputDto(
+                        selectedAccount.AccountToken.Id,
+                        prepareFailureStatusCode,
+                        ex.Message,
+                        baseDownContext.ModelId,
+                        baseDownContext.ModelId,
+                        new ModelErrorAnalysisResult
+                        {
+                            RetryType = RetryType.NoRetry,
+                            Description = prepareFailureDesc
+                        }), cancellationToken);
+
+                    excludedAccountIds.Add(selectedAccount.AccountToken.Id);
+                    if (excludedAccountIds.Count >= maxCandidateAttempts)
+                    {
+                        throw;
+                    }
+
+                    continue;
+                }
 
                 var currentAccountRetryCount = 1;
                 var shouldSwitchAccount = false;
@@ -274,6 +342,29 @@ public class ModelRouteAppService(
                     await using var slot = await TryAcquireReadySlotAsync(selectResult, activeRequestId, cancellationToken);
                     if (!slot.Acquired)
                     {
+                        attemptNumber++;
+                        var schedulingFailureDesc = slot.FailureDescription
+                            ?? $"账号 '{selectResult.AccountToken.Name}' 在发起上游请求前因调度失败被切换";
+                        EnqueueAttemptStart(
+                            metadata.UsageRecordId,
+                            attemptNumber,
+                            selectResult,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null);
+                        EnqueueAttemptEnd(
+                            metadata.UsageRecordId,
+                            attemptNumber,
+                            null,
+                            0,
+                            UsageStatus.Failed,
+                            schedulingFailureDesc,
+                            null,
+                            null,
+                            null);
+                        logger.LogWarning(schedulingFailureDesc);
                         shouldSwitchAccount = true;
                         break;
                     }
@@ -304,22 +395,15 @@ public class ModelRouteAppService(
                     string? upResponseBody = null;
                     ModelErrorAnalysisResult? streamFailureAnalysis = null;
 
-                    usageRecordQueue.TryEnqueue(new UsageRecordAttemptStartItem(
-                        UsageRecordId: metadata.UsageRecordId,
-                        AttemptNumber: attemptNumber,
-                        AccountTokenId: selectResult.AccountToken.Id,
-                        AccountTokenName: selectResult.AccountToken.Name,
-                        Provider: selectResult.AccountToken.Provider,
-                        AuthMethod: selectResult.AccountToken.AuthMethod,
-                        ProviderGroupId: selectResult.ProviderGroupId,
-                        ProviderGroupName: selectResult.ProviderGroupName,
-                        GroupRateMultiplier: selectResult.GroupRateMultiplier,
-                        UpModelId: upContext.MappedModelId,
-                        UpUserAgent: upContext.GetUserAgent(),
-                        UpRequestUrl: upContext.GetFullUrl(),
-                        UpRequestHeaders: loggingUpRequestHeaders,
-                        UpRequestBody: loggingUpRequestBody
-                    ));
+                    EnqueueAttemptStart(
+                        metadata.UsageRecordId,
+                        attemptNumber,
+                        selectResult,
+                        upContext.MappedModelId,
+                        upContext.GetUserAgent(),
+                        upContext.GetFullUrl(),
+                        loggingUpRequestHeaders,
+                        loggingUpRequestBody);
 
                     try
                     {
@@ -342,7 +426,7 @@ public class ModelRouteAppService(
                                 var (crash, statusDesc, usage, failureAnalysis) = await HandleSuccessResponseAsync(
                                     responseHandler, proxyResponse, selectResult.AccountToken.Id,
                                     upContext.MappedModelId ?? downContext.ModelId,
-                                    isCheckStreamHealth, tempUpBody, tempDownBody, true, cancellationToken);
+                                    isCheckStreamHealth, tempUpBody, tempDownBody, _loggingOptions.IsBodyLoggingEnabled, cancellationToken);
 
                                 finalUsage = usage ?? finalUsage;
                                 isStreamCrash = crash;
@@ -379,7 +463,7 @@ public class ModelRouteAppService(
                             if (!isStreamCrash)
                             {
                                 attemptStatus = UsageStatus.Failed;
-                                upResponseBody = LoggingSubBody(proxyResponse.ErrorBody, force: true);
+                                upResponseBody = LoggingSubBody(proxyResponse.ErrorBody);
                             }
 
                             logger.LogWarning("账号请求失败或流首包崩溃，状态码: {StatusCode}，正在分析错误：{BodyContent}", httpStatusCode, upResponseBody);
@@ -428,9 +512,9 @@ public class ModelRouteAppService(
                                         : $"请求最终失败 (状态码: {httpStatusCode})，不进行重试：{upResponseBody}";
                                     finalStatusDescription = attemptStatusDesc;
                                     finalDownStatusCode = httpStatusCode;
-                                    await responseHandler.OnTerminalErrorAsync(
+                                    downResponseBody = LoggingSubBody(await responseHandler.OnTerminalErrorAsync(
                                         RouteTerminalError.UpstreamNormalized(httpStatusCode ?? 500, proxyResponse.ErrorBody),
-                                        cancellationToken);
+                                        cancellationToken));
                                     return;
                             }
 
@@ -440,17 +524,16 @@ public class ModelRouteAppService(
                     finally
                     {
                         attemptStopwatch.Stop();
-                        usageRecordQueue.TryEnqueue(new UsageRecordAttemptEndItem(
-                            UsageRecordId: metadata.UsageRecordId,
-                            AttemptNumber: attemptNumber,
-                            UpStatusCode: httpStatusCode,
-                            DurationMs: attemptStopwatch.ElapsedMilliseconds,
-                            Status: attemptStatus,
-                            StatusDescription: attemptStatusDesc,
-                            UpResponseBody: upResponseBody,
-                            UpRequestHeaders: attemptStatus == UsageStatus.Failed ? upRequestHeaders : loggingUpRequestHeaders,
-                            UpRequestBody: attemptStatus == UsageStatus.Failed ? upRequestBody : loggingUpRequestBody
-                        ));
+                        EnqueueAttemptEnd(
+                            metadata.UsageRecordId,
+                            attemptNumber,
+                            httpStatusCode,
+                            attemptStopwatch.ElapsedMilliseconds,
+                            attemptStatus,
+                            attemptStatusDesc,
+                            upResponseBody,
+                            attemptStatus == UsageStatus.Failed ? upRequestHeaders : loggingUpRequestHeaders,
+                            attemptStatus == UsageStatus.Failed ? upRequestBody : loggingUpRequestBody);
                     }
                 }
 
@@ -482,13 +565,13 @@ public class ModelRouteAppService(
             else
             {
                 finalStatusDescription = $"代理网关异常被拦截: {ex.Message}";
-                finalDownStatusCode = 500;
+                finalDownStatusCode = ResolveInternalExceptionStatusCode(ex);
                 logger.LogWarning(ex, finalStatusDescription);
             }
 
-            await responseHandler.OnTerminalErrorAsync(
-                RouteTerminalError.InternalException(ex, 500, finalStatusDescription),
-                cancellationToken);
+            downResponseBody = LoggingSubBody(await responseHandler.OnTerminalErrorAsync(
+                RouteTerminalError.InternalException(ex, finalDownStatusCode ?? 500, finalStatusDescription),
+                cancellationToken));
         }
         finally
         {
@@ -511,7 +594,7 @@ public class ModelRouteAppService(
         }
     }
 
-    private async Task<SelectAccountResultDto> SelectRouteAccountAsync(
+    private async Task<RouteAccountSchedulingResult> SelectRouteAccountAsync(
         IReadOnlyList<RouteAccountSchedulingGroup> candidateGroups,
         string sessionHash,
         string? modelId,
@@ -548,14 +631,7 @@ public class ModelRouteAppService(
 
         if (result != null)
         {
-            return await FinalizeAccountSelectionAsync(
-                result.AccountToken,
-                result.ProviderGroup,
-                result.IsStickyBound,
-                result.AvailableCount,
-                sessionHash,
-                downHeaders,
-                cancellationToken);
+            return result;
         }
 
         throw new ServiceUnavailableException($"当前候选范围中没有可用账号支持模型 {modelId}");
@@ -733,6 +809,87 @@ public class ModelRouteAppService(
         return string.Join("\n", filtered);
     }
 
+    private void EnqueueAttemptStart(
+        Guid usageRecordId,
+        int attemptNumber,
+        SelectAccountResultDto selectResult,
+        string? upModelId,
+        string? upUserAgent,
+        string? upRequestUrl,
+        string? upRequestHeaders,
+        string? upRequestBody)
+    {
+        usageRecordQueue.TryEnqueue(new UsageRecordAttemptStartItem(
+            UsageRecordId: usageRecordId,
+            AttemptNumber: attemptNumber,
+            AccountTokenId: selectResult.AccountToken.Id,
+            AccountTokenName: selectResult.AccountToken.Name,
+            Provider: selectResult.AccountToken.Provider,
+            AuthMethod: selectResult.AccountToken.AuthMethod,
+            ProviderGroupId: selectResult.ProviderGroupId,
+            ProviderGroupName: selectResult.ProviderGroupName,
+            GroupRateMultiplier: selectResult.GroupRateMultiplier,
+            UpModelId: upModelId,
+            UpUserAgent: upUserAgent,
+            UpRequestUrl: upRequestUrl,
+            UpRequestHeaders: upRequestHeaders,
+            UpRequestBody: upRequestBody
+        ));
+    }
+
+    private void EnqueueAttemptStart(
+        Guid usageRecordId,
+        int attemptNumber,
+        AccountToken accountToken,
+        ProviderGroup providerGroup,
+        string? upModelId,
+        string? upUserAgent,
+        string? upRequestUrl,
+        string? upRequestHeaders,
+        string? upRequestBody)
+    {
+        usageRecordQueue.TryEnqueue(new UsageRecordAttemptStartItem(
+            UsageRecordId: usageRecordId,
+            AttemptNumber: attemptNumber,
+            AccountTokenId: accountToken.Id,
+            AccountTokenName: accountToken.Name,
+            Provider: accountToken.Provider,
+            AuthMethod: accountToken.AuthMethod,
+            ProviderGroupId: providerGroup.Id,
+            ProviderGroupName: providerGroup.Name,
+            GroupRateMultiplier: providerGroup.RateMultiplier,
+            UpModelId: upModelId,
+            UpUserAgent: upUserAgent,
+            UpRequestUrl: upRequestUrl,
+            UpRequestHeaders: upRequestHeaders,
+            UpRequestBody: upRequestBody
+        ));
+    }
+
+    private void EnqueueAttemptEnd(
+        Guid usageRecordId,
+        int attemptNumber,
+        int? upStatusCode,
+        long durationMs,
+        UsageStatus status,
+        string? statusDescription,
+        string? upResponseBody,
+        string? upRequestHeaders,
+        string? upRequestBody)
+    {
+        usageRecordQueue.TryEnqueue(new UsageRecordAttemptEndItem(
+            UsageRecordId: usageRecordId,
+            AttemptNumber: attemptNumber,
+            UpStatusCode: upStatusCode,
+            DurationMs: durationMs,
+            Status: status,
+            StatusDescription: statusDescription,
+            UpResponseBody: upResponseBody,
+            UpRequestHeaders: upRequestHeaders,
+            UpRequestBody: upRequestBody
+        ));
+    }
+
     private async Task HandleSuccessAsync(
         Guid accountId,
         string? upModelId,
@@ -791,8 +948,9 @@ public class ModelRouteAppService(
         // 1. 熔断与限流检查
         if (await rateLimitDomainService.IsRateLimitedAsync(selectResult.AccountToken.Id, cancellationToken))
         {
+            var description = $"账号 '{selectResult.AccountToken.Name}' 已处于限流/熔断状态，未发起上游请求，切换其他账号";
             logger.LogDebug("账号 {AccountName} 已被并发请求触发熔断，跳过并发槽位获取直接返回失败", selectResult.AccountToken.Name);
-            return new ConcurrencySlot(false);
+            return new ConcurrencySlot(false, failureDescription: description);
         }
 
         // 2. 尝试获取并发槽位
@@ -805,7 +963,8 @@ public class ModelRouteAppService(
             waitQueueFull: false,
             waitTimedOut: false) == FailureInstruction.SwitchAccount)
         {
-            return new ConcurrencySlot(false);
+            return new ConcurrencySlot(false,
+                failureDescription: $"账号 '{selectResult.AccountToken.Name}' 当前无可用并发槽位，未进入等待直接切换其他账号");
         }
 
         // 3. 进入等待队列
@@ -819,7 +978,8 @@ public class ModelRouteAppService(
             if (instruction == FailureInstruction.SwitchAccount)
             {
                 logger.LogDebug("账号 {AccountName} 等待队列已满，放弃当前账号并尝试切换其他账号", selectResult.AccountToken.Name);
-                return new ConcurrencySlot(false);
+                return new ConcurrencySlot(false,
+                    failureDescription: $"账号 '{selectResult.AccountToken.Name}' 等待队列已满，未发起上游请求，切换其他账号");
             }
 
             throw new ServiceUnavailableException("等待队列已满，请稍后重试");
@@ -848,7 +1008,8 @@ public class ModelRouteAppService(
             if (instruction == FailureInstruction.SwitchAccount)
             {
                 logger.LogDebug("账号 {AccountName} 等待并发槽位超时，放弃当前账号并尝试切换其他账号", selectResult.AccountToken.Name);
-                return new ConcurrencySlot(false);
+                return new ConcurrencySlot(false,
+                    failureDescription: $"账号 '{selectResult.AccountToken.Name}' 等待并发槽位超时，未发起上游请求，切换其他账号");
             }
 
             throw new ServiceUnavailableException($"账号 {selectResult.AccountToken.Name} 繁忙，请稍后重试");
@@ -865,5 +1026,25 @@ public class ModelRouteAppService(
     {
         return accountRetryStrategyDomainService.DetermineFailureInstruction(
             retryPolicy, currentRetryCount, maxRetries, accountSwitchCount);
+    }
+
+    private static int ResolveInternalExceptionStatusCode(Exception exception)
+    {
+        if (exception is BusinessException biz)
+        {
+            var codeText = biz.Code.ToString();
+            if (!string.IsNullOrEmpty(codeText) && codeText.Length >= 3)
+            {
+                return int.Parse(codeText[..3]);
+            }
+        }
+
+        return exception switch
+        {
+            OperationCanceledException { InnerException: TimeoutException } => 503,
+            TimeoutException => 503,
+            HttpRequestException => 503,
+            _ => 500
+        };
     }
 }

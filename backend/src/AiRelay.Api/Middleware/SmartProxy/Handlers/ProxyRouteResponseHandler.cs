@@ -45,7 +45,7 @@ public class ProxyRouteResponseHandler(
         }
     }
 
-    public async Task OnTerminalErrorAsync(RouteTerminalError error, CancellationToken ct)
+    public async Task<string?> OnTerminalErrorAsync(RouteTerminalError error, CancellationToken ct)
     {
         var formatter = errorFormatterFactory.GetFormatter(routeProfile);
 
@@ -57,6 +57,8 @@ public class ProxyRouteResponseHandler(
                 context.Response.StatusCode = normalized.StatusCode;
                 await context.Response.WriteAsync(normalized.Payload, ct);
             }
+
+            return normalized.Payload;
         }
         else
         {
@@ -70,6 +72,8 @@ public class ProxyRouteResponseHandler(
                 context.Response.ContentType = errorResponse.ContentType;
                 await context.Response.WriteAsync(errorResponse.Payload, Encoding.UTF8, ct);
             }
+
+            return errorResponse.Payload;
         }
     }
 

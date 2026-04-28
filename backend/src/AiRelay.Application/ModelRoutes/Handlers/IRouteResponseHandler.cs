@@ -34,7 +34,7 @@ public interface IRouteResponseHandler
     /// <summary>
     /// 发生无法挽回的终端错误时回调
     /// </summary>
-    Task OnTerminalErrorAsync(RouteTerminalError error, CancellationToken ct);
+    Task<string?> OnTerminalErrorAsync(RouteTerminalError error, CancellationToken ct);
 
     /// <summary>
     /// 强制中断连接

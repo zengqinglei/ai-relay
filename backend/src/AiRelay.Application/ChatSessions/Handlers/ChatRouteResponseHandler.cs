@@ -35,7 +35,7 @@ public class ChatRouteResponseHandler(RouteTerminalErrorFormatter errorFormatter
         await channel.Writer.WriteAsync(streamEvent, ct);
     }
 
-    public async Task OnTerminalErrorAsync(RouteTerminalError error, CancellationToken ct)
+    public async Task<string?> OnTerminalErrorAsync(RouteTerminalError error, CancellationToken ct)
     {
         var message = errorFormatter.BuildMessage(error);
 
@@ -47,6 +47,7 @@ public class ChatRouteResponseHandler(RouteTerminalErrorFormatter errorFormatter
         }, ct);
 
         channel.Writer.Complete();
+        return message;
     }
 
     public void AbortConnection()

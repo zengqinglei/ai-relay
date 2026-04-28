@@ -12,10 +12,16 @@ public sealed class ConcurrencySlot : IAsyncDisposable
     /// </summary>
     public bool Acquired { get; }
 
-    public ConcurrencySlot(bool acquired, Func<Task>? releaseAction = null)
+    /// <summary>
+    /// 获取失败时的结构化原因说明
+    /// </summary>
+    public string? FailureDescription { get; }
+
+    public ConcurrencySlot(bool acquired, Func<Task>? releaseAction = null, string? failureDescription = null)
     {
         Acquired = acquired;
         _releaseAction = releaseAction;
+        FailureDescription = failureDescription;
     }
 
     public async ValueTask DisposeAsync()
