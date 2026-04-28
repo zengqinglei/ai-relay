@@ -463,7 +463,7 @@ public class ModelRouteAppService(
                             if (!isStreamCrash)
                             {
                                 attemptStatus = UsageStatus.Failed;
-                                upResponseBody = LoggingSubBody(proxyResponse.ErrorBody);
+                                upResponseBody = LoggingSubBody(proxyResponse.ErrorBody, force: true);
                             }
 
                             logger.LogWarning("账号请求失败或流首包崩溃，状态码: {StatusCode}，正在分析错误：{BodyContent}", httpStatusCode, upResponseBody);
@@ -514,7 +514,7 @@ public class ModelRouteAppService(
                                     finalDownStatusCode = httpStatusCode;
                                     downResponseBody = LoggingSubBody(await responseHandler.OnTerminalErrorAsync(
                                         RouteTerminalError.UpstreamNormalized(httpStatusCode ?? 500, proxyResponse.ErrorBody),
-                                        cancellationToken));
+                                        cancellationToken), force: true);
                                     return;
                             }
 
@@ -571,7 +571,7 @@ public class ModelRouteAppService(
 
             downResponseBody = LoggingSubBody(await responseHandler.OnTerminalErrorAsync(
                 RouteTerminalError.InternalException(ex, finalDownStatusCode ?? 500, finalStatusDescription),
-                cancellationToken));
+                cancellationToken), force: true);
         }
         finally
         {
