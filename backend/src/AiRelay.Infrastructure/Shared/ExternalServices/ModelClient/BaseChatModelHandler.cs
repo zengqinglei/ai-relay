@@ -341,10 +341,10 @@ public abstract partial class BaseChatModelHandler : IChatModelHandler
         }
 
         // 兜底策略：
-        // 非官方中转账号默认允许同号重试；
-        // 官方账号默认交由外层做一次盲切补偿或最终失败。
-        // 因此这里覆盖的不只是“其他 5xx”，还包含官方账号未被前面显式分类的 4xx/5xx。
-        if (!isOfficialAccount)
+        // 非官方中转账号仅对未显式分类的 5xx 保持同号重试；
+        // 普通 4xx（尤其 400）默认视为请求/参数类错误，不再盲目同号重试。
+        // 官方账号仍交由外层做一次盲切补偿或最终失败。
+        if (!isOfficialAccount && statusCode >= 500)
         {
             return Task.FromResult(new ModelErrorAnalysisResult
             {

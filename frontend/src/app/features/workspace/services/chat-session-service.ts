@@ -125,6 +125,10 @@ export class ChatSessionService {
                   continue;
                 }
 
+                if (event.isComplete) {
+                  receivedDone = true;
+                }
+
                 if (event.type === 'Error') {
                   observer.error(new Error(event.content?.trim() || '请求失败，请稍后重试'));
                   return;
@@ -138,6 +142,10 @@ export class ChatSessionService {
             if (remaining === null) {
               receivedDone = true;
             } else if (remaining) {
+              if (remaining.isComplete) {
+                receivedDone = true;
+              }
+
               if (remaining.type === 'Error') {
                 observer.error(new Error(remaining.content?.trim() || '请求失败，请稍后重试'));
                 return;

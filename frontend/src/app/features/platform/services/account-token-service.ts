@@ -133,6 +133,7 @@ export class AccountTokenService {
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
           let buffer = '';
+          let receivedDone = false;
 
           try {
             while (true) {
@@ -147,10 +148,16 @@ export class AccountTokenService {
                 if (line.trim() === '') continue;
                 if (line.startsWith('data: ')) {
                   const dataStr = line.slice(6);
-                  if (dataStr === '[DONE]') continue;
+                  if (dataStr === '[DONE]') {
+                    receivedDone = true;
+                    continue;
+                  }
 
                   try {
                     const event = JSON.parse(dataStr) as ChatStreamEvent;
+                    if (event.isComplete) {
+                      receivedDone = true;
+                    }
                     observer.next(event);
                   } catch (e) {
                     console.error('Failed to parse SSE data', e);
@@ -163,14 +170,24 @@ export class AccountTokenService {
             const remaining = buffer.trim();
             if (remaining.startsWith('data: ')) {
               const dataStr = remaining.slice(6);
-              if (dataStr !== '[DONE]') {
+              if (dataStr === '[DONE]') {
+                receivedDone = true;
+              } else {
                 try {
                   const event = JSON.parse(dataStr) as ChatStreamEvent;
+                  if (event.isComplete) {
+                    receivedDone = true;
+                  }
                   observer.next(event);
                 } catch (e) {
                   console.error('Failed to parse final SSE data', e);
                 }
               }
+            }
+
+            if (!receivedDone) {
+              observer.error(new Error('流式响应提前结束，请稍后重试'));
+              return;
             }
 
             observer.complete();

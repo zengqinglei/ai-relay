@@ -19,6 +19,7 @@ namespace AiRelay.Application.UsageRecords.AppServices;
 /// </summary>
 public class UsageRecordAppService(
     IRepository<UsageRecord, Guid> usageRecordRepository,
+    IRepository<UsageRecordAttempt, Guid> usageRecordAttemptRepository,
     IRepository<User, Guid> userRepository,
     IQueryableAsyncExecuter asyncExecuter,
     ICurrentUser currentUser,
@@ -26,9 +27,7 @@ public class UsageRecordAppService(
 {
     public async Task<UsageRecordDetailOutputDto> GetDetailAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        IQueryable<UsageRecord> query = (await usageRecordRepository.GetQueryIncludingAsync(cancellationToken, x => x.Detail))
-            .Include(x => x.Attempts)
-            .ThenInclude(a => a.Detail);
+        IQueryable<UsageRecord> query = await usageRecordRepository.GetQueryIncludingAsync(cancellationToken, x => x.Detail);
 
         var scopedUserId = UserScopeSpecifications.ResolveScopedUserId(currentUser);
         if (scopedUserId.HasValue)
@@ -43,7 +42,24 @@ public class UsageRecordAppService(
             throw new NotFoundException($"Usage record with id {id} not found.");
         }
 
-        return objectMapper.Map<UsageRecord, UsageRecordDetailOutputDto>(record);
+        var attemptQuery = await usageRecordAttemptRepository.GetQueryIncludingAsync(cancellationToken, x => x.Detail);
+        var attempts = await asyncExecuter.ToListAsync(
+            attemptQuery
+                .Where(x => x.UsageRecordId == id)
+                .OrderBy(x => x.AttemptNumber),
+            cancellationToken);
+
+        return new UsageRecordDetailOutputDto
+        {
+            UsageRecordId = record.Id,
+            Source = record.Source,
+            ApiKeyName = record.ApiKeyName,
+            DownRequestUrl = record.DownRequestUrl,
+            DownRequestHeaders = record.Detail?.DownRequestHeaders,
+            DownRequestBody = record.Detail?.DownRequestBody,
+            DownResponseBody = record.Detail?.DownResponseBody,
+            Attempts = objectMapper.Map<List<UsageRecordAttempt>, List<UsageRecordAttemptOutputDto>>(attempts)
+        };
     }
 
     public async Task<PagedResultDto<UsageRecordOutputDto>> GetPagedListAsync(

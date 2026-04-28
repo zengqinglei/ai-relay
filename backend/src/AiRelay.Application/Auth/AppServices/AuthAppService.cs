@@ -7,7 +7,6 @@ using AiRelay.Domain.Users.Entities;
 using Leistd.Ddd.Application.AppService;
 using Leistd.Ddd.Domain.Repositories;
 using Leistd.Exception.Core;
-using Leistd.ObjectMapping.Core;
 using Leistd.Security.Users;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -22,7 +21,6 @@ public class AuthAppService(
     AuthDomainService authDomainService,    IJwtTokenProvider jwtTokenProvider,
     IOptions<JwtOptions> jwtOptions,
     ICurrentUser currentUser,
-    IObjectMapper objectMapper,
     ILogger<AuthAppService> logger) : BaseAppService(), IAuthAppService
 {
     private readonly JwtOptions _jwtOptions = jwtOptions.Value;
@@ -91,13 +89,7 @@ public class AuthAppService(
     public async Task<UserOutputDto> GetCurrentUserAsync(CancellationToken cancellationToken = default)
     {
         var userId = currentUser.Id!.Value;
-        var user = await userRepository.GetByIdAsync(userId, cancellationToken);
-        if (user == null)
-        {
-            throw new NotFoundException($"用户 '{userId}' 不存在");
-        }
-
-        return await MapUserAsync(user, cancellationToken);
+        return await GetCurrentUserOutputAsync(userId, cancellationToken);
     }
 
     /// <summary>
@@ -126,7 +118,7 @@ public class AuthAppService(
         await userRepository.UpdateAsync(user, cancellationToken);
         logger.LogInformation("更新当前用户资料成功 (ID: {UserId})", user.Id);
 
-        return await MapUserAsync(user, cancellationToken);
+        return await GetCurrentUserOutputAsync(user.Id, cancellationToken);
     }
 
     /// <summary>
@@ -149,20 +141,34 @@ public class AuthAppService(
         logger.LogInformation("修改当前用户密码成功 (ID: {UserId})", user.Id);
     }
 
-    private async Task<UserOutputDto> MapUserAsync(User user, CancellationToken cancellationToken)
+    private async Task<UserOutputDto> GetCurrentUserOutputAsync(Guid userId, CancellationToken cancellationToken)
     {
-        var userRoles = await userRoleRepository.GetListAsync(ur => ur.UserId == user.Id, cancellationToken);
-        var roleIds = userRoles.Select(ur => ur.RoleId).ToList();
-        var roles = roleIds.Count == 0 ? [] : await roleRepository.GetListAsync(r => roleIds.Contains(r.Id), cancellationToken);
-
-        // ✅ 统一使用上下文传递
-        var contextItems = new Dictionary<string, object>
+        var user = await userRepository.GetByIdAsync(userId, cancellationToken);
+        if (user == null)
         {
-            ["UserRoles"] = userRoles,
-            ["Roles"] = roles
-        };
+            throw new NotFoundException($"用户 '{userId}' 不存在");
+        }
 
-        return objectMapper.Map<User, UserOutputDto>(user, contextItems);
+        var userRoles = await userRoleRepository.GetListAsync(ur => ur.UserId == userId, cancellationToken);
+        var roleIds = userRoles.Select(ur => ur.RoleId).Distinct().ToList();
+        var roleNames = roleIds.Count == 0
+            ? []
+            : (await roleRepository.GetListAsync(r => roleIds.Contains(r.Id), cancellationToken))
+                .Select(r => r.Name)
+                .ToArray();
+
+        return new UserOutputDto
+        {
+            Id = user.Id,
+            Username = user.Username,
+            Email = user.Email,
+            Nickname = user.Nickname,
+            Avatar = user.Avatar,
+            PhoneNumber = user.PhoneNumber,
+            IsActive = user.IsActive,
+            CreationTime = user.CreationTime,
+            Roles = roleNames
+        };
     }
 }
 

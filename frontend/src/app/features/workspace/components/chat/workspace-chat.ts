@@ -248,9 +248,9 @@ export class WorkspaceChatPage implements AfterViewChecked {
       return;
     }
 
-    const firstModel = this.modelOptions()[0];
-    if (firstModel) {
-      this.createSession(null, firstModel.value);
+    const preferredModelId = this.resolvePreferredNewSessionModelId();
+    if (preferredModelId) {
+      this.createSession(null, preferredModelId);
       return;
     }
 
@@ -609,6 +609,23 @@ export class WorkspaceChatPage implements AfterViewChecked {
     }
 
     return matched.isPublic ? '公开分组' : '专属分组';
+  }
+
+  private resolvePreferredNewSessionModelId() {
+    const activeSessionModelId = this.activeSession()?.modelId?.trim();
+    if (activeSessionModelId) {
+      return activeSessionModelId;
+    }
+
+    const selectedModel = this.modelSelection();
+    const selectedOptionValue = typeof selectedModel === 'string'
+      ? selectedModel.trim()
+      : selectedModel?.value?.trim();
+    if (selectedOptionValue) {
+      return selectedOptionValue;
+    }
+
+    return this.modelOptions()[0]?.value;
   }
 
   private syncModelDraft() {

@@ -51,9 +51,23 @@ import { ChatMessageOutputDto } from '../../../../models/chat-session.dto';
         content: '▋';
         animation: blink 1s step-start infinite;
       }
+      .stream-dots span {
+        height: 0.26rem;
+        width: 0.26rem;
+        border-radius: 9999px;
+        background: currentColor;
+        opacity: 0.35;
+        animation: dotPulse 1.2s ease-in-out infinite;
+      }
+      .stream-dots span:nth-child(2) { animation-delay: 0.15s; }
+      .stream-dots span:nth-child(3) { animation-delay: 0.3s; }
       @keyframes blink {
         0%, 100% { opacity: 1; }
         50% { opacity: 0; }
+      }
+      @keyframes dotPulse {
+        0%, 80%, 100% { transform: translateY(0); opacity: 0.3; }
+        40% { transform: translateY(-0.08rem); opacity: 1; }
       }
     `
   ]
@@ -66,6 +80,7 @@ export class MessageBubble {
 
   readonly isUser = computed(() => this.message().role === 'user');
   readonly avatarLabel = computed(() => (this.isUser() ? '我' : 'AI'));
+  readonly showStreamingIndicator = computed(() => !this.isUser() && !!this.message().isStreaming);
   readonly renderedHtml = computed(() => {
     const raw = this.markdown.render(this.message().content || '');
     return this.sanitizer.sanitize(SecurityContext.HTML, raw) ?? '';

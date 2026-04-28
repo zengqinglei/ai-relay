@@ -21,6 +21,13 @@
       <div class="mb-1.5 flex items-center gap-2 px-1 text-xs text-muted-color" [class.flex-row-reverse]="isUser()">
         <span class="font-medium">{{ isUser() ? '我' : 'AI 助手' }}</span>
         <span>{{ message().creationTime | date: 'HH:mm' }}</span>
+        @if (showStreamingIndicator()) {
+          <span class="stream-dots inline-flex items-center gap-1" aria-label="生成中">
+            <span></span>
+            <span></span>
+            <span></span>
+          </span>
+        }
       </div>
 
       <div class="rounded-2xl border px-5 py-3.5 text-[15px] shadow-sm leading-relaxed"
