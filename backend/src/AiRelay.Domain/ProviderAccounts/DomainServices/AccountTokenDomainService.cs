@@ -278,8 +278,9 @@ public class AccountTokenDomainService(
         if (mapping.Values.Contains(model, StringComparer.OrdinalIgnoreCase)) return model;
         if (mapping.Values.Any(v => v.Contains('*') && IsWildcardMatch(model, v))) return model;
 
-        // 1. 精确匹配
-        if (mapping.TryGetValue(model, out var exact)) return exact;
+        // 1. 精确匹配（大小写不敏感）
+        var exactMatch = mapping.FirstOrDefault(kv => kv.Key.Equals(model, StringComparison.OrdinalIgnoreCase));
+        if (exactMatch.Key != null) return exactMatch.Value;
 
         // 2. 通配符匹配（最长模式优先）
         var match = mapping

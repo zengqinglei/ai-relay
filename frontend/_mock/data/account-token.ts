@@ -6,6 +6,7 @@ import {
 } from '../../src/app/features/platform/models/account-token.dto';
 import { ModelOptionOutputDto } from '../../src/app/features/platform/models/model-option.dto';
 import { AuthMethod } from '../../src/app/shared/models/auth-method.enum';
+import { ModelVendor } from '../../src/app/shared/models/model-vendor.enum';
 import { Provider } from '../../src/app/shared/models/provider.enum';
 import { RouteProfile } from '../../src/app/shared/models/route-profile.enum';
 
@@ -55,8 +56,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     supportedRouteProfiles: [RouteProfile.GeminiBeta, RouteProfile.GeminiInternal],
     allowOfficialClientMimic: true,
     isCheckStreamHealth: true,
-    modelWhites: ['gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash'],
-    modelMapping: { 'gpt-4o': 'gemini-1.5-pro', 'claude-*': 'gemini-2.0-flash-exp' }
+    modelWhites: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemma-4-31B-it'],
+    modelMapping: { 'gpt-5.4': 'gemini-2.5-pro', 'claude-*': 'gemini-2.0-flash' }
   },
   {
     id: '2',
@@ -165,7 +166,7 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     supportedRouteProfiles: [RouteProfile.ClaudeMessages],
     allowOfficialClientMimic: false,
     isCheckStreamHealth: false,
-    modelMapping: { 'claude-opus-*': 'claude-3-5-sonnet-20241022' }
+    modelMapping: { 'claude-opus-*': 'claude-sonnet-4-6' }
   },
   {
     id: '5',
@@ -421,7 +422,8 @@ export const ACCOUNT_TOKENS: AccountTokenOutputDto[] = [
     providerGroupIds: ['group-default', 'group-compatible-fallback'],
     supportedRouteProfiles: [],
     allowOfficialClientMimic: false,
-    isCheckStreamHealth: true
+    isCheckStreamHealth: true,
+    modelMapping: { 'qwen*': 'Qwen/Qwen*' }
   }
 ];
 
@@ -440,52 +442,78 @@ export const ACCOUNT_METRICS: AccountTokenMetricsOutputDto = {
   rotationWarnings: 1
 };
 
+export const ANTIGRAVITY_MODELS: ModelOptionOutputDto[] = [
+  { label: 'Gemini 3.1 Pro High', value: 'gemini-3.1-pro-high' },
+  { label: 'Gemini 3.1 Pro Low', value: 'gemini-3.1-pro-low' },
+  { label: 'Gemini 3 Flash', value: 'gemini-3-flash' },
+  { label: 'Gemini 3 Pro (Image)', value: 'gemini-3-pro-image' },
+  { label: 'Claude 4.6 Opus (Thinking)', value: 'claude-opus-4-6-thinking' },
+  { label: 'Claude 4.6 Sonnet', value: 'claude-sonnet-4-6' },
+  { label: 'Claude 4.6 Sonnet (Thinking)', value: 'claude-sonnet-4-6-thinking' }
+];
+
 /**
- * 按 Provider 索引的模型列表
+ * 按 ModelVendor 索引的模型列表
  */
-export const AVAILABLE_MODELS: Record<Provider, ModelOptionOutputDto[]> = {
-  [Provider.Gemini]: [
-    { label: 'Gemini 3.1 Flash Preview', value: 'gemini-3.1-flash-preview' },
-    { label: 'Gemini 3.1 Pro Preview', value: 'gemini-3.1-pro-preview' },
-    { label: 'Gemini 3.0 Flash Preview', value: 'gemini-3-flash-preview' },
-    { label: 'Gemini 3.0 Pro Preview', value: 'gemini-3-pro-preview' },
-    { label: 'Gemini 2.5 Flash', value: 'gemini-2.5-flash' },
-    { label: 'Gemini 2.5 Pro', value: 'gemini-2.5-pro' },
-    { label: 'Gemini 2.0 Flash', value: 'gemini-2.0-flash' }
+export const AVAILABLE_MODELS: Record<ModelVendor, ModelOptionOutputDto[]> = {
+  [ModelVendor.Google]: [
+    { label: 'Gemini 3.1 Pro Preview', value: 'gemini-3.1-pro-preview', vendor: ModelVendor.Google },
+    { label: 'Gemini 3.0 Pro Preview', value: 'gemini-3-pro-preview', vendor: ModelVendor.Google },
+    { label: 'Gemini 3.0 Flash Preview', value: 'gemini-3-flash-preview', vendor: ModelVendor.Google },
+    { label: 'Gemini 2.5 Pro', value: 'gemini-2.5-pro', vendor: ModelVendor.Google },
+    { label: 'Gemini 2.5 Flash', value: 'gemini-2.5-flash', vendor: ModelVendor.Google },
+    { label: 'Gemma 4 31B IT', value: 'gemma-4-31B-it', vendor: ModelVendor.Google },
+    { label: 'Gemini 2.5 Flash Lite', value: 'gemini-2.5-flash-lite', vendor: ModelVendor.Google },
+    { label: 'Gemini 2.0 Flash', value: 'gemini-2.0-flash', vendor: ModelVendor.Google }
   ],
-  [Provider.Claude]: [
-    { label: 'Claude Opus 4.6', value: 'claude-opus-4-6' },
-    { label: 'Claude Sonnet 4.6', value: 'claude-sonnet-4-6' },
-    { label: 'Claude Opus 4.5', value: 'claude-opus-4-5-20251101' },
-    { label: 'Claude Sonnet 4.5', value: 'claude-sonnet-4-5-20250929' },
-    { label: 'Claude Haiku 4.5', value: 'claude-haiku-4-5-20251001' }
+  [ModelVendor.Anthropic]: [
+    { label: 'Claude Opus 4.7', value: 'claude-opus-4-7', vendor: ModelVendor.Anthropic },
+    { label: 'Claude Opus 4.6', value: 'claude-opus-4-6', vendor: ModelVendor.Anthropic },
+    { label: 'Claude Sonnet 4.6', value: 'claude-sonnet-4-6', vendor: ModelVendor.Anthropic },
+    { label: 'Claude Opus 4.5', value: 'claude-opus-4-5-20251101', vendor: ModelVendor.Anthropic },
+    { label: 'Claude Sonnet 4.5', value: 'claude-sonnet-4-5-20250929', vendor: ModelVendor.Anthropic },
+    { label: 'Claude Haiku 4.5', value: 'claude-haiku-4-5-20251001', vendor: ModelVendor.Anthropic }
   ],
-  [Provider.OpenAI]: [
-    { label: 'GPT-5.4', value: 'gpt-5.4' },
-    { label: 'GPT-5.3', value: 'gpt-5.3' },
-    { label: 'GPT-5.3 Codex', value: 'gpt-5.3-codex' },
-    { label: 'GPT-5.2', value: 'gpt-5.2' },
-    { label: 'GPT-5.2 Codex', value: 'gpt-5.2-codex' },
-    { label: 'GPT-5.1', value: 'gpt-5.1' },
-    { label: 'GPT-5.1 Codex Max', value: 'gpt-5.1-codex-max' },
-    { label: 'GPT-5.1 Codex', value: 'gpt-5.1-codex' },
-    { label: 'GPT-5.1 Codex Mini', value: 'gpt-5.1-codex-mini' },
-    { label: 'GPT-5', value: 'gpt-5' }
+  [ModelVendor.OpenAI]: [
+    { label: 'GPT-5.5', value: 'gpt-5.5', vendor: ModelVendor.OpenAI },
+    { label: 'GPT-5.4', value: 'gpt-5.4', vendor: ModelVendor.OpenAI },
+    { label: 'GPT-5.4 Mini', value: 'gpt-5.4-mini', vendor: ModelVendor.OpenAI },
+    { label: 'GPT-5.3 Codex', value: 'gpt-5.3-codex', vendor: ModelVendor.OpenAI },
+    { label: 'GPT-5.3 Codex Spark', value: 'gpt-5.3-codex-spark', vendor: ModelVendor.OpenAI },
+    { label: 'GPT-5.2', value: 'gpt-5.2', vendor: ModelVendor.OpenAI },
+    { label: 'GPT-5.2 Codex', value: 'gpt-5.2-codex', vendor: ModelVendor.OpenAI }
   ],
-  [Provider.Antigravity]: [
-    { label: 'Gemini 3.1 Pro High', value: 'gemini-3.1-pro-high' },
-    { label: 'Gemini 3.1 Pro Low', value: 'gemini-3.1-pro-low' },
-    { label: 'Gemini 3 Flash', value: 'gemini-3-flash' },
-    { label: 'Gemini 3 Pro (Image)', value: 'gemini-3-pro-image' },
-    { label: 'Claude 4.6 Opus (Thinking)', value: 'claude-opus-4-6-thinking' },
-    { label: 'Claude 4.6 Sonnet', value: 'claude-sonnet-4-6' },
-    { label: 'Claude 4.6 Sonnet (Thinking)', value: 'claude-sonnet-4-6-thinking' }
+  [ModelVendor.Qwen]: [
+    { label: 'Qwen3.6 Plus', value: 'qwen3.6-plus', category: 'Chat', vendor: ModelVendor.Qwen },
+    { label: 'Qwen3.5 Plus', value: 'qwen3.5-plus', category: 'Chat', vendor: ModelVendor.Qwen },
+    { label: 'Qwen3 VL Plus', value: 'qwen3-vl-plus', category: 'Image', vendor: ModelVendor.Qwen },
+    { label: 'Qwen3 Omni Turbo', value: 'qwen3-omni-turbo', category: 'Audio', vendor: ModelVendor.Qwen }
   ],
-  [Provider.OpenAICompatible]: [
-    { label: 'DeepSeek V3', value: 'deepseek-chat' },
-    { label: 'DeepSeek R1', value: 'deepseek-reasoner' },
-    { label: 'Llama 3.3 70B (Groq)', value: 'llama-3.3-70b-versatile' },
-    { label: 'Mixtral 8x7B (Groq)', value: 'mixtral-8x7b-32768' }
+  [ModelVendor.Moonshot]: [
+    { label: 'Kimi K2.6', value: 'kimi-k2.6', category: 'Chat', vendor: ModelVendor.Moonshot },
+    { label: 'Kimi K2.5', value: 'kimi-k2.5', category: 'Chat', vendor: ModelVendor.Moonshot },
+    { label: 'Kimi K2 Thinking', value: 'kimi-k2-thinking', category: 'Chat', vendor: ModelVendor.Moonshot }
+  ],
+  [ModelVendor.DeepSeek]: [
+    { label: 'DeepSeek V4 Pro', value: 'deepseek-v4-pro', category: 'Chat', vendor: ModelVendor.DeepSeek },
+    { label: 'DeepSeek V4 Flash', value: 'deepseek-v4-flash', category: 'Chat', vendor: ModelVendor.DeepSeek },
+    { label: 'DeepSeek V3', value: 'deepseek-v3', category: 'Chat', vendor: ModelVendor.DeepSeek }
+  ],
+  [ModelVendor.MiniMax]: [
+    { label: 'MiniMax M2.7', value: 'MiniMax-M2.7', category: 'Chat', vendor: ModelVendor.MiniMax },
+    { label: 'MiniMax M2.5', value: 'MiniMax-M2.5', category: 'Chat', vendor: ModelVendor.MiniMax },
+    { label: 'MiniMax Hailuo 2.3', value: 'MiniMax-Hailuo-2.3', category: 'Video', vendor: ModelVendor.MiniMax }
+  ],
+  [ModelVendor.Zhipu]: [
+    { label: 'GLM-5.1', value: 'glm-5.1', category: 'Chat', vendor: ModelVendor.Zhipu },
+    { label: 'GLM-5', value: 'glm-5', category: 'Chat', vendor: ModelVendor.Zhipu },
+    { label: 'GLM-5V Turbo', value: 'glm-5v-turbo', category: 'Chat', vendor: ModelVendor.Zhipu },
+    { label: 'GLM-Image', value: 'glm-image', category: 'Image', vendor: ModelVendor.Zhipu }
+  ],
+  [ModelVendor.Jimeng]: [
+    { label: '即梦文生图 3.1', value: 'jimeng_t2i_v3_1', category: 'Image', vendor: ModelVendor.Jimeng },
+    { label: '即梦文生图 3.0', value: 'jimeng_t2i_v3_0', category: 'Image', vendor: ModelVendor.Jimeng },
+    { label: '即梦视频 Pro', value: 'jimeng_video_pro', category: 'Video', vendor: ModelVendor.Jimeng }
   ]
 };
 

@@ -1,5 +1,6 @@
 using System.Net.Mime;
 using System.Text.Json;
+using AiRelay.Application.ModelRoutes.Handlers;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 
 namespace AiRelay.Api.Middleware.SmartProxy.ErrorHandling;
@@ -8,7 +9,7 @@ namespace AiRelay.Api.Middleware.SmartProxy.ErrorHandling;
 /// Gemini 格式代理错误格式化器
 /// 用于适配 gemini-cli sdk
 /// </summary>
-public class GeminiProxyErrorFormatter : BaseProxyErrorFormatter
+public class GeminiProxyErrorFormatter(RouteTerminalErrorFormatter routeTerminalErrorFormatter) : BaseProxyErrorFormatter(routeTerminalErrorFormatter)
 {
     public override bool Supports(RouteProfile profile) => profile is RouteProfile.GeminiBeta or RouteProfile.GeminiInternal;
 

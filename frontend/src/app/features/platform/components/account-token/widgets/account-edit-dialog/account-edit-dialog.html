@@ -167,11 +167,31 @@
               </div>
               <div class="flex flex-col gap-2">
                 @for (mapping of modelMappings; track trackByIndex($index); let i = $index) {
-                  <div class="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2">
+                  <div class="grid grid-cols-[1fr_auto_1fr_auto_auto] items-center gap-2">
                     <input pInputText [(ngModel)]="mapping.from" [ngModelOptions]="{standalone: true}" placeholder="源模型（支持 * 通配）" class="w-full min-w-0" />
                     <i class="pi pi-arrow-right shrink-0 text-muted-color"></i>
                     <input pInputText [(ngModel)]="mapping.to" [ngModelOptions]="{standalone: true}" placeholder="目标模型" class="w-full min-w-0" />
-                    <p-button icon="pi pi-trash" [text]="true" severity="danger" size="small" (onClick)="removeMappingRow(i)" />
+                    <div class="flex items-center gap-1">
+                      <p-button
+                        icon="pi pi-arrow-up"
+                        [text]="true"
+                        [rounded]="true"
+                        size="small"
+                        [disabled]="i === 0"
+                        pTooltip="上移"
+                        tooltipPosition="top"
+                        (onClick)="moveMappingRowUp(i)" />
+                      <p-button
+                        icon="pi pi-arrow-down"
+                        [text]="true"
+                        [rounded]="true"
+                        size="small"
+                        [disabled]="i === modelMappings.length - 1"
+                        pTooltip="下移"
+                        tooltipPosition="top"
+                        (onClick)="moveMappingRowDown(i)" />
+                      <p-button icon="pi pi-trash" [text]="true" severity="danger" size="small" (onClick)="removeMappingRow(i)" />
+                    </div>
                   </div>
                 }
               </div>

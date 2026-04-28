@@ -95,6 +95,8 @@ export interface UpdateAccountTokenInputDto {
   baseUrl?: string;
   description?: string;
   credential?: string;
+  authCode?: string;
+  sessionId?: string;
   maxConcurrency?: number;
   priority?: number;
   weight?: number;

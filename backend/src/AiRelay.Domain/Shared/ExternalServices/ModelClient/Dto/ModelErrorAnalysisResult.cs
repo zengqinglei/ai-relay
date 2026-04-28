@@ -2,7 +2,7 @@ namespace AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 
 public enum RetryType
 {
-    /// <summary>不可重试，交由外层决策（切号或最终失败）</summary>
+    /// <summary>不可同号重试，交由外层做一次盲切补偿或最终失败</summary>
     NoRetry,
 
     /// <summary>同号重试（可带退避延迟）</summary>
@@ -18,8 +18,8 @@ public enum RetryType
 public class ModelErrorAnalysisResult
 {
     /// <summary>
-    /// 重试类型决策
-    /// </summary>
+     /// 重试类型决策
+     /// </summary>
     public RetryType RetryType { get; init; } = RetryType.NoRetry;
 
     /// <summary>

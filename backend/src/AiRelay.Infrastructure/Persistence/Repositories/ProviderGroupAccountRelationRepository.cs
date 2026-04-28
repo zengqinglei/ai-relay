@@ -25,7 +25,7 @@ public class ProviderGroupAccountRelationRepository(
 
         // 使用 Include 预加载 AccountToken
         // 基础过滤条件：分组ID匹配 && 关联关系启用 && 账户存在且启用
-        var query = dbSet
+        IQueryable<ProviderGroupAccountRelation> query = dbSet
             .Include(r => r.AccountToken)
             .Where(r => r.ProviderGroupId == groupId && r.IsActive && r.AccountToken != null && r.AccountToken.IsActive);
 
@@ -68,6 +68,61 @@ public class ProviderGroupAccountRelationRepository(
             }
         }
 
-        return await query.ToListAsync(cancellationToken);
+        return await query
+            .OrderBy(r => r.AccountToken!.Priority)
+            .ThenByDescending(r => r.AccountToken!.Weight)
+            .ThenBy(r => r.AccountTokenId)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<List<ProviderGroupAccountRelation>> GetCandidatesByGroupIdsAsync(
+        IReadOnlyCollection<Guid> groupIds,
+        List<(Provider Provider, AuthMethod AuthMethod)>? allowedCombinations = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (groupIds.Count == 0)
+        {
+            return [];
+        }
+
+        var dbSet = await GetDbSetAsync(cancellationToken);
+
+        IQueryable<ProviderGroupAccountRelation> query = dbSet
+            .Include(r => r.AccountToken)
+            .Where(r => groupIds.Contains(r.ProviderGroupId) && r.IsActive && r.AccountToken != null && r.AccountToken.IsActive);
+
+        if (allowedCombinations != null && allowedCombinations.Count > 0)
+        {
+            var parameter = Expression.Parameter(typeof(ProviderGroupAccountRelation), "r");
+            Expression? compoundExpression = null;
+
+            foreach (var combo in allowedCombinations)
+            {
+                var providerProperty = Expression.Property(Expression.Property(parameter, nameof(ProviderGroupAccountRelation.AccountToken)), nameof(AccountToken.Provider));
+                var providerCondition = Expression.Equal(providerProperty, Expression.Constant(combo.Provider));
+
+                var authMethodProperty = Expression.Property(Expression.Property(parameter, nameof(ProviderGroupAccountRelation.AccountToken)), nameof(AccountToken.AuthMethod));
+                var authMethodCondition = Expression.Equal(authMethodProperty, Expression.Constant(combo.AuthMethod));
+
+                var combinedCondition = Expression.AndAlso(providerCondition, authMethodCondition);
+
+                compoundExpression = compoundExpression == null
+                    ? combinedCondition
+                    : Expression.OrElse(compoundExpression, combinedCondition);
+            }
+
+            if (compoundExpression != null)
+            {
+                var lambda = Expression.Lambda<Func<ProviderGroupAccountRelation, bool>>(compoundExpression, parameter);
+                query = query.Where(lambda);
+            }
+        }
+
+        return await query
+            .OrderBy(r => r.ProviderGroupId)
+            .ThenBy(r => r.AccountToken!.Priority)
+            .ThenByDescending(r => r.AccountToken!.Weight)
+            .ThenBy(r => r.AccountTokenId)
+            .ToListAsync(cancellationToken);
     }
 }

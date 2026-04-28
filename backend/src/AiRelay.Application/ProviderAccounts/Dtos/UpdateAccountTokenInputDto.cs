@@ -44,6 +44,16 @@ public class UpdateAccountTokenInputDto
     public string? Credential { get; init; }
 
     /// <summary>
+    /// OAuth 授权码
+    /// </summary>
+    public string? AuthCode { get; init; }
+
+    /// <summary>
+    /// OAuth 会话 ID
+    /// </summary>
+    public string? SessionId { get; init; }
+
+    /// <summary>
     /// 最大并发数（0 表示不限制）
     /// </summary>
     [Display(Name = "最大并发数")]

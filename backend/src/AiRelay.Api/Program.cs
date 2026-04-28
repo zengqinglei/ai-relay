@@ -7,6 +7,7 @@ using AiRelay.Api.Middleware.SmartProxy;
 using AiRelay.Api.Middleware.SmartProxy.ErrorHandling;
 
 using AiRelay.Application;
+using AiRelay.Application.UsageRecords.Queue;
 using AiRelay.Domain;
 using AiRelay.Domain.Auth.Options;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
@@ -73,6 +74,7 @@ try
     // 3.5. 注册后台服务
     // builder.Services.AddHostedService<AccountQuotaRefreshHostedService>();
     builder.Services.AddSingleton<AccountUsageRecordWorker>();
+    builder.Services.AddSingleton<IUsageRecordQueue>(sp => sp.GetRequiredService<AccountUsageRecordWorker>());
     builder.Services.AddHostedService(sp => sp.GetRequiredService<AccountUsageRecordWorker>());
     builder.Services.AddHostedService<UsageRecordCleanupBackgroundService>();
 

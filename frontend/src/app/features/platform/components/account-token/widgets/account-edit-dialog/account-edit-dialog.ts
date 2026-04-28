@@ -484,6 +484,11 @@ export class AccountEditDialogComponent implements OnChanges {
           updateDto.credential = createDto.credential;
         }
 
+        if (createDto.authCode && createDto.sessionId) {
+          updateDto.authCode = createDto.authCode;
+          updateDto.sessionId = createDto.sessionId;
+        }
+
         this.save.emit({ id: this.account.id, dto: updateDto });
       } else {
         this.save.emit({ dto: createDto });
@@ -591,6 +596,26 @@ export class AccountEditDialogComponent implements OnChanges {
 
   addMappingRow() {
     this.modelMappings = [...this.modelMappings, { from: '', to: '' }];
+  }
+
+  moveMappingRowUp(index: number) {
+    if (index <= 0 || index >= this.modelMappings.length) {
+      return;
+    }
+
+    const next = [...this.modelMappings];
+    [next[index - 1], next[index]] = [next[index], next[index - 1]];
+    this.modelMappings = next;
+  }
+
+  moveMappingRowDown(index: number) {
+    if (index < 0 || index >= this.modelMappings.length - 1) {
+      return;
+    }
+
+    const next = [...this.modelMappings];
+    [next[index], next[index + 1]] = [next[index + 1], next[index]];
+    this.modelMappings = next;
   }
 
   removeMappingRow(index: number) {

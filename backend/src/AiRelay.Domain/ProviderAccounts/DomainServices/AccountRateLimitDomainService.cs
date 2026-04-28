@@ -120,7 +120,7 @@ public class AccountRateLimitDomainService(
         CancellationToken cancellationToken = default)
     {
         var ids = accountIds.ToList();
-        if (ids.Count == 0) return new HashSet<Guid>();
+        if (ids.Count == 0) return [];
 
         var results = await Task.WhenAll(ids.Select(id => cache.GetStringAsync(GetAccountRateLimitKey(id), cancellationToken)));
         var rateLimitedIds = new HashSet<Guid>();

@@ -1,3 +1,5 @@
+using AiRelay.Domain.Shared.ExternalServices.ModelProvider.Dto;
+
 namespace AiRelay.Application.ChatSessions.Dtos;
 
 /// <summary>
@@ -10,6 +12,12 @@ public class ChatModelOptionOutputDto
 
     /// <summary>模型值</summary>
     public string Value { get; set; } = string.Empty;
+
+    /// <summary>模型分类</summary>
+    public ModelCategory Category { get; set; } = ModelCategory.Chat;
+
+    /// <summary>模型目录归属/厂商</summary>
+    public ModelVendor? Vendor { get; set; }
 
     /// <summary>推荐分组 ID</summary>
     public Guid? ProviderGroupId { get; set; }

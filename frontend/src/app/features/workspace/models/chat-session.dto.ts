@@ -1,4 +1,6 @@
 import { InlineDataPart } from '../../platform/models/chat-stream-event.dto';
+import { ModelCategory } from '../../platform/models/model-option.dto';
+import { ModelVendor } from '../../../shared/models/model-vendor.enum';
 
 export type ChatMessageRole = 'user' | 'assistant' | 'system';
 
@@ -52,6 +54,8 @@ export interface SendChatMessageInputDto {
 export interface ChatModelOptionOutputDto {
   label: string;
   value: string;
+  category?: ModelCategory;
+  vendor?: ModelVendor;
   providerGroupId?: string;
   providerGroupName?: string;
 }

@@ -1,6 +1,7 @@
 using AiRelay.Domain.ApiKeys.DomainServices;
 using AiRelay.Domain.Auth.DomainServices;
 using AiRelay.Domain.ProviderAccounts.DomainServices;
+using AiRelay.Domain.ProviderAccounts.Options;
 using AiRelay.Domain.ProviderGroups.DomainServices;
 using AiRelay.Domain.UsageRecords.DomainServices;
 using AiRelay.Domain.UsageRecords.Providers;
@@ -19,6 +20,8 @@ public static class DependencyInjection
     /// </summary>
     public static IServiceCollection AddDomainServices(this IServiceCollection services)
     {
+        services.Configure<ModelSchedulingOptions>(_ => { });
+
         // 领域服务（无状态，使用 Transient 生命周期）
         services.AddTransient<AccountTokenDomainService>();
         services.AddTransient<AccountRateLimitDomainService>();
@@ -40,6 +43,10 @@ public static class DependencyInjection
 
         // 提供商分组领域服务
         services.AddTransient<ProviderGroupDomainService>();
+
+        // 模型调度领域服务
+        services.AddTransient<RouteAccountSchedulingDomainService>();
+        services.AddTransient<AccountRetryStrategyDomainService>();
 
         // [New] Pricing Provider (模型定价服务 - Singleton 因为有全局缓存和静态锁)
         services.AddSingleton<IPricingProvider, LiteLlmPricingProvider>();

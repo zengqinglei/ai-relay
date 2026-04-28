@@ -1,5 +1,6 @@
 using System.Net.Mime;
 using System.Text.Json;
+using AiRelay.Application.ModelRoutes.Handlers;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 
 namespace AiRelay.Api.Middleware.SmartProxy.ErrorHandling;
@@ -8,7 +9,7 @@ namespace AiRelay.Api.Middleware.SmartProxy.ErrorHandling;
 /// OpenAI 格式代理错误格式化器
 /// 多数第三方 SDK 能兼容这种格式的解析
 /// </summary>
-public class OpenAIProxyErrorFormatter : BaseProxyErrorFormatter
+public class OpenAIProxyErrorFormatter(RouteTerminalErrorFormatter routeTerminalErrorFormatter) : BaseProxyErrorFormatter(routeTerminalErrorFormatter)
 {
     public override bool Supports(RouteProfile profile) => profile is RouteProfile.ChatCompletions or RouteProfile.OpenAiResponses or RouteProfile.OpenAiCodex;
 

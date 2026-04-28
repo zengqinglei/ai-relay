@@ -24,7 +24,10 @@ public interface IModelProvider
     /// <summary>
     /// 获取指定平台的可用模型列表
     /// </summary>
-    /// <param name="provider">提供商</param>
-    /// <returns>模型选项列表</returns>
     IReadOnlyList<ModelOption> GetAvailableModels(Provider provider);
+
+    /// <summary>
+    /// 获取全量固定模型目录
+    /// </summary>
+    IReadOnlyList<ModelOption> GetAllCatalogModels();
 }

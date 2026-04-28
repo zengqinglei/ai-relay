@@ -47,7 +47,8 @@ export const ROUTE_PROFILE_SUPPORTED_COMBINATIONS: Record<RouteProfile, Array<{ 
   ],
   [RouteProfile.ChatCompletions]: [
     { provider: Provider.OpenAI, authMethod: AuthMethod.OAuth },
-    { provider: Provider.OpenAI, authMethod: AuthMethod.ApiKey }
+    { provider: Provider.OpenAI, authMethod: AuthMethod.ApiKey },
+    { provider: Provider.OpenAICompatible, authMethod: AuthMethod.ApiKey }
   ],
   [RouteProfile.ClaudeMessages]: [
     { provider: Provider.Claude, authMethod: AuthMethod.OAuth },

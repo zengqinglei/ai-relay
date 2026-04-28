@@ -38,7 +38,12 @@ public record SelectAccountResultDto
     public int AvailableAccountCount { get; init; }
 
     /// <summary>
-    /// 账号当前退避计数（用于动态调整同账号重试次数）
+    /// 同账号最大重试次数（根据退避计数动态计算：无退避=3次，退避1次=2次，退避≥2次=1次）
     /// </summary>
-    public int BackoffCount { get; init; }
+    public int MaxSameAccountRetries { get; init; }
+
+    /// <summary>
+    /// 指纹设置结果（官方账号仿真模式）。若账号未开启仿真，则为 null。
+    /// </summary>
+    public FingerprintSetupResult? Fingerprint { get; init; }
 }

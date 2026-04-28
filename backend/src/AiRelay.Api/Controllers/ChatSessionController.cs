@@ -60,10 +60,17 @@ public class ChatSessionController(
         Response.Headers.Append("X-Accel-Buffering", "no");
 
         var options = Domain.Shared.Json.JsonOptions.WebApi;
+        var requestContext = new WorkspaceChatRequestContextDto(
+            Headers: Request.Headers.ToDictionary(
+                header => header.Key,
+                header => header.Value.ToString(),
+                StringComparer.OrdinalIgnoreCase),
+            RequestUrl: Request.Path + Request.QueryString,
+            ClientIp: HttpContext.Connection.RemoteIpAddress?.ToString());
 
         try
         {
-            await foreach (var evt in chatSessionAppService.SendMessageAsync(id, input, cancellationToken))
+            await foreach (var evt in chatSessionAppService.SendMessageAsync(id, input, requestContext, cancellationToken))
             {
                 var data = JsonSerializer.Serialize(evt, options);
                 await Response.Body.WriteAsync(Encoding.UTF8.GetBytes($"data: {data}\n\n"), cancellationToken);

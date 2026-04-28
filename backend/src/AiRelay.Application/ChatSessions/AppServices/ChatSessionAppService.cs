@@ -4,6 +4,7 @@ using AiRelay.Application.ChatSessions.Dtos;
 using AiRelay.Domain.ChatSessions.Entities;
 using AiRelay.Domain.ProviderAccounts.DomainServices;
 using AiRelay.Domain.ProviderAccounts.Entities;
+using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.ProviderGroups.Entities;
 using AiRelay.Domain.ProviderGroups.Repositories;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
@@ -17,7 +18,6 @@ using Leistd.Exception.Core;
 using Leistd.ObjectMapping.Core;
 using Leistd.Security.Users;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
@@ -228,6 +228,11 @@ public class ChatSessionAppService(
         {
             foreach (var model in await ResolveModelOptionsAsync(account, cancellationToken))
             {
+                if (!await IsModelCurrentlyRoutableAsync(account, model.Value, cancellationToken))
+                {
+                    continue;
+                }
+
                 if (result.ContainsKey(model.Value))
                 {
                     continue;
@@ -253,7 +258,11 @@ public class ChatSessionAppService(
             }
         }
 
-        var output = result.Values.ToList();
+        var modelOrderMap = BuildModelOrderMap();
+        var output = result.Values
+            .OrderBy(x => modelOrderMap.GetValueOrDefault(x.Value, int.MaxValue))
+            .ThenBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         memoryCache.Set(cacheKey, output, ModelOptionsCacheDuration);
         return output;
@@ -262,6 +271,7 @@ public class ChatSessionAppService(
     public async IAsyncEnumerable<StreamEvent> SendMessageAsync(
         Guid id,
         SendChatMessageInputDto input,
+        WorkspaceChatRequestContextDto requestContext,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var session = await GetOwnedSessionAsync(id, includeMessages: true, cancellationToken);
@@ -275,7 +285,7 @@ public class ChatSessionAppService(
         List<InlineDataPart>? assistantAttachments = null;
         var hasError = false;
 
-        await foreach (var evt in workspaceChatExecutionAppService.ExecuteAsync(session, cancellationToken))
+        await foreach (var evt in workspaceChatExecutionAppService.ExecuteAsync(session, requestContext, cancellationToken))
         {
             if (evt.Type == StreamEventType.Content && !string.IsNullOrEmpty(evt.Content))
             {
@@ -358,22 +368,22 @@ public class ChatSessionAppService(
 
     private async Task<IReadOnlyList<ChatModelOptionOutputDto>> ResolveModelOptionsAsync(AccountToken account, CancellationToken cancellationToken)
     {
-        var baselineModels = modelProvider.GetAvailableModels(account.Provider);
+        var allCatalogModels = modelProvider.GetAllCatalogModels()
+            .Where(x => !x.Value.Contains('*'))
+            .ToList();
+
+        var providerFallbackCatalogModels = modelProvider.GetAvailableModels(account.Provider)
+            .Where(x => !x.Value.Contains('*'))
+            .ToList();
 
         if (account.ModelWhites is { Count: > 0 })
         {
-            var baselineLookup = baselineModels
-                .Where(x => !x.Value.Contains('*'))
-                .ToDictionary(x => x.Value, x => x.Label, StringComparer.OrdinalIgnoreCase);
+            return MapChatModelOptions(FilterCatalogByWhitelist(allCatalogModels, account.ModelWhites));
+        }
 
-            return account.ModelWhites
-                .Where(x => !x.Contains('*'))
-                .Select(modelId => new ChatModelOptionOutputDto
-                {
-                    Value = modelId,
-                    Label = baselineLookup.GetValueOrDefault(modelId, modelId)
-                })
-                .ToList();
+        if (account.ModelMapping is { Count: > 0 })
+        {
+            return MapChatModelOptions(FilterCatalogByMapping(allCatalogModels, account.ModelMapping));
         }
 
         IReadOnlyList<string>? upstreamModelIds = null;
@@ -387,37 +397,146 @@ public class ChatSessionAppService(
             logger.LogWarning(ex, "工作区聊天模型列表拉取上游模型失败，降级静态模型: AccountId={AccountId}, Provider={Provider}", account.Id, account.Provider);
         }
 
-        IReadOnlyList<ModelOption> finalModels;
         if (upstreamModelIds is { Count: > 0 })
         {
-            var upstreamIdSet = upstreamModelIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
-            if (baselineModels.Count > 0)
-            {
-                finalModels = baselineModels
-                    .Where(x => !x.Value.Contains('*') && upstreamIdSet.Contains(x.Value))
-                    .ToList();
-            }
-            else
-            {
-                finalModels = upstreamModelIds
-                    .Select(id => new ModelOption(id, id))
-                    .ToList();
-            }
-        }
-        else
-        {
-            finalModels = baselineModels
-                .Where(x => !x.Value.Contains('*'))
+            var upstreamSet = upstreamModelIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            return allCatalogModels
+                .Where(model => IsModelExposedByUpstream(account, model.Value, upstreamSet))
+                .Select(MapChatModelOption)
                 .ToList();
         }
 
-        return finalModels
-            .Select(x => new ChatModelOptionOutputDto
-            {
-                Label = x.Label,
-                Value = x.Value
-            })
+        return MapChatModelOptions(providerFallbackCatalogModels);
+    }
+
+    private async Task<bool> IsModelCurrentlyRoutableAsync(
+        AccountToken account,
+        string modelId,
+        CancellationToken cancellationToken)
+    {
+        if (!await accountTokenDomainService.IsModelSupportedAsync(account, modelId, cancellationToken))
+        {
+            return false;
+        }
+
+        var upModelId = AccountTokenDomainService.ResolveUpModelId(
+            modelId,
+            account.Provider,
+            account.ModelMapping,
+            modelProvider);
+
+        return account.IsModelAvailable(upModelId);
+    }
+
+    private bool IsModelExposedByUpstream(
+        AccountToken account,
+        string modelId,
+        HashSet<string> upstreamSet)
+    {
+        if (modelId.Contains('*'))
+        {
+            return false;
+        }
+
+        var upModelId = AccountTokenDomainService.ResolveUpModelId(
+            modelId,
+            account.Provider,
+            account.ModelMapping,
+            modelProvider);
+
+        if (string.IsNullOrWhiteSpace(upModelId))
+        {
+            return false;
+        }
+
+        return upstreamSet.Contains(upModelId);
+    }
+
+    private static IReadOnlyList<ModelOption> FilterCatalogByWhitelist(
+        IReadOnlyList<ModelOption> catalogModels,
+        IReadOnlyList<string> whitelist)
+    {
+        return catalogModels
+            .Where(model => whitelist.Any(pattern => IsPatternMatch(model.Value, pattern)))
             .ToList();
+    }
+
+    private static IReadOnlyList<ModelOption> FilterCatalogByMapping(
+        IReadOnlyList<ModelOption> catalogModels,
+        Dictionary<string, string> mapping)
+    {
+        return catalogModels
+            .Where(model => TryResolveMappingSource(model.Value, mapping) != null)
+            .ToList();
+    }
+
+    private static ChatModelOptionOutputDto MapChatModelOption(ModelOption model)
+    {
+        return new ChatModelOptionOutputDto
+        {
+            Label = model.Label,
+            Value = model.Value,
+            Category = model.Category,
+            Vendor = model.Vendor
+        };
+    }
+
+    private static IReadOnlyList<ChatModelOptionOutputDto> MapChatModelOptions(IEnumerable<ModelOption> models)
+    {
+        return models.Select(MapChatModelOption).ToList();
+    }
+
+    private static string? TryResolveMappingSource(string modelId, Dictionary<string, string> mapping)
+    {
+        return AccountTokenDomainService.ResolveMapping(modelId, mapping);
+    }
+
+    private static bool IsPatternMatch(string text, string pattern)
+    {
+        var parts = pattern.Split('*');
+        var pos = 0;
+
+        for (var i = 0; i < parts.Length; i++)
+        {
+            var part = parts[i];
+            if (string.IsNullOrEmpty(part))
+            {
+                continue;
+            }
+
+            var idx = text.IndexOf(part, pos, StringComparison.OrdinalIgnoreCase);
+            if (idx < 0)
+            {
+                return false;
+            }
+
+            if (i == 0 && idx != 0)
+            {
+                return false;
+            }
+
+            pos = idx + part.Length;
+        }
+
+        return string.IsNullOrEmpty(parts[^1]) || pos == text.Length;
+    }
+
+    private Dictionary<string, int> BuildModelOrderMap()
+    {
+        var orderMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var index = 0;
+        foreach (var model in modelProvider.GetAllCatalogModels())
+        {
+            if (model.Value.Contains('*') || orderMap.ContainsKey(model.Value))
+            {
+                continue;
+            }
+
+            orderMap[model.Value] = index++;
+        }
+
+        return orderMap;
     }
 
     private sealed record ChatMessageCursorItem(DateTime CreationTime, Guid Id);

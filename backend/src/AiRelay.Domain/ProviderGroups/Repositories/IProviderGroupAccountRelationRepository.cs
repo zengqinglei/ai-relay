@@ -14,4 +14,12 @@ public interface IProviderGroupAccountRelationRepository : IRepository<ProviderG
         List<(Provider Provider, AuthMethod AuthMethod)>? allowedCombinations = null,
         List<Guid>? excludedAccountIds = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 批量获取多个分组下的候选关系列表（预过滤协议、账号活跃度，并包含 AccountToken 信息）
+    /// </summary>
+    Task<List<ProviderGroupAccountRelation>> GetCandidatesByGroupIdsAsync(
+        IReadOnlyCollection<Guid> groupIds,
+        List<(Provider Provider, AuthMethod AuthMethod)>? allowedCombinations = null,
+        CancellationToken cancellationToken = default);
 }

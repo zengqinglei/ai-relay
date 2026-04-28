@@ -1,4 +1,4 @@
-namespace AiRelay.Domain.ProviderGroups.ValueObjects;
+namespace AiRelay.Domain.ProviderAccounts.ValueObjects;
 
 /// <summary>
 /// 失败处理指令

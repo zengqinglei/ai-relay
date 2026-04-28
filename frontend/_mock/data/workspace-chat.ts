@@ -1,32 +1,9 @@
-import { ChatMessageOutputDto, ChatModelOptionOutputDto, ChatSessionOutputDto } from '../../src/app/features/workspace/models/chat-session.dto';
+import { ChatMessageOutputDto, ChatSessionOutputDto } from '../../src/app/features/workspace/models/chat-session.dto';
 
 export interface MockChatSession extends Omit<ChatSessionOutputDto, 'messageCount'> {
   userId: string;
   messages: ChatMessageOutputDto[];
 }
-
-export interface MockChatModelOptions {
-  all: ChatModelOptionOutputDto[];
-  byGroup: Record<string, ChatModelOptionOutputDto[]>;
-}
-
-const ALL_MODEL_OPTIONS: ChatModelOptionOutputDto[] = [
-  { label: 'Gemini 2.5 Pro', value: 'gemini-2.5-pro', providerGroupId: 'group-gemini-shared', providerGroupName: 'gemini-shared' },
-  { label: 'Gemini 2.5 Flash', value: 'gemini-2.5-flash', providerGroupId: 'group-gemini-shared', providerGroupName: 'gemini-shared' },
-  { label: 'Claude Sonnet 4.6', value: 'claude-sonnet-4-6', providerGroupId: 'group-compatible-fallback', providerGroupName: 'compatible-fallback' },
-  { label: 'GPT-4.1', value: 'gpt-4.1', providerGroupId: 'group-openai-vip', providerGroupName: 'openai-vip' },
-  { label: 'GPT-4o', value: 'gpt-4o', providerGroupId: 'group-openai-vip', providerGroupName: 'openai-vip' }
-];
-
-export const WORKSPACE_CHAT_MODEL_OPTIONS: MockChatModelOptions = {
-  all: ALL_MODEL_OPTIONS,
-  byGroup: {
-    'group-default': ALL_MODEL_OPTIONS,
-    'group-openai-vip': ALL_MODEL_OPTIONS.filter(item => ['gpt-4.1', 'gpt-4o'].includes(item.value)),
-    'group-gemini-shared': ALL_MODEL_OPTIONS.filter(item => item.value.startsWith('gemini-')),
-    'group-compatible-fallback': ALL_MODEL_OPTIONS.filter(item => ['gpt-4o', 'claude-sonnet-4-6'].includes(item.value))
-  }
-};
 
 export const WORKSPACE_CHAT_SESSIONS: MockChatSession[] = [
   {
@@ -88,7 +65,7 @@ export const WORKSPACE_CHAT_SESSIONS: MockChatSession[] = [
     userId: '00000000-0000-0000-0000-000000000002',
     title: '工作区指标复盘',
     providerGroupId: 'group-openai-vip',
-    modelId: 'gpt-4o',
+    modelId: 'gpt-5.4',
     creationTime: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(),
     lastMessageTime: new Date(Date.now() - 1000 * 60 * 18).toISOString(),
     lastMessagePreview: '可以重点看请求量、模型分布、最高频 API Key 和失败率，避免只看单日调用次数。',

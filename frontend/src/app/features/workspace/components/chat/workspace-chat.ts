@@ -3,21 +3,22 @@ import { AfterViewChecked, ChangeDetectionStrategy, Component, DestroyRef, Eleme
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { ConfirmationService, MessageService } from 'primeng/api';
+import { ConfirmationService } from 'primeng/api';
+import { AutoCompleteCompleteEvent, AutoCompleteModule } from 'primeng/autocomplete';
 import { ButtonModule } from 'primeng/button';
 import { ConfirmPopupModule } from 'primeng/confirmpopup';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
-import { AutoCompleteCompleteEvent, AutoCompleteModule } from 'primeng/autocomplete';
 import { SelectModule } from 'primeng/select';
 import { MessageModule } from 'primeng/message';
 import { TextareaModule } from 'primeng/textarea';
-import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
-import { finalize, Subject, switchMap } from 'rxjs';
+import { finalize, map, Subject, switchMap } from 'rxjs';
 
 import { LayoutService } from '../../../../layout/services/layout-service';
+import { PlatformIcon } from '../../../../shared/components/platform-icon/platform-icon';
+import { MODEL_VENDOR_LABELS } from '../../../../shared/constants/model-vendor.constants';
 import { ProviderGroupOutputDto } from '../../../platform/models/provider-group.dto';
 import { ProviderGroupService } from '../../../platform/services/provider-group-service';
 import {
@@ -43,14 +44,14 @@ import { MessageBubble } from './widgets/message-bubble/message-bubble';
     InputTextModule,
     MessageBubble,
     MessageModule,
+    PlatformIcon,
     SelectModule,
     TextareaModule,
-    ToastModule,
     TooltipModule
   ],
   templateUrl: './workspace-chat.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  providers: [ConfirmationService, MessageService]
+  providers: [ConfirmationService]
 })
 export class WorkspaceChatPage implements AfterViewChecked {
   private static readonly MESSAGE_PAGE_SIZE = 30;
@@ -65,8 +66,6 @@ export class WorkspaceChatPage implements AfterViewChecked {
   private readonly chatSessionService = inject(ChatSessionService);
   private readonly providerGroupService = inject(ProviderGroupService);
   private readonly confirmationService = inject(ConfirmationService);
-  private readonly messageService = inject(MessageService);
-
   readonly sessions = signal<ChatSessionOutputDto[]>([]);
   readonly activeSessionId = signal<string | null>(null);
   readonly routeSessionId = signal<string | null>(null);
@@ -85,8 +84,12 @@ export class WorkspaceChatPage implements AfterViewChecked {
   readonly titleDraft = signal('');
   readonly errorMessage = signal('');
   readonly modelOptionsLoading = signal(false);
-  readonly modelDraft = signal('');
-  readonly filteredModelSuggestions = signal<string[]>([]);
+  readonly modelSelection = signal<ChatModelOptionOutputDto | string | null>(null);
+  readonly filteredModelGroups = signal<Array<{
+    label: string;
+    vendor?: ChatModelOptionOutputDto['vendor'];
+    items: ChatModelOptionOutputDto[];
+  }>>([]);
   readonly selectedProviderGroupValue = signal<string | null>(null);
 
   private shouldAutoScroll = false;
@@ -95,8 +98,7 @@ export class WorkspaceChatPage implements AfterViewChecked {
   private pendingScrollRestore: { previousHeight: number; previousTop: number } | null = null;
   private modelOptionsGroupId: string | null = null;
   private loadingModelOptionsGroupId: string | null = null;
-  private committingModelDraft = false;
-  private readonly groupChange$ = new Subject<{ sessionId: string; providerGroupId: string | null }>();
+  private readonly groupChange$ = new Subject<{ sessionId: string; providerGroupId: string | null; currentModelId: string }>();
 
   readonly activeSession = computed(() => this.sessions().find(session => session.id === this.activeSessionId()) ?? null);
   readonly canCreateSession = computed(() => this.providerGroups().length > 0);
@@ -106,6 +108,27 @@ export class WorkspaceChatPage implements AfterViewChecked {
       icon: group.isPublic ? 'pi pi-globe' : 'pi pi-lock',
       hint: group.isPublic ? '公开分组' : '专属分组'
     })));
+  readonly groupedModelOptions = computed(() => {
+    const groups = new Map<string, {
+      label: string;
+      vendor?: ChatModelOptionOutputDto['vendor'];
+      items: ChatModelOptionOutputDto[];
+    }>();
+
+    for (const option of this.modelOptions()) {
+      const vendorKey = option.vendor ?? 'Unknown';
+      const vendorLabel = option.vendor ? MODEL_VENDOR_LABELS[option.vendor] : '其他';
+      if (!groups.has(vendorKey)) {
+        groups.set(vendorKey, { label: vendorLabel, vendor: option.vendor, items: [] });
+      }
+
+      groups.get(vendorKey)!.items.push({
+        ...option
+      });
+    }
+
+    return Array.from(groups.values());
+  });
   readonly filteredSessions = computed(() => {
     const keyword = this.sessionSearchQuery().trim().toLowerCase();
     if (!keyword) {
@@ -145,15 +168,42 @@ export class WorkspaceChatPage implements AfterViewChecked {
 
     this.groupChange$.pipe(
       takeUntilDestroyed(this.destroyRef),
-      switchMap(({ sessionId, providerGroupId }) =>
-        this.chatSessionService.updateSession(sessionId, providerGroupId
-          ? { providerGroupId, useAutoProviderGroup: false }
-          : { useAutoProviderGroup: true }
-        )
-      )
-    ).subscribe(updated => {
+      switchMap(({ sessionId, providerGroupId, currentModelId }) => {
+        const targetGroupId = providerGroupId ?? undefined;
+        this.modelOptionsLoading.set(true);
+        this.filteredModelGroups.set([]);
+
+        return this.chatSessionService.getModelOptions(targetGroupId).pipe(
+          map(options => {
+            const fallbackModelId = options[0]?.value;
+            const nextModelId = options.some(option => option.value === currentModelId)
+              ? currentModelId
+              : fallbackModelId;
+
+            return {
+              groupId: providerGroupId,
+              options,
+              updateInput: {
+                ...(providerGroupId
+                  ? { providerGroupId, useAutoProviderGroup: false }
+                  : { useAutoProviderGroup: true }),
+                ...(nextModelId && nextModelId !== currentModelId ? { modelId: nextModelId } : {})
+              }
+            };
+          }),
+          switchMap(plan =>
+            this.chatSessionService.updateSession(sessionId, plan.updateInput).pipe(
+              map(updated => ({ ...plan, updated }))
+            )
+          ),
+          finalize(() => this.modelOptionsLoading.set(false))
+        );
+      })
+    ).subscribe(({ updated, options, groupId }) => {
+      this.modelOptions.set(options);
+      this.modelOptionsGroupId = groupId;
+      this.filteredModelGroups.set(this.createGroupedModelSuggestions());
       this.upsertSession(updated);
-      this.loadModelOptions(updated.providerGroupId, updated.modelId, updated.id);
       this.syncModelDraft();
     });
   }
@@ -214,6 +264,7 @@ export class WorkspaceChatPage implements AfterViewChecked {
       .subscribe(options => {
         this.modelOptions.set(options);
         this.modelOptionsGroupId = null;
+        this.filteredModelGroups.set(this.createGroupedModelSuggestions());
         const fallbackModel = options[0];
         if (!fallbackModel) {
           return;
@@ -249,7 +300,7 @@ export class WorkspaceChatPage implements AfterViewChecked {
 
     if (field === 'providerGroupId') {
       this.selectedProviderGroupValue.set(value);
-      this.groupChange$.next({ sessionId: session.id, providerGroupId: value });
+      this.groupChange$.next({ sessionId: session.id, providerGroupId: value, currentModelId: session.modelId });
       return;
     }
 
@@ -277,36 +328,42 @@ export class WorkspaceChatPage implements AfterViewChecked {
       });
   }
 
+  onModelSelectionChange(value: ChatModelOptionOutputDto | string | null | undefined) {
+    this.modelSelection.set(value ?? null);
+  }
+
   filterModelSuggestions(event: AutoCompleteCompleteEvent) {
     const query = (event.query ?? '').trim().toLowerCase();
-    const suggestions = this.modelOptions()
-      .filter(option => !query || option.value.toLowerCase().includes(query) || option.label.toLowerCase().includes(query))
-      .map(option => option.value);
-    const uniqueSuggestions = suggestions.filter((item, index, list) => list.indexOf(item) === index);
-    if (query && !uniqueSuggestions.some(item => item.toLowerCase() === query)) {
-      uniqueSuggestions.unshift(event.query.trim());
+    if (!query) {
+      this.filteredModelGroups.set(this.createGroupedModelSuggestions());
+      return;
     }
 
-    this.filteredModelSuggestions.set(uniqueSuggestions);
+    const filtered = this.createGroupedModelSuggestions()
+      .map(group => ({
+        ...group,
+        items: group.items.filter(option =>
+          option.value.toLowerCase().includes(query) || option.label.toLowerCase().includes(query))
+      }))
+      .filter(group => group.items.length > 0);
+
+    this.filteredModelGroups.set(filtered);
   }
 
-  onModelDraftChange(value: string | null | undefined) {
-    this.modelDraft.set(value?.trim() ?? '');
-  }
+  onModelSelect(value: string | ChatModelOptionOutputDto) {
+    const nextValue = typeof value === 'string' ? value : value?.value;
+    if (!nextValue) {
+      return;
+    }
 
-  onModelSelect(value: string) {
-    this.modelDraft.set(value);
-    this.commitModelDraft();
+    const selectedOption = this.modelOptions().find(option => option.value === nextValue);
+    this.modelSelection.set(selectedOption ?? nextValue);
+    this.onSessionConfigChange('modelId', nextValue);
   }
 
   onModelInputBlur() {
-    this.commitModelDraft();
-  }
-
-  onModelInputKeydown(event: KeyboardEvent) {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      this.commitModelDraft();
+    if (typeof this.modelSelection() === 'string') {
+      this.syncModelDraft();
     }
   }
 
@@ -555,28 +612,10 @@ export class WorkspaceChatPage implements AfterViewChecked {
   }
 
   private syncModelDraft() {
-    this.modelDraft.set(this.activeSession()?.modelId ?? '');
-    this.filteredModelSuggestions.set(this.modelOptions().map(option => option.value));
-  }
-
-  private commitModelDraft() {
-    const session = this.activeSession();
-    const value = this.modelDraft().trim();
-    if (!session || !value || this.committingModelDraft) {
-      if (!value) {
-        this.syncModelDraft();
-      }
-      return;
-    }
-
-    if (value === session.modelId) {
-      return;
-    }
-
-    this.committingModelDraft = true;
-    this.onSessionConfigChange('modelId', value);
-    // 延迟重置，确保 blur/select 短时间内的第二次调用被过滤
-    setTimeout(() => this.committingModelDraft = false, 300);
+    const modelId = this.activeSession()?.modelId ?? '';
+    const selectedOption = this.modelOptions().find(option => option.value === modelId);
+    this.modelSelection.set(selectedOption ?? modelId);
+    this.filteredModelGroups.set(this.createGroupedModelSuggestions());
   }
 
   private createSession(providerGroupId: string | null, modelId: string) {
@@ -643,6 +682,7 @@ export class WorkspaceChatPage implements AfterViewChecked {
 
     this.loadingModelOptionsGroupId = groupId;
     this.modelOptionsLoading.set(true);
+    this.filteredModelGroups.set([]);
     this.chatSessionService
       .getModelOptions(providerGroupId)
       .pipe(
@@ -657,7 +697,7 @@ export class WorkspaceChatPage implements AfterViewChecked {
       .subscribe(options => {
         this.modelOptions.set(options);
         this.modelOptionsGroupId = groupId;
-        this.filteredModelSuggestions.set(options.map(option => option.value));
+        this.filteredModelGroups.set(this.createGroupedModelSuggestions());
 
         if (!sessionId || !preferredModelId || options.length === 0) {
           this.syncModelDraft();
@@ -670,12 +710,6 @@ export class WorkspaceChatPage implements AfterViewChecked {
         }
 
         const fallbackModel = options[0].value;
-        this.messageService.add({
-          severity: 'info',
-          summary: '模型已自动切换',
-          detail: `"${preferredModelId}" 在当前分组下不可用，已切换为 "${fallbackModel}"`,
-          life: 4000
-        });
         this.chatSessionService
           .updateSession(sessionId, {
             modelId: fallbackModel,
@@ -688,6 +722,13 @@ export class WorkspaceChatPage implements AfterViewChecked {
             this.syncModelDraft();
           });
       });
+  }
+
+  private createGroupedModelSuggestions() {
+    return this.groupedModelOptions().map(group => ({
+      ...group,
+      items: [...group.items]
+    }));
   }
 
   private loadSessionMessages(sessionId: string, reset: boolean) {
@@ -791,7 +832,7 @@ export class WorkspaceChatPage implements AfterViewChecked {
       } else {
         this.modelOptions.set([]);
         this.modelOptionsGroupId = null;
-        this.filteredModelSuggestions.set([]);
+        this.filteredModelGroups.set([]);
       }
       return;
     }

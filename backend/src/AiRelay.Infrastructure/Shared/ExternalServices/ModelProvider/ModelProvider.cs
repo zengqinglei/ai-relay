@@ -37,6 +37,9 @@ public sealed class ModelProvider(ILogger<ModelProvider> logger) : IModelProvide
     /// </summary>
     private static readonly Dictionary<string, string> OpenAICodexModelMappings = new(StringComparer.OrdinalIgnoreCase)
     {
+        // GPT-5.5 系列
+        ["gpt-5.5"] = "gpt-5.5",
+
         // GPT-5.4 系列
         ["gpt-5.4"] = "gpt-5.4",
         ["gpt-5.4-none"] = "gpt-5.4",
@@ -76,36 +79,6 @@ public sealed class ModelProvider(ILogger<ModelProvider> logger) : IModelProvide
         ["gpt-5.2-codex-medium"] = "gpt-5.2-codex",
         ["gpt-5.2-codex-high"] = "gpt-5.2-codex",
         ["gpt-5.2-codex-xhigh"] = "gpt-5.2-codex",
-
-        // GPT-5.1 系列
-        ["gpt-5.1-codex"] = "gpt-5.1-codex",
-        ["gpt-5.1-codex-low"] = "gpt-5.1-codex",
-        ["gpt-5.1-codex-medium"] = "gpt-5.1-codex",
-        ["gpt-5.1-codex-high"] = "gpt-5.1-codex",
-        ["gpt-5.1-codex-max"] = "gpt-5.1-codex-max",
-        ["gpt-5.1-codex-max-low"] = "gpt-5.1-codex-max",
-        ["gpt-5.1-codex-max-medium"] = "gpt-5.1-codex-max",
-        ["gpt-5.1-codex-max-high"] = "gpt-5.1-codex-max",
-        ["gpt-5.1-codex-max-xhigh"] = "gpt-5.1-codex-max",
-        ["gpt-5.1-codex-mini"] = "gpt-5.1-codex-mini",
-        ["gpt-5.1-codex-mini-medium"] = "gpt-5.1-codex-mini",
-        ["gpt-5.1-codex-mini-high"] = "gpt-5.1-codex-mini",
-        ["gpt-5.1"] = "gpt-5.1",
-        ["gpt-5.1-none"] = "gpt-5.1",
-        ["gpt-5.1-low"] = "gpt-5.1",
-        ["gpt-5.1-medium"] = "gpt-5.1",
-        ["gpt-5.1-high"] = "gpt-5.1",
-        ["gpt-5.1-chat-latest"] = "gpt-5.1",
-
-        // GPT-5 别名
-        ["gpt-5-codex"] = "gpt-5.1-codex",
-        ["codex-mini-latest"] = "gpt-5.1-codex-mini",
-        ["gpt-5-codex-mini"] = "gpt-5.1-codex-mini",
-        ["gpt-5-codex-mini-medium"] = "gpt-5.1-codex-mini",
-        ["gpt-5-codex-mini-high"] = "gpt-5.1-codex-mini",
-        ["gpt-5"] = "gpt-5.1",
-        ["gpt-5-mini"] = "gpt-5.1",
-        ["gpt-5-nano"] = "gpt-5.1",
 
         // GPT-4 系列
         ["gpt-4o"] = "gpt-4o-2024-05-13",
@@ -165,24 +138,25 @@ public sealed class ModelProvider(ILogger<ModelProvider> logger) : IModelProvide
     /// <summary>
     /// 各平台可用模型目录
     /// </summary>
-    private static readonly Dictionary<Provider, IReadOnlyList<ModelOption>> ModelCatalog = new()
+    private static readonly IReadOnlyList<ModelOption> AntigravityModelCatalog =
+    [
+        // Claude 4.6 系列
+        new("Claude 4.6 Opus (Thinking)", "claude-opus-4-6-thinking"),
+        new("Claude 4.6 Opus", "claude-opus-4-6"),
+        new("Claude 4.6 Sonnet", "claude-sonnet-4-6"),
+        // Gemini 3.1 系列
+        new("Gemini 3.1 Pro High", "gemini-3.1-pro-high"),
+        new("Gemini 3.1 Pro Low", "gemini-3.1-pro-low"),
+        new("Gemini 3.1 Flash Image", "gemini-3.1-flash-image", ModelCategory.Image),
+        // Gemini 3 系列
+        new("Gemini 3 Flash", "gemini-3-flash"),
+        // Gemini 2.5 系统
+        new("Gemini 2.5 Flash Lite", "gemini-2.5-flash-lite")
+    ];
+
+    private static readonly Dictionary<ModelVendor, IReadOnlyList<ModelOption>> ModelCatalog = new()
     {
-        [Provider.Antigravity] =
-        [
-            // Claude 4.6 系列
-            new("Claude 4.6 Opus (Thinking)", "claude-opus-4-6-thinking"),
-            new("Claude 4.6 Opus", "claude-opus-4-6"),
-            new("Claude 4.6 Sonnet", "claude-sonnet-4-6"),
-            // Gemini 3.1 系列
-            new("Gemini 3.1 Pro High", "gemini-3.1-pro-high"),
-            new("Gemini 3.1 Pro Low", "gemini-3.1-pro-low"),
-            new("Gemini 3.1 Flash Image", "gemini-3.1-flash-image"),
-            // Gemini 3 系列
-            new("Gemini 3 Flash", "gemini-3-flash"),
-            // Gemini 2.5 系统
-            new("Gemini 2.5 Flash Lite", "gemini-2.5-flash-lite")
-        ],
-        [Provider.Gemini] =
+        [ModelVendor.Google] =
         [
             new("Gemini 3.1 Pro Preview", "gemini-3.1-pro-preview"),
             new("Gemini 3.0 Pro Preview", "gemini-3-pro-preview"),
@@ -190,9 +164,11 @@ public sealed class ModelProvider(ILogger<ModelProvider> logger) : IModelProvide
             new("Gemini 2.5 Pro", "gemini-2.5-pro"),
             new("Gemini 2.5 Flash", "gemini-2.5-flash"),
             new("Gemini 2.5 Flash Lite", "gemini-2.5-flash-lite"),
-            new("Gemini 2.0 Flash", "gemini-2.0-flash")
+            new("Gemini 2.0 Flash", "gemini-2.0-flash"),
+            new("Gemini 2.5 Flash Image", "gemini-2.5-flash-image", ModelCategory.Image),
+            new("Gemma 4 31B IT", "gemma-4-31b-it")
         ],
-        [Provider.Claude] =
+        [ModelVendor.Anthropic] =
         [
             new("Claude Opus 4.7", "claude-opus-4-7"),
             new("Claude Opus 4.6", "claude-opus-4-6"),
@@ -201,18 +177,55 @@ public sealed class ModelProvider(ILogger<ModelProvider> logger) : IModelProvide
             new("Claude Sonnet 4.5", "claude-sonnet-4-5-20250929"),
             new("Claude Haiku 4.5", "claude-haiku-4-5-20251001")
         ],
-        [Provider.OpenAI] =
+        [ModelVendor.OpenAI] =
         [
+            new("GPT-5.5", "gpt-5.5"),
             new("GPT-5.4", "gpt-5.4"),
+            new("GPT-5.4 Mini", "gpt-5.4-mini"),
             new("GPT-5.3 Codex", "gpt-5.3-codex"),
             new("GPT-5.3 Codex Spark", "gpt-5.3-codex-spark"),
             new("GPT-5.2", "gpt-5.2"),
             new("GPT-5.2 Codex", "gpt-5.2-codex"),
-            new("GPT-5.1 Codex Max", "gpt-5.1-codex-max"),
-            new("GPT-5.1 Codex", "gpt-5.1-codex"),
-            new("GPT-5.1", "gpt-5.1"),
-            new("GPT-5.1 Codex Mini", "gpt-5.1-codex-mini"),
-            new("GPT-5", "gpt-5")
+            new("GPT Image 2", "gpt-image-2", ModelCategory.Image),
+            new("Sora 2 Pro", "sora-2-pro", ModelCategory.Video)
+        ],
+        [ModelVendor.Qwen] =
+        [
+            new("Qwen3.6 Plus", "qwen3.6-plus"),
+            new("Qwen3.5 Plus", "qwen3.5-plus"),
+            new("Qwen3 VL Plus", "qwen3-vl-plus", ModelCategory.Image),
+            new("Qwen3 Omni Turbo", "qwen3-omni-turbo", ModelCategory.Audio)
+        ],
+        [ModelVendor.Moonshot] =
+        [
+            new("Kimi K2.6", "kimi-k2.6"),
+            new("Kimi K2.5", "kimi-k2.5"),
+            new("Kimi K2 Thinking", "kimi-k2-thinking")
+        ],
+        [ModelVendor.DeepSeek] =
+        [
+            new("DeepSeek V4 Pro", "deepseek-v4-pro"),
+            new("DeepSeek V4 Flash", "deepseek-v4-flash"),
+            new("DeepSeek V3", "deepseek-v3")
+        ],
+        [ModelVendor.MiniMax] =
+        [
+            new("MiniMax M2.7", "MiniMax-M2.7"),
+            new("MiniMax M2.5", "MiniMax-M2.5"),
+            new("MiniMax Hailuo 2.3", "MiniMax-Hailuo-2.3", ModelCategory.Video)
+        ],
+        [ModelVendor.Zhipu] =
+        [
+            new("GLM-5.1", "glm-5.1"),
+            new("GLM-5", "glm-5"),
+            new("GLM-5V Turbo", "glm-5v-turbo"),
+            new("GLM-Image", "glm-image", ModelCategory.Image)
+        ],
+        [ModelVendor.Jimeng] =
+        [
+            new("即梦文生图 3.1", "jimeng_t2i_v3_1", ModelCategory.Image),
+            new("即梦文生图 3.0", "jimeng_t2i_v3_0", ModelCategory.Image),
+            new("即梦视频 Pro", "jimeng_video_pro", ModelCategory.Video)
         ]
     };
 
@@ -275,25 +288,13 @@ public sealed class ModelProvider(ILogger<ModelProvider> logger) : IModelProvide
     private string GetOpenAIMappedModel(string requestedModel)
     {
         if (string.IsNullOrWhiteSpace(requestedModel))
-            return "gpt-5.1";
+            return "gpt-5.2";
 
         // 精确匹配
         if (OpenAICodexModelMappings.TryGetValue(requestedModel, out var mapped))
         {
             return mapped;
         }
-
-        // 模糊匹配
-        var lower = requestedModel.ToLowerInvariant();
-        if (lower.Contains("5.3")) return "gpt-5.3-codex";
-        if (lower.Contains("5.2-codex")) return "gpt-5.2-codex";
-        if (lower.Contains("5.2")) return "gpt-5.2";
-        if (lower.Contains("5.1-codex-max")) return "gpt-5.1-codex-max";
-        if (lower.Contains("5.1-codex-mini") || lower.Contains("codex-mini")) return "gpt-5.1-codex-mini";
-        if (lower.Contains("5.1-codex")) return "gpt-5.1-codex";
-        if (lower.Contains("5.1")) return "gpt-5.1";
-        if (lower.Contains("codex")) return "gpt-5.1-codex";
-        if (lower.Contains("gpt-5") || lower.Contains("gpt 5")) return "gpt-5.1";
 
         return requestedModel;
     }
@@ -316,9 +317,71 @@ public sealed class ModelProvider(ILogger<ModelProvider> logger) : IModelProvide
 
     public IReadOnlyList<ModelOption> GetAvailableModels(Provider provider)
     {
-        return ModelCatalog.TryGetValue(provider, out var models)
-            ? models
-            : Array.Empty<ModelOption>();
+        if (provider == Provider.Antigravity)
+        {
+            return AntigravityModelCatalog;
+        }
+
+        IReadOnlyList<ModelVendor> vendors = provider switch
+        {
+            Provider.Gemini => [ModelVendor.Google],
+            Provider.Claude => [ModelVendor.Anthropic],
+            Provider.OpenAI => [ModelVendor.OpenAI],
+            Provider.OpenAICompatible =>
+            [
+                ModelVendor.Qwen,
+                ModelVendor.Moonshot,
+                ModelVendor.DeepSeek,
+                ModelVendor.MiniMax,
+                ModelVendor.Zhipu,
+                ModelVendor.Jimeng
+            ],
+            _ => []
+        };
+
+        var result = new List<ModelOption>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var vendor in vendors)
+        {
+            if (!ModelCatalog.TryGetValue(vendor, out var models))
+            {
+                continue;
+            }
+
+            foreach (var model in models)
+            {
+                if (!seen.Add(model.Value))
+                {
+                    continue;
+                }
+
+                result.Add(model.Vendor.HasValue ? model : model with { Vendor = vendor });
+            }
+        }
+
+        return result;
+    }
+
+    public IReadOnlyList<ModelOption> GetAllCatalogModels()
+    {
+        var result = new List<ModelOption>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (vendor, models) in ModelCatalog)
+        {
+            foreach (var model in models)
+            {
+                if (!seen.Add(model.Value))
+                {
+                    continue;
+                }
+
+                result.Add(model.Vendor.HasValue ? model : model with { Vendor = vendor });
+            }
+        }
+
+        return result;
     }
 
     /// <summary>

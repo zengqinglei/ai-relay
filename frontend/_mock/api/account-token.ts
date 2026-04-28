@@ -1,13 +1,22 @@
 import { AccountStatus } from '../../src/app/features/platform/models/account-token.dto';
 import { ROUTE_PROFILE_SUPPORTED_COMBINATIONS } from '../../src/app/shared/constants/route-profile.constants';
 import { AuthMethod } from '../../src/app/shared/models/auth-method.enum';
+import { ModelVendor } from '../../src/app/shared/models/model-vendor.enum';
 import { PagedResultDto } from '../../src/app/shared/models/paged-result.dto';
 import { Provider } from '../../src/app/shared/models/provider.enum';
 import { MockException, MockRequest } from '../core/models';
 import { SSE_MOCK_REGISTRY } from '../core/sse-mock-registry';
-import { ACCOUNT_TOKENS, AVAILABLE_MODELS, MOCK_CHAT_STREAM_CHUNKS } from '../data/account-token';
+import { ACCOUNT_TOKENS, ANTIGRAVITY_MODELS, AVAILABLE_MODELS, MOCK_CHAT_STREAM_CHUNKS } from '../data/account-token';
 
 const accounts = ACCOUNT_TOKENS;
+
+const DEFAULT_CATALOG_VENDORS: Record<Provider, ModelVendor[]> = {
+  [Provider.Gemini]: [ModelVendor.Google],
+  [Provider.Claude]: [ModelVendor.Anthropic],
+  [Provider.OpenAI]: [ModelVendor.OpenAI],
+  [Provider.Antigravity]: [],
+  [Provider.OpenAICompatible]: [ModelVendor.Qwen, ModelVendor.Moonshot, ModelVendor.DeepSeek, ModelVendor.MiniMax, ModelVendor.Zhipu, ModelVendor.Jimeng]
+};
 
 function maskToken(token: string | undefined): string {
   if (!token || token.length < 12) return '***';
@@ -45,6 +54,91 @@ function enrichAccount(account: any) {
 
   return normalized;
 }
+
+function getBaselineModels(provider: Provider) {
+  if (provider === Provider.Antigravity) {
+    return ANTIGRAVITY_MODELS;
+  }
+
+  const vendors = DEFAULT_CATALOG_VENDORS[provider] ?? [];
+  return vendors.flatMap(vendor => AVAILABLE_MODELS[vendor] ?? []);
+}
+
+function isPatternMatch(text: string, pattern: string) {
+  const parts = pattern.split('*');
+  let pos = 0;
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (!part) {
+      continue;
+    }
+
+    const idx = text.toLowerCase().indexOf(part.toLowerCase(), pos);
+    if (idx < 0) {
+      return false;
+    }
+
+    if (i === 0 && idx !== 0) {
+      return false;
+    }
+
+    pos = idx + part.length;
+  }
+
+  return !parts[parts.length - 1] || pos === text.length;
+}
+
+function buildWhitelistModelOptions(whitelist: string[], baselineModels: typeof ANTIGRAVITY_MODELS) {
+  const baselineLookup = new Map(baselineModels.map(model => [model.value.toLowerCase(), model]));
+  const result: typeof baselineModels = [];
+  const seen = new Set<string>();
+
+  for (const entry of whitelist) {
+    if (entry.includes('*')) {
+      for (const baseline of baselineModels) {
+        if (isPatternMatch(baseline.value, entry) && !seen.has(baseline.value.toLowerCase())) {
+          seen.add(baseline.value.toLowerCase());
+          result.push(baseline);
+        }
+      }
+      continue;
+    }
+
+    const baseline = baselineLookup.get(entry.toLowerCase());
+    if (baseline) {
+      if (!seen.has(baseline.value.toLowerCase())) {
+        seen.add(baseline.value.toLowerCase());
+        result.push(baseline);
+      }
+      continue;
+    }
+
+    if (!seen.has(entry.toLowerCase())) {
+      seen.add(entry.toLowerCase());
+      result.push({ label: entry, value: entry });
+    }
+  }
+
+  return result;
+}
+
+function getMockUpstreamModels(account: any) {
+  if (account.provider === Provider.Claude && account.authMethod === AuthMethod.ApiKey) {
+    return ['claude-opus-4-7-preview', 'claude-opus-4-6', 'claude-sonnet-4-6'];
+  }
+
+  if (account.provider === Provider.Gemini && account.authMethod === AuthMethod.ApiKey) {
+    return ['gemini-3.1-pro-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'];
+  }
+
+  if (account.provider === Provider.OpenAICompatible) {
+    return ['Qwen/Qwen3.6-plus', 'Qwen/Qwen3.5-plus', 'deepseek-v4-pro', 'kimi-k2.6'];
+  }
+
+  return null;
+}
+
 function getAccounts(req: MockRequest) {
   const { keyword, provider, authMethod, isActive, providerGroupIds, offset = 0, limit = 10 } = req.queryParams;
 
@@ -346,10 +440,10 @@ SSE_MOCK_REGISTRY.register('POST', /\/api\/v1\/account-tokens\/[^/]+\/model-test
 
 function getAvailableModelsForProvider(req: MockRequest) {
   const provider = req.params['provider'] as Provider;
-  const accountId = req.params['accountId'] as string | undefined;
+  const accountId = req.queryParams['accountId'] as string | undefined;
 
   if (!accountId) {
-    return AVAILABLE_MODELS[provider] ?? [];
+    return getBaselineModels(provider);
   }
 
   const account = accounts.find(a => a.id === accountId);
@@ -357,15 +451,23 @@ function getAvailableModelsForProvider(req: MockRequest) {
     throw new MockException(404, 'Account not found');
   }
 
-  if (account.provider === Provider.Claude && account.authMethod === AuthMethod.ApiKey) {
-    return [...(AVAILABLE_MODELS[provider] ?? []), { label: 'Claude Opus 4.7 (Upstream)', value: 'claude-opus-4-7-preview' }];
+  const baselineModels = getBaselineModels(account.provider);
+  const upstreamModels = getMockUpstreamModels(account);
+  if (upstreamModels?.length) {
+    const baselineLookup = new Map(baselineModels.map(model => [model.value.toLowerCase(), model]));
+    return upstreamModels.map(value => baselineLookup.get(value.toLowerCase()) ?? { label: value, value });
   }
 
-  if (account.provider === Provider.Gemini && account.authMethod === AuthMethod.ApiKey) {
-    return [...(AVAILABLE_MODELS[provider] ?? []), { label: 'Gemini 3.2 Flash (Upstream)', value: 'gemini-3.2-flash-preview' }];
+  const whitelist = Array.isArray(account.modelWhites) ? account.modelWhites : [];
+  if (whitelist.length > 0) {
+    return buildWhitelistModelOptions(whitelist, baselineModels);
   }
 
-  return AVAILABLE_MODELS[provider] ?? [];
+  if (account.provider === Provider.OpenAICompatible) {
+    throw new MockException(400, { message: '未获取到上游模型列表，且当前账号未配置可用白名单。' });
+  }
+
+  return baselineModels;
 }
 
 export const ACCOUNT_TOKEN_API = {

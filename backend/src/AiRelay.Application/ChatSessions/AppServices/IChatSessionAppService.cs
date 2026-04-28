@@ -26,5 +26,9 @@ public interface IChatSessionAppService
 
     Task<IReadOnlyList<ChatModelOptionOutputDto>> GetModelOptionsAsync(Guid? providerGroupId = null, CancellationToken cancellationToken = default);
 
-    IAsyncEnumerable<StreamEvent> SendMessageAsync(Guid id, SendChatMessageInputDto input, CancellationToken cancellationToken = default);
+    IAsyncEnumerable<StreamEvent> SendMessageAsync(
+        Guid id,
+        SendChatMessageInputDto input,
+        WorkspaceChatRequestContextDto requestContext,
+        CancellationToken cancellationToken = default);
 }

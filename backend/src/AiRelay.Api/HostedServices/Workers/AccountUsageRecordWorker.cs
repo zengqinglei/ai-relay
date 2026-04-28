@@ -1,7 +1,6 @@
 using AiRelay.Application.UsageRecords.AppServices;
 using AiRelay.Application.UsageRecords.Dtos.Lifecycle;
-using AiRelay.Domain.ProviderAccounts.ValueObjects;
-using AiRelay.Domain.UsageRecords.ValueObjects;
+using AiRelay.Application.UsageRecords.Queue;
 using System.Threading.Channels;
 
 namespace AiRelay.Api.HostedServices.Workers;
@@ -11,7 +10,7 @@ namespace AiRelay.Api.HostedServices.Workers;
 /// </summary>
 public class AccountUsageRecordWorker(
     IServiceProvider serviceProvider,
-    ILogger<AccountUsageRecordWorker> logger) : BackgroundService
+    ILogger<AccountUsageRecordWorker> logger) : BackgroundService, IUsageRecordQueue
 {
     private readonly Channel<IUsageRecordItem> _channel = Channel.CreateUnbounded<IUsageRecordItem>(
         new UnboundedChannelOptions
@@ -134,87 +133,4 @@ public class AccountUsageRecordWorker(
         logger.LogInformation("账户使用记录后台服务已停止");
     }
 }
-
-/// <summary>
-/// 使用记录项基础接口
-/// </summary>
-public interface IUsageRecordItem
-{
-    Guid UsageRecordId { get; }
-}
-
-/// <summary>
-/// 使用记录开始项（INSERT UsageRecord，Status=InProgress）
-/// </summary>
-public record UsageRecordStartItem(
-    Guid UsageRecordId,
-    Guid UserId,
-    UsageSource Source,
-    string CorrelationId,
-    string? SessionId,
-    Guid? ApiKeyId,
-    string? ApiKeyName,
-    bool IsStreaming,
-    string DownRequestMethod,
-    string DownRequestUrl,
-    string? DownModelId,
-    string? DownClientIp,
-    string? DownUserAgent,
-    string? DownRequestHeaders,
-    string? DownRequestBody
-) : IUsageRecordItem;
-
-/// <summary>
-/// 单次上游尝试开始项（INSERT UsageRecordAttempt，Status=InProgress，选号后立即入队）
-/// </summary>
-public record UsageRecordAttemptStartItem(
-    Guid UsageRecordId,
-    int AttemptNumber,
-    Guid AccountTokenId,
-    string AccountTokenName,
-    Provider Provider,
-    AuthMethod AuthMethod,
-    Guid? ProviderGroupId,
-    string? ProviderGroupName,
-    decimal? GroupRateMultiplier,
-    string? UpModelId,
-    string? UpUserAgent,
-    string? UpRequestUrl,
-    string? UpRequestHeaders,
-    string? UpRequestBody
-) : IUsageRecordItem;
-
-/// <summary>
-/// 单次上游尝试结束项（UPDATE UsageRecordAttempt 为最终状态，HTTP 请求结束后入队）
-/// </summary>
-public record UsageRecordAttemptEndItem(
-    Guid UsageRecordId,
-    int AttemptNumber,
-    int? UpStatusCode,
-    long DurationMs,
-    UsageStatus Status,
-    string? StatusDescription,
-    string? UpResponseBody,
-    string? UpRequestHeaders = null,
-    string? UpRequestBody = null
-) : IUsageRecordItem;
-
-/// <summary>
-/// 使用记录结束项（UPDATE UsageRecord 为最终状态）
-/// </summary>
-public record UsageRecordEndItem(
-    Guid UsageRecordId,
-    long Duration,
-    UsageStatus Status,
-    string? StatusDescription,
-    string? DownResponseBody,
-    int? InputTokens,
-    int? OutputTokens,
-    int? CacheReadTokens,
-    int? CacheCreationTokens,
-    int AttemptCount,
-    int? DownStatusCode,
-    string? DownRequestHeaders = null,
-    string? DownRequestBody = null
-) : IUsageRecordItem;
 

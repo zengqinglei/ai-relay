@@ -12,8 +12,6 @@ public record SelectProxyAccountInputDto
 
     public string? SessionHash { get; init; }
 
-    public IEnumerable<Guid>? ExcludedAccountIds { get; init; }
-
     public string? ModelId { get; init; }
 
     /// <summary>
@@ -21,4 +19,5 @@ public record SelectProxyAccountInputDto
     /// 从 RouteProfile → RouteProfileRegistry 解析而来，不为 null 时将过滤不支持的账号。
     /// </summary>
     public IReadOnlyList<(Provider Provider, AuthMethod AuthMethod)>? AllowedCombinations { get; init; }
+
 }

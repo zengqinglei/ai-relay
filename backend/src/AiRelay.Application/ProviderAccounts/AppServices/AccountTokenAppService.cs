@@ -192,9 +192,6 @@ public class AccountTokenAppService(
         Guid? accountId = null,
         CancellationToken cancellationToken = default)
     {
-        // 1. 加载静态基准模型
-        var baselineModels = modelProvider.GetAvailableModels(provider);
-
         AccountToken? accountToken = null;
         if (accountId.HasValue)
         {
@@ -202,27 +199,11 @@ public class AccountTokenAppService(
                 ?? throw new NotFoundException($"账户不存在: {accountId}");
         }
 
-        // 2. 检查白名单配置（优先级最高）
-        if (accountToken != null)
-        {
-            var whitelist = accountToken.ModelWhites;
-            if (whitelist != null && whitelist.Count > 0)
-            {
-                // 白名单模式：过滤通配符项，用基准模型补齐显示名称
-                var baselineDict = baselineModels.ToDictionary(m => m.Value, StringComparer.OrdinalIgnoreCase);
-                var result = whitelist
-                    .Where(modelId => !modelId.Contains('*'))
-                    .Select(modelId =>
-                    {
-                        if (baselineDict.TryGetValue(modelId, out var baseline))
-                            return baseline;
-                        return new ModelOption(modelId, modelId);
-                    }).ToList();
-                return objectMapper.Map<IReadOnlyList<ModelOption>, IReadOnlyList<ModelOptionOutputDto>>(result);
-            }
-        }
+        // 1. 加载静态基准模型
+        var baselineModels = modelProvider.GetAvailableModels(accountToken?.Provider ?? provider);
+        var baselineLookup = baselineModels.ToDictionary(m => m.Value, StringComparer.OrdinalIgnoreCase);
 
-        // 3. 无白名单：尝试拉取上游模型（带缓存）
+        // 2. 优先尝试拉取上游模型（带缓存）
         IReadOnlyList<string>? upstreamModelIds = null;
         if (accountToken != null)
         {
@@ -233,40 +214,120 @@ public class AccountTokenAppService(
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "上游模型拉取失败，降级静态: AccountId={AccountId}, Provider={Provider}", accountId, provider);
+                logger.LogWarning(ex, "上游模型拉取失败: AccountId={AccountId}, Provider={Provider}", accountId, provider);
+                if (accountToken.Provider == Provider.OpenAICompatible)
+                {
+                    throw new BadRequestException($"上游模型拉取失败，请检查账号状态或稍后重试: {ex.Message}");
+                }
             }
         }
 
-        // 4. 合并模型列表
-        IReadOnlyList<ModelOption> finalModels;
         if (upstreamModelIds != null && upstreamModelIds.Count > 0)
         {
-            var upstreamIdSet = upstreamModelIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var finalModels = upstreamModelIds
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(id =>
+                {
+                    if (baselineLookup.TryGetValue(id, out var baseline))
+                    {
+                        return baseline;
+                    }
 
-            if (baselineModels.Count > 0)
-            {
-                // 情况 A：存在基准模型（官方渠道，如 OpenAI/Claude）
-                // 采用严格过滤逻辑：仅展现基准列表中且上游也存在的模型，确保 UI 简洁且经过验证
-                finalModels = baselineModels
-                    .Where(m => !m.Value.Contains('*') && upstreamIdSet.Contains(m.Value))
-                    .ToList();
-            }
-            else
-            {
-                // 情况 B：无基准模型（动态渠道，如 OpenAICompatible）
-                // 采用全量透传逻辑：直接展示上游回传的所有模型
-                finalModels = upstreamModelIds
-                    .Select(id => new ModelOption(id, id))
-                    .ToList();
-            }
+                    return new ModelOption(id, id);
+                })
+                .ToList();
+
+            return objectMapper.Map<IReadOnlyList<ModelOption>, IReadOnlyList<ModelOptionOutputDto>>(finalModels);
         }
-        else
+
+        // 3. 上游未命中时，回退白名单
+        if (accountToken?.ModelWhites is { Count: > 0 } whitelist)
         {
-            // 5. 降级使用静态基准模型，排除通配符项
-            finalModels = baselineModels.Where(m => !m.Value.Contains('*')).ToList();
+            var result = BuildWhitelistModelOptions(whitelist, baselineModels, baselineLookup);
+            return objectMapper.Map<IReadOnlyList<ModelOption>, IReadOnlyList<ModelOptionOutputDto>>(result);
         }
 
-        return objectMapper.Map<IReadOnlyList<ModelOption>, IReadOnlyList<ModelOptionOutputDto>>(finalModels);
+        // 4. OpenAI Compatible 不使用静态兜底，其他 Provider 继续兜底
+        if (accountToken?.Provider == Provider.OpenAICompatible)
+        {
+            throw new BadRequestException("未获取到上游模型列表，且当前账号未配置可用白名单。");
+        }
+
+        var fallbackModels = baselineModels.Where(m => !m.Value.Contains('*')).ToList();
+
+        return objectMapper.Map<IReadOnlyList<ModelOption>, IReadOnlyList<ModelOptionOutputDto>>(fallbackModels);
+    }
+
+    private static IReadOnlyList<ModelOption> BuildWhitelistModelOptions(
+        IReadOnlyList<string> whitelist,
+        IReadOnlyList<ModelOption> baselineModels,
+        IReadOnlyDictionary<string, ModelOption> baselineLookup)
+    {
+        var result = new List<ModelOption>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entry in whitelist)
+        {
+            if (entry.Contains('*'))
+            {
+                foreach (var baseline in baselineModels.Where(model => IsPatternMatch(model.Value, entry)))
+                {
+                    if (seen.Add(baseline.Value))
+                    {
+                        result.Add(baseline);
+                    }
+                }
+
+                continue;
+            }
+
+            if (baselineLookup.TryGetValue(entry, out var baselineModel))
+            {
+                if (seen.Add(baselineModel.Value))
+                {
+                    result.Add(baselineModel);
+                }
+
+                continue;
+            }
+
+            if (seen.Add(entry))
+            {
+                result.Add(new ModelOption(entry, entry));
+            }
+        }
+
+        return result;
+    }
+
+    private static bool IsPatternMatch(string text, string pattern)
+    {
+        var parts = pattern.Split('*');
+        var pos = 0;
+
+        for (var i = 0; i < parts.Length; i++)
+        {
+            var part = parts[i];
+            if (string.IsNullOrEmpty(part))
+            {
+                continue;
+            }
+
+            var idx = text.IndexOf(part, pos, StringComparison.OrdinalIgnoreCase);
+            if (idx < 0)
+            {
+                return false;
+            }
+
+            if (i == 0 && idx != 0)
+            {
+                return false;
+            }
+
+            pos = idx + part.Length;
+        }
+
+        return string.IsNullOrEmpty(parts[^1]) || pos == text.Length;
     }
 
     public async Task<PagedResultDto<AccountTokenOutputDto>> GetPagedListAsync(
@@ -470,6 +531,23 @@ public class AccountTokenAppService(
 
         logger.LogInformation("开始更新账户: {Name}({Provider}-{AuthMethod})", accountToken.Name, accountToken.Provider, accountToken.AuthMethod);
 
+        bool hasOAuthReauthorizeInput =
+            !string.IsNullOrWhiteSpace(input.AuthCode) ||
+            !string.IsNullOrWhiteSpace(input.SessionId);
+
+        if (hasOAuthReauthorizeInput)
+        {
+            if (accountToken.AuthMethod != AuthMethod.OAuth)
+            {
+                throw new BadRequestException("仅 OAuth 账户支持通过授权码重新授权");
+            }
+
+            if (string.IsNullOrWhiteSpace(input.AuthCode) || string.IsNullOrWhiteSpace(input.SessionId))
+            {
+                throw new BadRequestException("OAuth 重授权时 AuthCode 和 SessionId 需同时提供");
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(input.Name) && !string.Equals(accountToken.Name, input.Name, StringComparison.Ordinal))
         {
             var duplicateAccounts = await accountTokenRepository.GetListAsync(
@@ -482,12 +560,51 @@ public class AccountTokenAppService(
             }
         }
 
+        Dictionary<string, string>? mergedExtraProperties = input.ExtraProperties != null
+            ? new Dictionary<string, string>(input.ExtraProperties)
+            : null;
+
+        if (hasOAuthReauthorizeInput)
+        {
+            var session = await oauthSessionManager.GetAndRemoveSessionAsync(input.SessionId!, cancellationToken);
+            if (session == null)
+            {
+                throw new BadRequestException("OAuth 会话无效或已过期");
+            }
+
+            var provider = serviceProvider.GetKeyedService<IOAuthProvider>(accountToken.Provider);
+            if (provider == null)
+            {
+                throw new BadRequestException($"提供商 {accountToken.Provider} 不支持 OAuth 自动交换");
+            }
+
+            var tokenResponse = await provider.ExchangeCodeForTokenAsync(
+                input.AuthCode!,
+                codeVerifier: session.CodeVerifier,
+                provider: accountToken.Provider,
+                cancellationToken: cancellationToken);
+
+            accountToken.UpdateTokens(
+                tokenResponse.AccessToken,
+                tokenResponse.RefreshToken,
+                tokenResponse.ExpiresIn);
+
+            if (tokenResponse.ExtraProperties != null && tokenResponse.ExtraProperties.Count > 0)
+            {
+                mergedExtraProperties ??= new Dictionary<string, string>(accountToken.ExtraProperties);
+                foreach (var kvp in tokenResponse.ExtraProperties)
+                {
+                    mergedExtraProperties[kvp.Key] = kvp.Value;
+                }
+            }
+        }
+
         accountToken.Update(
             input.Name,
             input.BaseUrl,
             input.Description,
             input.MaxConcurrency,
-            input.ExtraProperties,
+            mergedExtraProperties,
             modelWhites: input.ModelWhites,
             modelMapping: input.ModelMapping,
             clearModelWhites: input.ModelWhites != null && input.ModelWhites.Count == 0,
@@ -508,7 +625,7 @@ public class AccountTokenAppService(
             }
             else
             {
-                // 对于Account平台，更新Refresh Token
+                // 对于OAuth认证，更新Refresh Token
                 accountToken.UpdateRefreshToken(input.Credential);
             }
         }

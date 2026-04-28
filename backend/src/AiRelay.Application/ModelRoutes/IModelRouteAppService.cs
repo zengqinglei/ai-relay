@@ -1,4 +1,8 @@
 using AiRelay.Application.ModelRoutes.Dtos;
+using AiRelay.Application.ModelRoutes.Handlers;
+using AiRelay.Domain.ProviderAccounts.ValueObjects;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient.Context;
+using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 using Leistd.Ddd.Application.Contracts.AppService;
 
 namespace AiRelay.Application.ModelRoutes;
@@ -6,32 +10,27 @@ namespace AiRelay.Application.ModelRoutes;
 public interface IModelRouteAppService : IAppService
 {
     /// <summary>
-    /// 选择代理账号（包含分组倍率信息）
+    /// 解析代理入口候选范围，返回可供统一调度执行的候选组集合
     /// </summary>
-    Task<SelectAccountResultDto> SelectAccountAsync(
+    Task<IReadOnlyList<RouteAccountSchedulingGroup>> ResolveProxyRouteCandidatesAsync(
         SelectProxyAccountInputDto input,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 处理请求成功。
-    /// 按账户模式下清除整账号熔断；按模型模式下仅清理当前上游模型熔断。
+    /// 解析工作区入口候选范围，返回可供统一调度执行的候选组集合
     /// </summary>
-    Task HandleSuccessAsync(
-        Guid accountId,
-        string? upModelId,
+    Task<IReadOnlyList<RouteAccountSchedulingGroup>> ResolveWorkspaceRouteCandidatesAsync(
+        SelectWorkspaceAccountInputDto input,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 处理请求失败（更新账户状态：熔断/禁用）
+    /// 统一的路由执行大循环（包含重试、并发控制、切号、埋点写入和流健康检查）
     /// </summary>
-    Task HandleFailureAsync(
-        HandleFailureInputDto input,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// 检查账号是否在熔断期（供并发请求感知）
-    /// </summary>
-    Task<bool> IsRateLimitedAsync(
-        Guid accountId,
-        CancellationToken cancellationToken = default);
+    Task ExecuteRouteAsync(
+        DownRequestContext baseDownContext,
+        RouteExecutionMetadata metadata,
+        IReadOnlyList<RouteAccountSchedulingGroup> candidateGroups,
+        Func<SelectAccountResultDto, DownRequestContext> downContextModifier,
+        IRouteResponseHandler responseHandler,
+        CancellationToken cancellationToken);
 }

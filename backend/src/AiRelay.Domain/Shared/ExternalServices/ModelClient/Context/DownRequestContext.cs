@@ -71,6 +71,7 @@ public class DownRequestContext
             _isStreaming = false;
             return false;
         }
+        init => _isStreaming = value;
     }
     private bool? _isStreaming;
 
@@ -80,6 +81,8 @@ public class DownRequestContext
 
     public string? ModelId { get; set; }
     public string? SessionId { get; set; }
+    public string? DownRequestUrl { get; init; }
+    public string? ClientIp { get; init; }
 
     // 模拟指纹信息
     public int? PromptIndex { get; set; }

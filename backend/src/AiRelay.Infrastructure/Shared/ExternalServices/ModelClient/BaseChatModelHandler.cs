@@ -340,7 +340,10 @@ public abstract partial class BaseChatModelHandler : IChatModelHandler
             });
         }
 
-        // 其他 5xx：官方账号不允许同账号重试，由外层换号；非官方账号允许重试
+        // 兜底策略：
+        // 非官方中转账号默认允许同号重试；
+        // 官方账号默认交由外层做一次盲切补偿或最终失败。
+        // 因此这里覆盖的不只是“其他 5xx”，还包含官方账号未被前面显式分类的 4xx/5xx。
         if (!isOfficialAccount)
         {
             return Task.FromResult(new ModelErrorAnalysisResult

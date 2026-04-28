@@ -1,3 +1,5 @@
+using AiRelay.Domain.Shared.ExternalServices.ModelProvider.Dto;
+
 namespace AiRelay.Application.ProviderAccounts.Dtos;
 
 /// <summary>
@@ -14,4 +16,14 @@ public record ModelOptionOutputDto
     /// 模型值
     /// </summary>
     public string Value { get; init; } = string.Empty;
+
+    /// <summary>
+    /// 模型分类
+    /// </summary>
+    public ModelCategory Category { get; init; } = ModelCategory.Chat;
+
+    /// <summary>
+    /// 模型目录归属/厂商
+    /// </summary>
+    public ModelVendor? Vendor { get; init; }
 }

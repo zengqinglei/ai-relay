@@ -89,8 +89,11 @@ export class AccountTokenService {
   // Debug Methods
 
   getAvailableModels(provider: Provider, accountId?: string): Observable<ModelOptionOutputDto[]> {
+    let params = new HttpParams();
+    if (accountId) params = params.set('accountId', accountId);
+
     return this.http.get<ModelOptionOutputDto[]>(`${this.baseUrl}/provider/${provider}/models`, {
-      ...(accountId && { params: { accountId } })
+      params
     });
   }
 

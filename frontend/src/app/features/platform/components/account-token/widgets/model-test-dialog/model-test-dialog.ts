@@ -111,7 +111,8 @@ export class ModelTestDialog {
         },
         error: (err: any) => {
           console.error('Failed to load models', err);
-          this.modelLoadError.set('加载模型列表失败，请重试。');
+          const message = err?.error?.message || err?.message || '加载模型列表失败，请重试。';
+          this.modelLoadError.set(message);
         }
       });
   }
