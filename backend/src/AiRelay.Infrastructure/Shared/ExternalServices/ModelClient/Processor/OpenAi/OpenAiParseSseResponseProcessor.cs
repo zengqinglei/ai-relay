@@ -59,9 +59,7 @@ public class OpenAiParseSseResponseProcessor : IResponseProcessor
                     case "response.reasoning_summary_text.delta":
                         if (root.TryGetProperty("delta", out var reasoningDelta))
                         {
-                            var reasoningText = reasoningDelta.GetString();
-                            evt.ReasoningContent = reasoningText;
-                            if (!string.IsNullOrEmpty(reasoningText)) evt.HasOutput = true;
+                            evt.ReasoningContent = reasoningDelta.GetString();
                         }
                         break;
 
@@ -125,19 +123,15 @@ public class OpenAiParseSseResponseProcessor : IResponseProcessor
                             }
                         }
 
-                        // tool_calls 与 reasoning_content 都代表流式输出意图
-                        // reasoning_content 标记 HasOutput 是为了让健康检查通过——
-                        // reasoning-only 的响应（无文本但有思考链）应被视为有效输出而非空流
-                        bool hasToolCalls = delta.TryGetProperty("tool_calls", out _);
-                        bool hasReasoning = delta.TryGetProperty("reasoning_content", out var reasoningNode);
-                        
-                        if (hasToolCalls || hasReasoning)
+                        if (delta.TryGetProperty("tool_calls", out _))
                         {
                             evt.HasOutput = true;
-                            if (hasReasoning && reasoningNode.ValueKind == JsonValueKind.String)
-                            {
-                                evt.ReasoningContent = reasoningNode.GetString();
-                            }
+                        }
+
+                        if (delta.TryGetProperty("reasoning_content", out var reasoningNode) &&
+                            reasoningNode.ValueKind == JsonValueKind.String)
+                        {
+                            evt.ReasoningContent = reasoningNode.GetString();
                         }
                     }
                 }

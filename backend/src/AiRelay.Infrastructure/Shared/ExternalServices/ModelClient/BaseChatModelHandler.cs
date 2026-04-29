@@ -299,7 +299,7 @@ public abstract partial class BaseChatModelHandler : IChatModelHandler
 
             foreach (var proc in processors) await proc.ProcessAsync(evt, ct);
 
-            if (evt.Content != null || evt.InlineData != null || evt.IsComplete
+            if (evt.Content != null || evt.ReasoningContent != null || evt.InlineData != null || evt.IsComplete
                 || evt.Type == StreamEventType.Error || evt.Usage != null
                 || evt.HasOutput
                 || evt.OriginalBytes != null || evt.ConvertedBytes != null)

@@ -157,7 +157,6 @@ public class GoogleParseSseResponseProcessor : IResponseProcessor
         if (reasoningSb.Length > 0)
         {
             evt.ReasoningContent = reasoningSb.ToString();
-            evt.HasOutput = true;
         }
     }
 
