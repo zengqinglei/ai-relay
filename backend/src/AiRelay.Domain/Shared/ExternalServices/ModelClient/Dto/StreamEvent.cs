@@ -29,6 +29,9 @@ public class StreamEvent
     /// <summary>文本内容（根据 Type 含义不同）</summary>
     public string? Content { get; set; }
 
+    /// <summary>思考/推理过程文本</summary>
+    public string? ReasoningContent { get; set; }
+
     /// <summary>是否完成</summary>
     public bool IsComplete { get; set; }
 

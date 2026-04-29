@@ -503,6 +503,15 @@ export class WorkspaceChatPage implements AfterViewChecked {
                 this.requestAutoScroll();
               }
 
+              if (event.reasoningContent && !event.isComplete) {
+                this.activeMessages.update(list => list.map(message =>
+                  message.id === assistantMessage.id
+                    ? { ...message, reasoningContent: (message.reasoningContent || '') + event.reasoningContent }
+                    : message
+                ));
+                this.requestAutoScroll();
+              }
+
               if (event.content && !event.isComplete) {
                 assistantContent += event.content;
                 this.activeMessages.update(list => list.map(message =>

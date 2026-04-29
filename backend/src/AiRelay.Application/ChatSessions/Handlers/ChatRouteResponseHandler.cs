@@ -17,6 +17,7 @@ public class ChatRouteResponseHandler(RouteTerminalErrorFormatter errorFormatter
     public bool ShouldHandle(StreamEvent streamEvent, byte[]? bytesToForward)
     {
         return !string.IsNullOrEmpty(streamEvent.Content)
+               || !string.IsNullOrEmpty(streamEvent.ReasoningContent)
                || streamEvent.InlineData is { Count: > 0 }
                || streamEvent.IsComplete
                || streamEvent.Type is StreamEventType.Error or StreamEventType.System;

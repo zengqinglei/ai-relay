@@ -282,6 +282,7 @@ public class ChatSessionAppService(
         session.Messages.Add(userMessage);
 
         var assistantContent = new StringBuilder();
+        var assistantReasoningContent = new StringBuilder();
         List<InlineDataPart>? assistantAttachments = null;
         var hasError = false;
 
@@ -290,6 +291,11 @@ public class ChatSessionAppService(
             if (evt.Type == StreamEventType.Content && !string.IsNullOrEmpty(evt.Content))
             {
                 assistantContent.Append(evt.Content);
+            }
+
+            if (evt.Type == StreamEventType.Content && !string.IsNullOrEmpty(evt.ReasoningContent))
+            {
+                assistantReasoningContent.Append(evt.ReasoningContent);
             }
 
             if (evt.InlineData is { Count: > 0 })
@@ -306,9 +312,12 @@ public class ChatSessionAppService(
             yield return evt;
         }
 
-        if (!hasError && (assistantContent.Length > 0 || assistantAttachments is { Count: > 0 }))
+        if (!hasError && (assistantContent.Length > 0 || assistantReasoningContent.Length > 0 || assistantAttachments is { Count: > 0 }))
         {
-            var assistantMessage = session.CreateAssistantMessage(assistantContent.ToString(), assistantAttachments);
+            var assistantMessage = session.CreateAssistantMessage(
+                assistantContent.ToString(),
+                assistantAttachments,
+                assistantReasoningContent.Length > 0 ? assistantReasoningContent.ToString() : null);
 
             await chatSessionRepository.UpdateAsync(session, cancellationToken: cancellationToken);
             await chatMessageRepository.InsertAsync(assistantMessage, cancellationToken: cancellationToken);

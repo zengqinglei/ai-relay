@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, SecurityContext, computed, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, SecurityContext, computed, inject, input, signal } from '@angular/core';
 import { DomSanitizer } from '@angular/platform-browser';
 import { ImageModule } from 'primeng/image';
 import MarkdownIt from 'markdown-it';
@@ -81,10 +81,21 @@ export class MessageBubble {
   readonly isUser = computed(() => this.message().role === 'user');
   readonly avatarLabel = computed(() => (this.isUser() ? '我' : 'AI'));
   readonly showStreamingIndicator = computed(() => !this.isUser() && !!this.message().isStreaming);
+  
+  readonly renderedReasoningHtml = computed(() => {
+    const raw = this.message().reasoningContent;
+    if (!raw) return '';
+    const html = this.markdown.render(raw);
+    return this.sanitizer.sanitize(SecurityContext.HTML, html) ?? '';
+  });
+
   readonly renderedHtml = computed(() => {
     const raw = this.markdown.render(this.message().content || '');
     return this.sanitizer.sanitize(SecurityContext.HTML, raw) ?? '';
   });
+
+  readonly isReasoningExpanded = signal(false);
+  readonly isThinking = computed(() => !!this.message().isStreaming && !this.message().content);
 
   getImageSrc(attachment: { mimeType: string; data?: string; url?: string }) {
     if (attachment.url) {
@@ -98,4 +109,3 @@ export class MessageBubble {
     return attachment.mimeType.startsWith('image/');
   }
 }
-

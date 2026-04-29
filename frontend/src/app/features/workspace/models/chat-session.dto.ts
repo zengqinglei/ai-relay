@@ -9,6 +9,7 @@ export interface ChatMessageOutputDto {
   sessionId: string;
   role: ChatMessageRole;
   content: string;
+  reasoningContent?: string;
   attachments?: InlineDataPart[];
   creationTime: string;
   isStreaming?: boolean;

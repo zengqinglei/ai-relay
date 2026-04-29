@@ -40,6 +40,7 @@ internal static class ChatSessionEntityConfiguration
             b.ConfigureByConvention();
 
             b.Property(e => e.Content).IsRequired();
+            b.Property(e => e.ReasoningContent);
             b.HasIndex(e => new { e.SessionId, e.CreationTime });
 
             b.HasMany(e => e.Attachments)

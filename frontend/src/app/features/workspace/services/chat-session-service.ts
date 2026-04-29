@@ -219,6 +219,7 @@ export class ChatSessionService {
       return {
         type: event.type,
         content: typeof event.content === 'string' ? event.content : undefined,
+        reasoningContent: typeof event.reasoningContent === 'string' ? event.reasoningContent : undefined,
         isComplete: typeof event.isComplete === 'boolean' ? event.isComplete : undefined,
         inlineData: Array.isArray(event.inlineData) ? event.inlineData : undefined
       };

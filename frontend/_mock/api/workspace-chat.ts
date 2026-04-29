@@ -3,7 +3,7 @@ import { ChatMessageOutputDto, ChatModelOptionOutputDto, ChatSessionOutputDto, C
 import { MockException, MockRequest } from '../core/models';
 import { SSE_MOCK_REGISTRY } from '../core/sse-mock-registry';
 import { ACCOUNT_TOKENS, ANTIGRAVITY_MODELS, AVAILABLE_MODELS } from '../data/account-token';
-import { MockChatSession, WORKSPACE_CHAT_SESSIONS, createWorkspaceMockStream, resolveWorkspaceMockAnswer } from '../data/workspace-chat';
+import { MockChatSession, WORKSPACE_CHAT_SESSIONS, createWorkspaceMockStream, resolveWorkspaceMockAnswer, resolveWorkspaceMockReasoning } from '../data/workspace-chat';
 import { getVisibleGroupsForCurrentUser } from './provider-group';
 import { getCurrentUserId, getUserByAuthHeader } from '../utils/current-user';
 import { Provider } from '../../src/app/shared/models/provider.enum';
@@ -307,6 +307,7 @@ SSE_MOCK_REGISTRY.register('POST', /\/api\/v1\/chat-sessions\/[^/]+\/messages$/,
   const sessionId = context?.url.match(/\/api\/v1\/chat-sessions\/([^/]+)\/messages$/)?.[1];
   const currentUserId = getUserByAuthHeader(context?.headers?.get('Authorization')).id;
   const prompt = typeof body === 'object' && body && 'content' in body ? String((body as { content?: string }).content ?? '') : '';
+  const reasoning = resolveWorkspaceMockReasoning(prompt);
   const answer = resolveWorkspaceMockAnswer(prompt);
 
   if (!sessionId) {
@@ -342,6 +343,7 @@ SSE_MOCK_REGISTRY.register('POST', /\/api\/v1\/chat-sessions\/[^/]+\/messages$/,
           id: crypto.randomUUID(),
           sessionId,
           role: 'assistant',
+          reasoningContent: reasoning,
           content: answer,
           creationTime: new Date(Date.now() + 1000).toISOString()
         }

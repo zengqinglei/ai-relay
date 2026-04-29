@@ -117,8 +117,11 @@ public class ChatSession : DeletionAuditedEntity<Guid>
     /// <summary>
     /// 添加助手消息（加入 Messages 集合，适用于 EF 级联保存场景）
     /// </summary>
-    public ChatMessage AddAssistantMessage(string content, IReadOnlyCollection<InlineDataPart>? attachments = null)
-        => AddMessage(ChatMessageRole.Assistant, content, attachments);
+    public ChatMessage AddAssistantMessage(
+        string content,
+        IReadOnlyCollection<InlineDataPart>? attachments = null,
+        string? reasoningContent = null)
+        => AddMessage(ChatMessageRole.Assistant, content, attachments, reasoningContent);
 
     /// <summary>
     /// 创建用户消息（不加入 Messages 集合，由调用方自行持久化消息实体）
@@ -138,19 +141,30 @@ public class ChatSession : DeletionAuditedEntity<Guid>
     /// <summary>
     /// 创建助手消息（不加入 Messages 集合，由调用方自行持久化消息实体）
     /// </summary>
-    public ChatMessage CreateAssistantMessage(string content, IReadOnlyCollection<InlineDataPart>? attachments = null)
-        => CreateMessage(ChatMessageRole.Assistant, content, attachments);
+    public ChatMessage CreateAssistantMessage(
+        string content,
+        IReadOnlyCollection<InlineDataPart>? attachments = null,
+        string? reasoningContent = null)
+        => CreateMessage(ChatMessageRole.Assistant, content, attachments, reasoningContent);
 
-    private ChatMessage AddMessage(ChatMessageRole role, string content, IReadOnlyCollection<InlineDataPart>? attachments)
+    private ChatMessage AddMessage(
+        ChatMessageRole role,
+        string content,
+        IReadOnlyCollection<InlineDataPart>? attachments,
+        string? reasoningContent = null)
     {
-        var message = CreateMessage(role, content, attachments);
+        var message = CreateMessage(role, content, attachments, reasoningContent);
         Messages.Add(message);
         return message;
     }
 
-    private ChatMessage CreateMessage(ChatMessageRole role, string content, IReadOnlyCollection<InlineDataPart>? attachments)
+    private ChatMessage CreateMessage(
+        ChatMessageRole role,
+        string content,
+        IReadOnlyCollection<InlineDataPart>? attachments,
+        string? reasoningContent = null)
     {
-        var message = new ChatMessage(Id, role, content);
+        var message = new ChatMessage(Id, role, content, reasoningContent);
         message.ReplaceAttachments(attachments);
         MessageCount++;
         LastMessageTime = DateTime.UtcNow;

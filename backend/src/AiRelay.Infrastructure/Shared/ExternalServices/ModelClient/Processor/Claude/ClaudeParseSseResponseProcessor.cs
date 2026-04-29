@@ -70,8 +70,11 @@ public class ClaudeParseSseResponseProcessor : IResponseProcessor
                         // thinking_delta 仅为内部思考链，不视为有效输出
                         if (deltaTypeStr != "thinking_delta")
                             evt.HasOutput = true;
+                        
                         if (deltaTypeStr == "text_delta" && delta.TryGetProperty("text", out var text))
                             evt.Content = text.GetString();
+                        else if (deltaTypeStr == "thinking_delta" && delta.TryGetProperty("thinking", out var thinking))
+                            evt.ReasoningContent = thinking.GetString();
                     }
                     break;
 

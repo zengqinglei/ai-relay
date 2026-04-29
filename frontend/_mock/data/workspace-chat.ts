@@ -88,6 +88,14 @@ export const WORKSPACE_CHAT_SESSIONS: MockChatSession[] = [
   }
 ];
 
+export function resolveWorkspaceMockReasoning(prompt: string) {
+  return prompt.includes('订阅') || prompt.includes('subscription')
+    ? '用户询问关于订阅或相关用量页面的设计。\n思考过程：\n1. 需要梳理出订阅状态、密钥、用量等核心指标。\n2. 表格展示对于这种宏观信息过于繁琐，采用卡片流更合适。\n3. 需要强调不要有过多的视觉噪音。'
+    : prompt.includes('日志') || prompt.includes('usage')
+      ? '用户提到了使用日志页。\n思考过程：\n1. 日志页面字段通常很多，但普通用户关注点集中。\n2. 决定建议精简字段：时间、模型、Token、费用、状态。\n3. 保留必要的筛选能力。'
+      : '用户可能在询问通用的页面布局。\n思考过程：\n1. 需要分析当前系统的 UI 风格。\n2. 主张大圆角、轻边框，这是目前比较流行的现代设计语言。\n3. 确认主要交互焦点应在聊天区域。';
+}
+
 export function resolveWorkspaceMockAnswer(prompt: string) {
   return prompt.includes('订阅') || prompt.includes('subscription')
     ? '建议把“我的订阅”做成卡片流，每张卡片只承载状态、密钥、今日用量和到期时间四类信息，避免后台表格式噪音。'
@@ -96,26 +104,27 @@ export function resolveWorkspaceMockAnswer(prompt: string) {
       : '这版工作区页面建议保持现有系统风格，用大圆角、轻边框和低噪音层级组织内容，主交互集中在聊天工作面本身。';
 }
 
-function chunkText(text: string, size = 6) {
-  const events: Array<{ type: 'Content'; content?: string; isComplete?: boolean }> = [];
+function chunkText(text: string, size = 6, type: 'content' | 'reasoningContent' = 'content') {
+  const events: Array<{ type: 'Content'; content?: string; reasoningContent?: string; isComplete?: boolean }> = [];
   let index = 0;
 
   while (index < text.length) {
     events.push({
       type: 'Content',
-      content: text.slice(index, index + size)
+      [type]: text.slice(index, index + size)
     });
     index += size;
   }
-
-  events.push({
-    type: 'Content',
-    isComplete: true
-  });
 
   return events;
 }
 
 export function createWorkspaceMockStream(prompt: string) {
-  return chunkText(resolveWorkspaceMockAnswer(prompt), 5);
+  const reasoning = resolveWorkspaceMockReasoning(prompt);
+  const answer = resolveWorkspaceMockAnswer(prompt);
+  
+  const reasoningEvents = chunkText(reasoning, 5, 'reasoningContent');
+  const answerEvents = chunkText(answer, 5, 'content');
+  
+  return [...reasoningEvents, ...answerEvents, { type: 'Content' as const, isComplete: true }];
 }

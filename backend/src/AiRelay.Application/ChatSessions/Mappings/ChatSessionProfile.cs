@@ -20,6 +20,7 @@ public class ChatSessionProfile : MapsterProfile
 
         CreateMap<ChatMessage, ChatMessageOutputDto>()
             .Map(dest => dest.Role, src => ResolveRole(src.Role))
+            .Map(dest => dest.ReasoningContent, src => src.ReasoningContent)
             .Map(dest => dest.Attachments, src => src.Attachments.Count == 0 ? null : src.Attachments.ToList());
 
         CreateMap<ChatSession, ChatSessionOutputDto>();

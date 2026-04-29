@@ -3,6 +3,7 @@ export type ChatStreamEventType = 'Content' | 'Error' | 'System';
 export interface ChatStreamEvent {
   type?: ChatStreamEventType;
   content?: string;
+  reasoningContent?: string;
   isComplete?: boolean;
   inlineData?: InlineDataPart[];
 }

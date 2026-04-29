@@ -19,6 +19,9 @@ public class ChatMessageOutputDto
     /// <summary>文本内容</summary>
     public string Content { get; set; } = string.Empty;
 
+    /// <summary>思考/推理过程文本</summary>
+    public string? ReasoningContent { get; set; }
+
     /// <summary>附件列表</summary>
     public List<InlineDataPart>? Attachments { get; set; }
 

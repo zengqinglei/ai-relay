@@ -107,13 +107,27 @@ public class GoogleParseSseResponseProcessor : IResponseProcessor
     private static void ExtractPartsContent(JsonElement parts, StreamEvent evt)
     {
         var sb = new StringBuilder();
+        var reasoningSb = new StringBuilder();
+        
         foreach (var part in parts.EnumerateArray())
         {
             if (part.TryGetProperty("text", out var text))
             {
                 var textValue = text.GetString();
                 if (!string.IsNullOrEmpty(textValue))
-                    sb.Append(textValue);
+                {
+                    var isThought = part.TryGetProperty("thought", out var thoughtVal)
+                                    && thoughtVal.ValueKind == JsonValueKind.True;
+
+                    if (isThought)
+                    {
+                        reasoningSb.Append(textValue);
+                    }
+                    else
+                    {
+                        sb.Append(textValue);
+                    }
+                }
             }
             else if (part.TryGetProperty("inlineData", out var inline))
             {
@@ -138,6 +152,11 @@ public class GoogleParseSseResponseProcessor : IResponseProcessor
         if (sb.Length > 0)
         {
             evt.Content = sb.ToString();
+            evt.HasOutput = true;
+        }
+        if (reasoningSb.Length > 0)
+        {
+            evt.ReasoningContent = reasoningSb.ToString();
             evt.HasOutput = true;
         }
     }
