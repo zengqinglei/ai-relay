@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, inject, signal, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { CardModule } from 'primeng/card';
@@ -36,10 +36,11 @@ import { AccountService } from '../../services/account-service';
   templateUrl: './login.html',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class Login implements OnInit {
+export class Login {
   private fb = inject(FormBuilder);
   private accountService = inject(AccountService);
   private authService = inject(AuthService);
+  private route = inject(ActivatedRoute);
   private router = inject(Router);
   private messageService = inject(MessageService);
   public layoutService = inject(LayoutService);
@@ -58,7 +59,7 @@ export class Login implements OnInit {
     rememberMe: [false]
   });
 
-  ngOnInit(): void {
+  constructor() {
     // 进入登录页面时清理旧的认证信息
     this.authService.clearAuthData();
   }
@@ -77,25 +78,33 @@ export class Login implements OnInit {
     try {
       const { usernameOrEmail, password } = this.loginForm.value;
 
-      // 调用登录方法（内部会先登录获取 Token，再获取用户信息）
-      await this.accountService.login({
+      const loginInput = {
         usernameOrEmail: usernameOrEmail!,
         password: password!
-      });
+      };
+      const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
 
-      // 登录成功提示
-      this.messageService.add({
-        severity: 'success',
-        summary: '登录成功',
-        detail: '欢迎回来！',
-        life: 3000
-      });
+      await lastValueFrom(this.authService.login(loginInput));
 
-      // 根据角色跳转
-      if (this.authService.currentUser()?.isAdmin()) {
-        this.router.navigate(['/platform']);
+      if (this.isValidAuthorizationReturnUrl(returnUrl)) {
+        window.location.href = returnUrl;
       } else {
-        this.router.navigate(['/workspace']);
+        await lastValueFrom(this.authService.loadUser());
+
+        // 登录成功提示
+        this.messageService.add({
+          severity: 'success',
+          summary: '登录成功',
+          detail: '欢迎回来！',
+          life: 3000
+        });
+
+        // 根据角色跳转
+        if (this.authService.currentUser()?.isAdmin()) {
+          this.router.navigate(['/platform']);
+        } else {
+          this.router.navigate(['/workspace']);
+        }
       }
     } catch (error) {
       // HTTP 错误已经在 httpErrorInterceptor 中统一处理并显示 Toast
@@ -106,54 +115,37 @@ export class Login implements OnInit {
     }
   }
 
-  /**
-   * GitHub 登录
-   */
-  async loginWithGitHub() {
-    this._isLoading.set(true);
-    try {
-      const response = await lastValueFrom(this.accountService.getExternalLoginUrl('github'));
+  private isValidAuthorizationReturnUrl(returnUrl: string | null): returnUrl is string {
+    return returnUrl?.startsWith('/connect/authorize?') === true;
+  }
 
-      // 验证返回的 URL 是否有效
-      if (!response.loginUrl) {
-        throw new Error('未获取到有效的登录 URL');
-      }
+  loginWithGitHub() {
+    this.loginWithExternalProvider('github', 'GitHub');
+  }
 
-      // 跳转到 GitHub 授权页面
-      window.location.href = response.loginUrl;
-    } catch (error) {
-      console.error('GitHub 登录失败', error);
-      this.messageService.add({
-        severity: 'error',
-        summary: '登录失败',
-        detail: '无法连接到 GitHub 登录服务，请稍后重试',
-        life: 3000
-      });
-      this._isLoading.set(false);
-    }
+  loginWithGoogle() {
+    this.loginWithExternalProvider('google', 'Google');
   }
 
   /**
-   * Google 登录
+   * 通用第三方登录
    */
-  async loginWithGoogle() {
+  private async loginWithExternalProvider(provider: 'github' | 'google', label: string) {
     this._isLoading.set(true);
     try {
-      const response = await lastValueFrom(this.accountService.getExternalLoginUrl('google'));
+      const response = await lastValueFrom(this.accountService.getExternalLoginUrl(provider));
 
-      // 验证返回的 URL 是否有效
       if (!response.loginUrl) {
         throw new Error('未获取到有效的登录 URL');
       }
 
-      // 跳转到 Google 授权页面
       window.location.href = response.loginUrl;
     } catch (error) {
-      console.error('Google 登录失败', error);
+      console.error(`${label} 登录失败`, error);
       this.messageService.add({
         severity: 'error',
         summary: '登录失败',
-        detail: '无法连接到 Google 登录服务，请稍后重试',
+        detail: `无法连接到 ${label} 登录服务，请稍后重试`,
         life: 3000
       });
       this._isLoading.set(false);

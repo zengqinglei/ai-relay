@@ -75,7 +75,7 @@ public class ChatSessionAppService(
 
         if (input.CursorMessageId.HasValue)
         {
-            var cursor = await asyncExecuter.FirstOrDefaultAsync(
+            var cursor = await asyncExecuter.SingleOrDefaultAsync(
                 query
                     .Where(x => x.Id == input.CursorMessageId.Value)
                     .Select(x => new ChatMessageCursorItem(x.CreationTime, x.Id)),
@@ -342,7 +342,7 @@ public class ChatSessionAppService(
             query = await chatSessionRepository.GetQueryableAsync(cancellationToken);
         }
 
-        var session = await asyncExecuter.FirstOrDefaultAsync(
+        var session = await asyncExecuter.SingleOrDefaultAsync(
             query.Where(x => x.Id == id && x.UserId == userId),
             cancellationToken);
 

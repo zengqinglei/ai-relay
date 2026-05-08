@@ -1,13 +1,14 @@
 import {
   ChangePasswordInputDto,
   ExternalLoginUrlOutputDto,
-  LoginOutputDto,
   UpdateCurrentUserInputDto,
   UserOutputDto
 } from '../../src/app/features/account/models/account.dto';
 import { MockException, MockRequest } from '../core/models';
 import { USERS, toUserOutput } from '../data/user';
-import { buildAccessToken, getUserByToken } from '../utils/current-user';
+import { MOCK_SESSION_USER_ID, setMockSessionUserId } from '../utils/current-user';
+
+
 
 function ensureUsernameAvailable(username: string, currentUserId: string): void {
   const exists = USERS.some(user => user.username === username && user.id !== currentUserId);
@@ -23,26 +24,41 @@ function ensureEmailAvailable(email: string, currentUserId: string): void {
   }
 }
 
-function login(usernameOrEmail: string, password: string): LoginOutputDto {
+function getFormValue(body: unknown, key: string): string {
+  if (typeof body === 'string') {
+    return new URLSearchParams(body).get(key) ?? '';
+  }
+
+  if (body && typeof body === 'object' && key in body) {
+    return String((body as Record<string, unknown>)[key] ?? '');
+  }
+
+  return '';
+}
+
+
+
+function sessionLogin(usernameOrEmail: string, password: string): 'ok' {
   const user = USERS.find(u => u.username === usernameOrEmail || u.email === usernameOrEmail);
 
   if (user && user.password === password) {
-    return {
-      accessToken: buildAccessToken(user),
-      refreshToken: `fake-refresh-token-${user.id}-${Date.now()}`,
-      expiresIn: 3600
-    };
+    setMockSessionUserId(user.id);
+    return 'ok';
   }
 
   throw new MockException(401, { code: 40100, message: '用户名或密码不正确' });
 }
 
 function getCurrentUser(req: MockRequest): UserOutputDto {
-  return toUserOutput(getUserByToken(req));
+  if (!MOCK_SESSION_USER_ID) {
+    throw new MockException(401, { code: 40101, message: '未登录' });
+  }
+  const user = USERS.find(u => u.id === MOCK_SESSION_USER_ID) ?? USERS[0];
+  return toUserOutput(user);
 }
 
 function updateCurrentUser(req: MockRequest): UserOutputDto {
-  const user = getUserByToken(req);
+  const user = USERS.find(u => u.id === MOCK_SESSION_USER_ID) ?? USERS[0];
   const body = req.body as UpdateCurrentUserInputDto;
 
   const username = body.username.trim();
@@ -69,7 +85,7 @@ function updateCurrentUser(req: MockRequest): UserOutputDto {
 }
 
 function changePassword(req: MockRequest): 'ok' {
-  const user = getUserByToken(req);
+  const user = USERS.find(u => u.id === MOCK_SESSION_USER_ID) ?? USERS[0];
   const body = req.body as ChangePasswordInputDto;
 
   if (user.password !== body.currentPassword) {
@@ -102,20 +118,22 @@ function getExternalLoginUrl(provider: string): ExternalLoginUrlOutputDto {
   return { loginUrl, state };
 }
 
-function handleExternalLoginCallback(provider: string, _code: string): LoginOutputDto {
-  const user = USERS[0];
-  return {
-    accessToken: `fake-jwt-token-${user.id}-${provider}-${Date.now()}`,
-    refreshToken: `fake-refresh-token-${provider}-${Date.now()}`,
-    expiresIn: 3600
-  };
+
+
+function logout(): 'ok' {
+  setMockSessionUserId(null);
+  return 'ok';
 }
 
 export const AUTH_API = {
-  'POST /api/v1/auth/login': (req: MockRequest) => login(req.body.usernameOrEmail, req.body.password),
+  'POST /api/v1/auth/logout': () => logout(),
+  'POST /api/v1/auth/session-login': (req: MockRequest) => sessionLogin(req.body.usernameOrEmail, req.body.password),
   'GET /api/v1/auth/me': (req: MockRequest) => getCurrentUser(req),
   'PUT /api/v1/auth/me': (req: MockRequest) => updateCurrentUser(req),
   'POST /api/v1/auth/change-password': (req: MockRequest) => changePassword(req),
   'GET /api/v1/external-auth/:provider/login-url': (req: MockRequest) => getExternalLoginUrl(req.params.provider),
-  'POST /api/v1/external-auth/:provider/callback': (req: MockRequest) => handleExternalLoginCallback(req.params.provider, req.body.code)
+  'POST /api/v1/external-auth/:provider/callback': () => {
+    setMockSessionUserId(USERS[0].id);
+    return {};
+  }
 };

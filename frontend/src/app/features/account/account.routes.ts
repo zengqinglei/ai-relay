@@ -14,6 +14,12 @@ export const AUTH_ROUTES: Routes = [
     loadComponent: () => import('./components/register/register').then(m => m.Register)
   },
   {
+    path: 'external-callback',
+    loadComponent: () =>
+      import('./components/external-auth-callback/external-auth-callback').then(m => m.ExternalAuthCallback)
+  },
+
+  {
     path: '',
     redirectTo: 'login',
     pathMatch: 'full'

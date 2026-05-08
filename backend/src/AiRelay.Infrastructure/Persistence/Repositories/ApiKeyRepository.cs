@@ -18,7 +18,7 @@ public class ApiKeyRepository(
         var dbSet = await GetDbSetAsync(cancellationToken);
         return await dbSet
             .Include(x => x.Bindings)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+            .SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
     }
 
     public async Task<ApiKey?> GetWithDetailsAsync(Guid id, CancellationToken cancellationToken = default)
@@ -29,7 +29,7 @@ public class ApiKeyRepository(
                 .ThenInclude(b => b.ProviderGroup)
                     .ThenInclude(g => g.Relations)
                         .ThenInclude(r => r.AccountToken)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+            .SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
     }
 
     public async Task<(long TotalCount, List<ApiKey> Items)> GetPagedListAsync(

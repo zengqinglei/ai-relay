@@ -15,4 +15,8 @@
     <ProjectReference Include="..\AiRelay.Infrastructure\AiRelay.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="OpenIddict.Abstractions" Version="7.5.0" />
+  </ItemGroup>
+
 </Project>

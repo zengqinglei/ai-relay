@@ -4,7 +4,6 @@ using AiRelay.Application.ChatSessions.Dtos;
 using AiRelay.Application.ChatSessions.Handlers;
 using AiRelay.Application.ModelRoutes;
 using AiRelay.Application.ModelRoutes.Dtos;
-using AiRelay.Application.ModelRoutes.Handlers;
 using AiRelay.Application.ProviderAccounts.Dtos;
 using AiRelay.Domain.ChatSessions.Entities;
 using AiRelay.Domain.ChatSessions.ValueObjects;
@@ -24,7 +23,6 @@ namespace AiRelay.Application.ChatSessions.AppServices;
 public class WorkspaceChatExecutionAppService(
     IModelRouteAppService modelRouteAppService,
     IChatModelHandlerFactory chatModelHandlerFactory,
-    RouteTerminalErrorFormatter routeTerminalErrorFormatter,
     ILogger<WorkspaceChatExecutionAppService> logger) : BaseAppService, IWorkspaceChatExecutionAppService
 {
     public async IAsyncEnumerable<StreamEvent> ExecuteAsync(
@@ -40,7 +38,7 @@ public class WorkspaceChatExecutionAppService(
             FullMode = BoundedChannelFullMode.Wait
         });
 
-        var responseHandler = new ChatRouteResponseHandler(routeTerminalErrorFormatter, channel);
+        var responseHandler = new ChatRouteResponseHandler(channel);
 
         var baseDownContext = new DownRequestContext
         {

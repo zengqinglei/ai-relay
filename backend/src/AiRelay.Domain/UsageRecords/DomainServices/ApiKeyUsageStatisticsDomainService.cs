@@ -34,7 +34,7 @@ public class ApiKeyUsageStatisticsDomainService(
         }
 
         // 单次条件聚合：订阅数、活跃数、即将过期数、今日用量、昨日用量
-        var stats = await asyncExecuter.FirstOrDefaultAsync(query
+        var stats = await asyncExecuter.SingleOrDefaultAsync(query
             .GroupBy(k => 1)
             .Select(g => new
             {

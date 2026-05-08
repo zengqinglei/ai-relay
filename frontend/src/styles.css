@@ -19,7 +19,7 @@ body {
 :root {
   color-scheme: light;
   --app-scrollbar-size: 0.8rem;
-  --app-scrollbar-track: color-mix(in srgb, var(--p-surface-100) 72%, transparent);
+  --app-scrollbar-track: transparent;
   --app-scrollbar-thumb: color-mix(in srgb, var(--p-surface-400) 82%, transparent);
   --app-scrollbar-thumb-hover: color-mix(in srgb, var(--p-primary-color) 28%, var(--p-surface-500));
   --app-scrollbar-thumb-active: color-mix(in srgb, var(--p-primary-color) 44%, var(--p-surface-600));
@@ -27,14 +27,10 @@ body {
 
 .dark {
   color-scheme: dark;
-  --app-scrollbar-track: color-mix(in srgb, var(--p-surface-900) 76%, transparent);
+  --app-scrollbar-track: transparent;
   --app-scrollbar-thumb: color-mix(in srgb, var(--p-surface-500) 82%, transparent);
   --app-scrollbar-thumb-hover: color-mix(in srgb, var(--p-primary-color) 34%, var(--p-surface-400));
   --app-scrollbar-thumb-active: color-mix(in srgb, var(--p-primary-color) 50%, var(--p-surface-300));
-}
-
-html {
-  scrollbar-gutter: stable;
 }
 
 html,

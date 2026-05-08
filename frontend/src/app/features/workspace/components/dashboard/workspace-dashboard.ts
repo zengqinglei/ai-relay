@@ -7,7 +7,7 @@ import { CardModule } from 'primeng/card';
 import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
 import { EMPTY, Subject, combineLatest, forkJoin, fromEvent, merge, of, timer } from 'rxjs';
-import { catchError, distinctUntilChanged, filter, finalize, map, startWith, switchMap } from 'rxjs/operators';
+import { catchError, distinctUntilChanged, exhaustMap, filter, finalize, map, startWith, switchMap } from 'rxjs/operators';
 
 import { LayoutService } from '../../../../layout/services/layout-service';
 import { formatDuration, formatTokenCount } from '../../../../shared/utils/format.utils';
@@ -116,7 +116,7 @@ export class WorkspaceDashboardPage {
     merge(this.manualRefresh$, this.autoTick$)
       .pipe(
         takeUntilDestroyed(this.destroyRef),
-        switchMap(() => this.fetchDashboardData())
+        exhaustMap(() => this.fetchDashboardData())
       )
       .subscribe();
 
@@ -182,7 +182,7 @@ export class WorkspaceDashboardPage {
 
     combineLatest([visibility$, interval$])
       .pipe(
-        switchMap(([visible, interval]) => (visible && interval > 0 ? timer(0, interval) : EMPTY)),
+        switchMap(([visible, interval]) => (visible && interval > 0 ? timer(interval, interval) : EMPTY)),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe(() => this.autoTick$.next());

@@ -1,7 +1,4 @@
 using AiRelay.Application.Auth.Dtos;
-using AiRelay.Domain.Auth.DomainServices;
-using AiRelay.Domain.Shared.Security.Jwt;
-using AiRelay.Domain.Shared.Security.Jwt.Options;
 using AiRelay.Domain.Users.DomainServices;
 using AiRelay.Domain.Users.Entities;
 using Leistd.Ddd.Application.AppService;
@@ -9,78 +6,26 @@ using Leistd.Ddd.Domain.Repositories;
 using Leistd.Exception.Core;
 using Leistd.Security.Users;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace AiRelay.Application.Auth.AppServices;
 
 public class AuthAppService(
     IRepository<User, Guid> userRepository,
-    IRepository<UserRole, Guid> userRoleRepository,
-    IRepository<Role, Guid> roleRepository,
     UserDomainService userDomainService,
-    AuthDomainService authDomainService,    IJwtTokenProvider jwtTokenProvider,
-    IOptions<JwtOptions> jwtOptions,
     ICurrentUser currentUser,
     ILogger<AuthAppService> logger) : BaseAppService(), IAuthAppService
 {
-    private readonly JwtOptions _jwtOptions = jwtOptions.Value;
 
-    /// <summary>
-    /// 用户登录
-    /// </summary>
-    public async Task<LoginOutputDto> LoginAsync(LoginInputDto input, CancellationToken cancellationToken = default)
-    {
-        logger.LogInformation("用户 {UsernameOrEmail} 尝试登录...", input.UsernameOrEmail);
-
-        // 调用领域服务进行认证
-        var user = await authDomainService.AuthenticateUserAsync(input.UsernameOrEmail, input.Password, cancellationToken);
-        // 更新用户登录状态
-        await userRepository.UpdateAsync(user, cancellationToken);
-
-        var roleNames = await userDomainService.GetUserRoleNamesAsync(user.Id, cancellationToken);
-
-        // 生成 JWT Token
-        var accessToken = jwtTokenProvider.GenerateToken(user.Id, user.Username, user.Email, [.. roleNames]);
-        var refreshToken = jwtTokenProvider.GenerateRefreshToken();
-        var expiryMinutes = _jwtOptions.ExpiryMinutes;
-
-        logger.LogInformation("用户 {UsernameOrEmail}登录成功", input.UsernameOrEmail);
-
-        // 构建响应
-        return new LoginOutputDto
-        {
-            AccessToken = accessToken,
-            RefreshToken = refreshToken,
-            ExpiresIn = expiryMinutes * 60
-        };
-    }
-
-    public async Task<LoginOutputDto> RegisterAsync(RegisterInputDto input, CancellationToken cancellationToken = default)
+    public async Task<UserOutputDto> RegisterAsync(RegisterInputDto input, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("开始注册用户 {Username}... 邮箱：{Email}", input.Username, input.Email);
 
-        // 调用领域服务进行注册
         var user = await userDomainService.CreateUserAsync(input.Username, input.Email, input.Password, input.Nickname, cancellationToken);
-        // 分配默认角色
         await userDomainService.AssignDefaultRolesToUserAsync(user.Id, cancellationToken);
-
-        // 获取用户角色
-        var roleNames = await userDomainService.GetUserRoleNamesAsync(user.Id, cancellationToken);
-
-        // 生成 JWT Token
-        var accessToken = jwtTokenProvider.GenerateToken(user.Id, user.Username, user.Email, roleNames.ToArray());
-        var refreshToken = jwtTokenProvider.GenerateRefreshToken();
-        var expiryMinutes = _jwtOptions.ExpiryMinutes;
 
         logger.LogInformation("用户注册成功 (ID: {Id})", user.Id);
 
-        // 构建响应
-        return new LoginOutputDto
-        {
-            AccessToken = accessToken,
-            RefreshToken = refreshToken,
-            ExpiresIn = expiryMinutes * 60
-        };
+        return await GetCurrentUserOutputAsync(user.Id, cancellationToken);
     }
 
     /// <summary>
@@ -149,13 +94,7 @@ public class AuthAppService(
             throw new NotFoundException($"用户 '{userId}' 不存在");
         }
 
-        var userRoles = await userRoleRepository.GetListAsync(ur => ur.UserId == userId, cancellationToken);
-        var roleIds = userRoles.Select(ur => ur.RoleId).Distinct().ToList();
-        var roleNames = roleIds.Count == 0
-            ? []
-            : (await roleRepository.GetListAsync(r => roleIds.Contains(r.Id), cancellationToken))
-                .Select(r => r.Name)
-                .ToArray();
+        var roleNames = await userDomainService.GetUserRoleNamesAsync(userId, cancellationToken);
 
         return new UserOutputDto
         {
@@ -167,7 +106,7 @@ public class AuthAppService(
             PhoneNumber = user.PhoneNumber,
             IsActive = user.IsActive,
             CreationTime = user.CreationTime,
-            Roles = roleNames
+            Roles = [.. roleNames]
         };
     }
 }

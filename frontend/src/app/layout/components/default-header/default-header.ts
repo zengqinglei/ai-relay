@@ -90,8 +90,8 @@ export class DefaultHeader implements OnDestroy {
   }
 
   handleLogout(): void {
+    this.forceCloseMenu();
     this.authService.logout();
-    this.closeMenuAndNavigate('/auth/login');
   }
 
   handleMenuToggle(): void {

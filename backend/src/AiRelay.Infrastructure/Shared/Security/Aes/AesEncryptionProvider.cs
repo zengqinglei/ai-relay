@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using AiRelay.Domain.Shared.Security.Aes;
-using AiRelay.Domain.Shared.Security.Jwt.Options;
+using AiRelay.Domain.Shared.Security.Aes.Options;
 using Microsoft.Extensions.Options;
 
 namespace AiRelay.Infrastructure.Shared.Security.Aes;
@@ -13,14 +13,9 @@ public class AesEncryptionProvider : IAesEncryptionProvider
 {
     private readonly byte[] _key;
 
-    public AesEncryptionProvider(IOptions<JwtOptions> jwtOptions)
+    public AesEncryptionProvider(IOptions<EncryptionOptions> encryptionOptions)
     {
-        var secretKey = jwtOptions.Value.SecretKey
-            ?? throw new InvalidOperationException("JWT SecretKey 未配置");
-
-        // 使用 SHA256 将密钥转换为 32 字节（AES-256）
-        using var sha256 = SHA256.Create();
-        _key = sha256.ComputeHash(Encoding.UTF8.GetBytes(secretKey));
+        _key = encryptionOptions.Value.GetKeyBytes();
     }
 
     /// <summary>

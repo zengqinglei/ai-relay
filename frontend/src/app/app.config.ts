@@ -23,13 +23,15 @@ import { providePrimeNG } from 'primeng/config';
 import { routes } from './app.routes';
 import { GlobalErrorHandler } from './core/handlers/global-error-handler';
 import { httpErrorInterceptor } from './core/interceptors/http-error-interceptor';
-import { addTokenInterceptor } from './core/interceptors/token-interceptor';
 import { provideMock } from '../../_mock/core/providers';
 import { environment } from '../environments/environment';
 import { urlFormatInterceptor } from './core/interceptors/url-format-interceptor';
 import { StartupService } from './core/services/startup-service';
 
 // 定义路由特性，用于增强应用功能和用户体验
+const useMock = environment.useMock;
+const isMockEnabled = typeof useMock === 'boolean' ? useMock : useMock?.enable === true;
+
 const routerFeatures: RouterFeatures[] = [
   // 启用路由参数到组件输入的自动绑定
   withComponentInputBinding(),
@@ -37,7 +39,6 @@ const routerFeatures: RouterFeatures[] = [
   withViewTransitions(),
   // 配置导航时的滚动行为，导航后滚动到页面顶部
   withInMemoryScrolling({ anchorScrolling: 'enabled', scrollPositionRestoration: 'enabled' }),
-  withEnabledBlockingInitialNavigation(),
   // 根据环境配置决定是否启用哈希路由
   ...(environment.useHash ? [withHashLocation()] : [])
 ];
@@ -65,7 +66,6 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(
       withInterceptors([
         urlFormatInterceptor,
-        addTokenInterceptor,
         httpErrorInterceptor // 捕获所有 HTTP 错误并显示用户提示
       ]),
       withInterceptorsFromDi() // 启用对基于类的拦截器的支持

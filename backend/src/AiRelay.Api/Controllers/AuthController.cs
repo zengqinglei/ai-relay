@@ -1,7 +1,14 @@
+using System.Security.Claims;
 using AiRelay.Application.Auth.AppServices;
 using AiRelay.Application.Auth.Dtos;
+using AiRelay.Domain.Users.DomainServices;
+using Leistd.Ddd.Domain.Repositories;
+using AiRelay.Domain.Users.Entities;
+using Leistd.Exception.Core;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace AiRelay.Api.Controllers;
 
@@ -9,16 +16,57 @@ namespace AiRelay.Api.Controllers;
 /// 认证控制器
 /// </summary>
 [Route("api/v1/auth")]
-public class AuthController(IAuthAppService authService) : BaseController
+public class AuthController(
+    IAuthAppService authService,
+    UserDomainService userDomainService,
+    IRepository<User, Guid> userRepository) : BaseController
 {
-    /// <summary>
-    /// 用户登录
-    /// </summary>
     [AllowAnonymous]
-    [HttpPost("login")]
-    public async Task<LoginOutputDto> LoginAsync([FromBody] LoginInputDto request, CancellationToken cancellationToken)
+    [HttpPost("session-login")]
+    [IgnoreAntiforgeryToken]
+    public async Task<IActionResult> SessionLoginAsync([FromBody] LoginInputDto request, CancellationToken cancellationToken)
     {
-        return await authService.LoginAsync(request, cancellationToken);
+        // 验证凭据
+        var user = await userDomainService.ValidateCredentialsAsync(
+            request.UsernameOrEmail,
+            request.Password,
+            cancellationToken);
+
+        if (user == null)
+        {
+            throw new UnauthorizedException($"登录失败: 用户不存在或密码错误 - {request.UsernameOrEmail}");
+        }
+
+        if (!user.IsActive)
+        {
+            throw new UnauthorizedException($"登录失败: 用户已被禁用 - 用户: {user.Username}");
+        }
+
+        if (user.IsLockedOut())
+        {
+            throw new UnauthorizedException($"登录失败: 用户已被锁定 - 用户: {user.Username}, 锁定至: {user.LockoutEnd}");
+        }
+
+        // 记录登录成功并建立 Cookie 会话
+        user.RecordLoginSuccess();
+        await userRepository.UpdateAsync(user, cancellationToken);
+
+        var identity = new ClaimsIdentity("AiRelayCookie");
+        identity.AddClaim(new Claim(OpenIddict.Abstractions.OpenIddictConstants.Claims.Subject, user.Id.ToString()));
+        identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()));
+        identity.AddClaim(new Claim(ClaimTypes.Name, user.Username));
+
+        await HttpContext.SignInAsync("AiRelayCookie", new ClaimsPrincipal(identity),
+            new AuthenticationProperties { IsPersistent = true });
+        return NoContent();
+    }
+
+    [Authorize]
+    [HttpPost("logout")]
+    public async Task<IActionResult> LogoutAsync()
+    {
+        await HttpContext.SignOutAsync("AiRelayCookie");
+        return NoContent();
     }
 
     /// <summary>
@@ -26,7 +74,7 @@ public class AuthController(IAuthAppService authService) : BaseController
     /// </summary>
     [AllowAnonymous]
     [HttpPost("register")]
-    public async Task<LoginOutputDto> RegisterAsync([FromBody] RegisterInputDto request, CancellationToken cancellationToken)
+    public async Task<UserOutputDto> RegisterAsync([FromBody] RegisterInputDto request, CancellationToken cancellationToken)
     {
         return await authService.RegisterAsync(request, cancellationToken);
     }

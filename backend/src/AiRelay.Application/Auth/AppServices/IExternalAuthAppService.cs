@@ -1,4 +1,5 @@
 using AiRelay.Application.Auth.Dtos;
+using AiRelay.Domain.Users.Entities;
 using Leistd.Ddd.Application.Contracts.AppService;
 
 namespace AiRelay.Application.Auth.AppServices;
@@ -19,5 +20,5 @@ public interface IExternalAuthAppService : IAppService
     /// <param name="provider">外部身份提供商（github, google）</param>
     /// <param name="request">回调请求数据</param>
     /// <param name="cancellationToken">取消令牌</param>
-    Task<LoginOutputDto> HandleCallbackAsync(string provider, ExternalLoginCallbackInputDto request, CancellationToken cancellationToken = default);
+    Task<User> AuthenticateExternalUserAsync(string provider, ExternalLoginCallbackInputDto request, CancellationToken cancellationToken = default);
 }

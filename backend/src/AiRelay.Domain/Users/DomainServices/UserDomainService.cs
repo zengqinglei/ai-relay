@@ -202,6 +202,7 @@ public class UserDomainService(
     {
         var user = await userRepository.GetFirstAsync(
             u => u.Username == usernameOrEmail || u.Email == usernameOrEmail,
+            q => q.OrderBy(u => u.Id),
             cancellationToken);
 
         if (user == null)

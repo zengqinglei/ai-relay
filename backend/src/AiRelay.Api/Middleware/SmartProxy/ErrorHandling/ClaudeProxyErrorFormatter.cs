@@ -1,6 +1,5 @@
 using System.Net.Mime;
 using System.Text.Json;
-using AiRelay.Application.ModelRoutes.Handlers;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 
 namespace AiRelay.Api.Middleware.SmartProxy.ErrorHandling;
@@ -9,7 +8,7 @@ namespace AiRelay.Api.Middleware.SmartProxy.ErrorHandling;
 /// Claude 格式代理错误格式化器
 /// 用于适配 claude-cli sdk
 /// </summary>
-public class ClaudeProxyErrorFormatter(RouteTerminalErrorFormatter routeTerminalErrorFormatter) : BaseProxyErrorFormatter(routeTerminalErrorFormatter)
+public class ClaudeProxyErrorFormatter : BaseProxyErrorFormatter
 {
     public override bool Supports(RouteProfile profile) => profile is RouteProfile.ClaudeMessages;
 
@@ -40,7 +39,7 @@ public class ClaudeProxyErrorFormatter(RouteTerminalErrorFormatter routeTerminal
             error = new
             {
                 type = GetClaudeErrorType(statusCode),
-                message // 包含前置 Normalize 注入的 (Overloaded) 关键字
+                message
             }
         };
 

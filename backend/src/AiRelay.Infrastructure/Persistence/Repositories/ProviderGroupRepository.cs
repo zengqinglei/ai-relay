@@ -19,7 +19,8 @@ public class ProviderGroupRepository(
             .Include(x => x.Relations)
             .Include(x => x.ApiKeyBindings)
             .Include(x => x.AssignedUsers)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+            .AsSplitQuery()
+            .SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
     }
 
     public async Task<List<ProviderGroup>> GetVisibleGroupsAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -38,7 +39,7 @@ public class ProviderGroupRepository(
         var dbSet = await GetDbSetAsync(cancellationToken);
         return await dbSet
             .Include(x => x.AssignedUsers)
-            .FirstOrDefaultAsync(
+            .SingleOrDefaultAsync(
                 x => x.Id == id && (!x.AssignedUsers.Any() || x.AssignedUsers.Any(y => y.UserId == userId)),
                 cancellationToken);
     }

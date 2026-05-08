@@ -62,10 +62,7 @@ public class ProxyRouteResponseHandler(
         }
         else
         {
-            var errorResponse = formatter.Format(new RouteTerminalFormattedException(
-                error.StatusCode,
-                error.Exception,
-                error.ErrorBody));
+            var errorResponse = formatter.Format(error.Exception ?? new Exception(error.ErrorBody ?? "未知错误"), error.StatusCode);
             if (!context.Response.HasStarted)
             {
                 context.Response.StatusCode = errorResponse.StatusCode;

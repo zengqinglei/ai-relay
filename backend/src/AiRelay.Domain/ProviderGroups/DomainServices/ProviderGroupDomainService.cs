@@ -23,6 +23,7 @@ public class ProviderGroupDomainService(
     {
         var defaultGroup = await providerGroupRepository.GetFirstAsync(
             g => g.IsDefault || g.Name == DefaultGroupName,
+            q => q.OrderByDescending(g => g.IsDefault).ThenBy(g => g.Id),
             cancellationToken);
 
         if (defaultGroup != null)
@@ -209,7 +210,10 @@ public class ProviderGroupDomainService(
     {
         await EnsureDefaultProviderGroupAsync(cancellationToken);
 
-        var defaultGroup = await providerGroupRepository.GetFirstAsync(g => g.IsDefault, cancellationToken)
+        var defaultGroup = await providerGroupRepository.GetFirstAsync(
+            g => g.IsDefault, 
+            q => q.OrderBy(g => g.Id), 
+            cancellationToken)
             ?? throw new NotFoundException("默认分组不存在");
 
         return defaultGroup.Id;

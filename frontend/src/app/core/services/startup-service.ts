@@ -1,6 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Injectable, signal, inject } from '@angular/core';
-import { lastValueFrom } from 'rxjs';
+import { Injectable, inject, signal } from '@angular/core';
 
 import { AuthService } from './auth-service';
 
@@ -20,20 +19,23 @@ export class StartupService {
     this._status.set('loading');
     this._error.set(null);
 
-    // 如果当前是登录页，直接清理 Token 并跳过加载
-    if (window.location.hash.includes('/auth/login')) {
+    const pathname = window.location.pathname;
+    const hash = window.location.hash;
+
+    if (pathname.includes('/auth/login') || hash.includes('/auth/login')) {
       this.authService.clearAuthData();
       this._status.set('success');
       return;
     }
 
-    if (!this.authService.isAuthenticated()) {
+    if (pathname.includes('/auth/callback') || pathname.includes('/auth/external-callback')
+      || hash.includes('/auth/callback') || hash.includes('/auth/external-callback')) {
       this._status.set('success');
       return;
     }
 
     try {
-      await lastValueFrom(this.authService.loadUser());
+      await this.authService.initializeAuth();
       this._status.set('success');
     } catch (err: unknown) {
       if (err instanceof HttpErrorResponse && err.status === 401) {

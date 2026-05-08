@@ -6,14 +6,6 @@ export interface LoginInputDto {
   password: string;
 }
 
-/**
- * 登录响应 DTO（不包含用户信息）
- */
-export interface LoginOutputDto {
-  accessToken: string;
-  refreshToken: string;
-  expiresIn: number;
-}
 
 /**
  * 用户输出 DTO

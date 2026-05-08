@@ -5,7 +5,7 @@ import { SSE_MOCK_REGISTRY } from '../core/sse-mock-registry';
 import { ACCOUNT_TOKENS, ANTIGRAVITY_MODELS, AVAILABLE_MODELS } from '../data/account-token';
 import { MockChatSession, WORKSPACE_CHAT_SESSIONS, createWorkspaceMockStream, resolveWorkspaceMockAnswer, resolveWorkspaceMockReasoning } from '../data/workspace-chat';
 import { getVisibleGroupsForCurrentUser } from './provider-group';
-import { getCurrentUserId, getUserByAuthHeader } from '../utils/current-user';
+import { getCurrentUserId } from '../utils/current-user';
 import { Provider } from '../../src/app/shared/models/provider.enum';
 import { ModelVendor } from '../../src/app/shared/models/model-vendor.enum';
 
@@ -305,7 +305,7 @@ function buildTitle(input: string) {
 
 SSE_MOCK_REGISTRY.register('POST', /\/api\/v1\/chat-sessions\/[^/]+\/messages$/, (body?: unknown, context?: { url: string; headers?: Headers }) => {
   const sessionId = context?.url.match(/\/api\/v1\/chat-sessions\/([^/]+)\/messages$/)?.[1];
-  const currentUserId = getUserByAuthHeader(context?.headers?.get('Authorization')).id;
+  const currentUserId = getCurrentUserId({} as MockRequest);
   const prompt = typeof body === 'object' && body && 'content' in body ? String((body as { content?: string }).content ?? '') : '';
   const reasoning = resolveWorkspaceMockReasoning(prompt);
   const answer = resolveWorkspaceMockAnswer(prompt);

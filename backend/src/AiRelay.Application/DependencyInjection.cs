@@ -17,7 +17,6 @@ using AiRelay.Application.Permissions.Checker;
 using AiRelay.Application.Permissions.Provider;
 using AiRelay.Domain.ProviderAccounts.Events;
 using AiRelay.Application.ModelRoutes;
-using AiRelay.Application.ModelRoutes.Handlers;
 
 namespace AiRelay.Application;
 
@@ -39,13 +38,13 @@ public static class DependencyInjection
 
         // Smart Proxy AppService
         services.AddScoped<IModelRouteAppService, ModelRouteAppService>();
-        services.AddSingleton<RouteTerminalErrorFormatter>();
 
         // Provider Groups
         services.AddScoped<IProviderGroupAppService, ProviderGroupAppService>();
 
         // Identity & Authorization Services
         services.AddScoped<IAuthAppService, AuthAppService>();
+        services.AddScoped<IAuthPrincipalFactory, AuthPrincipalFactory>();
         services.AddScoped<IUserAppService, UserAppService>();
         services.AddScoped<IExternalAuthAppService, ExternalAuthAppService>();
 

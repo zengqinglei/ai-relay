@@ -1,7 +1,7 @@
 import { Component, inject, signal, DestroyRef, ChangeDetectionStrategy, afterNextRender, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { timer, fromEvent, of, EMPTY, Subject, merge, combineLatest } from 'rxjs';
-import { switchMap, finalize, catchError, map, startWith, filter, distinctUntilChanged } from 'rxjs/operators';
+import { catchError, distinctUntilChanged, exhaustMap, filter, finalize, map, startWith, switchMap } from 'rxjs/operators';
 
 import { ApiKeyTrendChartComponent } from './widgets/api-key-trend-chart/api-key-trend-chart';
 import { DashboardControls, TimeRange } from './widgets/dashboard-controls/dashboard-controls';
@@ -43,7 +43,7 @@ export class Dashboard implements OnInit {
     merge(this.manualRefresh$, this.autoTick$)
       .pipe(
         takeUntilDestroyed(this.destroyRef),
-        switchMap(() => this.fetchData())
+        exhaustMap(() => this.fetchData())
       )
       .subscribe();
 
@@ -78,7 +78,7 @@ export class Dashboard implements OnInit {
     combineLatest([visibility$, interval$])
       .pipe(
         switchMap(([visible, interval]) => {
-          return visible && interval > 0 ? timer(0, interval) : EMPTY;
+          return visible && interval > 0 ? timer(interval, interval) : EMPTY;
         }),
         takeUntilDestroyed(this.destroyRef)
       )

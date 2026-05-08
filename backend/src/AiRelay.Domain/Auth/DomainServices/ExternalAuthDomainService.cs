@@ -67,6 +67,7 @@ public class ExternalAuthDomainService(
         // 1. 检查是否已存在外部登录连接
         var connection = await externalLoginRepository.GetFirstAsync(
             c => c.Provider == provider && c.ProviderUserId == externalUserInfo.ProviderId,
+            q => q.OrderBy(c => c.Id),
             cancellationToken);
 
         if (connection != null)
@@ -84,7 +85,10 @@ public class ExternalAuthDomainService(
         User? user = null;
         if (!string.IsNullOrEmpty(externalUserInfo.Email))
         {
-            user = await userRepository.GetFirstAsync(u => u.Email == externalUserInfo.Email, cancellationToken);
+            user = await userRepository.GetFirstAsync(
+                u => u.Email == externalUserInfo.Email,
+                q => q.OrderBy(u => u.Id),
+                cancellationToken);
         }
 
         if (user == null)

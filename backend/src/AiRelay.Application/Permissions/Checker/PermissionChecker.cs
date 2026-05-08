@@ -59,7 +59,7 @@ public class PermissionChecker(
 
         var userGrant = await permissionGrantRepository.GetFirstAsync(
             PermissionGrantSpecifications.ByPermissionAndProvider(name, "User", userIdValue.ToString()),
-            cancellationToken
+            cancellationToken: cancellationToken
         );
 
         if (userGrant != null)
@@ -72,7 +72,7 @@ public class PermissionChecker(
         {
             var roleGrant = await permissionGrantRepository.GetFirstAsync(
                 PermissionGrantSpecifications.ByPermissionAndProvider(name, "Role", roleId.ToString()),
-                cancellationToken
+                cancellationToken: cancellationToken
             );
 
             if (roleGrant != null)

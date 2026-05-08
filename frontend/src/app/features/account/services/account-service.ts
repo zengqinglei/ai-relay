@@ -5,9 +5,9 @@ import { Observable, lastValueFrom, map, tap } from 'rxjs';
 import { AuthService } from '../../../core/services/auth-service';
 import {
   ChangePasswordInputDto,
+  ExternalLoginCallbackInputDto,
   ExternalLoginUrlOutputDto,
   LoginInputDto,
-  LoginOutputDto,
   RegisterInputDto,
   UpdateCurrentUserInputDto,
   UserOutputDto
@@ -18,26 +18,14 @@ export class AccountService {
   private http = inject(HttpClient);
   private authService = inject(AuthService);
 
-  async login(request: LoginInputDto): Promise<void> {
-    const loginResponse = await lastValueFrom(this.http.post<LoginOutputDto>('/api/v1/auth/login', request));
-    this.authService.setToken(loginResponse.accessToken);
-    await lastValueFrom(this.authService.loadUser());
-  }
+
 
   getExternalLoginUrl(provider: 'github' | 'google'): Observable<ExternalLoginUrlOutputDto> {
     return this.http.get<ExternalLoginUrlOutputDto>(`/api/v1/external-auth/${provider}/login-url`);
   }
 
-  async handleExternalLoginCallback(provider: string, code: string, state: string): Promise<void> {
-    const loginResponse = await lastValueFrom(
-      this.http.post<LoginOutputDto>(`/api/v1/external-auth/${provider}/callback`, {
-        code,
-        state
-      })
-    );
-
-    this.authService.setToken(loginResponse.accessToken);
-    await lastValueFrom(this.authService.loadUser());
+  externalLoginCallback(provider: string, data: ExternalLoginCallbackInputDto): Observable<void> {
+    return this.http.post<void>(`/api/v1/external-auth/${provider}/callback`, data);
   }
 
   register(data: RegisterInputDto): Observable<void> {

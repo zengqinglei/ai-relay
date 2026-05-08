@@ -12,7 +12,7 @@
       placeholder="全部平台"
       [showClear]="true"
       appendTo="body"
-      styleClass="w-full sm:w-40" />
+      styleClass="w-full sm:w-48" />
 
     <p-select
       [options]="authMethodOptions"
@@ -24,7 +24,7 @@
       placeholder="全部方式"
       [showClear]="true"
       appendTo="body"
-      styleClass="w-full sm:w-40" />
+      styleClass="w-full sm:w-48" />
 
     <p-multiselect
       [options]="providerGroupOptions()"
@@ -40,7 +40,7 @@
       [maxSelectedLabels]="1"
       selectedItemsLabel="已选 {0} 个分组"
       appendTo="body"
-      styleClass="w-full sm:w-56">
+      styleClass="w-full sm:w-48">
       <ng-template let-group pTemplate="item">
         <div class="flex w-full items-center gap-2 py-1">
           <span class="truncate text-sm">{{ group.name }}</span>

@@ -14,11 +14,8 @@ using AiRelay.Infrastructure.Persistence;
 
 using AiRelay.Domain.Shared.Security.Aes;
 using AiRelay.Domain.Shared.Security.Aes.Options;
-using AiRelay.Domain.Shared.Security.Jwt;
-using AiRelay.Domain.Shared.Security.Jwt.Options;
 using AiRelay.Domain.Shared.Security.PasswordHash;
 using AiRelay.Infrastructure.Shared.Security.Aes;
-using AiRelay.Infrastructure.Shared.Security.Jwt;
 using AiRelay.Infrastructure.Shared.Security.PasswordHash;
 
 using AiRelay.Infrastructure.Persistence.Repositories;
@@ -66,7 +63,6 @@ public static class DependencyInjection
         services.AddMemoryCache();      // IMemoryCache - 用于定价缓存等
 
         // ... (Existing options configuration) ...
-        services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
         services.Configure<ModelPricingOptions>(configuration.GetSection(ModelPricingOptions.SectionName));
 
         services.Configure<EncryptionOptions>(options =>
@@ -80,12 +76,20 @@ public static class DependencyInjection
             var connectionString = configuration.GetConnectionString("Default");
             if (!string.IsNullOrEmpty(connectionString))
             {
-                options.UseNpgsql(connectionString);
+                options.UseNpgsql(connectionString, npgsql =>
+                    npgsql.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery));
             }
             else
             {
                 options.UseInMemoryDatabase("AiRelay");
             }
+
+            options.UseOpenIddict();
+
+            // 抑制多集合 Include 警告（已全局启用 SplitQuery）
+            options.ConfigureWarnings(w => w
+                .Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId
+                    .MultipleCollectionIncludeWarning));
 
             // ✅ 添加 SaveChanges 拦截器（EF Core 官方推荐的最佳实践）
             options.AddInterceptors(
@@ -109,7 +113,7 @@ public static class DependencyInjection
         if (!string.IsNullOrEmpty(redisConnStr))
         {
             // 解析 Redis 连接字符串（支持 Upstash URL）
-            var redisConfig = ParseRedisConnectionString(redisConnStr);
+            var redisConfig = Shared.Redis.RedisConnectionStringParser.Parse(redisConnStr);
 
             services.AddStackExchangeRedisCache(options =>
             {
@@ -154,7 +158,13 @@ public static class DependencyInjection
                     // 4. Keep-Alive 设置：防止弱网下发生”静默断网”导致无限等待
                     KeepAlivePingDelay = TimeSpan.FromSeconds(30),
                     KeepAlivePingTimeout = TimeSpan.FromMinutes(1),
-                    KeepAlivePingPolicy = HttpKeepAlivePingPolicy.Always
+                    KeepAlivePingPolicy = HttpKeepAlivePingPolicy.Always,
+
+                    // 5. 允许不受信任或名称不匹配的证书 (兼容私有中转、Cloudflare 绕过或直接 IP 访问的第三方服务)
+                    SslOptions = new System.Net.Security.SslClientAuthenticationOptions
+                    {
+                        RemoteCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true
+                    }
                 })
                 .AddHttpMessageHandler<ManualDecompressionHandler>();
 
@@ -195,9 +205,6 @@ public static class DependencyInjection
         // 密码哈希服务（无状态，使用 Transient 生命周期）
         services.AddTransient<IPasswordHasher, PasswordHasher>();
 
-        // JWT Token 服务（无状态，使用 Transient 生命周期）
-        services.AddTransient<IJwtTokenProvider, JwtTokenProvider>();
-
         // AES 加密服务（无状态，使用 Transient 生命周期）
         services.AddTransient<IAesEncryptionProvider, AesEncryptionProvider>();
 
@@ -230,47 +237,4 @@ public static class DependencyInjection
         return services;
 
     }
-
-    /// <summary>
-    /// 解析 Redis 连接字符串，支持 Upstash rediss:// URL 格式
-    /// </summary>
-    private static StackExchange.Redis.ConfigurationOptions ParseRedisConnectionString(string connectionString)
-    {
-        // 如果是 redis:// 或 rediss:// URL 格式，手动解析
-        if (connectionString.StartsWith("redis://") || connectionString.StartsWith("rediss://"))
-        {
-            var uri = new Uri(connectionString);
-            var config = new StackExchange.Redis.ConfigurationOptions
-            {
-                EndPoints = { { uri.Host, uri.Port } },
-                Ssl = uri.Scheme == "rediss",
-                AbortOnConnectFail = false,
-                ConnectTimeout = 10000,
-                SyncTimeout = 10000,
-                KeepAlive = 60
-            };
-
-            // 解析用户名和密码
-            if (!string.IsNullOrEmpty(uri.UserInfo))
-            {
-                var parts = uri.UserInfo.Split(':');
-                if (parts.Length == 2)
-                {
-                    config.User = parts[0];
-                    config.Password = parts[1];
-                }
-                else if (parts.Length == 1)
-                {
-                    config.Password = parts[0];
-                }
-            }
-
-            return config;
-        }
-
-        // 否则使用默认解析
-        return StackExchange.Redis.ConfigurationOptions.Parse(connectionString);
-    }
 }
-
-

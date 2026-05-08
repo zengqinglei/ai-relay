@@ -6,13 +6,13 @@ using AiRelay.Api.HostedServices.Workers;
 using AiRelay.Api.Middleware.SmartProxy;
 using AiRelay.Api.Middleware.SmartProxy.ErrorHandling;
 
+using System.Security.Cryptography.X509Certificates;
 using AiRelay.Application;
 using AiRelay.Application.UsageRecords.Queue;
 using AiRelay.Domain;
 using AiRelay.Domain.Auth.Options;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.Shared.Json;
-using AiRelay.Domain.Shared.Security.Jwt.Options;
 using AiRelay.Domain.UsageRecords.Options;
 using AiRelay.Domain.Users.Options;
 using AiRelay.Infrastructure;
@@ -22,12 +22,12 @@ using Leistd.Exception.AspNetCore;
 using Leistd.Security.AspNetCore;
 using Leistd.Tracing.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
+using OpenIddict.Abstractions;
+using OpenIddict.Validation.AspNetCore;
 using Serilog;
-using System.Text;
+using Microsoft.AspNetCore.Authorization;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -59,6 +59,8 @@ try
 
     builder.Services.Configure<ExternalAuthOptions>(
         builder.Configuration.GetSection(ExternalAuthOptions.SectionName));
+    builder.Services.Configure<OAuthOptions>(
+        builder.Configuration.GetSection(OAuthOptions.SectionName));
 
     // ModelPricing 本地备份路径默认值（未配置时使用 ContentRootPath 下的 Resources 目录）
     builder.Services.PostConfigure<ModelPricingOptions>(options =>
@@ -88,6 +90,7 @@ try
     // 4. API 层基础设施 (Exception, HealthChecks, Controllers)
     builder.Services.AddGlobalExceptionHandler(builder.Configuration);
     builder.Services.AddHealthChecks();
+    builder.Services.AddAiRelaySpaProxy();
     builder.Services.AddControllers()
         .AddJsonOptions(options =>
         {
@@ -103,6 +106,13 @@ try
         });
 
     // 4.1. CORS 配置
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor |
+                                   ForwardedHeaders.XForwardedProto |
+                                   ForwardedHeaders.XForwardedHost;
+    });
+
     builder.Services.AddCors(options =>
     {
         var corsConfig = builder.Configuration.GetSection("Cors");
@@ -133,50 +143,84 @@ try
     builder.Services.AddLeistdSecurity();
 
     // 4.6. DataProtection 配置（生产环境必需）
-    var redisConnStr = builder.Configuration.GetConnectionString("Redis");
-    if (!string.IsNullOrEmpty(redisConnStr))
-    {
-        // 解析 Redis 连接字符串（支持 Upstash rediss:// URL）
-        var redisConfig = ParseRedisConnectionString(redisConnStr);
-
-        // 使用 Redis 持久化密钥
-        builder.Services.AddDataProtection()
-            .SetApplicationName("AiRelay")
-            .PersistKeysToStackExchangeRedis(
-                StackExchange.Redis.ConnectionMultiplexer.Connect(redisConfig),
-                "DataProtection-Keys");
-    }
-    else
-    {
-        // 开发环境：使用文件系统（容器重启会丢失）
-        var keysPath = Path.Combine(builder.Environment.ContentRootPath, "DataProtection-Keys");
-        Directory.CreateDirectory(keysPath);
-        builder.Services.AddDataProtection()
-            .SetApplicationName("AiRelay")
-            .PersistKeysToFileSystem(new DirectoryInfo(keysPath));
-    }
+    builder.Services.AddAiRelayDataProtection(builder.Configuration, builder.Environment);
 
     // 5. 安全配置 (AuthN & AuthZ)
-    var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>()
-        ?? throw new InvalidOperationException("JWT configuration is not configured");
+    builder.Services.AddOpenIddict()
+        .AddCore(options =>
+        {
+            options.UseEntityFrameworkCore()
+                .UseDbContext<AiRelayDbContext>();
+        })
+        .AddServer(options =>
+        {
+            options.SetAuthorizationEndpointUris("/connect/authorize")
+                .SetTokenEndpointUris("/connect/token")
+                .SetUserInfoEndpointUris("/connect/userinfo")
+                .SetEndSessionEndpointUris("/connect/logout");
+
+            options.AllowAuthorizationCodeFlow()
+                .RequireProofKeyForCodeExchange();
+            options.AllowRefreshTokenFlow();
+
+            options.RegisterScopes(
+                OpenIddictConstants.Scopes.OpenId,
+                OpenIddictConstants.Scopes.Profile,
+                OpenIddictConstants.Scopes.Email,
+                OpenIddictConstants.Scopes.Roles,
+                OpenIddictConstants.Scopes.OfflineAccess);
+
+            var oauthOptions = builder.Configuration.GetSection(OAuthOptions.SectionName).Get<OAuthOptions>() ?? new OAuthOptions();
+            if (oauthOptions.UseDevelopmentCertificates)
+            {
+                options.AddDevelopmentEncryptionCertificate()
+                    .AddDevelopmentSigningCertificate();
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(oauthOptions.SigningCertificatePath) ||
+                    string.IsNullOrWhiteSpace(oauthOptions.EncryptionCertificatePath))
+                {
+                    throw new InvalidOperationException("OAuth signing and encryption certificates must be configured when development certificates are disabled.");
+                }
+
+                options.AddSigningCertificate(X509CertificateLoader.LoadPkcs12FromFile(
+                    oauthOptions.SigningCertificatePath,
+                    oauthOptions.SigningCertificatePassword));
+                options.AddEncryptionCertificate(X509CertificateLoader.LoadPkcs12FromFile(
+                    oauthOptions.EncryptionCertificatePath,
+                    oauthOptions.EncryptionCertificatePassword));
+            }
+
+            options.UseAspNetCore()
+                .EnableAuthorizationEndpointPassthrough()
+                .EnableTokenEndpointPassthrough()
+                .EnableUserInfoEndpointPassthrough()
+                .EnableEndSessionEndpointPassthrough();
+        })
+        .AddValidation(options =>
+        {
+            options.UseLocalServer();
+            options.UseAspNetCore();
+        });
 
     builder.Services.AddAuthentication(options =>
     {
-        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultAuthenticateScheme = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme;
     })
-    .AddJwtBearer(options =>
+    .AddCookie("AiRelayCookie", options =>
     {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtOptions.Issuer,
-            ValidAudience = jwtOptions.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SecretKey))
-        };
+        options.LoginPath = "/auth/login";
+        options.Cookie.Name = "AiRelay.Auth";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.Cookie.IsEssential = true;
+
+        // 从配置读取过期天数，默认7天
+        var cookieExpireDays = builder.Configuration.GetValue<int>($"{OAuthOptions.SectionName}:CookieExpireDays", 7);
+        options.ExpireTimeSpan = TimeSpan.FromDays(cookieExpireDays);
+        options.SlidingExpiration = true;
     })
     .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(
         AuthenticationSchemes.ApiKey,
@@ -184,9 +228,17 @@ try
 
     builder.Services.AddAuthorization(options =>
     {
+        // 覆盖默认策略，使其同时支持 Bearer Token 和 Cookie 认证
+        options.DefaultPolicy = new AuthorizationPolicyBuilder()
+            .AddAuthenticationSchemes(OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme, "AiRelayCookie")
+            .RequireAuthenticatedUser()
+            .Build();
+
         options.AddPolicy(AuthorizationPolicies.AiProxyPolicy, policy =>
         {
             policy.AuthenticationSchemes.Add(AuthenticationSchemes.ApiKey);
+            policy.AuthenticationSchemes.Add(OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme);
+            policy.AuthenticationSchemes.Add("AiRelayCookie");
             policy.RequireAuthenticatedUser();
         });
     });
@@ -216,7 +268,29 @@ try
     }
 
     // 7. 中间件管道配置
-    app.UseSerilogRequestLogging();
+    app.UseForwardedHeaders();
+    // 官方推荐最佳实践 1：将静态文件托管移至 UseSerilogRequestLogging 之前，
+    // 这样静态资源的请求直接在此处返回，完全不会进入后续的 Serilog 记录中间件。
+    app.UseDefaultFiles();
+    app.UseStaticFiles();
+
+    app.UseSerilogRequestLogging(options =>
+    {
+        options.GetLevel = (httpContext, elapsed, ex) =>
+        {
+            if (ex != null || httpContext.Response.StatusCode >= 500)
+                return Serilog.Events.LogEventLevel.Error;
+
+            // 官方推荐最佳实践 2：通过 Endpoint 特征精确降级特定端点（如 Vite SPA Proxy）
+            var endpoint = httpContext.GetEndpoint();
+            if (endpoint != null && string.Equals(endpoint.DisplayName, "SpaProxyFallback", StringComparison.OrdinalIgnoreCase))
+            {
+                return Serilog.Events.LogEventLevel.Verbose;
+            }
+
+            return Serilog.Events.LogEventLevel.Information;
+        };
+    });
     app.UseGlobalExceptionHandler();
     app.UseCorrelationId();
     app.MapHealthChecks("/api/health").AllowAnonymous();
@@ -227,9 +301,7 @@ try
     app.UseAuthentication();
     app.UseAuthorization();
 
-    // 添加静态文件支持，用于托管前端应用
-    app.UseDefaultFiles();
-    app.UseStaticFiles();
+
 
     app.MapControllers();
 
@@ -258,8 +330,7 @@ try
             .RequireAuthorization(AuthorizationPolicies.AiProxyPolicy);
     }
 
-    // 兜底路由，指向前端的 index.html (SPA 支持)
-    app.MapFallbackToFile("index.html");
+    app.MapAiRelaySpaFallback();
 
     app.Run();
 }
@@ -272,43 +343,3 @@ finally
     Log.CloseAndFlush();
 }
 
-/// <summary>
-/// 解析 Redis 连接字符串，支持 Upstash rediss:// URL 格式
-/// </summary>
-static StackExchange.Redis.ConfigurationOptions ParseRedisConnectionString(string connectionString)
-{
-    // 如果是 redis:// 或 rediss:// URL 格式，手动解析
-    if (connectionString.StartsWith("redis://") || connectionString.StartsWith("rediss://"))
-    {
-        var uri = new Uri(connectionString);
-        var config = new StackExchange.Redis.ConfigurationOptions
-        {
-            EndPoints = { { uri.Host, uri.Port } },
-            Ssl = uri.Scheme == "rediss",
-            AbortOnConnectFail = false,
-            ConnectTimeout = 10000,
-            SyncTimeout = 10000,
-            KeepAlive = 60
-        };
-
-        // 解析用户名和密码
-        if (!string.IsNullOrEmpty(uri.UserInfo))
-        {
-            var parts = uri.UserInfo.Split(':');
-            if (parts.Length == 2)
-            {
-                config.User = parts[0];
-                config.Password = parts[1];
-            }
-            else if (parts.Length == 1)
-            {
-                config.Password = parts[0];
-            }
-        }
-
-        return config;
-    }
-
-    // 否则使用默认解析
-    return StackExchange.Redis.ConfigurationOptions.Parse(connectionString);
-}

@@ -36,7 +36,6 @@ public static class DependencyInjection
 
         // 用户管理领域服务
         services.AddTransient<UserDomainService>();
-        services.AddTransient<AuthDomainService>();
 
         // 外部认证领域服务
         services.AddTransient<ExternalAuthDomainService>();

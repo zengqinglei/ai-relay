@@ -34,10 +34,11 @@ public class EfCoreRepository<TDbContext, TEntity>(
         return dbSet.AsQueryable();
     }
 
-    public override async Task<TEntity?> GetFirstAsync(Expression<Func<TEntity, bool>> predicate, CancellationToken cancellationToken = default)
+    public override async Task<TEntity?> GetFirstAsync(Expression<Func<TEntity, bool>> predicate, Func<IQueryable<TEntity>, IOrderedQueryable<TEntity>>? orderBy = null, CancellationToken cancellationToken = default)
     {
         var dbSet = await GetDbSetAsync(cancellationToken);
-        return await dbSet.FirstOrDefaultAsync(predicate, cancellationToken);
+        var query = dbSet.Where(predicate);
+        return await (orderBy != null ? orderBy(query) : query).FirstOrDefaultAsync(cancellationToken);
     }
 
     public override async Task<IEnumerable<TEntity>> GetListAsync(Expression<Func<TEntity, bool>>? predicate = null, CancellationToken cancellationToken = default)

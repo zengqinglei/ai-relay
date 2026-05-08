@@ -29,7 +29,7 @@ export interface Environment {
 // 这是所有环境共享的基础配置
 export const environmentBase: Environment = {
   production: false,
-  useHash: true,
+  useHash: false,
   useMock: false, // 默认关闭
   api: {
     gateway: 'https://example.com', // 本地开发的网关地址

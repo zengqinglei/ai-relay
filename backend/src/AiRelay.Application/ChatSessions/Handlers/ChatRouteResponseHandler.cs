@@ -5,10 +5,11 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using AiRelay.Application.ModelRoutes.Handlers;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
+using AiRelay.Domain.Shared.Utilities;
 
 namespace AiRelay.Application.ChatSessions.Handlers;
 
-public class ChatRouteResponseHandler(RouteTerminalErrorFormatter errorFormatter, Channel<StreamEvent> channel) : IRouteResponseHandler
+public class ChatRouteResponseHandler(Channel<StreamEvent> channel) : IRouteResponseHandler
 {
     private bool _hasStarted = false;
 
@@ -38,7 +39,7 @@ public class ChatRouteResponseHandler(RouteTerminalErrorFormatter errorFormatter
 
     public async Task<string?> OnTerminalErrorAsync(RouteTerminalError error, CancellationToken ct)
     {
-        var message = errorFormatter.BuildMessage(error);
+        var message = BuildMessage(error);
 
         await channel.Writer.WriteAsync(new StreamEvent
         {
@@ -50,6 +51,19 @@ public class ChatRouteResponseHandler(RouteTerminalErrorFormatter errorFormatter
         channel.Writer.Complete();
         return message;
     }
+
+    private static string BuildMessage(RouteTerminalError error)
+    {
+        var message = error.Kind == RouteTerminalErrorKind.UpstreamNormalized
+            ? ErrorMessageExtractor.TryExtractMessage(error.ErrorBody) ?? "Service Temporarily Unavailable"
+            : error.Exception?.Message ?? error.ErrorBody ?? "未知错误";
+
+        return error.Kind == RouteTerminalErrorKind.UpstreamNormalized
+            ? message
+            : $"代理网关异常被拦截: {message}";
+    }
+
+
 
     public void AbortConnection()
     {

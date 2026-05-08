@@ -163,7 +163,10 @@ public class ApiKeyDomainService(
         var secretHash = aesEncryptionProvider.ComputeHash(plainSecret);
 
         // 2. 精确查找 (O(1))
-        var apiKey = await apiKeyRepository.GetFirstAsync(k => k.SecretHash == secretHash, cancellationToken);
+        var apiKey = await apiKeyRepository.GetFirstAsync(
+            k => k.SecretHash == secretHash,
+            q => q.OrderBy(k => k.Id),
+            cancellationToken);
 
         if (apiKey == null)
         {

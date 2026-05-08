@@ -31,6 +31,7 @@ public class AccountFingerprintDomainService(
         // 尝试从数据库获取缓存的指纹
         var cached = await fingerprintRepository.GetFirstAsync(
             x => x.AccountTokenId == accountTokenId,
+            q => q.OrderBy(x => x.Id),
             cancellationToken);
 
         if (cached != null)

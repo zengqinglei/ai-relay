@@ -8,15 +8,12 @@ namespace AiRelay.Application.Auth.AppServices;
 /// </summary>
 public interface IAuthAppService : IAppService
 {
-    /// <summary>
-    /// 用户登录
-    /// </summary>
-    Task<LoginOutputDto> LoginAsync(LoginInputDto request, CancellationToken cancellationToken = default);
+
 
     /// <summary>
     /// 用户注册
     /// </summary>
-    Task<LoginOutputDto> RegisterAsync(RegisterInputDto request, CancellationToken cancellationToken = default);
+    Task<UserOutputDto> RegisterAsync(RegisterInputDto request, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 获取当前用户信息

@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
-import { Injectable, signal, inject } from '@angular/core';
-import { Observable, tap } from 'rxjs';
+import { Injectable, inject, signal } from '@angular/core';
+import { Observable, lastValueFrom, tap } from 'rxjs';
 
 import { UserOutputDto } from '../../features/account/models/account.dto';
 import { User } from '../../shared/models/user.model';
@@ -9,31 +9,28 @@ import { User } from '../../shared/models/user.model';
 export class AuthService {
   private readonly http = inject(HttpClient);
 
-  private readonly TOKEN_KEY = 'auth_token';
-  private _currentUser = signal<User | null>(null);
+  private readonly _currentUser = signal<User | null>(null);
   public readonly currentUser = this._currentUser.asReadonly();
 
-  getToken(): string | null {
-    return localStorage.getItem(this.TOKEN_KEY);
-  }
-
-  setToken(token: string): void {
-    localStorage.setItem(this.TOKEN_KEY, token);
-  }
-
   isAuthenticated(): boolean {
-    return !!this.getToken();
+    return this._currentUser() !== null;
   }
 
-  /**
-   * 加载当前用户信息
-   */
+  login(credentials: any): Observable<void> {
+    return this.http.post<void>('/api/v1/auth/session-login', credentials);
+  }
+
+  async initializeAuth(): Promise<boolean> {
+    try {
+      await lastValueFrom(this.loadUser());
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   loadUser(): Observable<UserOutputDto> {
-    return this.http.get<UserOutputDto>('/api/v1/auth/me').pipe(
-      tap(user => {
-        this.setCurrentUser(user);
-      })
-    );
+    return this.http.get<UserOutputDto>('/api/v1/auth/me').pipe(tap(user => this.setCurrentUser(user)));
   }
 
   setCurrentUser(user: UserOutputDto): void {
@@ -44,19 +41,15 @@ export class AuthService {
     return this._currentUser()?.roles.includes(role) ?? false;
   }
 
-  removeToken(): void {
-    localStorage.removeItem(this.TOKEN_KEY);
-  }
-
   clearAuthData(): void {
-    this.removeToken();
     this._currentUser.set(null);
   }
 
-  /**
-   * 用户登出
-   */
   logout(): void {
     this.clearAuthData();
+    this.http.post('/api/v1/auth/logout', {}).subscribe({
+      next: () => window.location.href = '/auth/login',
+      error: () => window.location.href = '/auth/login'
+    });
   }
 }

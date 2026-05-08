@@ -35,7 +35,7 @@ public class UsageRecordAppService(
             query = query.Where(x => x.UserId == scopedUserId.Value);
         }
 
-        var record = await asyncExecuter.FirstOrDefaultAsync(query.Where(x => x.Id == id), cancellationToken);
+        var record = await asyncExecuter.SingleOrDefaultAsync(query.Where(x => x.Id == id), cancellationToken);
 
         if (record == null)
         {

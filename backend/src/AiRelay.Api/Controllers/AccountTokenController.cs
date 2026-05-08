@@ -28,7 +28,6 @@ public class AccountTokenController(IAccountTokenAppService accountTokenAppServi
     {
         Response.Headers.Append("Content-Type", "text/event-stream");
         Response.Headers.Append("Cache-Control", "no-cache");
-        Response.Headers.Append("Connection", "keep-alive");
         Response.Headers.Append("X-Accel-Buffering", "no");
 
         var options = Domain.Shared.Json.JsonOptions.WebApi;

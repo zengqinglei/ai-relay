@@ -92,7 +92,7 @@ public class UsageLifecycleAppService(
         CancellationToken cancellationToken = default)
     {
         var query = await attemptRepository.GetQueryIncludingAsync(cancellationToken, (UsageRecordAttempt a) => a.Detail);
-        var attempt = await asyncExecuter.FirstOrDefaultAsync(
+        var attempt = await asyncExecuter.SingleOrDefaultAsync(
             query.Where(a => a.UsageRecordId == input.UsageRecordId && a.AttemptNumber == input.AttemptNumber),
             cancellationToken);
 
@@ -128,7 +128,7 @@ public class UsageLifecycleAppService(
         CancellationToken cancellationToken = default)
     {
         var query = await usageRepository.GetQueryIncludingAsync(cancellationToken, x => x.Detail);
-        var record = await asyncExecuter.FirstOrDefaultAsync(query.Where(x => x.Id == input.UsageRecordId), cancellationToken);
+        var record = await asyncExecuter.SingleOrDefaultAsync(query.Where(x => x.Id == input.UsageRecordId), cancellationToken);
 
         if (record == null)
         {
