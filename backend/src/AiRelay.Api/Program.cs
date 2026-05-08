@@ -8,6 +8,7 @@ using AiRelay.Api.Middleware.SmartProxy.ErrorHandling;
 
 using System.Security.Cryptography.X509Certificates;
 using AiRelay.Application;
+using AiRelay.Application.ApiKeys.Options;
 using AiRelay.Application.UsageRecords.Queue;
 using AiRelay.Domain;
 using AiRelay.Domain.Auth.Options;
@@ -61,6 +62,8 @@ try
         .Bind(builder.Configuration.GetSection(ExternalAuthOptions.SectionName));
     builder.Services.AddOptions<OAuthOptions>()
         .Bind(builder.Configuration.GetSection(OAuthOptions.SectionName));
+    builder.Services.AddOptions<DefaultProviderModelsOptions>()
+        .Bind(builder.Configuration.GetSection(DefaultProviderModelsOptions.SectionName));
     builder.Services.AddOptions<UserRegistrationOptions>()
         .Bind(builder.Configuration.GetSection(UserRegistrationOptions.SectionName))
         .ValidateDataAnnotations()

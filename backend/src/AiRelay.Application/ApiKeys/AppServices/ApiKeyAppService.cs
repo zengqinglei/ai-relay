@@ -1,7 +1,9 @@
 using AiRelay.Application.ApiKeys.Dtos;
+using AiRelay.Application.ApiKeys.Options;
 using AiRelay.Domain.ApiKeys.DomainServices;
 using AiRelay.Domain.ApiKeys.Entities;
 using AiRelay.Domain.ApiKeys.Repositories;
+using AiRelay.Domain.ProviderGroups.DomainServices;
 using AiRelay.Domain.ProviderGroups.Repositories;
 using AiRelay.Domain.Shared.Security.Aes;
 using AiRelay.Domain.Users.Entities;
@@ -10,9 +12,11 @@ using Leistd.Ddd.Application.AppService;
 using Leistd.Ddd.Application.Contracts.Dtos;
 using Leistd.Ddd.Domain.Repositories;
 using Leistd.Exception.Core;
+using Leistd.Lock.Core;
 using Leistd.ObjectMapping.Core;
 using Leistd.Security.Users;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace AiRelay.Application.ApiKeys.AppServices;
 
@@ -20,10 +24,13 @@ public class ApiKeyAppService(
     ApiKeyDomainService apiKeyDomainService,
     IApiKeyRepository apiKeyRepository,
     IProviderGroupRepository providerGroupRepository,
+    ProviderGroupDomainService providerGroupDomainService,
     IRepository<User, Guid> userRepository,
     ILogger<ApiKeyAppService> logger,
     IObjectMapper objectMapper,
     IAesEncryptionProvider aesEncryptionProvider,
+    IOptions<DefaultProviderModelsOptions> defaultProviderModelsOptions,
+    IDistributedLock distributedLock,
     ICurrentUser currentUser) : BaseAppService, IApiKeyAppService
 {
     public async Task<ApiKeyOutputDto> CreateAsync(CreateApiKeyInputDto input, CancellationToken cancellationToken = default)
@@ -137,6 +144,22 @@ public class ApiKeyAppService(
         return new PagedResultDto<ApiKeyOutputDto>(totalCount, results);
     }
 
+    public async Task<DefaultProviderModelsOutputDto> GetDefaultProviderModelsAsync(string baseUrl, CancellationToken cancellationToken = default)
+    {
+        var apiKey = await EnsureDefaultApiKeyAsync(cancellationToken);
+        var options = defaultProviderModelsOptions.Value;
+
+        return new DefaultProviderModelsOutputDto
+        {
+            ApiKey = new DefaultApiKeyOutputDto
+            {
+                Name = apiKey.Name,
+                Secret = DecryptSecret(apiKey.EncryptedSecret)
+            },
+            Endpoints = BuildDefaultProviderModelEndpoints(options, $"{baseUrl.TrimEnd('/')}/v1")
+        };
+    }
+
     public async Task<ApiKeyValidationResult> ValidateAsync(string plainKey, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(plainKey))
@@ -151,6 +174,69 @@ public class ApiKeyAppService(
         }
 
         return ApiKeyValidationResult.Success(apiKey);
+    }
+
+    private async Task<ApiKey> EnsureDefaultApiKeyAsync(CancellationToken cancellationToken)
+    {
+        const string defaultApiKeyName = "default";
+        var userId = currentUser.Id!.Value;
+        var existingApiKey = await apiKeyRepository.GetFirstAsync(
+            x => x.UserId == userId && x.Name == defaultApiKeyName,
+            cancellationToken: cancellationToken);
+        if (existingApiKey != null)
+        {
+            return existingApiKey;
+        }
+
+        await using var handle = await distributedLock.LockAsync($"api-key:default:{userId}", cancellationToken);
+
+        existingApiKey = await apiKeyRepository.GetFirstAsync(
+            x => x.UserId == userId && x.Name == defaultApiKeyName,
+            cancellationToken: cancellationToken);
+        if (existingApiKey != null)
+        {
+            return existingApiKey;
+        }
+
+        await providerGroupDomainService.EnsureDefaultProviderGroupAsync(cancellationToken);
+
+        var defaultGroup = await providerGroupRepository.GetFirstAsync(x => x.IsDefault, cancellationToken: cancellationToken);
+        if (defaultGroup == null)
+        {
+            throw new BadRequestException("默认供应商分组不存在");
+        }
+
+        return await apiKeyDomainService.CreateWithKeyAsync(
+            userId,
+            defaultApiKeyName,
+            "系统自动创建的默认 API Key",
+            null,
+            null,
+            [(1, defaultGroup.Id)],
+            cancellationToken);
+    }
+
+    private static IReadOnlyList<DefaultProviderModelEndpointOutputDto> BuildDefaultProviderModelEndpoints(
+        DefaultProviderModelsOptions options,
+        string baseUrl)
+    {
+        return
+        [
+            new DefaultProviderModelEndpointOutputDto
+            {
+                Id = $"{options.ProviderIdPrefix}-anthropic",
+                Protocol = "anthropic-messages",
+                BaseUrl = baseUrl,
+                Models = options.Models
+            },
+            new DefaultProviderModelEndpointOutputDto
+            {
+                Id = $"{options.ProviderIdPrefix}-completions",
+                Protocol = "openai-completions",
+                BaseUrl = baseUrl,
+                Models = options.Models
+            }
+        ];
     }
 
     private string DecryptSecret(string encryptedSecret)

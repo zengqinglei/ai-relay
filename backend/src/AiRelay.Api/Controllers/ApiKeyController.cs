@@ -34,6 +34,16 @@ public class ApiKeyController(IApiKeyAppService apiKeyAppService) : BaseControll
     }
 
     /// <summary>
+    /// 获取当前用户默认 API Key 的默认模型配置
+    /// </summary>
+    [HttpGet("default/default-models")]
+    public async Task<DefaultProviderModelsOutputDto> GetDefaultProviderModelsAsync(CancellationToken cancellationToken)
+    {
+        var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+        return await apiKeyAppService.GetDefaultProviderModelsAsync(baseUrl, cancellationToken);
+    }
+
+    /// <summary>
     /// 创建 API Key
     /// </summary>
     [HttpPost]

@@ -16,6 +16,8 @@ public interface IApiKeyAppService : IAppService
 
     Task<PagedResultDto<ApiKeyOutputDto>> GetPagedListAsync(GetApiKeyPagedInputDto input, CancellationToken cancellationToken = default);
 
+    Task<DefaultProviderModelsOutputDto> GetDefaultProviderModelsAsync(string baseUrl, CancellationToken cancellationToken = default);
+
     Task EnableAsync(Guid id, DateTime? newExpiresAt = null, CancellationToken cancellationToken = default);
 
     Task DisableAsync(Guid id, CancellationToken cancellationToken = default);
