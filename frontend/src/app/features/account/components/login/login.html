@@ -201,7 +201,6 @@
 
       <!-- Form Header -->
       <div>
-        <!-- text-surface-900: 主要文字, text-surface-500: 次要文字 -->
         <h2 class="text-3xl font-bold text-color mb-2">登录</h2>
         <p class="text-muted-color text-sm">欢迎回来，请输入您的账号信息</p>
       </div>
@@ -313,6 +312,11 @@
           </p-button>
         </div>
       </form>
+
+      <!-- Sign up link at the bottom for better UX -->
+      <div class="mt-8 text-center text-base text-color">
+        没有账号？ <a [routerLink]="['/auth/register']" class="font-bold text-primary hover:text-primary-emphasis hover:underline transition-colors">立即注册</a>
+      </div>
 
       <!-- Test Account Hint -->
       @if (isMockEnabled()) {

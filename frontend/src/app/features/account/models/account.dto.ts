@@ -6,7 +6,6 @@ export interface LoginInputDto {
   password: string;
 }
 
-
 /**
  * 用户输出 DTO
  */
@@ -46,7 +45,34 @@ export interface RegisterInputDto {
   username: string;
   email: string;
   password: string;
+  captchaCode?: string;
+  captchaToken?: string;
+  emailVerificationCode?: string;
   nickname?: string;
+}
+
+/**
+ * 注册安全配置输出 DTO
+ */
+export interface SecurityConfigOutputDto {
+  enableEmailVerification: boolean;
+}
+
+/**
+ * 图形验证码输出 DTO
+ */
+export interface CaptchaOutputDto {
+  captchaToken: string;
+  captchaImageBase64: string;
+}
+
+/**
+ * 发送邮件验证码请求 DTO
+ */
+export interface SendEmailCodeInputDto {
+  email: string;
+  captchaToken: string;
+  captchaCode: string;
 }
 
 /**

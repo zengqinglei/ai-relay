@@ -7,18 +7,48 @@ using Leistd.Exception.Core;
 using Leistd.Security.Users;
 using Microsoft.Extensions.Logging;
 
+using AiRelay.Domain.Users.Options;
+using Microsoft.Extensions.Options;
+
 namespace AiRelay.Application.Auth.AppServices;
 
 public class AuthAppService(
     IRepository<User, Guid> userRepository,
     UserDomainService userDomainService,
     ICurrentUser currentUser,
+    ICaptchaAppService captchaAppService,
+    IEmailVerificationAppService emailVerificationAppService,
+    IOptions<UserRegistrationOptions> securityOptions,
     ILogger<AuthAppService> logger) : BaseAppService(), IAuthAppService
 {
 
     public async Task<UserOutputDto> RegisterAsync(RegisterInputDto input, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("开始注册用户 {Username}... 邮箱：{Email}", input.Username, input.Email);
+
+        var options = securityOptions.Value;
+
+        if (options.EnableEmailVerification)
+        {
+            if (string.IsNullOrWhiteSpace(input.EmailVerificationCode))
+            {
+                throw new BadRequestException("请输入邮箱验证码");
+            }
+
+            var isValidEmailCode = await emailVerificationAppService.ValidateEmailCodeAsync(input.Email, input.EmailVerificationCode, cancellationToken);
+            if (!isValidEmailCode)
+            {
+                throw new BadRequestException("邮箱验证码不正确或已过期");
+            }
+        }
+        else
+        {
+            var isValidCaptcha = await captchaAppService.ValidateCaptchaAsync(input.CaptchaToken ?? string.Empty, input.CaptchaCode ?? string.Empty, cancellationToken);
+            if (!isValidCaptcha)
+            {
+                throw new BadRequestException("图形验证码不正确或已过期");
+            }
+        }
 
         var user = await userDomainService.CreateUserAsync(input.Username, input.Email, input.Password, input.Nickname, cancellationToken);
         await userDomainService.AssignDefaultRolesToUserAsync(user.Id, cancellationToken);

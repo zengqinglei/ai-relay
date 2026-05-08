@@ -43,6 +43,8 @@ public static class DependencyInjection
         services.AddScoped<IProviderGroupAppService, ProviderGroupAppService>();
 
         // Identity & Authorization Services
+        services.AddScoped<ICaptchaAppService, CaptchaAppService>();
+        services.AddScoped<IEmailVerificationAppService, EmailVerificationAppService>();
         services.AddScoped<IAuthAppService, AuthAppService>();
         services.AddScoped<IAuthPrincipalFactory, AuthPrincipalFactory>();
         services.AddScoped<IUserAppService, UserAppService>();

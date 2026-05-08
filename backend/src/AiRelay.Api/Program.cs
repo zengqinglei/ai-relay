@@ -28,6 +28,7 @@ using OpenIddict.Abstractions;
 using OpenIddict.Validation.AspNetCore;
 using Serilog;
 using Microsoft.AspNetCore.Authorization;
+using AiRelay.Domain.Shared.Email.Options;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -50,17 +51,24 @@ try
     builder.Services.AddApplicationServices();
 
     // 2.5. 配置选项
-    builder.Services.Configure<DefaultAdminOptions>(
-        builder.Configuration.GetSection(DefaultAdminOptions.SectionName));
-    builder.Services.Configure<UsageLoggingOptions>(
-        builder.Configuration.GetSection(UsageLoggingOptions.SectionName));
-    builder.Services.Configure<UsageCleanupOptions>(
-        builder.Configuration.GetSection(UsageCleanupOptions.SectionName));
-
-    builder.Services.Configure<ExternalAuthOptions>(
-        builder.Configuration.GetSection(ExternalAuthOptions.SectionName));
-    builder.Services.Configure<OAuthOptions>(
-        builder.Configuration.GetSection(OAuthOptions.SectionName));
+    builder.Services.AddOptions<DefaultAdminOptions>()
+        .Bind(builder.Configuration.GetSection(DefaultAdminOptions.SectionName));
+    builder.Services.AddOptions<UsageLoggingOptions>()
+        .Bind(builder.Configuration.GetSection(UsageLoggingOptions.SectionName));
+    builder.Services.AddOptions<UsageCleanupOptions>()
+        .Bind(builder.Configuration.GetSection(UsageCleanupOptions.SectionName));
+    builder.Services.AddOptions<ExternalAuthOptions>()
+        .Bind(builder.Configuration.GetSection(ExternalAuthOptions.SectionName));
+    builder.Services.AddOptions<OAuthOptions>()
+        .Bind(builder.Configuration.GetSection(OAuthOptions.SectionName));
+    builder.Services.AddOptions<UserRegistrationOptions>()
+        .Bind(builder.Configuration.GetSection(UserRegistrationOptions.SectionName))
+        .ValidateDataAnnotations()
+        .ValidateOnStart();
+    builder.Services.AddOptions<SmtpOptions>()
+        .Bind(builder.Configuration.GetSection(SmtpOptions.SectionName))
+        .ValidateDataAnnotations()
+        .ValidateOnStart();
 
     // ModelPricing 本地备份路径默认值（未配置时使用 ContentRootPath 下的 Resources 目录）
     builder.Services.PostConfigure<ModelPricingOptions>(options =>

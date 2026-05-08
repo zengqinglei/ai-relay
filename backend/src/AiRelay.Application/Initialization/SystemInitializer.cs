@@ -1,4 +1,3 @@
-using AiRelay.Domain.Auth.Options;
 using AiRelay.Domain.ProviderGroups.DomainServices;
 using AiRelay.Domain.Shared.Security.PasswordHash;
 using AiRelay.Domain.Users.Constants;
@@ -21,10 +20,8 @@ public class SystemInitializer(
     IRepository<UserRole, Guid> userRoleRepository,
     IPasswordHasher passwordHasher,
     ProviderGroupDomainService providerGroupDomainService,
-    IOpenIddictApplicationManager applicationManager,
     IOpenIddictScopeManager scopeManager,
     IOptions<DefaultAdminOptions> adminOptions,
-    IOptions<OAuthOptions> oauthOptions,
     ILogger<SystemInitializer> logger) : ISystemInitializer
 {
     private const string MemberRoleName = "Member";

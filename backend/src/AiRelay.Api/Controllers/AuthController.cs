@@ -18,8 +18,11 @@ namespace AiRelay.Api.Controllers;
 [Route("api/v1/auth")]
 public class AuthController(
     IAuthAppService authService,
+    ICaptchaAppService captchaAppService,
+    IEmailVerificationAppService emailVerificationAppService,
     UserDomainService userDomainService,
-    IRepository<User, Guid> userRepository) : BaseController
+    IRepository<User, Guid> userRepository,
+    Microsoft.Extensions.Options.IOptions<AiRelay.Domain.Users.Options.UserRegistrationOptions> securityOptions) : BaseController
 {
     [AllowAnonymous]
     [HttpPost("session-login")]
@@ -67,6 +70,30 @@ public class AuthController(
     {
         await HttpContext.SignOutAsync("AiRelayCookie");
         return NoContent();
+    }
+
+    [AllowAnonymous]
+    [HttpGet("security-config")]
+    public Task<SecurityConfigOutputDto> GetSecurityConfigAsync()
+    {
+        return Task.FromResult(new SecurityConfigOutputDto
+        {
+            EnableEmailVerification = securityOptions.Value.EnableEmailVerification
+        });
+    }
+
+    [AllowAnonymous]
+    [HttpGet("captcha")]
+    public async Task<CaptchaOutputDto> GetCaptchaAsync(CancellationToken cancellationToken)
+    {
+        return await captchaAppService.GenerateCaptchaAsync(cancellationToken);
+    }
+
+    [AllowAnonymous]
+    [HttpPost("send-email-code")]
+    public async Task SendEmailCodeAsync([FromBody] SendEmailCodeInputDto request, CancellationToken cancellationToken)
+    {
+        await emailVerificationAppService.SendEmailCodeAsync(request, cancellationToken);
     }
 
     /// <summary>

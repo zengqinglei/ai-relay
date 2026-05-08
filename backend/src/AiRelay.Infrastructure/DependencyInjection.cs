@@ -37,6 +37,8 @@ using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.SignatureCache;
 using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Cleaning;
 using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Processor.Claude;
 using AiRelay.Infrastructure.Shared.ExternalServices.ModelClient.Interceptors;
+using AiRelay.Domain.Shared.Email;
+using AiRelay.Infrastructure.Email;
 
 namespace AiRelay.Infrastructure;
 
@@ -233,6 +235,9 @@ public static class DependencyInjection
         services.AddHostedService<SignatureCacheCleanupBackgroundService>();
         // [New] Pricing Update Background Service (定价更新后台服务)
         services.AddHostedService<PricingUpdateBackgroundService>();
+
+        // 邮件发送服务
+        services.AddTransient<IEmailSender, MailKitEmailSender>();
 
         return services;
 

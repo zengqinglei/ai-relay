@@ -29,4 +29,14 @@ public record RegisterInputDto
     [Display(Name = "昵称")]
     [StringLength(128, ErrorMessage = "{0}长度不能超过 {1} 个字符")]
     public string? Nickname { get; init; }
+
+    [Display(Name = "验证码凭据")]
+    public string? CaptchaToken { get; init; }
+
+    [Display(Name = "图形验证码")]
+    [StringLength(10, ErrorMessage = "{0}长度不能超过 {1} 个字符")]
+    public string? CaptchaCode { get; init; }
+
+    [Display(Name = "邮箱验证码")]
+    public string? EmailVerificationCode { get; init; }
 }
