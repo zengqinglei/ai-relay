@@ -248,8 +248,6 @@ try
         options.AddPolicy(AuthorizationPolicies.AiProxyPolicy, policy =>
         {
             policy.AuthenticationSchemes.Add(AuthenticationSchemes.ApiKey);
-            policy.AuthenticationSchemes.Add(OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme);
-            policy.AuthenticationSchemes.Add("AiRelayCookie");
             policy.RequireAuthenticatedUser();
         });
     });

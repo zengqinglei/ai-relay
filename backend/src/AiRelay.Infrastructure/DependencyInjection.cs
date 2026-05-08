@@ -67,10 +67,7 @@ public static class DependencyInjection
         // ... (Existing options configuration) ...
         services.Configure<ModelPricingOptions>(configuration.GetSection(ModelPricingOptions.SectionName));
 
-        services.Configure<EncryptionOptions>(options =>
-        {
-            options.Key = configuration["ENCRYPTION_KEY"];
-        });
+        services.Configure<EncryptionOptions>(configuration.GetSection(EncryptionOptions.SectionName));
 
         // ✅ 注册 DbContext（使用拦截器）
         services.AddDbContext<AiRelayDbContext>((sp, options) =>
