@@ -135,6 +135,7 @@ public class AuthAppService(
             Avatar = user.Avatar,
             PhoneNumber = user.PhoneNumber,
             IsActive = user.IsActive,
+            IsSuperAdmin = user.IsSuperAdmin,
             CreationTime = user.CreationTime,
             Roles = [.. roleNames]
         };

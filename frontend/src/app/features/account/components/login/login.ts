@@ -5,7 +5,6 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { CardModule } from 'primeng/card';
-import { CheckboxModule } from 'primeng/checkbox';
 import { InputTextModule } from 'primeng/inputtext';
 import { PasswordModule } from 'primeng/password';
 import { StyleClassModule } from 'primeng/styleclass';
@@ -29,7 +28,6 @@ import { AccountService } from '../../services/account-service';
     InputTextModule,
     PasswordModule,
     ButtonModule,
-    CheckboxModule,
     StyleClassModule,
     ThemeConfigurator,
     LogoComponent
@@ -56,8 +54,7 @@ export class Login {
   // 登录表单
   loginForm = this.fb.group({
     usernameOrEmail: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(256)]],
-    password: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(100)]],
-    rememberMe: [false]
+    password: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(100)]]
   });
 
   constructor() {

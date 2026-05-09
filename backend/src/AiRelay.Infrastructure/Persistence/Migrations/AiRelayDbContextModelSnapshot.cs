@@ -1210,6 +1210,9 @@ namespace AiRelay.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsLocked")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsSuperAdmin")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("LastLoginIp")
                         .HasMaxLength(45)
                         .HasColumnType("character varying(45)");

@@ -1,7 +1,7 @@
 <div class="flex flex-col h-full overflow-hidden">
   <div class="flex-1 overflow-y-auto p-6 custom-scrollbar">
-    <div class="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 mb-6">
-      <div class="flex flex-col lg:flex-row flex-1 gap-3 items-stretch lg:items-center">
+    <div class="mb-6 flex flex-col items-stretch justify-between gap-4 md:flex-row md:items-center">
+      <div class="flex flex-1 flex-col items-stretch gap-3 sm:flex-row sm:items-center">
         <p-select
           [options]="applicationTypeOptions"
           [ngModel]="selectedApplicationType()"
@@ -26,7 +26,7 @@
           styleClass="w-full sm:w-48"
         />
 
-        <p-iconfield class="w-full lg:flex-1 lg:max-w-sm">
+        <p-iconfield class="w-full sm:max-w-xs sm:flex-1">
           <p-inputicon class="pi pi-search" />
           <input
             pInputText
@@ -39,7 +39,7 @@
         </p-iconfield>
       </div>
 
-      <div class="flex flex-wrap items-center justify-end gap-3 shrink-0">
+      <div class="flex items-center justify-end gap-3 shrink-0">
         <p-button
           icon="pi pi-refresh"
           label="刷新"

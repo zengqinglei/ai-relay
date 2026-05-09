@@ -35,6 +35,7 @@ export class DefaultSidebar {
     { label: '分组管理', icon: 'pi-sitemap', route: '/platform/provider-groups' },
     { label: '使用记录', icon: 'pi-history', route: '/platform/usage-records' },
     { label: '开放应用', icon: 'pi-id-card', route: '/platform/open-applications' },
+    { label: '用户管理', icon: 'pi-users', route: '/platform/users' },
     { label: '系统设置', icon: 'pi-cog', route: '/platform/settings' }
   ];
   private readonly workspaceMenuItems: MenuItem[] = [

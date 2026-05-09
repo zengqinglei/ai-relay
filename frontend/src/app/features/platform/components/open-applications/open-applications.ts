@@ -107,8 +107,6 @@ export class OpenApplicationsPage implements OnInit {
     if (saved.searchQuery) this.searchQuery.set(saved.searchQuery);
     if (saved.selectedApplicationType !== undefined) this.selectedApplicationType.set(saved.selectedApplicationType ?? null);
     if (saved.selectedClientType !== undefined) this.selectedClientType.set(saved.selectedClientType ?? null);
-
-    this.reloadList();
   }
 
   reloadList() {

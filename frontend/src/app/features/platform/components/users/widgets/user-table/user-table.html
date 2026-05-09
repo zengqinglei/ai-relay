@@ -1,0 +1,176 @@
+<div class="bg-surface-0 dark:bg-surface-900 rounded-xl shadow-sm border border-surface-200 dark:border-surface-700 overflow-hidden">
+  <p-table
+    [value]="users()"
+    [totalRecords]="totalRecords()"
+    [lazy]="true"
+    (onLazyLoad)="onPage($event)"
+    [loading]="loading()"
+    [first]="first"
+    [rows]="rows"
+    [paginator]="true"
+    [rowHover]="true"
+    [rowsPerPageOptions]="[10, 20, 50, 100]"
+    [showCurrentPageReport]="true"
+    currentPageReportTemplate="共 {totalRecords} 条"
+    [showJumpToPageInput]="true"
+    paginatorDropdownAppendTo="body"
+    styleClass="w-full"
+    responsiveLayout="scroll"
+    [breakpoint]="'960px'"
+    [sortField]="sortField()"
+    [sortOrder]="sortOrder()"
+  >
+    <ng-template pTemplate="header">
+      <tr class="bg-surface-50 dark:bg-surface-800 text-muted-color text-xs uppercase font-medium backdrop-blur-sm">
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3" pSortableColumn="username">
+          <div class="flex items-center gap-1 whitespace-nowrap">用户 <p-sortIcon field="username" /></div>
+        </th>
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden sm:table-cell" pSortableColumn="email">
+          <div class="flex items-center gap-1 whitespace-nowrap">邮箱 <p-sortIcon field="email" /></div>
+        </th>
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden md:table-cell whitespace-nowrap">
+          角色
+        </th>
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden lg:table-cell whitespace-nowrap">
+          状态
+        </th>
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden xl:table-cell" pSortableColumn="lastLoginTime">
+          <div class="flex items-center gap-1 whitespace-nowrap">最近登录 <p-sortIcon field="lastLoginTime" /></div>
+        </th>
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 hidden 2xl:table-cell" pSortableColumn="creationTime">
+          <div class="flex items-center gap-1 whitespace-nowrap">创建时间 <p-sortIcon field="creationTime" /></div>
+        </th>
+        <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 text-right whitespace-nowrap">
+          操作
+        </th>
+      </tr>
+    </ng-template>
+
+    <ng-template pTemplate="body" let-item>
+      <tr class="transition-colors group border-b border-transparent hover:bg-surface-50 dark:hover:bg-surface-800/50 text-sm text-color-secondary">
+        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4">
+          <div class="flex min-w-0 items-center gap-3 whitespace-nowrap">
+            <p-avatar [image]="item.avatar" [label]="item.avatar ? undefined : item.username.slice(0, 1).toUpperCase()" shape="circle" />
+            <div class="min-w-0 flex flex-col">
+              <span class="font-semibold text-color text-sm group-hover:text-primary transition-colors truncate">
+                {{ item.displayName || item.username }}
+              </span>
+              <span class="text-xs text-muted-color truncate">{{ item.username }}</span>
+            </div>
+          </div>
+        </td>
+
+        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden sm:table-cell">
+          <span class="whitespace-nowrap text-sm text-color-secondary">{{ item.email }}</span>
+        </td>
+
+        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden md:table-cell">
+          <div class="flex max-w-[18rem] items-center gap-1 overflow-hidden whitespace-nowrap">
+            @for (role of getVisibleRoles(item); track role) {
+              <p-tag [value]="role" [severity]="getRoleSeverity(role)" styleClass="text-[10px]" />
+            }
+            @if (getHiddenRoles(item).length > 0) {
+              <p-tag
+                [value]="'+' + getHiddenRoles(item).length"
+                severity="secondary"
+                styleClass="text-[10px] cursor-pointer shrink-0"
+                (click)="openRolesPopover($event, rolePopover, getHiddenRoles(item))"
+              />
+            }
+          </div>
+        </td>
+
+        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden lg:table-cell">
+          <div class="flex items-center gap-1.5 whitespace-nowrap">
+            <p-tag [value]="item.isActive ? '启用' : '禁用'" [severity]="item.isActive ? 'success' : 'secondary'" styleClass="text-[10px]" />
+            <p-tag [value]="item.isEmailVerified ? '邮箱已验证' : '邮箱未验证'" [severity]="item.isEmailVerified ? 'info' : 'warn'" styleClass="text-[10px] hidden xl:inline-flex" />
+          </div>
+        </td>
+
+        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden xl:table-cell">
+          <span class="text-[11px] text-muted-color whitespace-nowrap">
+            {{ item.lastLoginTime ? (item.lastLoginTime | date: 'yyyy-MM-dd HH:mm:ss') : '-' }}
+          </span>
+        </td>
+
+        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden 2xl:table-cell">
+          <span class="text-[11px] text-muted-color whitespace-nowrap">{{ item.creationTime | date: 'yyyy-MM-dd HH:mm:ss' }}</span>
+        </td>
+
+        <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 text-right">
+          <div class="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+            <p-button
+              (onClick)="edit.emit(item.id)"
+              [text]="true"
+              [rounded]="true"
+              severity="secondary"
+              icon="pi pi-pencil"
+              styleClass="w-8 h-8 !p-0"
+              [disabled]="isOtherSuperAdmin(item)"
+              [pTooltip]="isOtherSuperAdmin(item) ? '系统内置超级管理员不允许被其他管理员更新' : '编辑'"
+              tooltipPosition="top"
+            />
+            <p-button
+              (onClick)="toggleActive.emit(item)"
+              [text]="true"
+              [rounded]="true"
+              [severity]="item.isActive ? 'warn' : 'success'"
+              [icon]="item.isActive ? 'pi pi-ban' : 'pi pi-check-circle'"
+              styleClass="w-8 h-8 !p-0"
+              [disabled]="isSuperAdmin(item)"
+              [pTooltip]="isOtherSuperAdmin(item) ? '系统内置超级管理员不允许被其他管理员禁用' : (isSelfSuperAdmin(item) ? '系统内置超级管理员不允许禁用自己' : (item.isActive ? '禁用' : '启用'))"
+              tooltipPosition="top"
+            />
+            <p-button
+              (onClick)="resetPassword.emit(item.id)"
+              [text]="true"
+              [rounded]="true"
+              severity="secondary"
+              icon="pi pi-key"
+              styleClass="w-8 h-8 !p-0"
+              [disabled]="isOtherSuperAdmin(item)"
+              [pTooltip]="isOtherSuperAdmin(item) ? '系统内置超级管理员的密码不允许被其他管理员重置' : '重置密码'"
+              tooltipPosition="top"
+            />
+            <p-button
+              (onClick)="delete.emit(item)"
+              [text]="true"
+              [rounded]="true"
+              severity="danger"
+              icon="pi pi-trash"
+              styleClass="w-8 h-8 !p-0"
+              [disabled]="isSuperAdmin(item)"
+              [pTooltip]="isSuperAdmin(item) ? '系统内置超级管理员不允许删除' : '删除'"
+              tooltipPosition="top"
+            />
+          </div>
+        </td>
+      </tr>
+    </ng-template>
+
+    <ng-template pTemplate="emptymessage">
+      <tr class="hover:!bg-transparent">
+        <td colspan="7" class="!p-0 !border-0">
+          <div class="flex flex-col items-center justify-center h-64 text-muted-color">
+            <i class="pi pi-users text-5xl opacity-30 mb-3"></i>
+            <p class="text-base font-medium m-0">暂无用户</p>
+            <p class="text-sm mt-1 opacity-70">请创建新的用户</p>
+          </div>
+        </td>
+      </tr>
+    </ng-template>
+  </p-table>
+</div>
+
+<p-popover #rolePopover>
+  <div class="min-w-48 max-w-sm p-2">
+    <div class="mb-3 text-sm font-semibold text-color">{{ rolePopoverTitle() }}</div>
+    <div class="flex flex-wrap gap-2">
+      @for (role of activeRoles(); track role) {
+        <p-tag [value]="role" [severity]="getRoleSeverity(role)" />
+      } @empty {
+        <div class="text-sm text-muted-color">暂无角色</div>
+      }
+    </div>
+  </div>
+</p-popover>

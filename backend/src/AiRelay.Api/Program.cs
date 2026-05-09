@@ -225,7 +225,8 @@ try
         options.LoginPath = "/auth/login";
         options.Cookie.Name = "AiRelay.Auth";
         options.Cookie.HttpOnly = true;
-        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.Cookie.SameSite = SameSiteMode.None;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
         options.Cookie.IsEssential = true;
 
         // 从配置读取过期天数，默认7天

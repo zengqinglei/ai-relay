@@ -1,3 +1,4 @@
+using System.Linq.Dynamic.Core;
 using System.Security.Cryptography;
 using System.Text.Json;
 using AiRelay.Application.OpenApplications.Dtos;
@@ -75,7 +76,8 @@ public class OpenApplicationAppService(
             query = query.Where(item => item.ClientType == input.ClientType);
         }
 
-        var filteredItems = ApplySorting(query, input.Sorting).ToList();
+        var sorting = input.Sorting ?? "clientId asc";
+        var filteredItems = query.AsQueryable().OrderBy(sorting).ToList();
         var totalCount = filteredItems.Count;
         var pagedItems = filteredItems
             .Skip(Math.Max(input.Offset, 0))
@@ -317,32 +319,6 @@ public class OpenApplicationAppService(
         {
             descriptor.Requirements.Add(requirement);
         }
-    }
-
-    private static IEnumerable<IntermediateAppDto> ApplySorting(
-        IEnumerable<IntermediateAppDto> query,
-        string? sorting)
-    {
-        var parts = (sorting ?? "clientId asc").Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        var field = parts.Length > 0 ? parts[0] : "clientId";
-        var descending = parts.Length > 1 && parts[1].Equals("desc", StringComparison.OrdinalIgnoreCase);
-
-        return (field, descending) switch
-        {
-            ("clientId", true) => query.OrderByDescending(x => x.ClientId),
-            ("clientId", false) => query.OrderBy(x => x.ClientId),
-            ("displayName", true) => query.OrderByDescending(x => x.DisplayName),
-            ("displayName", false) => query.OrderBy(x => x.DisplayName),
-            ("applicationType", true) => query.OrderByDescending(x => x.ApplicationType),
-            ("applicationType", false) => query.OrderBy(x => x.ApplicationType),
-            ("clientType", true) => query.OrderByDescending(x => x.ClientType),
-            ("clientType", false) => query.OrderBy(x => x.ClientType),
-            ("consentType", true) => query.OrderByDescending(x => x.ConsentType),
-            ("consentType", false) => query.OrderBy(x => x.ConsentType),
-            ("creationTime", true) => query.OrderByDescending(x => x.CreationTime),
-            ("creationTime", false) => query.OrderBy(x => x.CreationTime),
-            _ => query.OrderBy(x => x.ClientId)
-        };
     }
 
     private static DateTimeOffset GetCreationTime(IReadOnlyDictionary<string, JsonElement> properties)

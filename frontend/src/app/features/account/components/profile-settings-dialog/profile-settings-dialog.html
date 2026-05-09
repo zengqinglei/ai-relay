@@ -63,7 +63,9 @@
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-2 flex-wrap">
               <h3 class="m-0 truncate text-lg font-semibold text-color">{{ displayName() }}</h3>
-              @if (user()?.isAdmin()) {
+              @if (user()?.isSuperAdmin) {
+                <p-tag value="超级管理员" severity="danger" />
+              } @else if (user()?.isAdmin()) {
                 <p-tag value="管理员" severity="info" />
               }
             </div>

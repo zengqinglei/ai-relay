@@ -17,6 +17,7 @@ export interface UserOutputDto {
   avatar?: string;
   phoneNumber?: string;
   isActive: boolean;
+  isSuperAdmin: boolean;
   creationTime: string;
   roles: string[];
 }

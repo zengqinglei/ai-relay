@@ -1,0 +1,174 @@
+<p-dialog
+  [visible]="visible()"
+  (visibleChange)="visible.set($event)"
+  (onHide)="onHide()"
+  [header]="isEditMode() ? '编辑用户' : '新建用户'"
+  [modal]="true"
+  [breakpoints]="dialogConfig.breakpoints"
+  [style]="dialogConfig.style"
+  [contentStyle]="dialogConfig.contentStyle"
+  [draggable]="dialogConfig.draggable"
+  [resizable]="dialogConfig.resizable"
+>
+  <div class="relative min-h-56" [formGroup]="form">
+    @if (loading()) {
+      <app-dialog-loading text="正在加载用户信息..." />
+    } @else {
+      <div class="flex flex-col gap-5">
+        <p-fileupload
+          mode="advanced"
+          name="avatar"
+          accept="image/png,image/jpeg,image/webp"
+          [maxFileSize]="maxAvatarSize"
+          [customUpload]="true"
+          [auto]="false"
+          [multiple]="false"
+          [showUploadButton]="false"
+          [showCancelButton]="false"
+          styleClass="border-0 bg-transparent p-0 shadow-none"
+          invalidFileSizeMessageSummary="文件过大"
+          invalidFileSizeMessageDetail="头像大小不能超过 1MB"
+          invalidFileTypeMessageSummary="格式不支持"
+          invalidFileTypeMessageDetail="请上传 PNG、JPG 或 WEBP 图片"
+          (onSelect)="onAvatarSelect($event)"
+        >
+          <ng-template pTemplate="header">
+            <div class="hidden"></div>
+          </ng-template>
+
+          <ng-template pTemplate="content" let-chooseCallback="chooseCallback">
+            <div class="flex items-center gap-4 border-b border-surface-200 pb-5 dark:border-surface-700">
+              <button
+                type="button"
+                class="group relative block h-20 w-20 shrink-0 overflow-hidden rounded-full border border-surface-200 bg-surface-100 transition-colors hover:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 dark:border-surface-700 dark:bg-surface-800"
+                (click)="chooseCallback()"
+              >
+                @if (hasAvatarImage()) {
+                  <img [src]="avatarPreview()" alt="avatar" class="h-full w-full object-cover" />
+                } @else {
+                  <div class="flex h-full w-full items-center justify-center">
+                    <p-avatar [label]="avatarLabel()" size="xlarge" shape="circle" [style]="avatarStyle()" />
+                  </div>
+                }
+
+                <div class="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                  <i class="pi pi-plus text-xl"></i>
+                </div>
+              </button>
+
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <h3 class="m-0 truncate text-lg font-semibold text-color">{{ displayName() }}</h3>
+                </div>
+                <p class="mt-1 mb-0 truncate text-sm text-muted-color">{{ form.controls.email.value || '未设置邮箱' }}</p>
+                <p class="mt-2 mb-0 text-xs text-muted-color">悬浮头像后点击 + 重新上传，选择后即时预览。</p>
+              </div>
+            </div>
+          </ng-template>
+
+          <ng-template pTemplate="empty">
+            <div class="hidden"></div>
+          </ng-template>
+        </p-fileupload>
+
+        <section class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="flex flex-col gap-2">
+            <label class="text-sm font-medium text-color">用户名</label>
+            <input pInputText formControlName="username" placeholder="请输入用户名" class="w-full" />
+            @if (form.controls.username.hasError('required') && form.controls.username.touched) {
+              <small class="text-red-500">用户名不能为空</small>
+            }
+            @if (
+              (form.controls.username.hasError('minlength') ||
+                form.controls.username.hasError('maxlength') ||
+                form.controls.username.hasError('pattern')) &&
+              form.controls.username.touched
+            ) {
+              <small class="text-red-500">用户名需为 3-64 位字母、数字或下划线</small>
+            }
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <label class="text-sm font-medium text-color">邮箱</label>
+            <input pInputText type="email" formControlName="email" placeholder="请输入邮箱" class="w-full" />
+            @if (
+              (form.controls.email.hasError('required') || form.controls.email.hasError('email') || form.controls.email.hasError('maxlength')) &&
+              form.controls.email.touched
+            ) {
+              <small class="text-red-500">请输入有效邮箱，长度不能超过 256 个字符</small>
+            }
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <label class="text-sm font-medium text-color">显示名称</label>
+            <input pInputText formControlName="displayName" placeholder="请输入显示名称" class="w-full" />
+            @if (form.controls.displayName.invalid && form.controls.displayName.touched) {
+              <small class="text-red-500">显示名称长度不能超过 128 个字符</small>
+            }
+          </div>
+
+          @if (!isEditMode()) {
+            <div class="flex flex-col gap-2">
+              <label class="text-sm font-medium text-color">初始密码</label>
+              <p-password formControlName="password" [feedback]="false" [toggleMask]="true" [fluid]="true" inputStyleClass="w-full" />
+              @if (form.controls.password.hasError('required') && form.controls.password.touched) {
+                <small class="text-red-500">请输入初始密码</small>
+              }
+              @if (hasPasswordRuleError()) {
+                <small class="text-red-500">密码不符合规则，需为 8~20 位并同时包含大小写字母、数字和特殊字符</small>
+              }
+            </div>
+          }
+        </section>
+
+        <p-divider />
+
+        <section class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="flex flex-col gap-2 md:col-span-2">
+            <label class="text-sm font-medium text-color">角色</label>
+            <p-multiselect
+              formControlName="roles"
+              [options]="roleOptions"
+              optionLabel="label"
+              optionValue="value"
+              placeholder="请选择角色"
+              display="chip"
+              appendTo="body"
+              styleClass="w-full"
+            />
+            @if (form.controls.roles.invalid && form.controls.roles.touched) {
+              <small class="text-red-500">请至少选择一个角色</small>
+            }
+          </div>
+
+          <div class="rounded-lg border border-surface-200 p-3 dark:border-surface-700">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <div class="text-sm font-medium text-color">启用用户</div>
+                <div class="text-xs text-muted-color mt-1">禁用后用户无法登录和调用受保护接口</div>
+              </div>
+              <p-toggleswitch formControlName="isActive" />
+            </div>
+          </div>
+
+          <div class="rounded-lg border border-surface-200 p-3 dark:border-surface-700">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <div class="text-sm font-medium text-color">邮箱已验证</div>
+                <div class="text-xs text-muted-color mt-1">用于管理邮箱验证状态</div>
+              </div>
+              <p-toggleswitch formControlName="isEmailVerified" />
+            </div>
+          </div>
+        </section>
+      </div>
+    }
+  </div>
+
+  <ng-template pTemplate="footer">
+    <div class="flex justify-end gap-2">
+      <p-button label="取消" severity="secondary" [text]="true" (onClick)="visible.set(false)" />
+      <p-button [label]="isEditMode() ? '保存' : '创建'" [loading]="saving()" (onClick)="save()" />
+    </div>
+  </ng-template>
+</p-dialog>

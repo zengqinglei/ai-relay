@@ -79,27 +79,42 @@ public class SystemInitializer(
     private async Task InitializeDefaultAdminAsync(Role adminRole, CancellationToken cancellationToken)
     {
         var options = adminOptions.Value;
-        var adminUser = await userRepository.GetFirstAsync(u => u.Username == options.Username, cancellationToken: cancellationToken);
-        if (adminUser != null)
+        var adminUser = await userRepository.GetFirstAsync(u => u.IsSuperAdmin, q => q.OrderBy(u => u.Id), cancellationToken);
+        if (adminUser == null)
         {
-            logger.LogInformation("默认管理员用户已存在: {Username}", options.Username);
-            return;
+            adminUser = await userRepository.GetFirstAsync(u => u.Username == options.Username, q => q.OrderBy(u => u.Id), cancellationToken);
+            if (adminUser == null)
+            {
+                var passwordHash = passwordHasher.HashPassword(options.Password);
+                adminUser = new User(
+                    username: options.Username,
+                    email: options.Email,
+                    passwordHash: passwordHash,
+                    nickname: options.Nickname ?? "系统管理员"
+                );
+
+                adminUser.MarkAsSuperAdmin();
+                await userRepository.InsertAsync(adminUser, cancellationToken);
+                logger.LogInformation("已创建默认管理员用户: {Username}", options.Username);
+            }
+            else
+            {
+                adminUser.MarkAsSuperAdmin();
+                await userRepository.UpdateAsync(adminUser, cancellationToken);
+                logger.LogInformation("已将默认管理员用户标记为超级管理员: {Username}", adminUser.Username);
+            }
+        }
+        else
+        {
+            logger.LogInformation("超级管理员用户已存在: {Username}", adminUser.Username);
         }
 
-        var passwordHash = passwordHasher.HashPassword(options.Password);
-        adminUser = new User(
-            username: options.Username,
-            email: options.Email,
-            passwordHash: passwordHash,
-            nickname: options.Nickname ?? "系统管理员"
-        );
-
-        await userRepository.InsertAsync(adminUser, cancellationToken);
-        logger.LogInformation("已创建默认管理员用户: {Username}", options.Username);
-
-        var userRole = new UserRole(adminUser.Id, adminRole.Id);
-        await userRoleRepository.InsertAsync(userRole, cancellationToken);
-        logger.LogInformation("已为管理员用户分配 {RoleName} 角色", AdminConstant.RoleName);
+        if (!await userRoleRepository.AnyAsync(ur => ur.UserId == adminUser.Id && ur.RoleId == adminRole.Id, cancellationToken))
+        {
+            var userRole = new UserRole(adminUser.Id, adminRole.Id);
+            await userRoleRepository.InsertAsync(userRole, cancellationToken);
+            logger.LogInformation("已为管理员用户分配 {RoleName} 角色", AdminConstant.RoleName);
+        }
     }
 
     private async Task InitializeOpenIddictAsync(CancellationToken cancellationToken)

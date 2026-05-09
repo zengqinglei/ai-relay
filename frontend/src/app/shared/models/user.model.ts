@@ -6,6 +6,7 @@ export class User {
   avatar?: string;
   phoneNumber?: string;
   roles!: string[];
+  isSuperAdmin!: boolean;
 
   constructor(data: Partial<User>) {
     Object.assign(this, data);
@@ -16,6 +17,6 @@ export class User {
    * 后端仅一种管理员角色：'Admin'
    */
   isAdmin(): boolean {
-    return this.roles.includes('Admin');
+    return this.isSuperAdmin || this.roles.includes('Admin');
   }
 }

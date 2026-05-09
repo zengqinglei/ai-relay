@@ -1,26 +1,38 @@
 <div class="flex flex-col h-full overflow-hidden">
   <div class="flex-1 overflow-y-auto p-6 custom-scrollbar">
-    <app-subscription-metrics-cards [metrics]="metrics()" />
-
     <div class="mb-6 flex flex-col items-stretch justify-between gap-4 md:flex-row md:items-center">
       <div class="flex flex-1 flex-col items-stretch gap-3 sm:flex-row sm:items-center">
-        <app-user-scope-filter
-          class="w-full sm:w-auto"
-          [showLabel]="false"
-          name="subscription-user-scope"
-          [options]="userScopeOptions"
-          [selected]="userScope()"
-          (selectedChange)="setUserScope($event)"
-        />
-
         <p-select
-          [options]="statusOptions"
-          [ngModel]="selectedStatus()"
-          (ngModelChange)="selectedStatus.set($event)"
-          (onChange)="onStatusChange()"
+          [options]="activeOptions"
+          [ngModel]="selectedIsActive()"
+          (ngModelChange)="onActiveChange($event)"
           optionLabel="label"
           optionValue="value"
           placeholder="全部状态"
+          [showClear]="true"
+          appendTo="body"
+          styleClass="w-full sm:w-48"
+        />
+
+        <p-select
+          [options]="emailVerifiedOptions"
+          [ngModel]="selectedIsEmailVerified()"
+          (ngModelChange)="onEmailVerifiedChange($event)"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="全部邮箱状态"
+          [showClear]="true"
+          appendTo="body"
+          styleClass="w-full sm:w-48"
+        />
+
+        <p-select
+          [options]="roleOptions"
+          [ngModel]="selectedRole()"
+          (ngModelChange)="onRoleChange($event)"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="全部角色"
           [showClear]="true"
           appendTo="body"
           styleClass="w-full sm:w-48"
@@ -31,7 +43,7 @@
           <input
             pInputText
             type="text"
-            placeholder="搜索订阅名 / 用户名..."
+            placeholder="搜索用户名 / 邮箱 / 显示名称..."
             [ngModel]="searchQuery()"
             (ngModelChange)="onSearchQueryChange($event)"
             class="w-full"
@@ -47,39 +59,43 @@
           styleClass="w-full sm:w-auto"
           pTooltip="刷新"
           tooltipPosition="top"
-        >
-        </p-button>
+        />
         <p-button
-          label="新建订阅"
+          label="新建用户"
           icon="pi pi-plus"
-          (click)="openAddDialog()"
+          (onClick)="openAddDialog()"
           [outlined]="true"
           severity="primary"
           styleClass="w-full sm:w-auto"
-        >
-        </p-button>
+        />
       </div>
     </div>
 
-    <app-subscription-table
-      [subscriptions]="subscriptions()"
+    <app-user-table
+      [users]="users()"
       [totalRecords]="totalRecords()"
       [loading]="loading()"
       (filterChange)="onPageChange($event)"
       (edit)="openEditDialog($event)"
+      (toggleActive)="handleToggleActive($event)"
+      (resetPassword)="openResetPasswordDialog($event)"
       (delete)="handleDelete($event)"
-      (statusToggle)="handleStatusToggle($event)"
-      (updateExpiryAndEnable)="handleExpiryUpdate($event)"
     />
   </div>
 </div>
 
-<app-subscription-edit-dialog
+<app-user-edit-dialog
   [(visible)]="editDialogVisible"
   [loading]="editDialogLoading()"
   [saving]="editDialogSaving()"
-  [subscription]="selectedSubscription()"
+  [user]="selectedUser()"
   (saved)="handleSave($event)"
+/>
+
+<app-reset-user-password-dialog
+  [(visible)]="resetPasswordDialogVisible"
+  [(saving)]="resetPasswordSaving"
+  (saved)="handleResetPassword($event)"
 />
 
 <p-confirmDialog
@@ -91,5 +107,3 @@
   rejectButtonStyleClass="p-button-text p-button-secondary"
 >
 </p-confirmDialog>
-
-

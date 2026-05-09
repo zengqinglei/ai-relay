@@ -189,6 +189,8 @@ function register(req: MockRequest): 'ok' {
     password: body.password,
     roles: ['User'],
     isActive: true,
+    isSuperAdmin: false,
+    isEmailVerified: false,
     creationTime: new Date().toISOString()
   };
   USERS.push(newUser as any);

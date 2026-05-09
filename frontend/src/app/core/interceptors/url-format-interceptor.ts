@@ -41,6 +41,6 @@ export const urlFormatInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown
     url = pathSegments.join('/');
   }
 
-  const newReq = req.clone({ url });
+  const newReq = req.clone({ url, withCredentials: true });
   return next(newReq);
 };

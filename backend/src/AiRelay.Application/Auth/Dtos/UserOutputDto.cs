@@ -9,6 +9,7 @@ public record UserOutputDto
     public string? Avatar { get; init; }
     public string? PhoneNumber { get; init; }
     public bool IsActive { get; init; }
+    public bool IsSuperAdmin { get; init; }
     public DateTime CreationTime { get; init; }
     public required string[] Roles { get; init; }
 }

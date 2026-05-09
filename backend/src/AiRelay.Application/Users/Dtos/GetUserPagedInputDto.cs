@@ -9,7 +9,7 @@ namespace AiRelay.Application.Users.Dtos;
 public record GetUserPagedInputDto : PagedRequestDto
 {
     /// <summary>
-    /// 搜索关键字（用户名、邮箱）
+    /// 搜索关键字（用户名、邮箱、显示名称）
     /// </summary>
     [Display(Name = "搜索关键字")]
     [MaxLength(256, ErrorMessage = "{0}长度不能超过 {1} 个字符")]
@@ -20,4 +20,17 @@ public record GetUserPagedInputDto : PagedRequestDto
     /// </summary>
     [Display(Name = "是否启用")]
     public bool? IsActive { get; init; }
+
+    /// <summary>
+    /// 邮箱是否已验证
+    /// </summary>
+    [Display(Name = "邮箱是否已验证")]
+    public bool? IsEmailVerified { get; init; }
+
+    /// <summary>
+    /// 角色名称
+    /// </summary>
+    [Display(Name = "角色")]
+    [MaxLength(64, ErrorMessage = "{0}长度不能超过 {1} 个字符")]
+    public string? Role { get; init; }
 }

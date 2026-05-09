@@ -10,11 +10,11 @@ import { TextareaModule } from 'primeng/textarea';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { finalize } from 'rxjs';
 
+import { DialogLoadingComponent } from '../../../../../../shared/components/dialog-loading/dialog-loading';
 import { DIALOG_CONFIGS } from '../../../../../../shared/constants/dialog-config.constants';
 import { UserOutputDto } from '../../../../../account/models/account.dto';
 import { CreateProviderGroupInputDto, ProviderGroupOutputDto, UpdateProviderGroupInputDto } from '../../../../models/provider-group.dto';
 import { PlatformUserService } from '../../../../services/platform-user-service';
-import { DialogLoadingComponent } from '../../../../../../shared/components/dialog-loading/dialog-loading';
 
 type ProviderGroupEditFormModel = {
   name: string;
@@ -28,7 +28,18 @@ type ProviderGroupEditFormModel = {
 @Component({
   selector: 'app-group-edit-dialog',
   standalone: true,
-  imports: [CommonModule, FormsModule, DialogModule, ButtonModule, InputTextModule, InputNumberModule, TextareaModule, ToggleSwitchModule, MultiSelectModule, DialogLoadingComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    DialogModule,
+    ButtonModule,
+    InputTextModule,
+    InputNumberModule,
+    TextareaModule,
+    ToggleSwitchModule,
+    MultiSelectModule,
+    DialogLoadingComponent
+  ],
   templateUrl: './group-edit-dialog.html'
 })
 export class GroupEditDialogComponent implements OnChanges {
@@ -48,6 +59,7 @@ export class GroupEditDialogComponent implements OnChanges {
         username: value?.assignedUsernames?.[index] ?? '未命名用户',
         email: '',
         isActive: true,
+        isSuperAdmin: false,
         creationTime: '',
         roles: []
       }))

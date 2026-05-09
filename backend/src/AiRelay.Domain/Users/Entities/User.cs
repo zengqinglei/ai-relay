@@ -50,6 +50,11 @@ public class User : FullAuditedEntity<Guid>
     public bool IsActive { get; private set; } = true;
 
     /// <summary>
+    /// 是否系统内置超级管理员
+    /// </summary>
+    public bool IsSuperAdmin { get; private set; }
+
+    /// <summary>
     /// 是否锁定
     /// </summary>
     public bool IsLocked { get; private set; }
@@ -96,6 +101,15 @@ public class User : FullAuditedEntity<Guid>
         Avatar = avatar;
     }
 
+    public void UpdateManagement(string email, string? nickname, string? avatar, bool isActive, bool emailConfirmed)
+    {
+        Email = email;
+        Nickname = nickname;
+        Avatar = avatar;
+        IsActive = isActive;
+        EmailConfirmed = emailConfirmed;
+    }
+
     public void UpdateProfile(string username, string email, string? nickname, string? phoneNumber, string? avatar)
     {
         Username = username;
@@ -108,6 +122,11 @@ public class User : FullAuditedEntity<Guid>
     public void UpdatePasswordHash(string passwordHash)
     {
         PasswordHash = passwordHash;
+    }
+
+    public void MarkAsSuperAdmin()
+    {
+        IsSuperAdmin = true;
     }
 
     public void ConfirmEmail()

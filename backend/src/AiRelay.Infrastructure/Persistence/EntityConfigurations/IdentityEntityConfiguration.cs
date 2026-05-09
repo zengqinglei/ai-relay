@@ -30,6 +30,7 @@ internal static class IdentityEntityConfiguration
             b.Property(e => e.Avatar).HasColumnType("text");
             b.Property(e => e.Nickname).HasMaxLength(128);
             b.Property(e => e.LastLoginIp).HasMaxLength(45);
+            b.Property(e => e.IsSuperAdmin);
 
             b.HasIndex(e => e.Username).IsUnique();
             b.HasIndex(e => e.Email).IsUnique();

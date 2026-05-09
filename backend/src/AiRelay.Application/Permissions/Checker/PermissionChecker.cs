@@ -15,7 +15,9 @@ namespace AiRelay.Application.Permissions.Checker;
 public class PermissionChecker(
     ICurrentUser currentUser,
     IRepository<PermissionGrant, Guid> permissionGrantRepository,
-    IRepository<UserRole, Guid> userRoleRepository) : IPermissionChecker
+    IRepository<User, Guid> userRepository,
+    IRepository<UserRole, Guid> userRoleRepository,
+    IRepository<Role, Guid> roleRepository) : IPermissionChecker
 {
     public Task<bool> IsGrantedAsync(string name, CancellationToken cancellationToken = default)
     {
@@ -50,12 +52,30 @@ public class PermissionChecker(
         if (!userId.HasValue)
             return false;
 
-        if (roles.Contains(AdminConstant.RoleName, StringComparer.OrdinalIgnoreCase))
+        var userIdValue = userId.Value;
+        var user = await userRepository.GetByIdAsync(userIdValue, cancellationToken);
+        if (user?.IsSuperAdmin == true)
         {
             return true;
         }
 
-        var userIdValue = userId.Value;
+        var userRoles = (await userRoleRepository.GetListAsync(ur => ur.UserId == userIdValue, cancellationToken)).ToList();
+        var roleIds = userRoles.Select(ur => ur.RoleId).ToList();
+        var roleNames = roles.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (roleIds.Count > 0)
+        {
+            var dbRoles = await roleRepository.GetListAsync(r => roleIds.Contains(r.Id), cancellationToken);
+            foreach (var roleName in dbRoles.Select(role => role.Name))
+            {
+                roleNames.Add(roleName);
+            }
+        }
+
+        if (roleNames.Contains(AdminConstant.RoleName))
+        {
+            return true;
+        }
 
         var userGrant = await permissionGrantRepository.GetFirstAsync(
             PermissionGrantSpecifications.ByPermissionAndProvider(name, "User", userIdValue.ToString()),
@@ -64,9 +84,6 @@ public class PermissionChecker(
 
         if (userGrant != null)
             return true;
-
-        var userRoles = await userRoleRepository.GetListAsync(ur => ur.UserId == userIdValue, cancellationToken);
-        var roleIds = userRoles.Select(ur => ur.RoleId).ToList();
 
         foreach (var roleId in roleIds)
         {

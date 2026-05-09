@@ -1,4 +1,5 @@
 using AiRelay.Application.Auth.Dtos;
+using AiRelay.Application.Users.Dtos;
 using AiRelay.Domain.Users.Entities;
 using Leistd.ObjectMapping.Mapster;
 using Mapster;
@@ -12,8 +13,12 @@ public class UserProfile : MapsterProfile
 {
     protected override void ConfigureMappings()
     {
-        // User -> UserOutputDto
         CreateMap<User, UserOutputDto>()
+            .Map(dest => dest.Roles, src => ResolveRoles(src));
+
+        CreateMap<User, UserManagementOutputDto>()
+            .Map(dest => dest.DisplayName, src => src.Nickname)
+            .Map(dest => dest.IsEmailVerified, src => src.EmailConfirmed)
             .Map(dest => dest.Roles, src => ResolveRoles(src));
     }
 

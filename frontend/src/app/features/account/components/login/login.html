@@ -245,13 +245,9 @@
           }
         </div>
 
-        <!-- Utility Row -->
-        <div class="flex items-center justify-between mt-1">
-          <div class="flex items-center gap-2">
-            <p-checkbox formControlName="rememberMe" [binary]="true" inputId="remember"></p-checkbox>
-            <label for="remember" class="text-sm cursor-pointer text-muted-color">记住我</label>
-          </div>
-          <a class="text-sm font-medium text-primary hover:text-primary-emphasis cursor-pointer">忘记密码？</a>
+        <div class="flex items-center justify-end gap-1 mt-1 text-base text-color">
+          <span>没有账号？</span>
+          <a [routerLink]="['/auth/register']" class="font-bold text-primary hover:text-primary-emphasis hover:underline transition-colors">立即注册</a>
         </div>
 
         <!-- Submit Button -->
@@ -312,11 +308,6 @@
           </p-button>
         </div>
       </form>
-
-      <!-- Sign up link at the bottom for better UX -->
-      <div class="mt-8 text-center text-base text-color">
-        没有账号？ <a [routerLink]="['/auth/register']" class="font-bold text-primary hover:text-primary-emphasis hover:underline transition-colors">立即注册</a>
-      </div>
 
       <!-- Test Account Hint -->
       @if (isMockEnabled()) {

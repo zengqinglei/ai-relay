@@ -27,6 +27,10 @@ export const PLATFORM_ROUTES: Routes = [
     loadComponent: () => import('./components/open-applications/open-applications').then(m => m.OpenApplicationsPage)
   },
   {
+    path: 'users',
+    loadComponent: () => import('./components/users/users').then(m => m.UsersPage)
+  },
+  {
     path: 'usage-records',
     loadComponent: () => import('./components/usage-records/usage-records').then(m => m.UsageRecords)
   },
