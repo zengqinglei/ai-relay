@@ -17,6 +17,7 @@ using AiRelay.Application.Permissions.Checker;
 using AiRelay.Application.Permissions.Provider;
 using AiRelay.Domain.ProviderAccounts.Events;
 using AiRelay.Application.ModelRoutes;
+using AiRelay.Application.OpenApplications.AppServices;
 
 namespace AiRelay.Application;
 
@@ -35,6 +36,7 @@ public static class DependencyInjection
         services.AddTransient<IApiKeyMetricAppService, ApiKeyMetricAppService>();
         services.AddScoped<IWorkspaceChatExecutionAppService, WorkspaceChatExecutionAppService>();
         services.AddScoped<IChatSessionAppService, ChatSessionAppService>();
+        services.AddScoped<IOpenApplicationAppService, OpenApplicationAppService>();
 
         // Smart Proxy AppService
         services.AddScoped<IModelRouteAppService, ModelRouteAppService>();

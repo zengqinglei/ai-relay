@@ -42,24 +42,29 @@ public class LiteLlmPricingProvider(
         }
 
         // 3. Bedrock/Vertex 前缀处理 (e.g. "us.anthropic.claude-3-sonnet-..." -> "anthropic.claude-3-sonnet-...")
-        // 简单尝试：去掉 "us.", "eu.", "apac." 前缀
         if (modelName.Contains('.'))
         {
             var parts = modelName.Split('.');
             if (parts.Length > 1)
             {
-                // 尝试移除第一段 (假设是 region)
                 var withoutRegion = string.Join(".", parts.Skip(1));
                 if (pricingData.TryGetValue(withoutRegion, out info)) return info;
-
-                // 尝试仅保留最后一段 (假设是 modelId)
-                // var modelId = parts.Last();
-                // if (pricingData.TryGetValue(modelId, out info)) return info;
             }
         }
 
-        // 4. 模糊匹配 (前缀匹配)
-        // 例如 "gpt-4-0613" 匹配 "gpt-4"
+        // 4. 短模型名匹配 provider/model key，例如 "glm-5" -> "openrouter/z-ai/glm-5"。
+        var shortNameMatch = pricingData.Keys
+            .Where(k => NormalizeModelName(GetModelNamePart(k)) == normalizedInput)
+            .OrderBy(k => k.Length)
+            .FirstOrDefault();
+
+        if (shortNameMatch != null)
+        {
+            logger.LogInformation("通过短模型名匹配找到模型定价: {Input} -> {Match}", modelName, shortNameMatch);
+            return pricingData[shortNameMatch];
+        }
+
+        // 5. 模糊匹配 (前缀匹配)
         var bestMatch = pricingData.Keys
             .Where(k => modelName.StartsWith(k, StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(k => k.Length)
@@ -70,17 +75,15 @@ public class LiteLlmPricingProvider(
             return pricingData[bestMatch];
         }
 
-        // 5. 跨平台/提供商名称后置匹配
-        // 处理传入 "Provider/ModelName" 的情况 (如 "Qwen/Qwen3.5-35B-A3B" -> "qwen3535ba3b")
+        // 6. 跨平台/提供商名称后置匹配
         if (modelName.Contains('/'))
         {
-            var parts = modelName.Split('/');
-            var modelPart = string.Join("/", parts.Skip(1)); // 取 / 之后的所有部分
+            var modelPart = GetModelNamePart(modelName);
             var normalizedModelPart = NormalizeModelName(modelPart);
 
             var suffixMatch = pricingData.Keys
                 .Where(k => NormalizeModelName(k).EndsWith(normalizedModelPart, StringComparison.OrdinalIgnoreCase))
-                .OrderBy(k => k.Length) // 优先使用较短的 key，比如 "zai/glm-5" 而不是 "openrouter/z-ai/glm-5"
+                .OrderBy(k => k.Length)
                 .FirstOrDefault();
 
             if (suffixMatch != null)
@@ -90,20 +93,30 @@ public class LiteLlmPricingProvider(
             }
         }
 
-        logger.LogDebug("未找到模型定价: {ModelName}", modelName);
+        logger.LogWarning("未找到模型定价: {ModelName}", modelName);
         return null;
     }
 
     private string NormalizeModelName(string name)
     {
-        // 1. 移除常见区域前缀
-        var cleanName = name.Replace("us.", "").Replace("eu.", "").Replace("apac.", "");
+        var cleanName = name.Replace("us.", "").Replace("eu.", "").Replace("apac.", "").Replace("anthropic.", "");
+        
+        var span = cleanName.AsSpan();
+        var sb = new System.Text.StringBuilder(span.Length);
+        foreach (var c in span)
+        {
+            if (c is not ('-' or '_' or '.' or ':' or '/'))
+            {
+                sb.Append(char.ToLowerInvariant(c));
+            }
+        }
+        return sb.ToString();
+    }
 
-        // 2. 移除厂商前缀
-        cleanName = cleanName.Replace("anthropic.", "");
-
-        // 3. 移除标点并转小写
-        return cleanName.Replace("-", "").Replace("_", "").Replace(".", "").Replace(":", "").ToLowerInvariant();
+    private static string GetModelNamePart(string name)
+    {
+        var parts = name.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return parts.Length == 0 ? name : parts[^1];
     }
 
     public async Task UpdatePricingCacheAsync(CancellationToken cancellationToken)
@@ -193,9 +206,10 @@ public class LiteLlmPricingProvider(
             var pricingMap = new Dictionary<string, ModelPricingInfo>(StringComparer.OrdinalIgnoreCase);
             foreach (var (key, value) in rawData)
             {
+                var tier = value.TieredPricing?.OrderBy(x => x.Range?.FirstOrDefault() ?? 0).FirstOrDefault();
                 pricingMap[key] = new ModelPricingInfo(
-                    (decimal)value.InputCostPerToken,
-                    (decimal)value.OutputCostPerToken,
+                    (decimal)(value.InputCostPerToken != 0 ? value.InputCostPerToken : tier?.InputCostPerToken ?? 0),
+                    (decimal)(value.OutputCostPerToken != 0 ? value.OutputCostPerToken : tier?.OutputCostPerToken ?? 0),
                     (decimal)value.CacheReadInputTokenCost,
                     (decimal)value.CacheCreationInputTokenCost,
                     value.LongContextInputThreshold,
@@ -246,5 +260,13 @@ public class LiteLlmPricingProvider(
         public int? LongContextInputThreshold { get; set; }
         public double? LongContextInputMultiplier { get; set; }
         public double? LongContextOutputMultiplier { get; set; }
+        public List<LiteLlmTieredPricingEntry>? TieredPricing { get; set; }
+    }
+
+    private class LiteLlmTieredPricingEntry
+    {
+        public double InputCostPerToken { get; set; }
+        public double OutputCostPerToken { get; set; }
+        public List<double>? Range { get; set; }
     }
 }

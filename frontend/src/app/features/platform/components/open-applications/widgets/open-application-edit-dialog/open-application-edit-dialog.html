@@ -1,0 +1,242 @@
+<p-dialog
+  [visible]="visible()"
+  (visibleChange)="visible.set($event)"
+  [header]="isEditMode() ? '编辑开放应用' : '新建开放应用'"
+  [modal]="true"
+  [breakpoints]="dialogConfig.breakpoints"
+  [style]="dialogConfig.style"
+  [contentStyle]="dialogConfig.contentStyle"
+  [draggable]="dialogConfig.draggable"
+  [resizable]="dialogConfig.resizable"
+  [closable]="true"
+  [dismissableMask]="!saving()"
+  [closeOnEscape]="!saving()"
+  (onHide)="onHide()"
+>
+  @if (loading()) {
+    <app-dialog-loading text="正在加载开放应用信息..." />
+  } @else {
+    <div class="flex flex-col gap-6">
+      @if (!isEditMode()) {
+        <div class="flex flex-col gap-2">
+          <label class="font-bold">应用模板</label>
+          <p-select
+            [options]="templateOptions"
+            [ngModel]="selectedTemplate()"
+            (ngModelChange)="applyTemplate($event)"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="选择模板快速填充"
+            appendTo="body"
+            styleClass="w-full"
+          />
+        </div>
+      }
+
+      <div class="flex flex-col gap-4">
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div class="flex flex-col gap-2">
+            <label class="font-bold">应用名称</label>
+            <input pInputText [(ngModel)]="formModel().displayName" placeholder="例如 AiRelay Desktop" />
+          </div>
+          <div class="flex flex-col gap-2">
+            <label class="font-bold">Client ID</label>
+            <input
+              pInputText
+              [(ngModel)]="formModel().clientId"
+              placeholder="例如 ai-relay-desktop"
+              [disabled]="isEditMode()"
+              class="font-mono"
+            />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div class="flex flex-col gap-2">
+            <label class="font-bold">应用类型</label>
+            <p-select
+              [options]="applicationTypeOptions"
+              [(ngModel)]="formModel().applicationType"
+              optionLabel="label"
+              optionValue="value"
+              appendTo="body"
+              styleClass="w-full"
+            />
+          </div>
+          <div class="flex flex-col gap-2">
+            <label class="font-bold">客户端类型</label>
+            <p-select
+              [options]="clientTypeOptions"
+              [(ngModel)]="formModel().clientType"
+              (onChange)="onClientTypeChange()"
+              optionLabel="label"
+              optionValue="value"
+              appendTo="body"
+              styleClass="w-full"
+            />
+          </div>
+          <div class="flex flex-col gap-2">
+            <label class="font-bold">授权确认</label>
+            <p-select
+              [options]="consentTypeOptions"
+              [(ngModel)]="formModel().consentType"
+              optionLabel="label"
+              optionValue="value"
+              appendTo="body"
+              styleClass="w-full"
+            />
+          </div>
+        </div>
+
+        @if (!isEditMode() && isConfidentialClient()) {
+          <div class="flex flex-col gap-2">
+            <label class="font-bold flex items-center gap-2">
+              Client Secret
+              <i
+                class="pi pi-info-circle cursor-help text-xs text-muted-color"
+                pTooltip="留空时后端阶段可自动生成；mock 阶段仅记录是否设置"
+                tooltipPosition="top"
+              ></i>
+            </label>
+            <input pInputText [(ngModel)]="formModel().clientSecret" placeholder="可选，留空则后续通过重置密钥生成" class="font-mono" />
+          </div>
+        }
+      </div>
+
+      <p-divider align="center">
+        <span class="text-sm font-bold text-gray-500">回调地址</span>
+      </p-divider>
+
+      <div class="grid grid-cols-1 gap-4">
+        <div class="rounded-xl border border-surface-200 bg-surface-50/70 p-4 dark:border-surface-700 dark:bg-surface-800/40">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <label class="font-bold">Redirect URIs</label>
+            <span class="text-xs text-muted-color">登录完成后的回调地址</span>
+          </div>
+          <div class="flex flex-col gap-2 sm:flex-row">
+            <input
+              pInputText
+              [(ngModel)]="formModel().redirectUriInput"
+              placeholder="https://example.com/callback 或 ai-relay-desktop://oauth/callback"
+              class="h-10 w-full font-mono"
+            />
+            <p-button
+              label="添加"
+              icon="pi pi-plus"
+              (onClick)="addRedirectUri()"
+              [disabled]="!formModel().redirectUriInput || isRedirectUriInputInvalid()"
+              styleClass="h-10 min-w-24 whitespace-nowrap"
+            />
+          </div>
+          @if (isRedirectUriInputInvalid()) {
+            <small class="mt-2 block text-red-500">请输入合法的绝对 URI，且不能包含 fragment。</small>
+          }
+          <div class="mt-3 flex flex-wrap gap-2">
+            @for (uri of formModel().redirectUris; track uri) {
+              <p-tag severity="info" styleClass="max-w-full">
+                <span class="max-w-96 truncate font-mono text-xs">{{ uri }}</span>
+                <button class="ml-2 border-none bg-transparent p-0 text-inherit cursor-pointer" (click)="removeRedirectUri(uri)">
+                  <i class="pi pi-times text-xs"></i>
+                </button>
+              </p-tag>
+            } @empty {
+              <span class="text-xs text-muted-color">暂未配置 Redirect URI</span>
+            }
+          </div>
+        </div>
+
+        <div class="rounded-xl border border-surface-200 bg-surface-50/70 p-4 dark:border-surface-700 dark:bg-surface-800/40">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <label class="font-bold">Post Logout Redirect URIs</label>
+            <span class="text-xs text-muted-color">登出后的跳转地址</span>
+          </div>
+          <div class="flex flex-col gap-2 sm:flex-row">
+            <input
+              pInputText
+              [(ngModel)]="formModel().postLogoutRedirectUriInput"
+              placeholder="https://example.com/logout-callback"
+              class="h-10 w-full font-mono"
+            />
+            <p-button
+              label="添加"
+              icon="pi pi-plus"
+              (onClick)="addPostLogoutRedirectUri()"
+              [disabled]="!formModel().postLogoutRedirectUriInput || isPostLogoutRedirectUriInputInvalid()"
+              styleClass="h-10 min-w-24 whitespace-nowrap"
+            />
+          </div>
+          @if (isPostLogoutRedirectUriInputInvalid()) {
+            <small class="mt-2 block text-red-500">请输入合法的绝对 URI，且不能包含 fragment。</small>
+          }
+          <div class="mt-3 flex flex-wrap gap-2">
+            @for (uri of formModel().postLogoutRedirectUris; track uri) {
+              <p-tag severity="secondary" styleClass="max-w-full">
+                <span class="max-w-96 truncate font-mono text-xs">{{ uri }}</span>
+                <button class="ml-2 border-none bg-transparent p-0 text-inherit cursor-pointer" (click)="removePostLogoutRedirectUri(uri)">
+                  <i class="pi pi-times text-xs"></i>
+                </button>
+              </p-tag>
+            } @empty {
+              <span class="text-xs text-muted-color">暂未配置 Post Logout Redirect URI</span>
+            }
+          </div>
+        </div>
+      </div>
+
+      <p-divider align="center">
+        <span class="text-sm font-bold text-gray-500">授权能力</span>
+      </p-divider>
+
+      <div class="flex flex-col gap-4">
+        <div class="flex flex-col gap-2">
+          <label class="font-bold">Permissions</label>
+          <p-multiselect
+            [options]="permissionOptions"
+            [(ngModel)]="formModel().permissions"
+            optionLabel="label"
+            optionValue="value"
+            display="chip"
+            appendTo="body"
+            styleClass="w-full"
+            placeholder="选择授权能力"
+          >
+            <ng-template let-option pTemplate="item">
+              <div class="flex w-full items-center justify-between gap-3">
+                <span>{{ option.label }}</span>
+                <span class="text-xs text-muted-color">{{ option.value }}</span>
+              </div>
+            </ng-template>
+          </p-multiselect>
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <label class="font-bold">Requirements</label>
+          <p-multiselect
+            [options]="requirementOptions"
+            [(ngModel)]="formModel().requirements"
+            optionLabel="label"
+            optionValue="value"
+            display="chip"
+            appendTo="body"
+            styleClass="w-full"
+            placeholder="选择安全要求"
+          />
+          @if (
+            (formModel().applicationType === 'native' || formModel().clientType === 'public') &&
+            !formModel().requirements.includes('ft:pkce')
+          ) {
+            <small class="text-red-500">Native/Public 客户端必须启用 PKCE。</small>
+          }
+          @if (formModel().permissions.includes('gt:refresh_token') && !formModel().permissions.includes('scp:offline_access')) {
+            <small class="text-orange-500">已允许 refresh_token，建议同时开放 offline_access scope。</small>
+          }
+        </div>
+      </div>
+    </div>
+  }
+
+  <ng-template pTemplate="footer">
+    <p-button label="取消" [text]="true" severity="secondary" (onClick)="visible.set(false)" [disabled]="saving()" />
+    <p-button label="保存" icon="pi pi-check" (onClick)="save()" [disabled]="!isValid() || saving()" [loading]="saving()" />
+  </ng-template>
+</p-dialog>

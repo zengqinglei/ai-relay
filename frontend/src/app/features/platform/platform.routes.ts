@@ -23,6 +23,10 @@ export const PLATFORM_ROUTES: Routes = [
     loadComponent: () => import('./components/subscriptions/subscriptions').then(m => m.SubscriptionsPage)
   },
   {
+    path: 'open-applications',
+    loadComponent: () => import('./components/open-applications/open-applications').then(m => m.OpenApplicationsPage)
+  },
+  {
     path: 'usage-records',
     loadComponent: () => import('./components/usage-records/usage-records').then(m => m.UsageRecords)
   },
