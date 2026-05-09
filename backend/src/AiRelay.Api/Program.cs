@@ -279,6 +279,24 @@ try
 
     // 7. 中间件管道配置
     app.UseForwardedHeaders();
+    app.Use(async (context, next) =>
+    {
+        if (context.Request.Path.StartsWithSegments("/.well-known") ||
+            context.Request.Path.StartsWithSegments("/connect"))
+        {
+            app.Logger.LogInformation(
+                "OpenID request after forwarded headers: Path={Path}, Scheme={Scheme}, Host={Host}, RemoteIp={RemoteIp}, XForwardedProto={XForwardedProto}, XForwardedHost={XForwardedHost}, XForwardedFor={XForwardedFor}",
+                context.Request.Path,
+                context.Request.Scheme,
+                context.Request.Host,
+                context.Connection.RemoteIpAddress,
+                context.Request.Headers["X-Forwarded-Proto"].ToString(),
+                context.Request.Headers["X-Forwarded-Host"].ToString(),
+                context.Request.Headers["X-Forwarded-For"].ToString());
+        }
+
+        await next();
+    });
     // 官方推荐最佳实践 1：将静态文件托管移至 UseSerilogRequestLogging 之前，
     // 这样静态资源的请求直接在此处返回，完全不会进入后续的 Serilog 记录中间件。
     app.UseDefaultFiles();
