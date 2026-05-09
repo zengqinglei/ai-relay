@@ -9,6 +9,12 @@ namespace Leistd.Security.Users;
 /// <param name="principalAccessor">认证主体访问器</param>
 public class CurrentUser(ICurrentPrincipalAccessor principalAccessor) : ICurrentUser
 {
+    private const string SubjectClaimType = "sub";
+    private const string NameClaimType = "name";
+    private const string PreferredUsernameClaimType = "preferred_username";
+    private const string EmailClaimType = "email";
+    private const string RoleClaimType = "role";
+
     private ClaimsPrincipal? Principal => principalAccessor.Principal;
 
     /// <inheritdoc />
@@ -20,22 +26,22 @@ public class CurrentUser(ICurrentPrincipalAccessor principalAccessor) : ICurrent
     {
         get
         {
-            var idValue = Principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var idValue = FindFirstValue(SubjectClaimType, ClaimTypes.NameIdentifier);
             return Guid.TryParse(idValue, out var id) ? id : null;
         }
     }
 
     /// <inheritdoc />
     public string? Username =>
-        Principal?.FindFirst(ClaimTypes.Name)?.Value;
+        FindFirstValue(PreferredUsernameClaimType, NameClaimType, ClaimTypes.Name);
 
     /// <inheritdoc />
     public string? Name =>
-        Principal?.FindFirst(ClaimTypes.GivenName)?.Value;
+        FindFirstValue(NameClaimType, ClaimTypes.GivenName);
 
     /// <inheritdoc />
     public string? Email =>
-        Principal?.FindFirst(ClaimTypes.Email)?.Value;
+        FindFirstValue(EmailClaimType, ClaimTypes.Email);
 
     /// <inheritdoc />
     public string? PhoneNumber =>
@@ -43,9 +49,13 @@ public class CurrentUser(ICurrentPrincipalAccessor principalAccessor) : ICurrent
 
     /// <inheritdoc />
     public string[] GetRoles() =>
-        Principal?.FindAll(ClaimTypes.Role)
-            .Select(c => c.Value)
-            .ToArray() ?? [];
+        Principal == null
+            ? []
+            : Principal.FindAll(RoleClaimType)
+                .Concat(Principal.FindAll(ClaimTypes.Role))
+                .Select(c => c.Value)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
 
     /// <inheritdoc />
     public bool IsInRole(string roleName) =>
@@ -62,4 +72,19 @@ public class CurrentUser(ICurrentPrincipalAccessor principalAccessor) : ICurrent
     /// <inheritdoc />
     public Claim[] GetAllClaims() =>
         Principal?.Claims.ToArray() ?? [];
+
+    private string? FindFirstValue(params string[] claimTypes)
+    {
+        if (Principal == null)
+            return null;
+
+        foreach (var claimType in claimTypes)
+        {
+            var value = Principal.FindFirst(claimType)?.Value;
+            if (!string.IsNullOrWhiteSpace(value))
+                return value;
+        }
+
+        return null;
+    }
 }

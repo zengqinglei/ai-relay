@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Security.Claims;
 using AiRelay.Domain.Users.DomainServices;
 using AiRelay.Domain.Users.Entities;
@@ -17,30 +18,17 @@ public class AuthPrincipalFactory(UserDomainService userDomainService) : IAuthPr
         var roleNames = await userDomainService.GetUserRoleNamesAsync(user.Id, cancellationToken);
         var identity = new ClaimsIdentity(TokenValidationParameters.DefaultAuthenticationType, Claims.Name, Claims.Role);
 
-        identity.AddClaim(Claims.Subject, user.Id.ToString());
-        identity.AddClaim(ClaimTypes.NameIdentifier, user.Id.ToString());
-        identity.AddClaim(Claims.Name, user.Username);
-        identity.AddClaim(ClaimTypes.Name, user.Username);
-        identity.AddClaim(Claims.PreferredUsername, user.Username);
-        identity.AddClaim(Claims.Email, user.Email);
-        identity.AddClaim(ClaimTypes.Email, user.Email);
-
-        if (!string.IsNullOrWhiteSpace(user.Nickname))
-        {
-            identity.AddClaim(Claims.GivenName, user.Nickname);
-            identity.AddClaim(ClaimTypes.GivenName, user.Nickname);
-        }
+        identity.SetClaim(Claims.Subject, user.Id.ToString());
+        identity.SetClaim(Claims.Name, user.Nickname ?? user.Username);
+        identity.SetClaim(Claims.PreferredUsername, user.Username);
+        identity.SetClaim(Claims.Email, user.Email);
 
         if (IsHttpUrl(user.Avatar))
         {
-            identity.AddClaim(Claims.Picture, user.Avatar!);
+            identity.SetClaim(Claims.Picture, user.Avatar!);
         }
 
-        foreach (var role in roleNames)
-        {
-            identity.AddClaim(Claims.Role, role);
-            identity.AddClaim(ClaimTypes.Role, role);
-        }
+        identity.SetClaims(Claims.Role, roleNames.ToImmutableArray());
 
         var principal = new ClaimsPrincipal(identity);
         principal.SetScopes(scopes?.Where(scope => !string.IsNullOrWhiteSpace(scope)) ??
@@ -66,27 +54,22 @@ public class AuthPrincipalFactory(UserDomainService userDomainService) : IAuthPr
                 Destinations.AccessToken,
                 Destinations.IdentityToken
             ],
-            ClaimTypes.NameIdentifier => [Destinations.AccessToken],
-            Claims.Name or Claims.PreferredUsername or Claims.GivenName
+            Claims.Name or Claims.PreferredUsername or Claims.Picture
                 when claim.Subject?.HasScope(Scopes.Profile) == true =>
             [
                 Destinations.AccessToken,
                 Destinations.IdentityToken
             ],
-            ClaimTypes.Name or ClaimTypes.GivenName
-                when claim.Subject?.HasScope(Scopes.Profile) == true => [Destinations.AccessToken],
             Claims.Email when claim.Subject?.HasScope(Scopes.Email) == true =>
             [
                 Destinations.AccessToken,
                 Destinations.IdentityToken
             ],
-            ClaimTypes.Email when claim.Subject?.HasScope(Scopes.Email) == true => [Destinations.AccessToken],
             Claims.Role when claim.Subject?.HasScope(Scopes.Roles) == true =>
             [
                 Destinations.AccessToken,
                 Destinations.IdentityToken
             ],
-            ClaimTypes.Role when claim.Subject?.HasScope(Scopes.Roles) == true => [Destinations.AccessToken],
             _ => []
         };
     }

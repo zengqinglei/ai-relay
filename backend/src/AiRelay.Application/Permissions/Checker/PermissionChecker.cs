@@ -32,22 +32,8 @@ public class PermissionChecker(
         if (string.IsNullOrWhiteSpace(name))
             return false;
 
-        Guid? userId;
-        string[] roles;
-
-        if (claimsPrincipal != null)
-        {
-            var userIdClaim = claimsPrincipal.FindFirst(ClaimTypes.NameIdentifier);
-            userId = userIdClaim != null ? Guid.Parse(userIdClaim.Value) : null;
-            roles = claimsPrincipal.FindAll(ClaimTypes.Role)
-                .Select(c => c.Value)
-                .ToArray();
-        }
-        else
-        {
-            userId = currentUser.Id;
-            roles = currentUser.GetRoles();
-        }
+        var userId = currentUser.Id;
+        var roles = currentUser.GetRoles();
 
         if (!userId.HasValue)
             return false;
