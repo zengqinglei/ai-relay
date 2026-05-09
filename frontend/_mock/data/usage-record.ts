@@ -3,8 +3,8 @@ import { PROVIDER_GROUPS } from './provider-group';
 import { getSubscriptionsByUserId } from './subscriptions';
 import { USERS } from './user';
 import { UsageRecordOutputDto, UsageRecordDetailOutputDto } from '../../src/app/features/platform/models/usage.dto';
-import { UsageStatus } from '../../src/app/shared/models/usage-status.enum';
 import { AuthMethod } from '../../src/app/shared/models/auth-method.enum';
+import { UsageStatus } from '../../src/app/shared/models/usage-status.enum';
 
 export interface MockUsageRecord extends UsageRecordOutputDto {
   accountTokenId: string;
@@ -107,8 +107,8 @@ function generateRecordsForUser(userId: string, count: number): MockUsageRecord[
       upUserAgent: 'AiRelay/1.0',
       inputTokens,
       outputTokens,
-      cacheReadTokens: seededNumber(seed + 14) > 0.8 ? Math.floor(seededNumber(seed + 15) * 120) : 0,
-      cacheCreationTokens: 0,
+      cacheReadTokens: seededNumber(seed + 14) > 0.45 ? Math.floor(seededNumber(seed + 15) * 120) : 0,
+      cacheCreationTokens: seededNumber(seed + 16) > 0.7 ? Math.floor(seededNumber(seed + 17) * 80) : 0,
       downClientIp: `203.0.113.${10 + (i % 200)}`,
       finalCost,
       status,

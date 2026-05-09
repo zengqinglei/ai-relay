@@ -84,7 +84,7 @@
         [sortField]="sortField()" [sortOrder]="sortOrder()">
         <ng-template pTemplate="header">
           <tr class="bg-surface-50 dark:bg-surface-800 text-muted-color text-xs uppercase font-medium backdrop-blur-sm">
-            <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3"
+            <th class="bg-transparent font-medium text-xs border-b border-surface-200 dark:border-surface-700 px-6 py-3 whitespace-nowrap"
               pSortableColumn="creationTime">
               <div class="flex items-center gap-1"> 请求时间 <p-sortIcon field="creationTime"></p-sortIcon> </div>
             </th>
@@ -258,6 +258,16 @@
                     tooltipPosition="left">
                     <i class="pi pi-arrow-down text-[10px]"></i> {{ formatTokenCount(record.outputTokens) }}
                   </span>
+                  @if ((record.cacheReadTokens || 0) > 0 || (record.cacheCreationTokens || 0) > 0) {
+                  <span class="text-[11px] font-medium text-emerald-600 dark:text-emerald-400" pTooltip="Cache Read"
+                    tooltipPosition="left">
+                    <i class="pi pi-database text-[10px]"></i> {{ formatTokenCount(record.cacheReadTokens) }}
+                  </span>
+                  <span class="text-[11px] font-medium text-amber-600 dark:text-amber-400" pTooltip="Cache Creation"
+                    tooltipPosition="left">
+                    <i class="pi pi-plus-circle text-[10px]"></i> {{ formatTokenCount(record.cacheCreationTokens) }}
+                  </span>
+                  }
                 </div>
               </div>
             </td>

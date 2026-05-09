@@ -65,7 +65,7 @@
     <!-- User Dropdown: 始终显示用户名 -->
     @if (authService.currentUser(); as user) {
       <div class="relative">
-        <p-menu #userMenu [model]="userMenuItems" [popup]="true" appendTo="body"></p-menu>
+        <p-menu #userMenu [model]="userMenuItems()" [popup]="true" appendTo="body"></p-menu>
 
         <p-button
           [text]="true"
