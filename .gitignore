@@ -1,20 +1,60 @@
-# ide
-.vs
-.vscode
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
 
-# ai
-.claude
+# IDE
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# VS Code local settings
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Claude local settings
+**/.claude/settings.local.json
+**/.claude/scheduled_tasks.json
 
 # .NET
 **/bin/
 **/obj/
-*.user
-*.suo
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
 
-# Local environment settings
-backend/**/appsettings.Debug.json
+# Node
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment
+.env
+.env.*
+!.env.example
+!.env.template
 backend/**/appsettings.Development.json
+backend/**/appsettings.Debug.json
+backend/**/appsettings.Local.json
+backend/**/appsettings.*.local.json
+frontend/src/environments/environment.debug.ts
+frontend/src/environments/environment.local.ts
 
-# temp disable
-frontend.*.bak
-frontend-sakai-ng
+# Logs
+*.log
+logs/
+Logs/
+
+# Temporary
+*.tmp
+*.temp
+*.bak
