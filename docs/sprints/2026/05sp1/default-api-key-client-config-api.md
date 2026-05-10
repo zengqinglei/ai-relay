@@ -13,8 +13,7 @@
 
 当前接口仅提供以下模型：
 
-- `qwen-3.5`
-- `qwen-3.6`
+- `qwen3.5-plus`
 - `glm-5`
 - `glm-5.1`
 - `minimax-m2.5`
@@ -107,12 +106,11 @@ curl -X GET "http://localhost:5240/api/v1/api-keys/default/default-models" \
   },
   "endpoints": [
     {
-      "id": "ai-relay-anthropic",
-      "protocol": "anthropic-messages",
+      "id": "ai-relay-completions",
+      "protocol": "openai-completions",
       "baseUrl": "http://localhost:5240/v1",
       "models": [
-        "qwen-3.5",
-        "qwen-3.6",
+        "qwen3.5-plus",
         "glm-5",
         "glm-5.1",
         "minimax-m2.5",
@@ -120,12 +118,11 @@ curl -X GET "http://localhost:5240/api/v1/api-keys/default/default-models" \
       ]
     },
     {
-      "id": "ai-relay-completions",
-      "protocol": "openai-completions",
+      "id": "ai-relay-anthropic",
+      "protocol": "anthropic-messages",
       "baseUrl": "http://localhost:5240/v1",
       "models": [
-        "qwen-3.5",
-        "qwen-3.6",
+        "qwen3.5-plus",
         "glm-5",
         "glm-5.1",
         "minimax-m2.5",
@@ -204,8 +201,7 @@ curl -X GET "http://localhost:5240/api/v1/api-keys/default/default-models" \
   "DefaultProviderModels": {
     "ProviderIdPrefix": "ai-relay",
     "Models": [
-      "qwen-3.5",
-      "qwen-3.6",
+      "qwen3.5-plus",
       "glm-5",
       "glm-5.1",
       "minimax-m2.5",

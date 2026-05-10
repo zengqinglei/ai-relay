@@ -8,8 +8,7 @@ public class DefaultProviderModelsOptions
 
     public string[] Models { get; set; } =
     [
-        "qwen-3.5",
-        "qwen-3.6",
+        "qwen3.5-plus",
         "glm-5",
         "glm-5.1",
         "minimax-m2.5",

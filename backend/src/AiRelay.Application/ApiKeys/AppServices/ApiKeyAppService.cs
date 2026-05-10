@@ -224,13 +224,6 @@ public class ApiKeyAppService(
         [
             new DefaultProviderModelEndpointOutputDto
             {
-                Id = $"{options.ProviderIdPrefix}-anthropic",
-                Protocol = "anthropic-messages",
-                BaseUrl = baseUrl,
-                Models = options.Models
-            },
-            new DefaultProviderModelEndpointOutputDto
-            {
                 Id = $"{options.ProviderIdPrefix}-completions",
                 Protocol = "openai-completions",
                 BaseUrl = baseUrl,

@@ -32,8 +32,7 @@ GET /api/v1/api-keys/default/default-models
 
 接口仅提供以下模型：
 
-- `qwen-3.5`
-- `qwen-3.6`
+- `qwen3.5-plus`
 - `glm-5`
 - `glm-5.1`
 - `minimax-m2.5`
@@ -152,8 +151,7 @@ public class DefaultProviderModelsOptions
 
     public string[] Models { get; set; } =
     [
-        "qwen-3.5",
-        "qwen-3.6",
+        "qwen3.5-plus",
         "glm-5",
         "glm-5.1",
         "minimax-m2.5",
@@ -274,8 +272,7 @@ private static IReadOnlyList<DefaultProviderModelEndpointOutputDto> BuildDefault
 "DefaultProviderModels": {
   "ProviderIdPrefix": "ai-relay",
   "Models": [
-    "qwen-3.5",
-    "qwen-3.6",
+    "qwen3.5-plus",
     "glm-5",
     "glm-5.1",
     "minimax-m2.5",
