@@ -91,8 +91,7 @@ export class ThemeService {
    *
    * 优先级：
    * 1. localStorage 中的用户偏好
-   * 2. 系统主题偏好 (prefers-color-scheme)
-   * 3. 默认浅色主题
+   * 2. 默认浅色主题
    *
    * @returns 是否启用深色主题
    */
@@ -106,9 +105,7 @@ export class ThemeService {
       return saved === 'dark';
     }
 
-    // 默认跟随系统主题偏好
-    // 遵循用户操作系统设置
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    return false;
   }
 
   /**

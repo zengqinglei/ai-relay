@@ -97,7 +97,7 @@ export class LayoutService {
       preset: 'Aura',
       primary: 'blue',
       surface: 'slate',
-      darkTheme: true,
+      darkTheme: false,
       menuMode: 'static'
     };
 
