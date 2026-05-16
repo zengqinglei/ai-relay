@@ -44,8 +44,12 @@ export class AccountTokenPage implements OnInit {
     disabledAccounts: 0,
     expiringAccounts: 0,
     totalUsageToday: 0,
+    totalInputTokensToday: 0,
+    totalOutputTokensToday: 0,
     usageGrowthRate: 0,
     averageSuccessRate: 0,
+    successfulRequests24h: 0,
+    totalRequests24h: 0,
     abnormalRequests24h: 0,
     rotationWarnings: 0
   });

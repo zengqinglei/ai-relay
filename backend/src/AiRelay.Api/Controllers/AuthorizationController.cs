@@ -14,7 +14,8 @@ namespace AiRelay.Api.Controllers;
 
 public class AuthorizationController(
     IRepository<User, Guid> userRepository,
-    IAuthPrincipalFactory principalFactory) : Controller
+    IAuthPrincipalFactory principalFactory,
+    ILogger<AuthorizationController> logger) : Controller
 {
     [HttpGet("~/connect/authorize")]
     [HttpPost("~/connect/authorize")]
@@ -100,7 +101,9 @@ public class AuthorizationController(
     [Produces("application/json")]
     public async Task<IActionResult> UserInfoAsync(CancellationToken cancellationToken)
     {
-        var subject = User.GetClaim(Claims.Subject);
+        LogDuplicateClaimsForUserInfo();
+
+        var subject = User.FindFirst(Claims.Subject)?.Value;
         if (!Guid.TryParse(subject, out var userId))
         {
             return Challenge(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
@@ -136,9 +139,54 @@ public class AuthorizationController(
 
         if (User.HasScope(Scopes.Roles))
         {
-            claims[Claims.Role] = User.GetClaims(Claims.Role).ToArray();
+            claims[Claims.Role] = User.GetClaims(Claims.Role)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
         }
 
         return Ok(claims);
+    }
+
+    private void LogDuplicateClaimsForUserInfo()
+    {
+        var duplicateClaims = User.Claims
+            .GroupBy(claim => claim.Type)
+            .Where(group => group.Count() > 1)
+            .Select(group => new
+            {
+                Type = group.Key,
+                Count = group.Count(),
+                ValueLengths = group.Select(claim => claim.Value?.Length ?? 0).ToArray()
+            })
+            .ToArray();
+
+        if (duplicateClaims.Length == 0)
+        {
+            return;
+        }
+
+        var identities = User.Identities
+            .Select(identity => new
+            {
+                identity.AuthenticationType,
+                identity.IsAuthenticated,
+                ClaimCount = identity.Claims.Count(),
+                DuplicateClaims = identity.Claims
+                    .GroupBy(claim => claim.Type)
+                    .Where(group => group.Count() > 1)
+                    .Select(group => new
+                    {
+                        Type = group.Key,
+                        Count = group.Count()
+                    })
+                    .ToArray()
+            })
+            .ToArray();
+
+        logger.LogWarning(
+            "UserInfo principal contains duplicate claim types. AuthenticationType={AuthenticationType}, Claims={Claims}, Identities={Identities}",
+            User.Identity?.AuthenticationType,
+            duplicateClaims,
+            identities);
     }
 }

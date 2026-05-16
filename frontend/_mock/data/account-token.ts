@@ -434,9 +434,13 @@ export const ACCOUNT_METRICS: AccountTokenMetricsOutputDto = {
   expiringAccounts: 1,
 
   totalUsageToday: 76320,
+  totalInputTokensToday: 4579200,
+  totalOutputTokensToday: 3052800,
   usageGrowthRate: 12.3,
 
   averageSuccessRate: 90.8,
+  successfulRequests24h: 69297,
+  totalRequests24h: 76320,
   abnormalRequests24h: 28,
 
   rotationWarnings: 1

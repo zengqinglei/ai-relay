@@ -1,5 +1,7 @@
 using System.Linq.Dynamic.Core;
 using AiRelay.Application.UsageRecords.Dtos.Query;
+using AiRelay.Domain.Users.Constants;
+using AiRelay.Domain.Users.DomainServices;
 using AiRelay.Domain.Users.Entities;
 using AiRelay.Domain.Users.Specifications;
 using AiRelay.Domain.UsageRecords.Entities;
@@ -23,13 +25,14 @@ public class UsageRecordAppService(
     IRepository<User, Guid> userRepository,
     IQueryableAsyncExecuter asyncExecuter,
     ICurrentUser currentUser,
-    IObjectMapper objectMapper) : BaseAppService, IUsageRecordAppService
+    IObjectMapper objectMapper,
+    UserDomainService userDomainService) : BaseAppService, IUsageRecordAppService
 {
     public async Task<UsageRecordDetailOutputDto> GetDetailAsync(Guid id, CancellationToken cancellationToken = default)
     {
         IQueryable<UsageRecord> query = await usageRecordRepository.GetQueryIncludingAsync(cancellationToken, x => x.Detail);
 
-        var scopedUserId = UserScopeSpecifications.ResolveScopedUserId(currentUser);
+        var scopedUserId = await ResolveScopedUserIdAsync(null, cancellationToken);
         if (scopedUserId.HasValue)
         {
             query = query.Where(x => x.UserId == scopedUserId.Value);
@@ -67,7 +70,7 @@ public class UsageRecordAppService(
         CancellationToken cancellationToken = default)
     {
         IQueryable<UsageRecord> query = await usageRecordRepository.GetQueryIncludingAsync(cancellationToken, p => p.Attempts);
-        var scopedUserId = UserScopeSpecifications.ResolveScopedUserId(currentUser, input.OnlyCurrentUser);
+        var scopedUserId = await ResolveScopedUserIdAsync(input.OnlyCurrentUser, cancellationToken);
         if (scopedUserId.HasValue)
         {
             query = query.Where(r => r.UserId == scopedUserId.Value);
@@ -168,6 +171,28 @@ public class UsageRecordAppService(
 
         await FillOwnerInfoAsync(items, cancellationToken);
         return new PagedResultDto<UsageRecordOutputDto>(totalCount, items);
+    }
+
+    private async Task<Guid?> ResolveScopedUserIdAsync(bool? onlyCurrentUser, CancellationToken cancellationToken)
+    {
+        return UserScopeSpecifications.ResolveScopedUserId(currentUser.Id!.Value, await IsAdminAsync(cancellationToken), onlyCurrentUser);
+    }
+
+    private async Task<bool> IsAdminAsync(CancellationToken cancellationToken)
+    {
+        if (UserScopeSpecifications.IsAdmin(currentUser))
+        {
+            return true;
+        }
+
+        var user = await userRepository.GetByIdAsync(currentUser.Id!.Value, cancellationToken);
+        if (user?.IsSuperAdmin == true)
+        {
+            return true;
+        }
+
+        var roles = await userDomainService.GetUserRoleNamesAsync(currentUser.Id!.Value, cancellationToken);
+        return roles.Contains(AdminConstant.RoleName, StringComparer.OrdinalIgnoreCase);
     }
 
     private async Task FillOwnerInfoAsync(List<UsageRecordOutputDto> items, CancellationToken cancellationToken)

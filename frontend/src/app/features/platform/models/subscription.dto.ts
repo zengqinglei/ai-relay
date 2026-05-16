@@ -88,9 +88,9 @@ export interface SubscriptionMetricsOutputDto {
   totalSubscriptions: number;
   activeSubscriptions: number;
   expiringSoon: number; // 7天内过期
-  totalUsageToday: number; // Mock data
-  usageGrowthRate: number; // Mock data
-  topUsageKeys: Array<{ name: string; usage: number }>; // Mock data
+  totalUsageToday: number;
+  usageGrowthRate: number;
+  topUsageKeys: Array<{ name: string; usage: number; unit?: string }>;
 }
 
 /**

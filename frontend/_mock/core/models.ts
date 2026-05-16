@@ -34,6 +34,7 @@ export interface MockRequest {
 
 export interface MockConfig {
   enable: boolean;
+  include?: string | string[];
   exclude?: string | string[];
   /** 模拟延迟，单位：毫秒 */
   delay?: number;

@@ -20,10 +20,14 @@ public class AccountTokenMetricAppService(AccountUsageStatisticsDomainService st
             DisabledAccounts = stats.DisabledAccounts,
             ExpiringAccounts = stats.ExpiringAccounts,
             TotalUsageToday = stats.TotalUsageToday,
+            TotalInputTokensToday = stats.TotalInputTokensToday,
+            TotalOutputTokensToday = stats.TotalOutputTokensToday,
             UsageGrowthRate = stats.UsageGrowthRate,
             AverageSuccessRate = stats.AverageSuccessRate,
+            SuccessfulRequests24h = stats.SuccessfulRequests24h,
+            TotalRequests24h = stats.TotalRequests24h,
             AbnormalRequests24h = stats.AbnormalRequests24h,
-            RotationWarnings = stats.ExpiringAccounts
+            RotationWarnings = stats.RotationWarnings
         };
 
         return result;

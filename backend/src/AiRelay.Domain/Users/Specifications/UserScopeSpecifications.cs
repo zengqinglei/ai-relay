@@ -22,11 +22,16 @@ public static class UserScopeSpecifications
     /// </summary>
     public static Guid? ResolveScopedUserId(ICurrentUser currentUser, bool? onlyCurrentUser = null)
     {
-        if (!IsAdmin(currentUser))
+        return ResolveScopedUserId(currentUser.Id!.Value, IsAdmin(currentUser), onlyCurrentUser);
+    }
+
+    public static Guid? ResolveScopedUserId(Guid currentUserId, bool isAdmin, bool? onlyCurrentUser = null)
+    {
+        if (!isAdmin)
         {
-            return currentUser.Id!.Value;
+            return currentUserId;
         }
 
-        return onlyCurrentUser == true ? currentUser.Id!.Value : null;
+        return onlyCurrentUser == true ? currentUserId : null;
     }
 }

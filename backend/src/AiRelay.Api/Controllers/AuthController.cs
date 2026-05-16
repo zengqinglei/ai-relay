@@ -54,14 +54,26 @@ public class AuthController(
         user.RecordLoginSuccess();
         await userRepository.UpdateAsync(user, cancellationToken);
 
+        var principal = await CreateCookiePrincipalAsync(user, cancellationToken);
+
+        await HttpContext.SignInAsync("AiRelayCookie", principal,
+            new AuthenticationProperties { IsPersistent = true });
+        return NoContent();
+    }
+
+    private async Task<ClaimsPrincipal> CreateCookiePrincipalAsync(User user, CancellationToken cancellationToken)
+    {
         var identity = new ClaimsIdentity("AiRelayCookie");
         identity.AddClaim(new Claim(OpenIddict.Abstractions.OpenIddictConstants.Claims.Subject, user.Id.ToString()));
         identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()));
         identity.AddClaim(new Claim(ClaimTypes.Name, user.Username));
 
-        await HttpContext.SignInAsync("AiRelayCookie", new ClaimsPrincipal(identity),
-            new AuthenticationProperties { IsPersistent = true });
-        return NoContent();
+        foreach (var roleName in await userDomainService.GetUserRoleNamesAsync(user.Id, cancellationToken))
+        {
+            identity.AddClaim(new Claim("role", roleName));
+        }
+
+        return new ClaimsPrincipal(identity);
     }
 
     [Authorize]

@@ -56,11 +56,11 @@ public class ApiKeyUsageStatisticsDomainService(
             ? Math.Round((decimal)(totalUsageToday - totalUsageYesterday) / totalUsageYesterday * 100, 2)
             : totalUsageToday > 0 ? 100m : 0m;
 
-        // Top 5 ApiKeys by today's usage
+        // Top 3 ApiKeys by today's usage
         var topUsage = await asyncExecuter.ToListAsync(query
             .Where(k => k.StatsDate != null && k.StatsDate.Value.Date == today && k.UsageToday > 0)
             .OrderByDescending(k => k.UsageToday)
-            .Take(5)
+            .Take(3)
             .Select(k => new { k.Name, k.UsageToday }), cancellationToken);
 
         return (

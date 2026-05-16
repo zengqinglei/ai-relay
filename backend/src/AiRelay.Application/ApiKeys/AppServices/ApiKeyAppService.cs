@@ -6,6 +6,8 @@ using AiRelay.Domain.ApiKeys.Repositories;
 using AiRelay.Domain.ProviderGroups.DomainServices;
 using AiRelay.Domain.ProviderGroups.Repositories;
 using AiRelay.Domain.Shared.Security.Aes;
+using AiRelay.Domain.Users.Constants;
+using AiRelay.Domain.Users.DomainServices;
 using AiRelay.Domain.Users.Entities;
 using AiRelay.Domain.Users.Specifications;
 using Leistd.Ddd.Application.AppService;
@@ -31,7 +33,8 @@ public class ApiKeyAppService(
     IAesEncryptionProvider aesEncryptionProvider,
     IOptions<DefaultProviderModelsOptions> defaultProviderModelsOptions,
     IDistributedLock distributedLock,
-    ICurrentUser currentUser) : BaseAppService, IApiKeyAppService
+    ICurrentUser currentUser,
+    UserDomainService userDomainService) : BaseAppService, IApiKeyAppService
 {
     public async Task<ApiKeyOutputDto> CreateAsync(CreateApiKeyInputDto input, CancellationToken cancellationToken = default)
     {
@@ -64,7 +67,7 @@ public class ApiKeyAppService(
     {
         logger.LogInformation("开始更新 ApiKey {Id}...", id);
 
-        var apiKey = RequireAccessibleApiKey(await apiKeyRepository.GetWithDetailsAsync(id, cancellationToken), id);
+        var apiKey = await RequireAccessibleApiKeyAsync(await apiKeyRepository.GetWithDetailsAsync(id, cancellationToken), id, cancellationToken);
         var bindings = input.Bindings?.Select(b => (b.Priority, b.ProviderGroupId)).ToList();
         await EnsureBindingsAccessibleAsync(bindings?.Select(x => x.ProviderGroupId).ToList() ?? [], cancellationToken);
 
@@ -84,7 +87,7 @@ public class ApiKeyAppService(
     {
         logger.LogInformation("开始删除 ApiKey {Id}...", id);
 
-        RequireAccessibleApiKey(await apiKeyRepository.GetByIdAsync(id, cancellationToken), id);
+        await RequireAccessibleApiKeyAsync(await apiKeyRepository.GetByIdAsync(id, cancellationToken), id, cancellationToken);
         await apiKeyDomainService.DeleteAsync(id, cancellationToken);
         logger.LogInformation("删除 ApiKey 成功 (ID: {Id})", id);
     }
@@ -93,7 +96,7 @@ public class ApiKeyAppService(
     {
         logger.LogInformation("开始启用 ApiKey {Id}...", id);
 
-        RequireAccessibleApiKey(await apiKeyRepository.GetByIdAsync(id, cancellationToken), id);
+        await RequireAccessibleApiKeyAsync(await apiKeyRepository.GetByIdAsync(id, cancellationToken), id, cancellationToken);
         await apiKeyDomainService.EnableAsync(id, newExpiresAt, cancellationToken);
         logger.LogInformation("启用 ApiKey 成功 (ID: {Id})", id);
     }
@@ -102,14 +105,14 @@ public class ApiKeyAppService(
     {
         logger.LogInformation("开始禁用 ApiKey {Id}...", id);
 
-        RequireAccessibleApiKey(await apiKeyRepository.GetByIdAsync(id, cancellationToken), id);
+        await RequireAccessibleApiKeyAsync(await apiKeyRepository.GetByIdAsync(id, cancellationToken), id, cancellationToken);
         await apiKeyDomainService.DisableAsync(id, cancellationToken);
         logger.LogInformation("禁用 ApiKey 成功 (ID: {Id})", id);
     }
 
     public async Task<ApiKeyOutputDto> GetAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var apiKey = RequireAccessibleApiKey(await apiKeyRepository.GetWithDetailsAsync(id, cancellationToken), id);
+        var apiKey = await RequireAccessibleApiKeyAsync(await apiKeyRepository.GetWithDetailsAsync(id, cancellationToken), id, cancellationToken);
         var contextItems = new Dictionary<string, object>();
 
         var result = objectMapper.Map<ApiKey, ApiKeyOutputDto>(apiKey, contextItems);
@@ -126,7 +129,7 @@ public class ApiKeyAppService(
             input.Offset,
             input.Limit,
             input.Sorting,
-            UserScopeSpecifications.ResolveScopedUserId(currentUser, input.OnlyCurrentUser),
+            await ResolveScopedUserIdAsync(input.OnlyCurrentUser, cancellationToken),
             cancellationToken);
 
         if (apiKeys.Count == 0)
@@ -245,19 +248,41 @@ public class ApiKeyAppService(
         }
     }
 
-    private ApiKey RequireAccessibleApiKey(ApiKey? apiKey, Guid id)
+    private async Task<ApiKey> RequireAccessibleApiKeyAsync(ApiKey? apiKey, Guid id, CancellationToken cancellationToken)
     {
         if (apiKey == null)
         {
             throw new UnauthorizedException($"ApiKey 不存在: {id}");
         }
 
-        if (apiKey.UserId != currentUser.Id!.Value && !UserScopeSpecifications.IsAdmin(currentUser))
+        if (apiKey.UserId != currentUser.Id!.Value && !await IsAdminAsync(cancellationToken))
         {
             throw new UnauthorizedException($"ApiKey 不存在: {id}");
         }
 
         return apiKey;
+    }
+
+    private async Task<Guid?> ResolveScopedUserIdAsync(bool? onlyCurrentUser, CancellationToken cancellationToken)
+    {
+        return UserScopeSpecifications.ResolveScopedUserId(currentUser.Id!.Value, await IsAdminAsync(cancellationToken), onlyCurrentUser);
+    }
+
+    private async Task<bool> IsAdminAsync(CancellationToken cancellationToken)
+    {
+        if (UserScopeSpecifications.IsAdmin(currentUser))
+        {
+            return true;
+        }
+
+        var user = await userRepository.GetByIdAsync(currentUser.Id!.Value, cancellationToken);
+        if (user?.IsSuperAdmin == true)
+        {
+            return true;
+        }
+
+        var roles = await userDomainService.GetUserRoleNamesAsync(currentUser.Id!.Value, cancellationToken);
+        return roles.Contains(AdminConstant.RoleName, StringComparer.OrdinalIgnoreCase);
     }
 
     private async Task FillOwnerInfoAsync(List<ApiKeyOutputDto> items, CancellationToken cancellationToken)

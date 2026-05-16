@@ -28,7 +28,8 @@ public class ApiKeyMetricAppService(
             TopUsageKeys = stats.TopUsageKeys.Select(x => new SubscriptionUsageDto
             {
                 Name = x.Name,
-                Usage = x.Usage
+                Usage = x.Usage,
+                Unit = "次"
             }).ToList()
         };
 

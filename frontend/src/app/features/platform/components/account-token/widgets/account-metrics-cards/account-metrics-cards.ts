@@ -2,6 +2,7 @@ import { CommonModule, DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { CardModule } from 'primeng/card';
 
+import { formatNumber, formatTokenCount } from '../../../../../../shared/utils/format.utils';
 import { AccountTokenMetricsOutputDto } from '../../../../models/account-token.dto';
 
 @Component({
@@ -14,4 +15,12 @@ import { AccountTokenMetricsOutputDto } from '../../../../models/account-token.d
 })
 export class AccountMetricsCards {
   metrics = input.required<AccountTokenMetricsOutputDto>();
+
+  protected readonly formatNumber = formatNumber;
+  protected readonly formatTokenCount = formatTokenCount;
+
+  protected totalTokensToday(): number {
+    const metrics = this.metrics();
+    return metrics.totalInputTokensToday + metrics.totalOutputTokensToday;
+  }
 }

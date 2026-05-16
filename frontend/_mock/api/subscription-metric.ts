@@ -21,9 +21,9 @@ function getMetrics(req: MockRequest): SubscriptionMetricsOutputDto {
     totalUsageToday: subscriptions.reduce((acc, curr) => acc + (curr.usageToday || 0), 0),
     usageGrowthRate: subscriptions.length > 0 ? 5.2 : 0,
     topUsageKeys: subscriptions
-      .map(s => ({ name: s.name, usage: s.usageToday || 0 }))
+      .map(s => ({ name: s.name, usage: s.usageToday || 0, unit: '次' }))
       .sort((a, b) => b.usage - a.usage)
-      .slice(0, 5)
+      .slice(0, 3)
   };
 }
 

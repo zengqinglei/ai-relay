@@ -14,9 +14,14 @@ function getMetrics(req: MockRequest) {
   const disabledAccounts = totalAccounts - activeAccounts;
   const expiringAccounts = accounts.filter(item => item.expiresIn !== null && item.expiresIn !== undefined && item.expiresIn <= 3600).length;
   const totalUsageToday = accounts.reduce((sum, item) => sum + item.usageToday, 0);
+  const totalTokensToday = accounts.reduce((sum, item) => sum + item.tokensToday, 0);
+  const totalInputTokensToday = Math.round(totalTokensToday * 0.6);
+  const totalOutputTokensToday = totalTokensToday - totalInputTokensToday;
   const averageSuccessRate = totalAccounts > 0
     ? Number((accounts.reduce((sum, item) => sum + item.successRateToday, 0) / totalAccounts).toFixed(1))
     : 0;
+  const successfulRequests24h = accounts.reduce((sum, item) => sum + Math.round(item.usageToday * item.successRateToday / 100), 0);
+  const totalRequests24h = totalUsageToday;
   const abnormalRequests24h = accounts.reduce((sum, item) => sum + Math.max(0, Math.round(item.usageToday * (100 - item.successRateToday) / 100)), 0);
   const rotationWarnings = accounts.filter(item => item.status !== 'Normal').length;
 
@@ -26,8 +31,12 @@ function getMetrics(req: MockRequest) {
     disabledAccounts,
     expiringAccounts,
     totalUsageToday,
+    totalInputTokensToday,
+    totalOutputTokensToday,
     usageGrowthRate: totalUsageToday > 0 ? 9.4 : 0,
     averageSuccessRate,
+    successfulRequests24h,
+    totalRequests24h,
     abnormalRequests24h,
     rotationWarnings
   };

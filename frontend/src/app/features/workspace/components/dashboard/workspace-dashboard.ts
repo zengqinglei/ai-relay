@@ -19,7 +19,6 @@ import { DashboardViewModel } from '../../../platform/models/dashboard.dto';
 import { UsageRecordOutputDto } from '../../../platform/models/usage.dto';
 import { DashboardService } from '../../../platform/services/dashboard-service';
 import { UsageRecordService } from '../../../platform/services/usage-record-service';
-import { ChatSessionService } from '../../services/chat-session-service';
 
 interface WorkspaceDashboardMetric {
   label: string;
@@ -51,13 +50,11 @@ export class WorkspaceDashboardPage {
   private readonly layoutService = inject(LayoutService);
   private readonly dashboardService = inject(DashboardService);
   private readonly usageRecordService = inject(UsageRecordService);
-  private readonly chatSessionService = inject(ChatSessionService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly dashboardData = signal<DashboardViewModel | null>(null);
   readonly recentLogs = signal<UsageRecordOutputDto[]>([]);
-  readonly totalSessions = signal(0);
   readonly isRefreshing = signal(false);
 
   private readonly timeRange = signal<TimeRange>(this.createTodayRange());
@@ -102,10 +99,10 @@ export class WorkspaceDashboardPage {
       {
         label: '区间费用',
         value: `$${dashboard.usage.totalCost.toFixed(4)}`,
-        hint: `${this.totalSessions()} 个聊天会话可追溯`,
+        hint: '查看区间内的调用明细',
         accentClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-500',
         iconClass: 'pi pi-wallet',
-        route: '/workspace/chat'
+        route: '/workspace/usage-logs'
       }
     ];
   });
@@ -200,8 +197,7 @@ export class WorkspaceDashboardPage {
         sorting: 'creationTime desc',
         startTime: startTime?.toISOString(),
         endTime: endTime?.toISOString()
-      }),
-      sessions: this.chatSessionService.getSessions()
+      })
     }).pipe(
       catchError(error => {
         console.error('Workspace dashboard error:', error);
@@ -209,10 +205,9 @@ export class WorkspaceDashboardPage {
       }),
       finalize(() => this.isRefreshing.set(false)),
       filter((data): data is NonNullable<typeof data> => data !== null),
-      map(({ dashboard, usageRecords, sessions }) => {
+      map(({ dashboard, usageRecords }) => {
         this.dashboardData.set(dashboard);
         this.recentLogs.set(usageRecords.items);
-        this.totalSessions.set(sessions.length);
         return dashboard;
       })
     );

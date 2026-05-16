@@ -26,9 +26,19 @@ public class AccountTokenMetricsOutputDto
     public int ExpiringAccounts { get; init; }
 
     /// <summary>
-    /// 今日总使用次数
+    /// 今日请求/调用次数
     /// </summary>
     public long TotalUsageToday { get; init; }
+
+    /// <summary>
+    /// 今日输入 Token 总数
+    /// </summary>
+    public long TotalInputTokensToday { get; init; }
+
+    /// <summary>
+    /// 今日输出 Token 总数
+    /// </summary>
+    public long TotalOutputTokensToday { get; init; }
 
     /// <summary>
     /// 使用增长率（较昨日）
@@ -39,6 +49,16 @@ public class AccountTokenMetricsOutputDto
     /// 平均成功率
     /// </summary>
     public decimal AverageSuccessRate { get; init; }
+
+    /// <summary>
+    /// 24小时成功请求数
+    /// </summary>
+    public long SuccessfulRequests24h { get; init; }
+
+    /// <summary>
+    /// 24小时总请求数
+    /// </summary>
+    public long TotalRequests24h { get; init; }
 
     /// <summary>
     /// 24小时异常请求数

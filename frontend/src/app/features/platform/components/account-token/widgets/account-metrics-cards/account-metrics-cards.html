@@ -38,7 +38,7 @@
       <div>
         <p class="text-xs font-semibold text-muted-color uppercase tracking-wider m-0"> 今日 Token 消耗 </p>
         <h3 class="text-2xl font-bold mt-1 mb-0 text-color">
-          {{ metrics().totalUsageToday | number }}
+          {{ formatTokenCount(totalTokensToday()) }} <span class="text-sm font-normal text-muted-color">Tokens</span>
         </h3>
       </div>
       <div
@@ -69,9 +69,10 @@
       </div>
     </div>
     <div class="flex items-center gap-2 text-sm">
-      <span class="text-muted-color text-xs">24h 异常请求:</span>
-      <span class="font-mono text-color dark:text-color-secondary text-xs bg-surface-100 dark:bg-surface-800 px-1.5 rounded">
-        {{ metrics().abnormalRequests24h }}
+      <span class="text-muted-color text-xs">24h 成功调用:</span>
+      <span class="font-mono text-xs bg-surface-100 dark:bg-surface-800 px-1.5 rounded">
+        <span class="text-emerald-500 font-semibold">{{ formatNumber(metrics().successfulRequests24h) }}</span>
+        <span class="text-muted-color">/ {{ formatNumber(metrics().totalRequests24h) }}</span>
       </span>
     </div>
   </p-card>

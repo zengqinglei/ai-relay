@@ -12,11 +12,7 @@ import * as allApis from '../index';
  * @returns 返回一个 Provider 数组，可直接在 app.config.ts 的 providers 中使用。
  */
 export function provideMock(config: boolean | MockConfig): Provider[] {
-  if (typeof config === 'boolean' && !config) {
-    return [];
-  }
-
-  if (typeof config === 'object' && !config.enable) {
+  if (!shouldProvideMock(config)) {
     return [];
   }
 
@@ -29,4 +25,12 @@ export function provideMock(config: boolean | MockConfig): Provider[] {
     { provide: MOCK_APIS, useValue: apis },
     { provide: HTTP_INTERCEPTORS, useClass: MockInterceptor, multi: true }
   ];
+}
+
+function shouldProvideMock(config: boolean | MockConfig): boolean {
+  return typeof config === 'boolean' ? config : config.enable || hasPatterns(config.include);
+}
+
+function hasPatterns(patterns?: string | string[]): boolean {
+  return Array.isArray(patterns) ? patterns.length > 0 : Boolean(patterns);
 }

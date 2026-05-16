@@ -15,11 +15,7 @@ export const GATEWAY_SERVICE_NAME = new HttpContextToken<string>(() => '');
 export const urlFormatInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown>, next: HttpHandlerFn): Observable<HttpEvent<unknown>> => {
   let url = req.url;
 
-  // If Mock is enabled, do not prepend gateway, let MockInterceptor handle the relative URL
-  const useMock = environment.useMock;
-  const isMockEnabled = typeof useMock === 'boolean' ? useMock : useMock?.enable;
-
-  if (isMockEnabled) {
+  if (shouldSkipUrlFormat(url)) {
     return next(req);
   }
 
@@ -44,3 +40,36 @@ export const urlFormatInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown
   const newReq = req.clone({ url, withCredentials: true });
   return next(newReq);
 };
+
+function shouldSkipUrlFormat(url: string): boolean {
+  const useMock = environment.useMock;
+
+  if (typeof useMock === 'boolean') {
+    return useMock;
+  }
+
+  if (useMock.enable) {
+    return !matchesPatterns(getUrlPath(url), useMock.exclude);
+  }
+
+  return matchesPatterns(getUrlPath(url), useMock.include);
+}
+
+function matchesPatterns(urlPath: string, patterns?: string | string[]): boolean {
+  if (!patterns) {
+    return false;
+  }
+
+  const normalizedPatterns = Array.isArray(patterns) ? patterns : [patterns];
+  return normalizedPatterns.some(pattern => new RegExp(pattern).test(urlPath));
+}
+
+function getUrlPath(url: string): string {
+  const urlWithoutQuery = url.split('?')[0];
+
+  try {
+    return new URL(urlWithoutQuery).pathname;
+  } catch {
+    return urlWithoutQuery;
+  }
+}

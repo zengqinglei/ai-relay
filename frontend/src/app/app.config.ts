@@ -11,7 +11,6 @@ import {
   provideRouter,
   RouterFeatures,
   withComponentInputBinding,
-  withEnabledBlockingInitialNavigation,
   withHashLocation,
   withInMemoryScrolling,
   withViewTransitions
@@ -29,9 +28,6 @@ import { urlFormatInterceptor } from './core/interceptors/url-format-interceptor
 import { StartupService } from './core/services/startup-service';
 
 // 定义路由特性，用于增强应用功能和用户体验
-const useMock = environment.useMock;
-const isMockEnabled = typeof useMock === 'boolean' ? useMock : useMock?.enable === true;
-
 const routerFeatures: RouterFeatures[] = [
   // 启用路由参数到组件输入的自动绑定
   withComponentInputBinding(),

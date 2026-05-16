@@ -22,9 +22,14 @@ public class AccountUsageStatisticsDomainService(
         int DisabledAccounts,
         int ExpiringAccounts,
         long TotalUsageToday,
+        long TotalInputTokensToday,
+        long TotalOutputTokensToday,
         decimal UsageGrowthRate,
         decimal AverageSuccessRate,
-        long AbnormalRequests24h
+        long SuccessfulRequests24h,
+        long TotalRequests24h,
+        long AbnormalRequests24h,
+        int RotationWarnings
     )> GetMetricsAsync(CancellationToken cancellationToken = default)
     {
         // 1. 账户状态统计 - 数据量较小，可以使用 GetListAsync 后内存统计
@@ -47,6 +52,7 @@ public class AccountUsageStatisticsDomainService(
             // 包含已过期（remaining <= 0）和即将过期（0 < remaining < 1440分钟）的账户
             return remaining.HasValue && remaining.Value < 1440; // 24小时
         });
+        var rotationWarnings = accounts.Count(a => a.GetEffectiveStatus() != AccountStatus.Normal);
 
         // 2. 使用量统计 - 单次条件聚合查询
         var today = DateTime.UtcNow.Date;
@@ -59,16 +65,24 @@ public class AccountUsageStatisticsDomainService(
             .Select(g => new
             {
                 TodayUsage = g.Count(r => r.CreationTime >= today),
+                TodayInputTokens = g.Sum(r => r.CreationTime >= today ? (long)(r.InputTokens ?? 0) : 0),
+                TodayOutputTokens = g.Sum(r => r.CreationTime >= today ? (long)(r.OutputTokens ?? 0) : 0),
                 YesterdayUsage = g.Count(r => r.CreationTime >= yesterday && r.CreationTime < today),
                 TotalRequests = g.Count(),
                 SuccessRequests = g.Count(r => r.Status == UsageStatus.Success),
+                SuccessfulRequests24h = g.Count(r => r.CreationTime >= last24Hours && r.Status == UsageStatus.Success),
+                TotalRequests24h = g.Count(r => r.CreationTime >= last24Hours),
                 AbnormalRequests = g.Count(r => r.CreationTime >= last24Hours && r.Status == UsageStatus.Failed)
             }), cancellationToken);
 
         var todayUsage = usageStats?.TodayUsage ?? 0;
+        var todayInputTokens = usageStats?.TodayInputTokens ?? 0;
+        var todayOutputTokens = usageStats?.TodayOutputTokens ?? 0;
         var yesterdayUsage = usageStats?.YesterdayUsage ?? 0;
         var totalRequests = usageStats?.TotalRequests ?? 0;
         var successRequests = usageStats?.SuccessRequests ?? 0;
+        var successfulRequests24h = usageStats?.SuccessfulRequests24h ?? 0;
+        var totalRequests24h = usageStats?.TotalRequests24h ?? 0;
         var abnormalRequests = usageStats?.AbnormalRequests ?? 0;
 
         var growthRate = yesterdayUsage > 0
@@ -85,9 +99,14 @@ public class AccountUsageStatisticsDomainService(
             disabledAccounts,
             expiringAccounts,
             todayUsage,
+            todayInputTokens,
+            todayOutputTokens,
             growthRate,
             averageSuccessRate,
-            abnormalRequests
+            successfulRequests24h,
+            totalRequests24h,
+            abnormalRequests,
+            rotationWarnings
         );
     }
 }

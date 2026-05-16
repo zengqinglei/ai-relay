@@ -14,22 +14,12 @@ export class MockInterceptor implements HttpInterceptor {
 
   intercept(req: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
     const { url, method, params, headers, body } = req;
-    const mockEnv = environment.useMock as MockConfig;
+    const mockEnv = this.getMockConfig();
 
     const matchingRule = this.findMatchingRule(method, url);
 
-    if (!matchingRule) {
+    if (!matchingRule || !this.shouldMock(url, mockEnv)) {
       return next.handle(req);
-    }
-
-    // Handle exclude rules
-    if (mockEnv.exclude) {
-      const excludePatterns = Array.isArray(mockEnv.exclude) ? mockEnv.exclude : [mockEnv.exclude];
-      for (const pattern of excludePatterns) {
-        if (new RegExp(pattern).test(url)) {
-          return next.handle(req);
-        }
-      }
     }
 
     const mockRequest: MockRequest = {
@@ -95,11 +85,10 @@ export class MockInterceptor implements HttpInterceptor {
   }
 
   private findMatchingRule(method: string, url: string): { handler: (req: MockRequest) => any; urlParams: any } | null {
-    // 移除查询参数，只匹配路径部分
-    const urlWithoutQuery = url.split('?')[0];
+    const urlPath = this.getUrlPath(url);
 
     // 首先尝试精确匹配（不带参数的路由）
-    const exactKey = `${method.toUpperCase()} ${urlWithoutQuery}`;
+    const exactKey = `${method.toUpperCase()} ${urlPath}`;
     const exactRule = this.apis[exactKey];
     if (exactRule) {
       const handler = typeof exactRule === 'function' ? exactRule : () => exactRule;
@@ -110,7 +99,7 @@ export class MockInterceptor implements HttpInterceptor {
     for (const apiPattern in this.apis) {
       const [apiMethod, apiRoute] = apiPattern.split(' ');
       const pattern = new RegExp(`^${apiRoute.replace(/:\w+/g, '([^/]+)')}$`);
-      const match = urlWithoutQuery.match(pattern);
+      const match = urlPath.match(pattern);
 
       if (apiMethod === method.toUpperCase() && match) {
         const paramNames = (apiRoute.match(/:\w+/g) || []).map(name => name.substring(1));
@@ -126,6 +115,34 @@ export class MockInterceptor implements HttpInterceptor {
     }
 
     return null;
+  }
+
+  private getUrlPath(url: string): string {
+    const urlWithoutQuery = url.split('?')[0];
+
+    try {
+      return new URL(urlWithoutQuery).pathname;
+    } catch {
+      return urlWithoutQuery;
+    }
+  }
+
+  private shouldMock(url: string, mockEnv: Partial<MockConfig>): boolean {
+    const urlPath = this.getUrlPath(url);
+    const includeMatched = mockEnv.include ? this.matchesPatterns(urlPath, mockEnv.include) : Boolean(mockEnv.enable);
+    const excludeMatched = mockEnv.exclude ? this.matchesPatterns(urlPath, mockEnv.exclude) : false;
+
+    return includeMatched && !excludeMatched;
+  }
+
+  private matchesPatterns(urlPath: string, patterns: string | string[]): boolean {
+    const normalizedPatterns = Array.isArray(patterns) ? patterns : [patterns];
+    return normalizedPatterns.some(pattern => new RegExp(pattern).test(urlPath));
+  }
+
+  private getMockConfig(): Partial<MockConfig> {
+    const config = environment.useMock;
+    return typeof config === 'boolean' ? { enable: config } : config;
   }
 
   private log(title: string, method: string, url: string, data: any, level: 'log' | 'error' = 'log'): void {

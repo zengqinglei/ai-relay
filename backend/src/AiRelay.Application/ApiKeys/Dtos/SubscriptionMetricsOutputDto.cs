@@ -31,7 +31,7 @@ public record SubscriptionMetricsOutputDto
     public decimal UsageGrowthRate { get; init; }
 
     /// <summary>
-    /// 用量 Top N
+    /// 今日调用次数 Top 3
     /// </summary>
     public List<SubscriptionUsageDto> TopUsageKeys { get; init; } = [];
 }
@@ -47,7 +47,12 @@ public record SubscriptionUsageDto
     public required string Name { get; init; }
 
     /// <summary>
-    /// 用量
+    /// 今日调用次数
     /// </summary>
     public long Usage { get; init; }
+
+    /// <summary>
+    /// 用量单位
+    /// </summary>
+    public string Unit { get; init; } = "次";
 }

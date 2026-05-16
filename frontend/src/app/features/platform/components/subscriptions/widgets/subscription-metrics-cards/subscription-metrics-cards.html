@@ -33,7 +33,7 @@
       </div>
     </div>
     <div class="flex flex-col gap-1.5">
-      @for (item of metrics().topUsageKeys; track item.name; let i = $index) {
+      @for (item of metrics().topUsageKeys.slice(0, 3); track item.name; let i = $index) {
         <div class="flex items-center gap-2 text-xs">
           <!-- Rank Badge -->
           <div
@@ -64,7 +64,7 @@
           </div>
 
           <!-- Value -->
-          <span class="font-mono text-muted-color text-[10px] w-10 text-right">{{ item.usage | number }}</span>
+          <span class="font-mono text-muted-color text-[10px] w-16 text-right">{{ item.usage | number }} {{ item.unit || '次' }}</span>
         </div>
       }
     </div>

@@ -39,7 +39,8 @@ export class DefaultSidebar {
     { label: '系统设置', icon: 'pi-cog', route: '/platform/settings' }
   ];
   private readonly workspaceMenuItems: MenuItem[] = [
-    { label: '聊天', icon: 'pi-comments', route: '/workspace/chat' },
+    // Workspace chat is temporarily disabled for external users.
+    // { label: '聊天', icon: 'pi-comments', route: '/workspace/chat' },
     { label: '仪表盘', icon: 'pi-gauge', route: '/workspace/dashboard' },
     { label: '我的订阅', icon: 'pi-key', route: '/workspace/my-subscriptions' },
     { label: '使用日志', icon: 'pi-history', route: '/workspace/usage-logs' }

@@ -146,9 +146,13 @@ export interface AccountTokenMetricsOutputDto {
   expiringAccounts: number;
 
   totalUsageToday: number;
+  totalInputTokensToday: number;
+  totalOutputTokensToday: number;
   usageGrowthRate: number;
 
   averageSuccessRate: number;
+  successfulRequests24h: number;
+  totalRequests24h: number;
   abnormalRequests24h: number;
 
   rotationWarnings: number;

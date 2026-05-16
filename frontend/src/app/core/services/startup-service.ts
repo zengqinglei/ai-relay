@@ -28,8 +28,17 @@ export class StartupService {
       return;
     }
 
-    if (pathname.includes('/auth/callback') || pathname.includes('/auth/external-callback')
-      || hash.includes('/auth/callback') || hash.includes('/auth/external-callback')) {
+    if (
+      pathname.includes('/auth/callback') ||
+      pathname.includes('/auth/external-callback') ||
+      hash.includes('/auth/callback') ||
+      hash.includes('/auth/external-callback')
+    ) {
+      this._status.set('success');
+      return;
+    }
+
+    if (!this.isProtectedRoute(pathname, hash)) {
       this._status.set('success');
       return;
     }
@@ -51,5 +60,10 @@ export class StartupService {
   async retry(): Promise<void> {
     // Signals 会自动处理UI更新，我们不再需要手动延时
     await this.load();
+  }
+
+  private isProtectedRoute(pathname: string, hash: string): boolean {
+    const route = hash.startsWith('#/') ? hash.slice(1) : pathname;
+    return route.startsWith('/workspace') || route.startsWith('/platform');
   }
 }
