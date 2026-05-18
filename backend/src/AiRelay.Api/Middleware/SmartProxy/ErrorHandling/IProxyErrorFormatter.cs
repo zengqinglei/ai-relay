@@ -23,7 +23,7 @@ public interface IProxyErrorFormatter
     ProxyErrorResponse Format(Exception exception, int statusCode);
 
     /// <summary>
-    /// 将上游返回的原始错误载荷规范化为指定平台的标准格式，并注入 Fallback 诱导信息
+    /// 将上游返回的原始错误载荷规范化为指定平台的标准格式
     /// </summary>
     /// <param name="statusCode">上游返回的 HTTP 状态码</param>
     /// <param name="upstreamBody">上游返回的原始响应体</param>

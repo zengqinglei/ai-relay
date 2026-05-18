@@ -75,7 +75,7 @@ public class ModelRouteAppService(
 
         if (candidateGroups.Count == 0)
         {
-            throw new ServiceUnavailableException($"所有绑定的资源池中均没有符合协议的活跃账号以支撑请求 (所需模型: {input.ModelId})");
+            throw new ServiceUnavailableException($"分组中暂无可用账号，当前模型的所有服务账号均已不可用，请稍后重试（模型: {input.ModelId}）");
         }
 
         return candidateGroups;
@@ -100,7 +100,7 @@ public class ModelRouteAppService(
 
             if (candidateGroups.Count == 0)
             {
-                throw new ServiceUnavailableException($"当前可见资源池中没有活跃账号支持模型 {input.ModelId}");
+                throw new ServiceUnavailableException($"分组中暂无可用账号，当前模型的所有服务账号均已不可用，请稍后重试（模型: {input.ModelId}）");
             }
 
             return candidateGroups;
@@ -125,7 +125,7 @@ public class ModelRouteAppService(
         var singleGroupCandidates = await BuildSchedulingGroupsAsync([(targetGroup, 0)], allowedCombinations: null, cancellationToken);
         if (singleGroupCandidates.Count == 0)
         {
-            throw new ServiceUnavailableException($"资源池 '{targetGroup.Name}' 中没有可用账号支持模型 {input.ModelId}");
+            throw new ServiceUnavailableException($"分组「{targetGroup.Name}」中暂无可用账号，当前模型的所有服务账号均已不可用，请稍后重试（模型: {input.ModelId}）");
         }
 
         return singleGroupCandidates;
@@ -604,7 +604,7 @@ public class ModelRouteAppService(
     {
         if (excludedAccountIds.Count >= _schedulingOptions.MaxAccountSwitches)
         {
-            throw new ServiceUnavailableException($"已尝试 {_schedulingOptions.MaxAccountSwitches} 个账号，均不可用");
+            throw new ServiceUnavailableException($"分组中暂无可用账号，已轮询 {_schedulingOptions.MaxAccountSwitches} 个服务账号均已不可用，请稍后重试（模型: {modelId}）");
         }
 
         var candidateAccountIds = candidateGroups
@@ -634,7 +634,7 @@ public class ModelRouteAppService(
             return result;
         }
 
-        throw new ServiceUnavailableException($"当前候选范围中没有可用账号支持模型 {modelId}");
+        throw new NotFoundException($"当前模型未开通或不支持，请求的模型「{modelId}」在当前账号范围内未找到可用配置");
     }
 
     private async Task<IReadOnlyList<RouteAccountSchedulingGroup>> BuildSchedulingGroupsAsync(
@@ -982,7 +982,7 @@ public class ModelRouteAppService(
                     failureDescription: $"账号 '{selectResult.AccountToken.Name}' 等待队列已满，未发起上游请求，切换其他账号");
             }
 
-            throw new ServiceUnavailableException("等待队列已满，请稍后重试");
+            throw new ServiceUnavailableException("并发请求过多，当前请求等待队列已达上限，请稍后重试");
         }
 
         try
@@ -1012,7 +1012,7 @@ public class ModelRouteAppService(
                     failureDescription: $"账号 '{selectResult.AccountToken.Name}' 等待并发槽位超时，未发起上游请求，切换其他账号");
             }
 
-            throw new ServiceUnavailableException($"账号 {selectResult.AccountToken.Name} 繁忙，请稍后重试");
+            throw new ServiceUnavailableException("并发请求过多，等待可用处理槽位超时，请稍后重试");
         }
 
         return new ConcurrencySlot(true, () => concurrencyStrategy.ReleaseSlotAsync(selectResult.AccountToken.Id, activeRequestId));
