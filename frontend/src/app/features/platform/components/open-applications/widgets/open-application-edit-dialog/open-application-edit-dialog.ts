@@ -156,18 +156,18 @@ export class OpenApplicationEditDialogComponent {
     'scp:offline_access': '离线访问'
   };
 
-  readonly applicationTypeLabels: Record<string, string> = {
+  readonly applicationTypeLabels: Record<string, string | undefined> = {
     'web': 'Web',
     'native': '桌面/原生',
     'service': '服务端'
   };
 
-  readonly clientTypeLabels: Record<string, string> = {
+  readonly clientTypeLabels: Record<string, string | undefined> = {
     'public': 'Public（公开）',
     'confidential': 'Confidential（机密）'
   };
 
-  readonly consentTypeLabels: Record<string, string> = {
+  readonly consentTypeLabels: Record<string, string | undefined> = {
     'implicit': '隐式同意',
     'explicit': '显式同意',
     'external': '外部同意',

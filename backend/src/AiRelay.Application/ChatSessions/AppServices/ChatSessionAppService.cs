@@ -31,7 +31,6 @@ public class ChatSessionAppService(
     IProviderGroupRepository providerGroupRepository,
     IProviderGroupAccountRelationRepository relationRepository,
     IWorkspaceChatExecutionAppService workspaceChatExecutionAppService,
-    AccountTokenDomainService accountTokenDomainService,
     AccountModelResolverDomainService accountModelResolver,
     IModelProvider modelProvider,
     IObjectMapper objectMapper,

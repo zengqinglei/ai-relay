@@ -2,7 +2,6 @@ using AiRelay.Domain.ProviderAccounts.Entities;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.Shared.ExternalServices.ModelProvider;
 using AiRelay.Domain.Shared.ExternalServices.ModelProvider.Dto;
-using Microsoft.Extensions.Logging;
 
 namespace AiRelay.Domain.ProviderAccounts.DomainServices;
 
@@ -13,8 +12,7 @@ namespace AiRelay.Domain.ProviderAccounts.DomainServices;
 /// </summary>
 public class AccountModelResolverDomainService(
     AccountTokenDomainService accountTokenDomainService,
-    IModelProvider modelProvider,
-    ILogger<AccountModelResolverDomainService> logger)
+    IModelProvider modelProvider)
 {
     /// <summary>
     /// 解析账号对外暴露的模型 ID 列表（仅读缓存，不发起上游网络请求）。
