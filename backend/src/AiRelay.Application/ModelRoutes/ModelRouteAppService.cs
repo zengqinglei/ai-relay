@@ -257,7 +257,7 @@ public class ModelRouteAppService(
                 var selectedAccount = await SelectRouteAccountAsync(
                     candidateGroups,
                     baseDownContext.SessionId ?? string.Empty,
-                    baseDownContext.ModelId,
+                    baseDownContext.ResolvedModelId ?? baseDownContext.ModelId,
                     baseDownContext.Headers,
                     excludedAccountIds,
                     cancellationToken);
@@ -425,7 +425,7 @@ public class ModelRouteAppService(
                             {
                                 var (crash, statusDesc, usage, failureAnalysis) = await HandleSuccessResponseAsync(
                                     responseHandler, proxyResponse, selectResult.AccountToken.Id,
-                                    upContext.MappedModelId ?? downContext.ModelId,
+                                    upContext.MappedModelId ?? downContext.ResolvedModelId ?? downContext.ModelId,
                                     isCheckStreamHealth, tempUpBody, tempDownBody, _loggingOptions.IsBodyLoggingEnabled, cancellationToken);
 
                                 finalUsage = usage ?? finalUsage;
@@ -497,7 +497,7 @@ public class ModelRouteAppService(
                                     break;
 
                                 case FailureInstruction.SwitchAccount:
-                                    await HandleFailureAsync(new HandleFailureInputDto(selectResult.AccountToken.Id, httpStatusCode!.Value, proxyResponse.ErrorBody, downContext.ModelId, upContext.MappedModelId ?? downContext.ModelId, retryPolicy), cancellationToken);
+                                    await HandleFailureAsync(new HandleFailureInputDto(selectResult.AccountToken.Id, httpStatusCode!.Value, proxyResponse.ErrorBody, downContext.ResolvedModelId ?? downContext.ModelId, upContext.MappedModelId ?? downContext.ResolvedModelId ?? downContext.ModelId, retryPolicy), cancellationToken);
                                     shouldSwitchAccount = true;
                                     attemptStatusDesc = $"账号 '{selectResult.AccountToken.Name}' 不可用 (状态码: {httpStatusCode})，尝试切换至其他资源进行重试" + (attemptStatusDesc != null ? $"：{attemptStatusDesc}" : "");
                                     break;
@@ -505,7 +505,7 @@ public class ModelRouteAppService(
                                 case FailureInstruction.Fail:
                                     if (retryPolicy.RetryType != RetryType.UnsupportedEndpoint)
                                     {
-                                        await HandleFailureAsync(new HandleFailureInputDto(selectResult.AccountToken.Id, httpStatusCode!.Value, proxyResponse.ErrorBody, downContext.ModelId, upContext.MappedModelId ?? downContext.ModelId, retryPolicy), cancellationToken);
+                                        await HandleFailureAsync(new HandleFailureInputDto(selectResult.AccountToken.Id, httpStatusCode!.Value, proxyResponse.ErrorBody, downContext.ResolvedModelId ?? downContext.ModelId, upContext.MappedModelId ?? downContext.ResolvedModelId ?? downContext.ModelId, retryPolicy), cancellationToken);
                                     }
                                     attemptStatusDesc = retryPolicy.RetryType == RetryType.UnsupportedEndpoint
                                         ? $"端点不支持 (状态码: {httpStatusCode})，直接透传响应：{retryPolicy.Description}"

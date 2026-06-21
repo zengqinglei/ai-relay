@@ -272,7 +272,8 @@ public class AccountTokenDomainService(
             account.Name, account.Provider, requestedModel);
 
         var baselineModels = modelProvider.GetAvailableModels(account.Provider);
-        if (baselineModels == null || baselineModels.Count == 0) return true;
+        if (baselineModels == null) return true;
+        if (baselineModels.Count == 0) return false;
 
         // 检查基准中的精确匹配
         if (baselineModels.Any(m => !m.Value.Contains('*') && m.Value.Equals(requestedModel, StringComparison.OrdinalIgnoreCase)))
@@ -408,7 +409,7 @@ public class AccountTokenDomainService(
                 // 直接返回 null，调用方将 fallback 到白名单 / 静态基准模型，不阻塞请求。
                 if (cachedValue == NegativeCacheSentinel)
                 {
-                    logger.LogDebug("上游模型列表命中负面缓存，跳过上游请求: Name={Name}, Provider={Provider}",
+                    logger.LogWarning("上游模型列表命中负面缓存，跳过上游请求: Name={Name}, Provider={Provider}",
                         account.Name, account.Provider);
                     return null;
                 }
@@ -416,6 +417,8 @@ public class AccountTokenDomainService(
                 var cachedIds = JsonSerializer.Deserialize<List<string>>(cachedValue);
                 if (cachedIds != null && cachedIds.Count > 0)
                 {
+                    logger.LogWarning("上游模型命中缓存: Name={Name}, Provider={Provider}, Count={Count}",
+                        account.Name, account.Provider, cachedIds.Count);
                     return cachedIds;
                 }
             }

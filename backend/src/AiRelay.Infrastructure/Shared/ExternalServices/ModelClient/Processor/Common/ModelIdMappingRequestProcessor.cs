@@ -21,11 +21,12 @@ public class ModelIdMappingRequestProcessor(
 {
     public Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
     {
-        if (string.IsNullOrEmpty(down.ModelId))
+        var sourceModelId = down.ResolvedModelId ?? down.ModelId;
+        if (string.IsNullOrEmpty(sourceModelId))
             return Task.CompletedTask;
 
         up.MappedModelId = AccountTokenDomainService.ResolveUpModelId(
-            down.ModelId,
+            sourceModelId,
             provider,
             options.ModelMapping,
             modelProvider);

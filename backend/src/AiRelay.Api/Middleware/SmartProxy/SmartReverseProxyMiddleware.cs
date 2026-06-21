@@ -1,8 +1,10 @@
 using AiRelay.Api.Authentication;
 using AiRelay.Api.Middleware.SmartProxy.ErrorHandling;
 using AiRelay.Api.Middleware.SmartProxy.Handlers;
+using AiRelay.Application.ApiKeys.Options;
 using AiRelay.Application.ModelRoutes;
 using AiRelay.Application.ModelRoutes.Dtos;
+using AiRelay.Domain.ProviderAccounts.DomainServices;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Context;
@@ -21,6 +23,8 @@ public class SmartReverseProxyMiddleware(
     IChatModelHandlerFactory chatModelHandlerFactory,
     ProxyErrorFormatterFactory errorFormatterFactory,
     IOptions<UsageLoggingOptions> loggingOptions,
+    IOptions<DefaultProviderModelsOptions> defaultProviderModelsOptions,
+    RouteAccountSchedulingDomainService schedulingDomainService,
     ICorrelationIdProvider correlationIdProvider)
 {
     private readonly UsageLoggingOptions _loggingOptions = loggingOptions.Value;
@@ -32,7 +36,36 @@ public class SmartReverseProxyMiddleware(
 
         var chatModelHandler = chatModelHandlerFactory.CreateHandler(routeProfile);
         var downContext = await ProcessDownstreamRequestAsync(context, routeProfile, chatModelHandler, apiKeyId);
-        
+
+        // auto 模型解析：优先使用粘性缓存的上次成功模型，否则从候选列表第一个开始，后续由 failover 机制兜底
+        ModelFailoverContext? failoverContext = null;
+        if (string.Equals(downContext.ModelId, "auto", StringComparison.OrdinalIgnoreCase))
+        {
+            var models = defaultProviderModelsOptions.Value.Models
+                .Where(m => !string.Equals(m, "auto", StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+            if (models.Length == 0)
+                throw new BadRequestException("DefaultProviderModels 未配置任何有效的候选模型（排除 auto 后为空）");
+
+            var startIndex = 0;
+            if (!string.IsNullOrEmpty(downContext.SessionId))
+            {
+                var cachedModel = await schedulingDomainService.GetAutoModelAsync(downContext.SessionId, context.RequestAborted);
+                if (cachedModel != null)
+                {
+                    var idx = Array.FindIndex(models, m => string.Equals(m, cachedModel, StringComparison.OrdinalIgnoreCase));
+                    if (idx >= 0) startIndex = idx;
+                }
+            }
+
+            downContext.ResolvedModelId = models[startIndex];
+            failoverContext = new ModelFailoverContext
+            {
+                CandidateModels = models,
+                CurrentModelIndex = startIndex
+            };
+        }
+
         var metadata = new RouteExecutionMetadata(
             UsageRecordId: Guid.CreateVersion7(),
             UserId: userId,
@@ -65,7 +98,12 @@ public class SmartReverseProxyMiddleware(
             return downContext;
         };
 
-        await modelRouteAppService.ExecuteRouteAsync(downContext, metadata, candidateGroups, downContextModifier, responseHandler, context.RequestAborted);
+        await modelRouteAppService.ExecuteRouteAsync(downContext, metadata, candidateGroups, downContextModifier, responseHandler, failoverContext, context.RequestAborted);
+
+        if (failoverContext != null && downContext.ResolvedModelId != null)
+        {
+            await schedulingDomainService.SetAutoModelAsync(downContext.SessionId!, downContext.ResolvedModelId, context.RequestAborted);
+        }
     }
 
     private async Task<DownRequestContext> ProcessDownstreamRequestAsync(

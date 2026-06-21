@@ -23,7 +23,7 @@ public class OpenAiModifyBodyRequestProcessor(ChatModelConnectionOptions options
         // 因为 OpenAiUrlRequestProcessor 已将 up.RelativePath 统一改写为 /v1/responses
         bool isChatRoute = down.RelativePath.Contains("/chat/completions", StringComparison.OrdinalIgnoreCase);
         bool isOAuth = options.AuthMethod == AuthMethod.OAuth;
-        bool needChangeModel = !string.IsNullOrEmpty(up.MappedModelId) && up.MappedModelId != down.ModelId;
+        bool needChangeModel = !string.IsNullOrEmpty(up.MappedModelId) && up.MappedModelId != (down.ResolvedModelId ?? down.ModelId);
 
         // 如果既不是聊天生成接口，又不是 OAuth 需要调整参数，且无需修改模型，则直接走零分配转发，无需解析 JSON
         if (!isChatRoute && !isOAuth && !needChangeModel)
@@ -49,7 +49,7 @@ public class OpenAiModifyBodyRequestProcessor(ChatModelConnectionOptions options
         }
 
         // 写入 mapped model id
-        if (!string.IsNullOrEmpty(up.MappedModelId) && up.MappedModelId != down.ModelId)
+        if (!string.IsNullOrEmpty(up.MappedModelId) && up.MappedModelId != (down.ResolvedModelId ?? down.ModelId))
             clonedBody["model"] = up.MappedModelId;
 
         if (options.AuthMethod == AuthMethod.OAuth)

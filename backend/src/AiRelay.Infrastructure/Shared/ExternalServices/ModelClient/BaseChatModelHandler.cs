@@ -63,7 +63,7 @@ public abstract partial class BaseChatModelHandler : IChatModelHandler
         int degradationLevel = 0,
         CancellationToken ct = default)
     {
-        var up = new UpRequestContext { Method = down.Method, MappedModelId = down.ModelId };
+        var up = new UpRequestContext { Method = down.Method, MappedModelId = down.ResolvedModelId ?? down.ModelId };
 
         foreach (var processor in GetRequestProcessors(down, degradationLevel))
         {

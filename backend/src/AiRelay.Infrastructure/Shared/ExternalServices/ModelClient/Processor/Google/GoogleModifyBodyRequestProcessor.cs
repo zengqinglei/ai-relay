@@ -122,7 +122,7 @@ public partial class GoogleModifyBodyRequestProcessor(
         if (isV1Internal && !body.ContainsKey("request") && !body.ContainsKey("project"))
         {
             var projectId = options.ExtraProperties.TryGetValue("project_id", out var pid) ? pid : "";
-            var modelId   = up.MappedModelId ?? down.ModelId ?? "gemini-2.5-flash";
+            var modelId   = up.MappedModelId ?? down.ResolvedModelId ?? down.ModelId ?? "gemini-2.5-flash";
             body.Remove("model");
             body = new JsonObject
             {

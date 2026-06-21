@@ -124,6 +124,10 @@ public class SystemInitializer(
         await EnsureScopeAsync(Scopes.Email, "Email", cancellationToken);
         await EnsureScopeAsync(Scopes.Roles, "Roles", cancellationToken);
         await EnsureScopeAsync(Scopes.OfflineAccess, "Offline access", cancellationToken);
+        await EnsureScopeAsync("s2s", "Server-to-Server", cancellationToken);
+
+        // S2S 应用（如 langgraph-service）需通过管理后台手动注册
+        // 参考：/api/v1/oauth/applications 管理接口
     }
 
     private async Task EnsureScopeAsync(string name, string displayName, CancellationToken cancellationToken)

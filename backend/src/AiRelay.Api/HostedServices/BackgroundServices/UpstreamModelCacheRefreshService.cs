@@ -108,15 +108,27 @@ public class UpstreamModelCacheRefreshService(
             {
                 if (stoppingToken.IsCancellationRequested) break;
 
+                logger.LogWarning("开始处理账号: Name={Name}, Provider={Provider}, BaseUrl={Url}",
+                    account.Name, account.Provider, account.BaseUrl);
+
                 try
                 {
                     await domainService.RefreshTokenIfNeededAsync(account, stoppingToken);
                     var models = await domainService.FetchAndCacheUpstreamModelsAsync(account, stoppingToken);
-                    if (models != null) success++;
-                    else fail++;
+                    if (models != null)
+                    {
+                        success++;
+                        logger.LogWarning("账号处理成功: Name={Name}, Count={Count}", account.Name, models.Count);
+                    }
+                    else
+                    {
+                        fail++;
+                        logger.LogWarning("账号处理失败（返回null）: Name={Name}", account.Name);
+                    }
                 }
                 catch (OperationCanceledException)
                 {
+                    logger.LogWarning("账号处理被取消: Name={Name}", account.Name);
                     break;
                 }
                 catch (UnauthorizedException ex)

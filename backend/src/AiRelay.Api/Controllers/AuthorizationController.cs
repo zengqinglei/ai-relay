@@ -92,6 +92,29 @@ public class AuthorizationController(
             return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
 
+        if (request.IsClientCredentialsGrantType())
+        {
+            // client_credentials 流程：token 代表客户端应用自身，无用户上下文
+            var identity = new System.Security.Claims.ClaimsIdentity(
+                OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
+                Claims.Name,
+                Claims.Role);
+
+            // subject = client_id
+            identity.AddClaim(new System.Security.Claims.Claim(Claims.Subject, request.ClientId!));
+            identity.AddClaim(new System.Security.Claims.Claim(Claims.Name, request.ClientId!));
+
+            var principal = new System.Security.Claims.ClaimsPrincipal(identity);
+            principal.SetScopes(request.GetScopes());
+
+            var resources = request.GetScopes()
+                .SelectMany(scope => new[] { scope })
+                .ToArray();
+            principal.SetResources(resources);
+
+            return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
+
         throw new BadRequestException($"不支持的授权类型: {request.GrantType}");
     }
 

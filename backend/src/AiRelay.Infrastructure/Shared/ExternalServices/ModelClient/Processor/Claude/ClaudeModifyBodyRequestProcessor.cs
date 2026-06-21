@@ -20,7 +20,7 @@ public class ClaudeModifyBodyRequestProcessor(
 
     public async Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
     {
-        bool needChangeModel = !string.IsNullOrEmpty(up.MappedModelId) && down.ModelId != up.MappedModelId;
+        bool needChangeModel = !string.IsNullOrEmpty(up.MappedModelId) && (down.ResolvedModelId ?? down.ModelId) != up.MappedModelId;
         bool isMessagesRoute = up.RelativePath.Contains("/v1/messages", StringComparison.OrdinalIgnoreCase);
 
         // 如果既不需要改模型，又不是聊天生成接口，则无需解析 Body，直接走零分配转发
@@ -53,7 +53,7 @@ public class ClaudeModifyBodyRequestProcessor(
             // 3. 伪装逻辑：inject Claude Code system prompt
             // 该注入器现在内部集成了“系统消息迁移至 User”的逻辑，确保了纯净的官方仿真
             bool isClaudeCodeClient = clientDetector.IsClaudeCodeClient(down);
-            bool isHaikuModel = (up.MappedModelId ?? down.ModelId ?? "")
+            bool isHaikuModel = (up.MappedModelId ?? down.ResolvedModelId ?? down.ModelId ?? "")
                                 .Contains("haiku", StringComparison.OrdinalIgnoreCase);
 
             if (shouldMimic && !isClaudeCodeClient && !isHaikuModel)

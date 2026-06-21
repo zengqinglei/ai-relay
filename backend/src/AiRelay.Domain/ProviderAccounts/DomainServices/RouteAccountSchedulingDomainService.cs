@@ -310,4 +310,32 @@ public class RouteAccountSchedulingDomainService(
 
         public DateTime CreatedAt { get; set; }
     }
+
+    // ============ Auto-Model Sticky Cache ============
+
+    private const string AutoModelKeyPrefix = "sticky:auto-model:";
+
+    /// <summary>
+    /// 获取 session 上次 auto 解析成功的模型 ID（粘性缓存）
+    /// </summary>
+    public async Task<string?> GetAutoModelAsync(string sessionHash, CancellationToken cancellationToken)
+    {
+        var cacheKey = $"{AutoModelKeyPrefix}{sessionHash}";
+        var value = await cache.GetStringAsync(cacheKey, cancellationToken);
+        if (!string.IsNullOrEmpty(value))
+            await cache.RefreshAsync(cacheKey, cancellationToken);
+        return value;
+    }
+
+    /// <summary>
+    /// 写入 session auto 解析成功的模型 ID（粘性缓存，滑动过期 1 小时）
+    /// </summary>
+    public async Task SetAutoModelAsync(string sessionHash, string modelId, CancellationToken cancellationToken)
+    {
+        var cacheKey = $"{AutoModelKeyPrefix}{sessionHash}";
+        await cache.SetStringAsync(cacheKey, modelId, new DistributedCacheEntryOptions
+        {
+            SlidingExpiration = TimeSpan.FromHours(1)
+        }, cancellationToken);
+    }
 }
