@@ -208,7 +208,8 @@ public class ModelRouteAppService(
         IReadOnlyList<RouteAccountSchedulingGroup> candidateGroups,
         Func<SelectAccountResultDto, DownRequestContext> downContextModifier,
         IRouteResponseHandler responseHandler,
-        CancellationToken cancellationToken)
+        ModelFailoverContext? failoverContext = null,
+        CancellationToken cancellationToken = default)
     {
         var attemptNumber = 0;
         var overallStopwatch = Stopwatch.StartNew();

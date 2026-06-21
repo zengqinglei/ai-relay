@@ -31,7 +31,8 @@ public interface IModelRouteAppService : IAppService
         IReadOnlyList<RouteAccountSchedulingGroup> candidateGroups,
         Func<SelectAccountResultDto, DownRequestContext> downContextModifier,
         IRouteResponseHandler responseHandler,
-        CancellationToken cancellationToken);
+        ModelFailoverContext? failoverContext = null,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 聚合当前 ApiKey 绑定分组内可用的模型列表（供 /v1/models 端点调用）。
