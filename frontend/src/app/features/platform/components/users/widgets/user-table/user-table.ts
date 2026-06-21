@@ -9,6 +9,7 @@ import { TooltipModule } from 'primeng/tooltip';
 
 import { AuthService } from '../../../../../../core/services/auth-service';
 import { UserManagementOutputDto } from '../../../../models/user-management.dto';
+import { getRoleLabel } from '../../../../../../shared/pipes/role-label.pipe';
 
 export interface UserTableFilterEvent {
   offset: number;
@@ -88,5 +89,9 @@ export class UserTable {
       Member: 'info'
     };
     return roleMap[role] ?? 'secondary';
+  }
+
+  getRoleLabel(role: string): string {
+    return getRoleLabel(role);
   }
 }

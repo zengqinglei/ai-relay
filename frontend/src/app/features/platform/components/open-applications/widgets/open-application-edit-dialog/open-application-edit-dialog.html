@@ -60,7 +60,7 @@
           <div class="flex flex-col gap-2">
             <label class="font-bold">应用类型</label>
             @if (isTemplateLocked()) {
-              <input pInputText [value]="applicationTypeLabels[formModel().applicationType] ?? formModel().applicationType" disabled pSize="small"/>
+              <p-tag [value]="applicationTypeLabels[formModel().applicationType] ?? formModel().applicationType" severity="info" />
             } @else {
               <p-select
                 [options]="applicationTypeOptions"
@@ -76,7 +76,7 @@
           <div class="flex flex-col gap-2">
             <label class="font-bold">客户端类型</label>
             @if (isTemplateLocked()) {
-              <input pInputText [value]="clientTypeLabels[formModel().clientType] ?? formModel().clientType" disabled pSize="small"/>
+              <p-tag [value]="clientTypeLabels[formModel().clientType] ?? formModel().clientType" [severity]="isConfidentialClient() ? 'warn' : 'info'" />
             } @else {
               <p-select
                 [options]="clientTypeOptions"
@@ -92,7 +92,7 @@
           <div class="flex flex-col gap-2">
             <label class="font-bold">授权确认</label>
             @if (isTemplateLocked()) {
-              <input pInputText [value]="consentTypeLabels[formModel().consentType] ?? formModel().consentType" disabled pSize="small"/>
+              <p-tag [value]="consentTypeLabels[formModel().consentType] ?? formModel().consentType" severity="secondary" />
             } @else {
               <p-select
                 [options]="consentTypeOptions"
@@ -200,53 +200,70 @@
       </p-divider>
 
       <div class="flex flex-col gap-4">
-        <div class="flex flex-col gap-2">
-          <label class="font-bold">Permissions</label>
-          <p-multiselect
-            [options]="permissionOptions"
-            [ngModel]="formModel().permissions"
-            (ngModelChange)="formModel.update(model => ({ ...model, permissions: $event }))"
-            optionLabel="label"
-            optionValue="value"
-            display="chip"
-            appendTo="body"
-            styleClass="w-full"
-            size="small"
-            placeholder="选择授权能力"
-          >
-            <ng-template let-option pTemplate="item">
-              <div class="flex w-full items-center justify-between gap-3">
-                <span>{{ option.label }}</span>
-                <span class="text-xs text-muted-color">{{ option.value }}</span>
-              </div>
-            </ng-template>
-          </p-multiselect>
-        </div>
+        @if (isServiceType()) {
+          <!-- service 类型：简化显示 -->
+          <div class="rounded-lg border border-surface-200 bg-surface-50/70 p-4 dark:border-surface-700 dark:bg-surface-800/40">
+            <div class="mb-2 flex items-center gap-2">
+              <i class="pi pi-check-circle text-green-500"></i>
+              <span class="text-sm font-medium">已根据模板自动配置</span>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              @for (p of formModel().permissions; track p) {
+                <p-tag [value]="getPermissionLabel(p)" severity="success" />
+              }
+            </div>
+            <p class="mt-2 text-xs text-muted-color">服务端客户端凭据流程，无需回调地址和 PKCE。</p>
+          </div>
+        } @else {
+          <!-- web/desktop 类型：完整编辑 -->
+          <div class="flex flex-col gap-2">
+            <label class="font-bold">Permissions</label>
+            <p-multiselect
+              [options]="permissionOptions"
+              [ngModel]="formModel().permissions"
+              (ngModelChange)="formModel.update(model => ({ ...model, permissions: $event }))"
+              optionLabel="label"
+              optionValue="value"
+              display="chip"
+              appendTo="body"
+              styleClass="w-full"
+              size="small"
+              placeholder="选择授权能力"
+            >
+              <ng-template let-option pTemplate="item">
+                <div class="flex w-full items-center justify-between gap-3">
+                  <span>{{ option.label }}</span>
+                  <span class="text-xs text-muted-color">{{ option.value }}</span>
+                </div>
+              </ng-template>
+            </p-multiselect>
+          </div>
 
-        <div class="flex flex-col gap-2">
-          <label class="font-bold">Requirements</label>
-          <p-multiselect
-            [options]="requirementOptions"
-            [ngModel]="formModel().requirements"
-            (ngModelChange)="formModel.update(model => ({ ...model, requirements: $event }))"
-            optionLabel="label"
-            optionValue="value"
-            display="chip"
-            appendTo="body"
-            styleClass="w-full"
-            size="small"
-            placeholder="选择安全要求"
-          />
-          @if (
-            (formModel().applicationType === 'native' || formModel().clientType === 'public') &&
-            !formModel().requirements.includes('ft:pkce')
-          ) {
-            <small class="text-red-500">Native/Public 客户端必须启用 PKCE。</small>
-          }
-          @if (formModel().permissions.includes('gt:refresh_token') && !formModel().permissions.includes('scp:offline_access')) {
-            <small class="text-orange-500">已允许 refresh_token，建议同时开放 offline_access scope。</small>
-          }
-        </div>
+          <div class="flex flex-col gap-2">
+            <label class="font-bold">Requirements</label>
+            <p-multiselect
+              [options]="requirementOptions"
+              [ngModel]="formModel().requirements"
+              (ngModelChange)="formModel.update(model => ({ ...model, requirements: $event }))"
+              optionLabel="label"
+              optionValue="value"
+              display="chip"
+              appendTo="body"
+              styleClass="w-full"
+              size="small"
+              placeholder="选择安全要求"
+            />
+            @if (
+              (formModel().applicationType === 'native' || formModel().clientType === 'public') &&
+              !formModel().requirements.includes('ft:pkce')
+            ) {
+              <small class="text-red-500">Native/Public 客户端必须启用 PKCE。</small>
+            }
+            @if (formModel().permissions.includes('gt:refresh_token') && !formModel().permissions.includes('scp:offline_access')) {
+              <small class="text-orange-500">已允许 refresh_token，建议同时开放 offline_access scope。</small>
+            }
+          </div>
+        }
       </div>
     </div>
   }
