@@ -203,6 +203,12 @@ public class AccountToken : DeletionAuditedEntity<Guid>
         {
             ExpiresAt = DateTime.UtcNow.AddSeconds(expiresIn.Value);
         }
+
+        // OAuth 账号的 UpdateTokens 会触发事件，此处仅对非 OAuth 账号补充触发
+        if (authMethod != AuthMethod.OAuth)
+        {
+            AddLocalEvent(new AccountModelCacheRefreshRequestedEvent(Id));
+        }
     }
 
     private AccountToken()
@@ -284,6 +290,8 @@ public class AccountToken : DeletionAuditedEntity<Guid>
         {
             UpdateScheduling(priority ?? Priority, weight ?? Weight);
         }
+
+        AddLocalEvent(new AccountModelCacheRefreshRequestedEvent(Id));
     }
 
     public void UpdateScheduling(int priority, int weight)

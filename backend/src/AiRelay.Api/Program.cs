@@ -90,6 +90,7 @@ try
     builder.Services.AddSingleton<IUsageRecordQueue>(sp => sp.GetRequiredService<AccountUsageRecordWorker>());
     builder.Services.AddHostedService(sp => sp.GetRequiredService<AccountUsageRecordWorker>());
     builder.Services.AddHostedService<UsageRecordCleanupBackgroundService>();
+    builder.Services.AddHostedService<UpstreamModelCacheRefreshService>();
 
 
     // [New] Register SmartProxy Components
@@ -123,7 +124,7 @@ try
                                    ForwardedHeaders.XForwardedProto |
                                    ForwardedHeaders.XForwardedHost;
         options.ForwardLimit = 1;
-        options.KnownNetworks.Clear();
+        options.KnownIPNetworks.Clear();
         options.KnownProxies.Clear();
     });
 

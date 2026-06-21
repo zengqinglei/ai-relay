@@ -10,6 +10,7 @@ body {
   height: 100%;
   margin: 0;
 
+  font-size: 14px;
   font-family: var(--font-family);
   color: var(--p-text-color);
 

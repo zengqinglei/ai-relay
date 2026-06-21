@@ -30,6 +30,25 @@ public class AccountTokenDomainService(
     private static readonly TimeSpan MinTtl = TimeSpan.FromMinutes(30);
     private static readonly TimeSpan MaxTtl = TimeSpan.FromMinutes(60);
 
+    // 负面缓存：上游拉取失败时写入哨兵值，防止在短时间内重复穿透上游造成延迟风暴
+    // 哨兵用特定前缀区分「已知失败」和「正常空列表」，不影响 fallback 到基准模型逻辑
+    private const string NegativeCacheSentinel = "__neg__";
+    private static readonly TimeSpan NegativeCacheTtl = TimeSpan.FromMinutes(3);
+
+    /// <summary>
+    /// 不可恢复的凭证失效关键词：匹配时直接标记账号为 Error 状态，阻止后续重试。
+    /// 区别于临时限流/超时等可恢复错误。
+    /// </summary>
+    private static readonly string[] NonRecoverableCredentialKeywords =
+    [
+        "refresh_token_reused",      // OAuth refresh token 已被消耗
+        "invalid_refresh_token",     // refresh token 无效
+        "token_revoked",             // token 已被吐销
+        "account_deactivated",       // 账号已停用
+        "account_disabled",          // 账号已禁用
+        "invalid_client",            // 客户端凭证无效
+    ];
+
     /// <summary>
     /// 创建并准备账户
     /// </summary>
@@ -162,25 +181,51 @@ public class AccountTokenDomainService(
             if (authProvider == null)
                 throw new NotFoundException($"未找到 {accountToken.Provider} Token 刷新服务");
 
-            var tokenInfo = await authProvider.RefreshTokenAsync(accountToken.RefreshToken, accountToken.Provider, cancellationToken);
-
-            accountToken.UpdateTokens(
-                tokenInfo.AccessToken,
-                tokenInfo.RefreshToken,
-                tokenInfo.ExpiresIn);
-
-            // 更新 ExtraProperties（如 chatgpt_account_id）
-            if (tokenInfo.ExtraProperties != null && tokenInfo.ExtraProperties.Count > 0)
+            try
             {
-                foreach (var kvp in tokenInfo.ExtraProperties)
-                    accountToken.ExtraProperties[kvp.Key] = kvp.Value;
-                accountToken.Update(accountToken.Name, accountToken.BaseUrl, accountToken.Description, accountToken.MaxConcurrency, accountToken.ExtraProperties);
-            }
+                var tokenInfo = await authProvider.RefreshTokenAsync(accountToken.RefreshToken, accountToken.Provider, cancellationToken);
 
-            await accountTokenRepository.UpdateAsync(accountToken, cancellationToken);
-            logger.LogInformation("刷新 Token 成功: {Name}({Provider}-{AuthMethod})",
-                accountToken.Name, accountToken.Provider, accountToken.AuthMethod);
+                accountToken.UpdateTokens(
+                    tokenInfo.AccessToken,
+                    tokenInfo.RefreshToken,
+                    tokenInfo.ExpiresIn);
+
+                // 更新 ExtraProperties（如 chatgpt_account_id）
+                if (tokenInfo.ExtraProperties != null && tokenInfo.ExtraProperties.Count > 0)
+                {
+                    foreach (var kvp in tokenInfo.ExtraProperties)
+                        accountToken.ExtraProperties[kvp.Key] = kvp.Value;
+                    accountToken.Update(accountToken.Name, accountToken.BaseUrl, accountToken.Description, accountToken.MaxConcurrency, accountToken.ExtraProperties);
+                }
+
+                await accountTokenRepository.UpdateAsync(accountToken, cancellationToken);
+                logger.LogInformation("刷新 Token 成功: {Name}({Provider}-{AuthMethod})",
+                    accountToken.Name, accountToken.Provider, accountToken.AuthMethod);
+            }
+            catch (UnauthorizedException ex) when (IsNonRecoverableCredentialError(ex.Message))
+            {
+                // 不可恢复凭证错误：refresh token 已失效/已使用/账号已停用等
+                // 重试没有意义，直接标记为 Error 状态并持久化阻止后续重试
+                var description = $"凭证失效（不可恢复）: {ex.Message}";
+                logger.LogError(ex,
+                    "检测到不可恢复凭证错误，标记账号为异常状态: Name={Name}, Provider={Provider}",
+                    accountToken.Name, accountToken.Provider);
+                accountToken.MarkAsError(description);
+                try { await accountTokenRepository.UpdateAsync(accountToken, cancellationToken); }
+                catch (Exception saveEx) { logger.LogWarning(saveEx, "持久化账号 Error 状态失败: Name={Name}", accountToken.Name); }
+                throw; // 上报调用方，差异化处理
+            }
         }
+    }
+
+    /// <summary>
+    /// 判断是否为不可恢复的凭证失效错误
+    /// </summary>
+    private static bool IsNonRecoverableCredentialError(string? message)
+    {
+        if (string.IsNullOrEmpty(message)) return false;
+        return NonRecoverableCredentialKeywords.Any(keyword =>
+            message.Contains(keyword, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
@@ -204,27 +249,28 @@ public class AccountTokenDomainService(
                 .Any(k => requestedModel.StartsWith(k[..^1], StringComparison.OrdinalIgnoreCase));
         }
 
-        // 3. 获取上游模型列表 (Upstream)
-        IReadOnlyList<string>? upstreamModelIds = null;
-        try
-        {
-            upstreamModelIds = await FetchAndCacheUpstreamModelsAsync(account, ct);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "IsModelSupportedAsync 上游模型检测失败，将回退到基准配置：Name={Name}, Provider={Provider}, AuthMethod={AuthMethod}",
-                account.Name, account.Provider, account.AuthMethod);
-        }
+        // 3. 获取上游模型列表 (Upstream - 绝对零 I/O)
+        var upstreamModelIds = await GetCachedModelIdsAsync(account.Id, ct);
 
         // 4. 上游优先判断 (严格模式)
-        // 如果上游列表获取成功且不为空，则基于上游列表进行判词（事实证明原则）
         if (upstreamModelIds != null && upstreamModelIds.Count > 0)
         {
+            // 如果存在负面缓存（表示上游拉取失败），立刻降级到静态可用列表
+            if (upstreamModelIds.Count == 1 && upstreamModelIds.Contains(NegativeCacheSentinel))
+            {
+                logger.LogWarning("命中负面缓存，降级静态匹配: AccountName={Name}, Model={Model}", account.Name, requestedModel);
+                var fallbackModels = modelProvider.GetAvailableModels(account.Provider).Select(x => x.Value).ToList();
+                return fallbackModels.Any(m => m.Equals(requestedModel, StringComparison.OrdinalIgnoreCase) || 
+                    (m.EndsWith('*') && requestedModel.StartsWith(m[..^1], StringComparison.OrdinalIgnoreCase)));
+            }
+
             return upstreamModelIds.Contains(requestedModel, StringComparer.OrdinalIgnoreCase);
         }
 
         // 5. 基准模型兜底 (Baseline)
-        // 仅在上游列表获取失败或结果为空时，使用系统内置基准检测
+        logger.LogWarning("模型缓存未命中，降级静态匹配: AccountName={Name}, Provider={Provider}, Model={Model}", 
+            account.Name, account.Provider, requestedModel);
+
         var baselineModels = modelProvider.GetAvailableModels(account.Provider);
         if (baselineModels == null || baselineModels.Count == 0) return true;
 
@@ -301,6 +347,15 @@ public class AccountTokenDomainService(
     }
 
     private static bool IsWildcardMatch(string text, string pattern)
+        => IsWildcardMatchCore(text, pattern);
+
+    /// <summary>
+    /// 通配符匹配（public，供 AccountModelResolverDomainService 等复用）
+    /// </summary>
+    public static bool IsWildcardMatchPublic(string text, string pattern)
+        => IsWildcardMatchCore(text, pattern);
+
+    private static bool IsWildcardMatchCore(string text, string pattern)
     {
         var parts = pattern.Split('*');
         var pos = 0;
@@ -332,6 +387,8 @@ public class AccountTokenDomainService(
     {
         var cached = await cache.GetStringAsync(CacheKey(accountId), ct);
         if (string.IsNullOrEmpty(cached)) return null;
+        // 负面缓存哨兵：上游已知失败，直接返回 null，调用方降级到基准模型
+        if (cached == NegativeCacheSentinel) return null;
         var models = JsonSerializer.Deserialize<List<string>>(cached);
         return models?.ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
@@ -347,6 +404,15 @@ public class AccountTokenDomainService(
             var cachedValue = await cache.GetStringAsync(CacheKey(account.Id), ct);
             if (!string.IsNullOrEmpty(cachedValue))
             {
+                // 命中负面缓存哨兵：上游在 NegativeCacheTtl 窗口内已知失败，
+                // 直接返回 null，调用方将 fallback 到白名单 / 静态基准模型，不阻塞请求。
+                if (cachedValue == NegativeCacheSentinel)
+                {
+                    logger.LogDebug("上游模型列表命中负面缓存，跳过上游请求: Name={Name}, Provider={Provider}",
+                        account.Name, account.Provider);
+                    return null;
+                }
+
                 var cachedIds = JsonSerializer.Deserialize<List<string>>(cachedValue);
                 if (cachedIds != null && cachedIds.Count > 0)
                 {
@@ -406,6 +472,22 @@ public class AccountTokenDomainService(
         {
             logger.LogWarning(ex, "上游模型拉取失败: Name={Name}, Provider={Provider}, AuthMethod={AuthMethod}",
                 account.Name, account.Provider, account.AuthMethod);
+
+            // 写入负面缓存哨兵，在 NegativeCacheTtl 窗口内阻止重复穿透上游
+            // 窗口期内所有调用将 fallback 到白名单 / 静态基准模型，不造成额外延迟
+            try
+            {
+                await cache.SetStringAsync(
+                    CacheKey(account.Id),
+                    NegativeCacheSentinel,
+                    new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = NegativeCacheTtl },
+                    ct);
+            }
+            catch (Exception cacheEx)
+            {
+                logger.LogDebug(cacheEx, "写入负面缓存失败（不影响业务）: Name={Name}", account.Name);
+            }
+
             return null;
         }
     }

@@ -1,6 +1,5 @@
 using AiRelay.Domain.Shared.Utilities;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
-using Leistd.Exception.Core;
 
 namespace AiRelay.Api.Middleware.SmartProxy.ErrorHandling;
 

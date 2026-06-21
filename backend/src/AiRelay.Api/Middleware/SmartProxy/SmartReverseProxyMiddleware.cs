@@ -3,7 +3,6 @@ using AiRelay.Api.Middleware.SmartProxy.ErrorHandling;
 using AiRelay.Api.Middleware.SmartProxy.Handlers;
 using AiRelay.Application.ModelRoutes;
 using AiRelay.Application.ModelRoutes.Dtos;
-using AiRelay.Application.ModelRoutes.Handlers;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Context;

@@ -2,7 +2,6 @@ using AiRelay.Application.ModelRoutes.Dtos;
 using AiRelay.Application.ModelRoutes.Handlers;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Context;
-using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 using Leistd.Ddd.Application.Contracts.AppService;
 
 namespace AiRelay.Application.ModelRoutes;
@@ -33,4 +32,13 @@ public interface IModelRouteAppService : IAppService
         Func<SelectAccountResultDto, DownRequestContext> downContextModifier,
         IRouteResponseHandler responseHandler,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 聚合当前 ApiKey 绑定分组内可用的模型列表（供 /v1/models 端点调用）。
+    /// 仅读缓存，不发起上游网络请求，按协议格式返回。
+    /// </summary>
+    Task<ProxyModelsOutputDto> GetProxyModelsAsync(
+        Guid apiKeyId,
+        string responseFormat,
+        CancellationToken cancellationToken = default);
 }

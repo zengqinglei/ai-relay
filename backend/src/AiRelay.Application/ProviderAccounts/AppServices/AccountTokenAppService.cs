@@ -33,6 +33,7 @@ public class AccountTokenAppService(
     ProviderGroupDomainService providerGroupDomainService,
     IChatModelHandlerFactory chatModelHandlerFactory,
     AccountRateLimitDomainService accountRateLimitDomainService,
+    AccountModelResolverDomainService accountModelResolver,
     IModelProvider modelProvider,
     ILogger<AccountTokenAppService> logger,
     IObjectMapper objectMapper,
@@ -199,62 +200,28 @@ public class AccountTokenAppService(
                 ?? throw new NotFoundException($"账户不存在: {accountId}");
         }
 
-        // 1. 加载静态基准模型
-        var baselineModels = modelProvider.GetAvailableModels(accountToken?.Provider ?? provider);
-        var baselineLookup = baselineModels.ToDictionary(m => m.Value, StringComparer.OrdinalIgnoreCase);
-
-        // 2. 优先尝试拉取上游模型（带缓存）
-        IReadOnlyList<string>? upstreamModelIds = null;
+        // 委托共享服务解析模型列表，内部封装白名单→映射→上游拉取→静态内建优先级
         if (accountToken != null)
         {
-            try
-            {
-                await accountTokenDomainService.RefreshTokenIfNeededAsync(accountToken, cancellationToken);
-                upstreamModelIds = await accountTokenDomainService.FetchAndCacheUpstreamModelsAsync(accountToken, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "上游模型拉取失败: AccountId={AccountId}, Provider={Provider}", accountId, provider);
-                if (accountToken.Provider == Provider.OpenAICompatible)
-                {
-                    throw new BadRequestException($"上游模型拉取失败，请检查账号状态或稍后重试: {ex.Message}");
-                }
-            }
-        }
+            var modelIds = await accountModelResolver.ResolveExposedModelIdsAsync(
+                accountToken, cancellationToken);
 
-        if (upstreamModelIds != null && upstreamModelIds.Count > 0)
-        {
-            var finalModels = upstreamModelIds
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Select(id =>
-                {
-                    if (baselineLookup.TryGetValue(id, out var baseline))
-                    {
-                        return baseline;
-                    }
+            var baselineModels = modelProvider.GetAvailableModels(accountToken.Provider);
+            var baselineLookup = baselineModels.ToDictionary(m => m.Value, StringComparer.OrdinalIgnoreCase);
 
-                    return new ModelOption(id, id);
-                })
+            var result = modelIds
+                .Select(id => baselineLookup.TryGetValue(id, out var baseline)
+                    ? baseline
+                    : new ModelOption(id, id))
+                .Distinct()
                 .ToList();
 
-            return objectMapper.Map<IReadOnlyList<ModelOption>, IReadOnlyList<ModelOptionOutputDto>>(finalModels);
-        }
-
-        // 3. 上游未命中时，回退白名单
-        if (accountToken?.ModelWhites is { Count: > 0 } whitelist)
-        {
-            var result = BuildWhitelistModelOptions(whitelist, baselineModels, baselineLookup);
             return objectMapper.Map<IReadOnlyList<ModelOption>, IReadOnlyList<ModelOptionOutputDto>>(result);
         }
 
-        // 4. OpenAI Compatible 不使用静态兜底，其他 Provider 继续兜底
-        if (accountToken?.Provider == Provider.OpenAICompatible)
-        {
-            throw new BadRequestException("未获取到上游模型列表，且当前账号未配置可用白名单。");
-        }
-
-        var fallbackModels = baselineModels.Where(m => !m.Value.Contains('*')).ToList();
-
+        // 未指定账号时直接返回静态基准模型
+        var fallbackModels = modelProvider.GetAvailableModels(provider)
+            .Where(m => !m.Value.Contains('*')).ToList();
         return objectMapper.Map<IReadOnlyList<ModelOption>, IReadOnlyList<ModelOptionOutputDto>>(fallbackModels);
     }
 
@@ -637,7 +604,6 @@ public class AccountTokenAppService(
 
         await accountTokenRepository.UpdateAsync(accountToken, cancellationToken: cancellationToken);
         logger.LogInformation("更新账户成功: {Name}({Provider}-{AuthMethod})", accountToken.Name, accountToken.Provider, accountToken.AuthMethod);
-
         return await GetAsync(id, cancellationToken);
     }
 

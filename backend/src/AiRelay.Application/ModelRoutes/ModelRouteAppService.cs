@@ -17,7 +17,6 @@ using AiRelay.Domain.Shared.ExternalServices.ModelClient;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Context;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 using AiRelay.Domain.UsageRecords.Options;
-using AiRelay.Domain.UsageRecords.ValueObjects;
 using Leistd.Ddd.Application.AppService;
 using Leistd.Ddd.Domain.Repositories;
 using Leistd.Ddd.Infrastructure.Persistence.Repositories;
@@ -30,6 +29,7 @@ namespace AiRelay.Application.ModelRoutes;
 
 public class ModelRouteAppService(
     AccountTokenDomainService accountTokenDomainService,
+    AccountModelResolverDomainService accountModelResolver,
     AccountResultHandlerDomainService accountResultHandlerDomainService,
     AccountRateLimitDomainService rateLimitDomainService,
     AccountFingerprintAppService fingerprintAppService,
@@ -1047,4 +1047,94 @@ public class ModelRouteAppService(
             _ => 500
         };
     }
+
+    /// <inheritdoc/>
+    public async Task<ProxyModelsOutputDto> GetProxyModelsAsync(
+        Guid apiKeyId,
+        string responseFormat,
+        CancellationToken cancellationToken = default)
+    {
+        // 1. 获取 APIKey 绑定的所有分组
+        var bindingQuery = await apiKeyProviderGroupBindingRepository
+            .GetQueryIncludingAsync(cancellationToken, p => p.ProviderGroup);
+        var bindings = await queryableAsyncExecuter.ToListAsync(
+            bindingQuery.Where(b => b.ApiKeyId == apiKeyId), cancellationToken);
+
+        var groupIds = bindings.Select(b => b.ProviderGroupId).Distinct().ToList();
+        if (groupIds.Count == 0)
+        {
+            return BuildEmptyResponse(responseFormat);
+        }
+
+        // 2. 批量获取所有分组下的活跃账号（已包含 AccountToken 导航属性）
+        var relations = await relationRepository.GetCandidatesByGroupIdsAsync(
+            groupIds, cancellationToken: cancellationToken);
+
+        var accounts = relations
+            .Where(r => r.AccountToken != null && r.AccountToken.IsAvailable())
+            .Select(r => r.AccountToken!)
+            .DistinctBy(a => a.Id)
+            .ToList();
+
+        // 3. 按请求协议过滤账号
+        var filtered = FilterAccountsByFormat(accounts, responseFormat);
+
+        // 4. 聚合模型 ID（仅读缓存，不发起上游请求）
+        var modelIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var account in filtered)
+        {
+            var ids = await accountModelResolver.ResolveExposedModelIdsAsync(account, cancellationToken);
+            foreach (var id in ids) modelIds.Add(id);
+        }
+
+        logger.LogDebug(
+            "GetProxyModelsAsync: ApiKeyId={ApiKeyId}, Format={Format}, Groups={Groups}, Accounts={Accounts}, Models={Models}",
+            apiKeyId, responseFormat, groupIds.Count, filtered.Count, modelIds.Count);
+
+        // 5. 按协议格式组装响应
+        return responseFormat == "anthropic"
+            ? BuildAnthropicResponse(modelIds)
+            : BuildOpenAIResponse(modelIds);
+    }
+
+    private static List<AccountToken> FilterAccountsByFormat(
+        List<AccountToken> accounts, string format) => format switch
+    {
+        "anthropic" => accounts.Where(a => a.Provider is Provider.Claude).ToList(),
+        "gemini"    => accounts.Where(a => a.Provider is Provider.Gemini).ToList(),
+        _           => accounts.Where(a => a.Provider is Provider.OpenAI or Provider.OpenAICompatible or Provider.Antigravity).ToList()
+    };
+
+    private static ProxyModelsOutputDto BuildOpenAIResponse(IEnumerable<string> modelIds)
+    {
+        var created = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        return new ProxyModelsOutputDto
+        {
+            Object = "list",
+            Data = modelIds.Select(id => new ProxyModelItemDto
+            {
+                Id = id,
+                Object = "model",
+                Created = created,
+                OwnedBy = "system"
+            }).ToList()
+        };
+    }
+
+    private static ProxyModelsOutputDto BuildAnthropicResponse(IEnumerable<string> modelIds)
+    {
+        return new ProxyModelsOutputDto
+        {
+            Object = null,
+            Data = modelIds.Select(id => new ProxyModelItemDto
+            {
+                Id = id,
+                DisplayName = id,
+                Object = null
+            }).ToList()
+        };
+    }
+
+    private static ProxyModelsOutputDto BuildEmptyResponse(string format) =>
+        format == "anthropic" ? BuildAnthropicResponse([]) : BuildOpenAIResponse([]);
 }

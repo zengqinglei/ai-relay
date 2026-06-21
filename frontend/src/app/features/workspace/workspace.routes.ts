@@ -6,15 +6,14 @@ export const WORKSPACE_ROUTES: Routes = [
     pathMatch: 'full',
     redirectTo: 'dashboard'
   },
-  // Workspace chat is temporarily disabled for external users.
-  // {
-  //   path: 'chat',
-  //   loadComponent: () => import('./components/chat/workspace-chat').then(m => m.WorkspaceChatPage)
-  // },
-  // {
-  //   path: 'chat/:sessionId',
-  //   loadComponent: () => import('./components/chat/workspace-chat').then(m => m.WorkspaceChatPage)
-  // },
+  {
+    path: 'chat',
+    loadComponent: () => import('./components/chat/workspace-chat').then(m => m.WorkspaceChatPage)
+  },
+  {
+    path: 'chat/:sessionId',
+    loadComponent: () => import('./components/chat/workspace-chat').then(m => m.WorkspaceChatPage)
+  },
   {
     path: 'dashboard',
     loadComponent: () => import('./components/dashboard/workspace-dashboard').then(m => m.WorkspaceDashboardPage)
