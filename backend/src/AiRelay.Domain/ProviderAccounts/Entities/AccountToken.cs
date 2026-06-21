@@ -92,50 +92,64 @@ public class AccountToken : DeletionAuditedEntity<Guid>
 
     // ── 计费统计字段 ──────────────────────────────────────────────────────────
 
-    /// <summary>今日调用次数（UTC 自然日，跨日自动归零）</summary>
-    public long UsageToday { get => StatsDate?.Date == DateTime.UtcNow.Date ? field : 0; private set; }
+    /// <summary>
+    /// 获取当前系统本地日期对应的 UTC 零点（锚点）。
+    /// 例如：北京时间 2026-05-28 00:00:00 -> 返回 UTC 2026-05-27 16:00:00
+    /// </summary>
+    private static DateTime CurrentLocalMidnightInUtc
+    {
+        get
+        {
+            var nowUtc = DateTime.UtcNow;
+            var nowLocal = TimeZoneInfo.ConvertTimeFromUtc(nowUtc, TimeZoneInfo.Local);
+            return TimeZoneInfo.ConvertTimeToUtc(nowLocal.Date, TimeZoneInfo.Local);
+        }
+    }
+
+    /// <summary>今日调用次数（本地自然日，跨日自动归零）</summary>
+    public long UsageToday { get; private set; }
 
     /// <summary>累计调用次数</summary>
     public long UsageTotal { get; private set; }
 
     /// <summary>今日消耗额度（USD）</summary>
-    public decimal CostToday { get => StatsDate?.Date == DateTime.UtcNow.Date ? field : 0; private set; }
+    public decimal CostToday { get; private set; }
 
     /// <summary>累计消耗额度（USD）</summary>
     public decimal CostTotal { get; private set; }
 
     /// <summary>今日消耗 Token 数</summary>
-    public long TokensToday { get => StatsDate?.Date == DateTime.UtcNow.Date ? field : 0; private set; }
+    public long TokensToday { get; private set; }
 
     /// <summary>累计消耗 Token 数</summary>
     public long TokensTotal { get; private set; }
 
     /// <summary>今日成功次数</summary>
-    public long SuccessToday { get => StatsDate?.Date == DateTime.UtcNow.Date ? field : 0; private set; }
+    public long SuccessToday { get; private set; }
 
     /// <summary>累计成功次数</summary>
     public long SuccessTotal { get; private set; }
 
-    /// <summary>今日统计基准日期（UTC），用于跨日自动重置</summary>
+    /// <summary>今日统计基准锚点（本地 00:00 对应的 UTC 时间）</summary>
     public DateTime? StatsDate { get; private set; }
 
     /// <summary>
     /// 累加调用次数统计（每次 attempt 调用，含失败）
     /// </summary>
-    public void AccumulateCallStats(bool isSuccess)
+    public void AccumulateCallStats(bool isSuccess, DateTime todayUtcAnchor)
     {
-        var today = DateTime.UtcNow.Date;
+        var anchor = todayUtcAnchor;
 
         UsageTotal++;
         if (isSuccess) SuccessTotal++;
 
-        if (StatsDate?.Date != today)
+        if (StatsDate != anchor)
         {
             UsageToday = 1;
             TokensToday = 0;
             CostToday = 0;
             SuccessToday = isSuccess ? 1 : 0;
-            StatsDate = today;
+            StatsDate = anchor;
         }
         else
         {
@@ -147,12 +161,23 @@ public class AccountToken : DeletionAuditedEntity<Guid>
     /// <summary>
     /// 累加 Token/费用统计（请求完成后调用）
     /// </summary>
-    public void AccumulateCostStats(long tokens, decimal cost)
+    public void AccumulateCostStats(long tokens, decimal cost, DateTime todayUtcAnchor)
     {
+        var anchor = todayUtcAnchor;
+
+        // 1. 累加全局总量（不受跨日影响）
         TokensTotal += tokens;
         CostTotal += cost;
 
-        if (StatsDate?.Date == DateTime.UtcNow.Date)
+        // 2. 处理今日统计
+        if (StatsDate != anchor)
+        {
+            // 跨日了：今日统计重置为当前这一笔的值
+            TokensToday = tokens;
+            CostToday = cost;
+            StatsDate = anchor;
+        }
+        else
         {
             TokensToday += tokens;
             CostToday += cost;

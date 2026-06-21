@@ -143,9 +143,9 @@ public class UpstreamModelCacheRefreshService(
                 catch (Exception ex)
                 {
                     fail++;
-                    logger.LogDebug(ex,
-                        "后台刷新账号模型缓存失败（暂时性错误）: Name={Name}, Provider={Provider}",
-                        account.Name, account.Provider);
+                    logger.LogWarning(ex,
+                        "后台刷新账号模型缓存失败: Name={Name}, Provider={Provider}, Error={Error}",
+                        account.Name, account.Provider, ex.Message);
                 }
 
                 // 账号间节流，避免对上游造成请求风暴

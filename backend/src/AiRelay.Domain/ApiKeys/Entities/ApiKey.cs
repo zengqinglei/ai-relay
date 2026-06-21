@@ -52,52 +52,54 @@ public class ApiKey : DeletionAuditedEntity<Guid>
 
     // ── 计费统计字段 ──────────────────────────────────────────────────────────
 
-    /// <summary>今日调用次数（UTC 自然日，跨日自动归零）</summary>
-    public long UsageToday { get => StatsDate?.Date == DateTime.UtcNow.Date ? field : 0; private set; }
+    /// <summary>今日调用次数（本地自然日，跨日自动归零）</summary>
+    public long UsageToday { get; private set; }
 
     /// <summary>累计调用次数</summary>
     public long UsageTotal { get; private set; }
 
     /// <summary>今日消耗额度（USD）</summary>
-    public decimal CostToday { get => StatsDate?.Date == DateTime.UtcNow.Date ? field : 0; private set; }
+    public decimal CostToday { get; private set; }
 
     /// <summary>累计消耗额度（USD）</summary>
     public decimal CostTotal { get; private set; }
 
     /// <summary>今日消耗 Token 数</summary>
-    public long TokensToday { get => StatsDate?.Date == DateTime.UtcNow.Date ? field : 0; private set; }
+    public long TokensToday { get; private set; }
 
     /// <summary>累计消耗 Token 数</summary>
     public long TokensTotal { get; private set; }
 
     /// <summary>今日成功次数</summary>
-    public long SuccessToday { get => StatsDate?.Date == DateTime.UtcNow.Date ? field : 0; private set; }
+    public long SuccessToday { get; private set; }
 
     /// <summary>累计成功次数</summary>
     public long SuccessTotal { get; private set; }
 
-    /// <summary>今日统计基准日期（UTC），用于跨日自动重置</summary>
+    /// <summary>今日统计基准锚点（本地 00:00 对应的 UTC 时间）</summary>
     public DateTime? StatsDate { get; private set; }
 
     /// <summary>
     /// 累加统计数据，跨日自动重置今日字段
     /// </summary>
-    public void AccumulateStats(long tokens, decimal cost, bool isSuccess)
+    /// <param name="tokens">消耗的 token</param>
+    /// <param name="cost">消耗的费用</param>
+    /// <param name="isSuccess">是否成功</param>
+    /// <param name="todayUtcAnchor">当前的本地零点 UTC 锚点（由领域服务注入）</param>
+    public void AccumulateStats(long tokens, decimal cost, bool isSuccess, DateTime todayUtcAnchor)
     {
-        var today = DateTime.UtcNow.Date;
-
         UsageTotal++;
         TokensTotal += tokens;
         CostTotal += cost;
         if (isSuccess) SuccessTotal++;
 
-        if (StatsDate?.Date != today)
+        if (StatsDate != todayUtcAnchor)
         {
             UsageToday = 1;
             TokensToday = tokens;
             CostToday = cost;
             SuccessToday = isSuccess ? 1 : 0;
-            StatsDate = today;
+            StatsDate = todayUtcAnchor;
         }
         else
         {
@@ -159,9 +161,9 @@ public class ApiKey : DeletionAuditedEntity<Guid>
         ExpiresAt = expiresAt;
     }
 
-    public void RecordUsage()
+    public void RecordUsage(DateTime nowUtc)
     {
-        LastUsedAt = DateTime.UtcNow;
+        LastUsedAt = nowUtc;
     }
 
     public void MarkAsDeleted()

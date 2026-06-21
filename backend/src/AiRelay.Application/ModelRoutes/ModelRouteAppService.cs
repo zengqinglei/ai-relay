@@ -533,8 +533,8 @@ public class ModelRouteAppService(
                             attemptStatus,
                             attemptStatusDesc,
                             upResponseBody,
-                            attemptStatus == UsageStatus.Failed ? upRequestHeaders : loggingUpRequestHeaders,
-                            attemptStatus == UsageStatus.Failed ? upRequestBody : loggingUpRequestBody);
+                            loggingUpRequestHeaders,
+                            loggingUpRequestBody);
                     }
                 }
 
@@ -589,8 +589,8 @@ public class ModelRouteAppService(
                 CacheCreationTokens: finalUsage?.CacheCreationTokens,
                 AttemptCount: attemptNumber,
                 DownStatusCode: finalDownStatusCode,
-                DownRequestHeaders: finalStatus == UsageStatus.Failed ? downRequestHeaders : loggingDownRequestHeaders,
-                DownRequestBody: finalStatus == UsageStatus.Failed ? downRequestBody : loggingDownRequestBody
+                DownRequestHeaders: null,
+                DownRequestBody: null
             ));
         }
     }

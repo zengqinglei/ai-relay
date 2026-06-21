@@ -84,11 +84,13 @@ public class OpenAiCompatibleChatModelHandler(
         };
 
         var up = await ProcessRequestContextAsync(down, 0, ct);
+        var requestUrl = up.GetFullUrl();
+
         using var response = await SendCoreRequestAsync(up, down, ct);
 
         if (!response.IsSuccessStatusCode)
         {
-            Logger.LogWarning("OpenAICompatible 上游模型拉取失败: {StatusCode}", response.StatusCode);
+            Logger.LogWarning("OpenAICompatible 上游模型拉取失败: {StatusCode}, URL={Url}", response.StatusCode, requestUrl);
             return null;
         }
 
@@ -105,14 +107,26 @@ public class OpenAiCompatibleChatModelHandler(
                     var modelId = idProp.GetString();
                     if (!string.IsNullOrEmpty(modelId))
                     {
-                        // 暂时不硬编码 displayName，直接使用 modelId
                         models.Add(new ModelOption(modelId, modelId));
                     }
                 }
             }
         }
 
-        Logger.LogInformation("OpenAICompatible 上游拉取成功: {Count} 个模型", models.Count);
+        if (models.Count == 0)
+        {
+            Logger.LogWarning(
+                "OpenAICompatible 上游返回 0 模型（诊断）: URL={Url}, JsonLength={Len}, TopKeys={Keys}, DataPresent={HasData}, DataKind={Kind}",
+                requestUrl, json.Length,
+                string.Join(",", doc.RootElement.EnumerateObject().Select(p => p.Name)),
+                doc.RootElement.TryGetProperty("data", out _),
+                dataArray.ValueKind);
+        }
+        else
+        {
+            Logger.LogInformation("OpenAICompatible 上游拉取成功: {Count} 个模型", models.Count);
+        }
+
         return models.Count > 0 ? models : null;
     }
 
