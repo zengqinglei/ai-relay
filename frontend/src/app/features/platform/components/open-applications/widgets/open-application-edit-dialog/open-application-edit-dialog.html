@@ -40,8 +40,7 @@
             <input pInputText
               [ngModel]="formModel().displayName"
               (ngModelChange)="formModel.update(model => ({ ...model, displayName: $event }))"
-              placeholder="例如 AiRelay Desktop"
-              pSize="small"/>
+              placeholder="例如 AiRelay Desktop" />
           </div>
           <div class="flex flex-col gap-2">
             <label class="font-bold">Client ID</label>
@@ -51,8 +50,7 @@
               (ngModelChange)="formModel.update(model => ({ ...model, clientId: $event }))"
               placeholder="例如 ai-relay-desktop"
               [disabled]="isEditMode()"
-              class="font-mono"
-              pSize="small"/>
+              class="font-mono" />
           </div>
         </div>
 
@@ -70,7 +68,7 @@
                 optionValue="value"
                 appendTo="body"
                 styleClass="w-full"
-                size="small"/>
+                />
             }
           </div>
           <div class="flex flex-col gap-2">
@@ -86,7 +84,7 @@
                 optionValue="value"
                 appendTo="body"
                 styleClass="w-full"
-                size="small"/>
+                />
             }
           </div>
           <div class="flex flex-col gap-2">
@@ -102,7 +100,7 @@
                 optionValue="value"
                 appendTo="body"
                 styleClass="w-full"
-                size="small"/>
+                />
             }
           </div>
         </div>
@@ -127,7 +125,7 @@
               (ngModelChange)="formModel.update(model => ({ ...model, redirectUriInput: $event }))"
               placeholder="https://example.com/callback 或 ai-relay-desktop://oauth/callback"
               class="w-full font-mono"
-              pSize="small"
+
             />
             <p-button
               label="添加"
@@ -166,7 +164,7 @@
               (ngModelChange)="formModel.update(model => ({ ...model, postLogoutRedirectUriInput: $event }))"
               placeholder="https://example.com/logout-callback"
               class="w-full font-mono"
-              pSize="small"
+
             />
             <p-button
               label="添加"
@@ -227,7 +225,7 @@
               display="chip"
               appendTo="body"
               styleClass="w-full"
-              size="small"
+
               placeholder="选择授权能力"
             >
               <ng-template let-option pTemplate="item">
@@ -250,7 +248,7 @@
               display="chip"
               appendTo="body"
               styleClass="w-full"
-              size="small"
+
               placeholder="选择安全要求"
             />
             @if (
