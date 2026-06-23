@@ -1,5 +1,6 @@
 <div class="flex flex-col h-full overflow-hidden">
   <div class="flex-1 overflow-y-auto p-6 custom-scrollbar">
+
     <div class="mb-6 flex flex-col items-stretch justify-between gap-4 md:flex-row md:items-center">
       <div class="flex flex-1 flex-col items-stretch gap-3 sm:flex-row sm:items-center">
         <p-select
@@ -8,7 +9,7 @@
           (ngModelChange)="onActiveChange($event)"
           optionLabel="label"
           optionValue="value"
-          placeholder="全部状态"
+          placeholder="状态"
           [showClear]="true"
           appendTo="body"
           styleClass="w-full sm:w-48"
@@ -20,7 +21,7 @@
           (ngModelChange)="onEmailVerifiedChange($event)"
           optionLabel="label"
           optionValue="value"
-          placeholder="全部邮箱状态"
+          placeholder="邮箱状态"
           [showClear]="true"
           appendTo="body"
           styleClass="w-full sm:w-48"
@@ -32,7 +33,7 @@
           (ngModelChange)="onRoleChange($event)"
           optionLabel="label"
           optionValue="value"
-          placeholder="全部角色"
+          placeholder="角色"
           [showClear]="true"
           appendTo="body"
           styleClass="w-full sm:w-48"

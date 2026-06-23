@@ -6,43 +6,72 @@ import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 import { filter, map, startWith } from 'rxjs/operators';
 
+import { AuthService } from '../../../core/services/auth-service';
+import { LogoComponent } from '../../../shared/components/logo/logo';
 import { LayoutService } from '../../services/layout-service';
 
 interface MenuItem {
   label: string;
   icon: string;
   route: string;
+  superAdminOnly?: boolean;
+}
+
+interface MenuGroup {
+  label?: string;
+  items: MenuItem[];
 }
 
 @Component({
   selector: 'app-default-sidebar',
   standalone: true,
-  imports: [NgClass, RouterModule, ButtonModule, TooltipModule],
+  imports: [NgClass, RouterModule, ButtonModule, TooltipModule, LogoComponent],
   templateUrl: './default-sidebar.html',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class DefaultSidebar {
   readonly layoutService = inject(LayoutService);
   private readonly router = inject(Router);
+  private readonly authService = inject(AuthService);
 
   isMobileMenuOpen = input<boolean>(false);
   readonly mobileMenuClosed = output<void>();
 
-  private readonly platformMenuItems: MenuItem[] = [
-    { label: '仪表盘', icon: 'pi-gauge', route: '/platform' },
-    { label: '渠道账户', icon: 'pi-credit-card', route: '/platform/account-tokens' },
-    { label: '订阅管理', icon: 'pi-key', route: '/platform/subscriptions' },
-    { label: '分组管理', icon: 'pi-sitemap', route: '/platform/provider-groups' },
-    { label: '使用记录', icon: 'pi-history', route: '/platform/usage-records' },
-    { label: '开放应用', icon: 'pi-id-card', route: '/platform/open-applications' },
-    { label: '用户管理', icon: 'pi-users', route: '/platform/users' },
-    { label: '系统设置', icon: 'pi-cog', route: '/platform/settings' }
+  private readonly platformMenuGroups: MenuGroup[] = [
+    { items: [{ label: '仪表盘', icon: 'pi-gauge', route: '/platform' }] },
+    {
+      label: '渠道',
+      items: [
+        { label: '渠道账户', icon: 'pi-credit-card', route: '/platform/account-tokens' },
+        { label: '订阅管理', icon: 'pi-key', route: '/platform/subscriptions' },
+        { label: '分组管理', icon: 'pi-sitemap', route: '/platform/provider-groups' }
+      ]
+    },
+    {
+      label: '运营',
+      items: [
+        { label: '使用记录', icon: 'pi-history', route: '/platform/usage-records' },
+        { label: '开放应用', icon: 'pi-id-card', route: '/platform/open-applications' },
+        { label: '用户管理', icon: 'pi-users', route: '/platform/users' },
+        { label: '系统设置', icon: 'pi-cog', route: '/platform/settings' }
+      ]
+    }
   ];
-  private readonly workspaceMenuItems: MenuItem[] = [
-    { label: '聊天', icon: 'pi-comments', route: '/workspace/chat' },
-    { label: '仪表盘', icon: 'pi-gauge', route: '/workspace/dashboard' },
-    { label: '我的订阅', icon: 'pi-key', route: '/workspace/my-subscriptions' },
-    { label: '使用日志', icon: 'pi-history', route: '/workspace/usage-logs' }
+
+  private readonly workspaceMenuGroups: MenuGroup[] = [
+    {
+      items: [
+        { label: '聊天', icon: 'pi-comments', route: '/workspace/chat' },
+        { label: '仪表盘', icon: 'pi-gauge', route: '/workspace/dashboard' }
+      ]
+    },
+    {
+      label: '订阅',
+      items: [
+        { label: '我的订阅', icon: 'pi-key', route: '/workspace/my-subscriptions' },
+        { label: '使用日志', icon: 'pi-history', route: '/workspace/usage-logs' }
+      ]
+    }
   ];
 
   private readonly currentUrl = toSignal(
@@ -54,9 +83,17 @@ export class DefaultSidebar {
     { initialValue: this.router.url }
   );
 
-  readonly menuItems = computed(() => {
+  readonly menuGroups = computed(() => {
     const url = this.currentUrl();
-    return url.startsWith('/platform') ? this.platformMenuItems : this.workspaceMenuItems;
+    const groups = url.startsWith('/platform') ? this.platformMenuGroups : this.workspaceMenuGroups;
+    const isSuperAdmin = this.authService.currentUser()?.isSuperAdmin === true;
+
+    return groups
+      .map(group => ({
+        ...group,
+        items: group.items.filter(item => !item.superAdminOnly || isSuperAdmin)
+      }))
+      .filter(group => group.items.length > 0);
   });
 
   isItemActive(item: MenuItem) {

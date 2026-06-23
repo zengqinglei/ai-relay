@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { MessageService } from 'primeng/api';
 import { catchError, throwError } from 'rxjs';
 
+import { SILENT_AUTH } from './http-context-tokens';
 import { AuthService } from '../services/auth-service';
 
 /**
@@ -38,6 +39,11 @@ export const httpErrorInterceptor: HttpInterceptorFn = (req, next) => {
     catchError((error: unknown) => {
       // 只处理 HTTP 错误
       if (error instanceof HttpErrorResponse) {
+        // 静默请求：不显示错误提示，不处理 401 跳转
+        if (req.context.get(SILENT_AUTH)) {
+          return throwError(() => error);
+        }
+
         console.error('HTTP Error Interceptor caught error:', error.url, error.status, error.message);
 
         const contentType = error.headers?.get('Content-Type');
@@ -70,10 +76,17 @@ export const httpErrorInterceptor: HttpInterceptorFn = (req, next) => {
           });
         }
 
-        // 处理 401 未授权情况
+        // 处理 401 未授权情况：保留当前 URL 作为 returnUrl
         if (error.status === 401) {
           authService.clearAuthData();
-          router.navigate(['/auth/login']);
+          const currentReturnUrl =
+            router.getCurrentNavigation()?.finalUrl?.queryParamMap.get('returnUrl') ??
+            new URL(window.location.href).searchParams.get('returnUrl');
+          const currentPath = window.location.pathname + window.location.search;
+          const returnUrl = currentReturnUrl || (currentPath.startsWith('/auth/') ? undefined : currentPath);
+          router.navigate(['/auth/login'], {
+            queryParams: returnUrl ? { returnUrl } : undefined
+          });
         }
 
         // 重新抛出错误，避免下游（如 lastValueFrom）收不到数据直接 complete 导致 EmptyError

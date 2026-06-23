@@ -3,7 +3,7 @@ import { CanActivateFn, Router } from '@angular/router';
 
 import { AuthService } from '../services/auth-service';
 
-export const authGuard: CanActivateFn = (_route, _state) => {
+export const authGuard: CanActivateFn = (_route, state) => {
   const authService = inject(AuthService);
   const router = inject(Router);
 
@@ -11,6 +11,7 @@ export const authGuard: CanActivateFn = (_route, _state) => {
     return true;
   }
 
-  // Redirect to the login page
-  return router.parseUrl('/auth/login');
+  return router.createUrlTree(['/auth/login'], {
+    queryParams: { returnUrl: state.url }
+  });
 };

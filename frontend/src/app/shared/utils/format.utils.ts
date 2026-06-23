@@ -77,10 +77,10 @@ export function formatDurationVerbose(ms: number | undefined | null): string {
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
 
-  if (years > 0)   return `${years}年${days > 0 ? days + '天' : ''}`;
-  if (days > 0)    return `${days}天${hours > 0 ? hours + '小时' : ''}${minutes > 0 ? minutes + '分' : ''}`;
-  if (hours > 0)   return `${hours}小时${minutes > 0 ? minutes + '分' : ''}${seconds > 0 ? seconds + '秒' : ''}`;
-  if (minutes > 0) return `${minutes}分${seconds > 0 ? seconds + '秒' : ''}`;
+  if (years > 0)   return `${years}年${days > 0 ? `${days}天` : ''}`;
+  if (days > 0)    return `${days}天${hours > 0 ? `${hours}小时` : ''}${minutes > 0 ? `${minutes}分` : ''}`;
+  if (hours > 0)   return `${hours}小时${minutes > 0 ? `${minutes}分` : ''}${seconds > 0 ? `${seconds}秒` : ''}`;
+  if (minutes > 0) return `${minutes}分${seconds > 0 ? `${seconds}秒` : ''}`;
   return `${seconds}秒`;
 }
 

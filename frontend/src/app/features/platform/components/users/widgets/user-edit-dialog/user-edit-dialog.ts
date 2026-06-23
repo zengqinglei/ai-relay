@@ -13,6 +13,7 @@ import { ToggleSwitchModule } from 'primeng/toggleswitch';
 
 import { DialogLoadingComponent } from '../../../../../../shared/components/dialog-loading/dialog-loading';
 import { DIALOG_CONFIGS } from '../../../../../../shared/constants/dialog-config.constants';
+import { Role, ROLE_LABEL_MAP } from '../../../../../../shared/models/role.enum';
 import { CreateUserInputDto, UpdateUserInputDto, UserManagementOutputDto } from '../../../../models/user-management.dto';
 
 const MAX_AVATAR_SIZE = 1024 * 1024;
@@ -79,11 +80,7 @@ export class UserEditDialogComponent {
     roles: [['Member'], [Validators.required]]
   });
 
-  roleOptions = [
-    { label: '管理员', value: 'Admin' },
-    { label: '运营人员', value: 'Operator' },
-    { label: '普通成员', value: 'Member' }
-  ];
+  roleOptions = Object.entries(ROLE_LABEL_MAP).map(([value, label]) => ({ label, value }));
 
   constructor() {
     effect(() => {

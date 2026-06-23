@@ -14,6 +14,7 @@ import { Subject } from 'rxjs';
 import { debounceTime, distinctUntilChanged, finalize } from 'rxjs/operators';
 
 import { LayoutService } from '../../../../layout/services/layout-service';
+import { Role, ROLE_LABEL_MAP } from '../../../../shared/models/role.enum';
 import { FilterStateService } from '../../../../shared/services/filter-state.service';
 import {
   CreateUserInputDto,
@@ -89,11 +90,7 @@ export class UsersPage implements OnInit {
     { label: '未验证', value: false }
   ];
 
-  roleOptions = [
-    { label: '管理员', value: 'Admin' },
-    { label: '运营人员', value: 'Operator' },
-    { label: '普通成员', value: 'Member' }
-  ];
+  roleOptions = Object.entries(ROLE_LABEL_MAP).map(([value, label]) => ({ label, value }));
 
   constructor() {
     this.searchSubject
