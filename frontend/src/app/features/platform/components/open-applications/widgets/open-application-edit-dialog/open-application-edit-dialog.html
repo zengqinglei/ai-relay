@@ -58,7 +58,7 @@
           <div class="flex flex-col gap-2">
             <label class="font-bold">应用类型</label>
             @if (isTemplateLocked()) {
-              <p-tag [value]="applicationTypeLabels[formModel().applicationType] ?? formModel().applicationType" severity="info" />
+              <p-tag [value]="applicationTypeLabels[formModel().applicationType]" severity="info" />
             } @else {
               <p-select
                 [options]="applicationTypeOptions"
@@ -74,7 +74,7 @@
           <div class="flex flex-col gap-2">
             <label class="font-bold">客户端类型</label>
             @if (isTemplateLocked()) {
-              <p-tag [value]="clientTypeLabels[formModel().clientType] ?? formModel().clientType" [severity]="isConfidentialClient() ? 'warn' : 'info'" />
+              <p-tag [value]="clientTypeLabels[formModel().clientType]" [severity]="isConfidentialClient() ? 'warn' : 'info'" />
             } @else {
               <p-select
                 [options]="clientTypeOptions"
@@ -90,7 +90,7 @@
           <div class="flex flex-col gap-2">
             <label class="font-bold">授权确认</label>
             @if (isTemplateLocked()) {
-              <p-tag [value]="consentTypeLabels[formModel().consentType] ?? formModel().consentType" severity="secondary" />
+              <p-tag [value]="consentTypeLabels[formModel().consentType]" severity="secondary" />
             } @else {
               <p-select
                 [options]="consentTypeOptions"
