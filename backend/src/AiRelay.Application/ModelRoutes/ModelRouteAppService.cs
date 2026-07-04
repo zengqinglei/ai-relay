@@ -255,13 +255,30 @@ public class ModelRouteAppService(
 
             while (true)
             {
-                var selectedAccount = await SelectRouteAccountAsync(
-                    candidateGroups,
-                    baseDownContext.SessionId ?? string.Empty,
-                    baseDownContext.ResolvedModelId ?? baseDownContext.ModelId,
-                    baseDownContext.Headers,
-                    excludedAccountIds,
-                    cancellationToken);
+                RouteAccountSchedulingResult selectedAccount;
+                try
+                {
+                    selectedAccount = await SelectRouteAccountAsync(
+                        candidateGroups,
+                        baseDownContext.SessionId ?? string.Empty,
+                        baseDownContext.ResolvedModelId ?? baseDownContext.ModelId,
+                        baseDownContext.Headers,
+                        excludedAccountIds,
+                        cancellationToken);
+                }
+                catch (Exception ex) when (
+                    failoverContext is { HasNextModel: true } &&
+                    ex is NotFoundException or ServiceUnavailableException)
+                {
+                    var oldModel = failoverContext.CurrentModel;
+                    failoverContext.CurrentModelIndex++;
+                    baseDownContext.ResolvedModelId = failoverContext.CurrentModel;
+                    excludedAccountIds.Clear();
+
+                    logger.LogWarning("模型 {OldModel} 所有账号已耗尽，切换至候选模型 {NewModel}",
+                        oldModel, failoverContext.CurrentModel);
+                    continue;
+                }
 
                 SelectAccountResultDto selectResult;
                 try
@@ -306,8 +323,8 @@ public class ModelRouteAppService(
                         selectedAccount.AccountToken.Id,
                         prepareFailureStatusCode,
                         ex.Message,
-                        baseDownContext.ModelId,
-                        baseDownContext.ModelId,
+                        baseDownContext.ResolvedModelId ?? baseDownContext.ModelId,
+                        baseDownContext.ResolvedModelId ?? baseDownContext.ModelId,
                         new ModelErrorAnalysisResult
                         {
                             RetryType = RetryType.NoRetry,

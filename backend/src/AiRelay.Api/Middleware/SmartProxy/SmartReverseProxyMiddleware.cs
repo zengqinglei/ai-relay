@@ -100,9 +100,11 @@ public class SmartReverseProxyMiddleware(
 
         await modelRouteAppService.ExecuteRouteAsync(downContext, metadata, candidateGroups, downContextModifier, responseHandler, failoverContext, context.RequestAborted);
 
-        if (failoverContext != null && downContext.ResolvedModelId != null)
+        if (failoverContext != null &&
+            downContext.ResolvedModelId != null &&
+            !string.IsNullOrEmpty(downContext.SessionId))
         {
-            await schedulingDomainService.SetAutoModelAsync(downContext.SessionId!, downContext.ResolvedModelId, context.RequestAborted);
+            await schedulingDomainService.SetAutoModelAsync(downContext.SessionId, downContext.ResolvedModelId, context.RequestAborted);
         }
     }
 

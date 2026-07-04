@@ -171,10 +171,12 @@ public class WorkspaceChatExecutionAppService(
                     baseDownContext, metadata, candidateGroups, downContextModifier, responseHandler,
                     failoverContext, linkedCts.Token);
 
-                if (failoverContext != null && baseDownContext.ResolvedModelId != null)
+                if (failoverContext != null &&
+                    baseDownContext.ResolvedModelId != null &&
+                    !string.IsNullOrEmpty(baseDownContext.SessionId))
                 {
                     await schedulingDomainService.SetAutoModelAsync(
-                        baseDownContext.SessionId!, baseDownContext.ResolvedModelId, linkedCts.Token);
+                        baseDownContext.SessionId, baseDownContext.ResolvedModelId, linkedCts.Token);
                 }
             }
             catch (OperationCanceledException ex)

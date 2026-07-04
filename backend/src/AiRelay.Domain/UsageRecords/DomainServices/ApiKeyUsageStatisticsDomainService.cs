@@ -23,8 +23,9 @@ public class ApiKeyUsageStatisticsDomainService(
     )> GetMetricsAsync(Guid? userId, CancellationToken cancellationToken = default)
     {
         var now = DateTime.UtcNow;
-        var today = now.Date;
-        var yesterday = today.AddDays(-1);
+        var nowLocal = TimeZoneInfo.ConvertTimeFromUtc(now, TimeZoneInfo.Local);
+        var anchorToday = TimeZoneInfo.ConvertTimeToUtc(nowLocal.Date, TimeZoneInfo.Local);
+        var anchorYesterday = anchorToday.AddDays(-1);
         var next7Days = now.AddDays(7);
 
         var query = await apiKeyRepository.GetQueryableAsync(cancellationToken);
@@ -44,9 +45,9 @@ public class ApiKeyUsageStatisticsDomainService(
                     k.ExpiresAt.HasValue &&
                     k.ExpiresAt.Value > now &&
                     k.ExpiresAt.Value < next7Days),
-                // UsageToday 仅在 StatsDate 为今日时有效，否则视为 0
-                TotalUsageToday = g.Sum(k => k.StatsDate != null && k.StatsDate.Value.Date == today ? k.UsageToday : 0),
-                TotalUsageYesterday = g.Sum(k => k.StatsDate != null && k.StatsDate.Value.Date == yesterday ? k.UsageToday : 0)
+                // UsageToday 仅在 StatsDate 为本地今日锚点时有效，否则视为 0
+                TotalUsageToday = g.Sum(k => k.StatsDate == anchorToday ? k.UsageToday : 0),
+                TotalUsageYesterday = g.Sum(k => k.StatsDate == anchorYesterday ? k.UsageToday : 0)
             }), cancellationToken);
 
         var totalUsageToday = stats?.TotalUsageToday ?? 0L;
@@ -58,7 +59,7 @@ public class ApiKeyUsageStatisticsDomainService(
 
         // Top 3 ApiKeys by today's usage
         var topUsage = await asyncExecuter.ToListAsync(query
-            .Where(k => k.StatsDate != null && k.StatsDate.Value.Date == today && k.UsageToday > 0)
+            .Where(k => k.StatsDate == anchorToday && k.UsageToday > 0)
             .OrderByDescending(k => k.UsageToday)
             .Take(3)
             .Select(k => new { k.Name, k.UsageToday }), cancellationToken);

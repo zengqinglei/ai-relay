@@ -17,7 +17,8 @@ public class OpenAiCompatibleModifyBodyRequestProcessor(ChatModelConnectionOptio
         up.SessionId = down.SessionId;
 
         // 如果没有映射需求，直接返回，走流式转发
-        if (string.IsNullOrEmpty(up.MappedModelId) || up.MappedModelId == (down.ResolvedModelId ?? down.ModelId))
+        if (string.IsNullOrEmpty(up.MappedModelId) ||
+            (up.MappedModelId == (down.ResolvedModelId ?? down.ModelId) && down.ResolvedModelId == null))
         {
             return;
         }

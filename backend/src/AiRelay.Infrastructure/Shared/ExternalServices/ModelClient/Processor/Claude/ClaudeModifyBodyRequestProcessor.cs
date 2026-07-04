@@ -20,7 +20,8 @@ public class ClaudeModifyBodyRequestProcessor(
 
     public async Task ProcessAsync(DownRequestContext down, UpRequestContext up, CancellationToken ct)
     {
-        bool needChangeModel = !string.IsNullOrEmpty(up.MappedModelId) && (down.ResolvedModelId ?? down.ModelId) != up.MappedModelId;
+        bool needChangeModel = !string.IsNullOrEmpty(up.MappedModelId) &&
+            ((down.ResolvedModelId ?? down.ModelId) != up.MappedModelId || down.ResolvedModelId != null);
         bool isMessagesRoute = up.RelativePath.Contains("/v1/messages", StringComparison.OrdinalIgnoreCase);
 
         // 如果既不需要改模型，又不是聊天生成接口，则无需解析 Body，直接走零分配转发
