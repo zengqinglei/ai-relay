@@ -14,7 +14,7 @@ import { Subject } from 'rxjs';
 import { debounceTime, distinctUntilChanged, finalize } from 'rxjs/operators';
 
 import { LayoutService } from '../../../../layout/services/layout-service';
-import { Role, ROLE_LABEL_MAP } from '../../../../shared/models/role.enum';
+import { ROLE_LABEL_MAP } from '../../../../shared/models/role.enum';
 import { FilterStateService } from '../../../../shared/services/filter-state.service';
 import {
   CreateUserInputDto,

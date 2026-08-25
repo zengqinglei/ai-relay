@@ -13,7 +13,7 @@ import { ToggleSwitchModule } from 'primeng/toggleswitch';
 
 import { DialogLoadingComponent } from '../../../../../../shared/components/dialog-loading/dialog-loading';
 import { DIALOG_CONFIGS } from '../../../../../../shared/constants/dialog-config.constants';
-import { Role, ROLE_LABEL_MAP } from '../../../../../../shared/models/role.enum';
+import { ROLE_LABEL_MAP } from '../../../../../../shared/models/role.enum';
 import { CreateUserInputDto, UpdateUserInputDto, UserManagementOutputDto } from '../../../../models/user-management.dto';
 
 const MAX_AVATAR_SIZE = 1024 * 1024;
@@ -49,7 +49,9 @@ export class UserEditDialogComponent {
 
   dialogConfig = DIALOG_CONFIGS.SMALL;
   readonly avatarPreview = signal('');
-  readonly displayName = computed(() => this.form.controls.displayName.value.trim() || this.form.controls.username.value.trim() || '未命名用户');
+  readonly displayName = computed(
+    () => this.form.controls.displayName.value.trim() || this.form.controls.username.value.trim() || '未命名用户'
+  );
   readonly avatarLabel = computed(() => (this.displayName().trim().charAt(0) || 'U').toUpperCase());
   readonly avatarStyle = computed(() => {
     const seed = (this.form.controls.username.value || this.displayName()).trim();

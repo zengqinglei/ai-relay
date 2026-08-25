@@ -9,7 +9,7 @@ import { TooltipModule } from 'primeng/tooltip';
 
 import { AuthService } from '../../../../../../core/services/auth-service';
 import { Role } from '../../../../../../shared/models/role.enum';
-import { getRoleLabel } from '../../../../../../shared/pipes/role-label.pipe';
+import { getRoleLabel } from '../../../../../../shared/pipes/role-label-pipe';
 import { UserManagementOutputDto } from '../../../../models/user-management.dto';
 
 export interface UserTableFilterEvent {
