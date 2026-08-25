@@ -8,6 +8,8 @@ import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { AuthService } from '../../../../../../core/services/auth-service';
+import { Role } from '../../../../../../shared/models/role.enum';
+import { getRoleLabel } from '../../../../../../shared/pipes/role-label-pipe';
 import { UserManagementOutputDto } from '../../../../models/user-management.dto';
 
 export interface UserTableFilterEvent {
@@ -36,7 +38,7 @@ export class UserTable {
   readonly filterChange = output<UserTableFilterEvent>();
 
   first = 0;
-  rows = 10;
+  rows = 20;
   sortField = signal('username');
   sortOrder = signal(1);
   activeRoles = signal<string[]>([]);
@@ -44,7 +46,7 @@ export class UserTable {
 
   onPage(event: TableLazyLoadEvent) {
     this.first = event.first ?? 0;
-    this.rows = event.rows ?? 10;
+    this.rows = event.rows ?? 20;
     if (event.sortField) {
       this.sortField.set(Array.isArray(event.sortField) ? event.sortField[0] : event.sortField);
       this.sortOrder.set(event.sortOrder ?? 1);
@@ -82,11 +84,13 @@ export class UserTable {
   }
 
   getRoleSeverity(role: string): 'success' | 'info' | 'warn' | 'danger' | 'secondary' {
-    const roleMap: Record<string, 'success' | 'info' | 'warn' | 'danger' | 'secondary'> = {
-      Admin: 'danger',
-      Operator: 'warn',
-      Member: 'info'
+    const roleMap: Record<Role, 'success' | 'info' | 'warn' | 'danger' | 'secondary'> = {
+      [Role.Admin]: 'danger',
+      [Role.Operator]: 'warn',
+      [Role.Member]: 'info'
     };
-    return roleMap[role] ?? 'secondary';
+    return roleMap[role as Role] ?? 'secondary';
   }
+
+  getRoleLabel = getRoleLabel;
 }

@@ -1,14 +1,8 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using AiRelay.Application.ModelRoutes.Handlers;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Api.Middleware.SmartProxy.ErrorHandling;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 
 namespace AiRelay.Api.Middleware.SmartProxy.Handlers;

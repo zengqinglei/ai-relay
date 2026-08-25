@@ -17,7 +17,6 @@ using AiRelay.Domain.Shared.ExternalServices.ModelClient;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Context;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 using AiRelay.Domain.UsageRecords.Options;
-using AiRelay.Domain.UsageRecords.ValueObjects;
 using Leistd.Ddd.Application.AppService;
 using Leistd.Ddd.Domain.Repositories;
 using Leistd.Ddd.Infrastructure.Persistence.Repositories;
@@ -30,6 +29,7 @@ namespace AiRelay.Application.ModelRoutes;
 
 public class ModelRouteAppService(
     AccountTokenDomainService accountTokenDomainService,
+    AccountModelResolverDomainService accountModelResolver,
     AccountResultHandlerDomainService accountResultHandlerDomainService,
     AccountRateLimitDomainService rateLimitDomainService,
     AccountFingerprintAppService fingerprintAppService,
@@ -75,7 +75,7 @@ public class ModelRouteAppService(
 
         if (candidateGroups.Count == 0)
         {
-            throw new ServiceUnavailableException($"所有绑定的资源池中均没有符合协议的活跃账号以支撑请求 (所需模型: {input.ModelId})");
+            throw new ServiceUnavailableException($"分组中暂无可用账号，当前模型的所有服务账号均已不可用，请稍后重试（模型: {input.ModelId}）");
         }
 
         return candidateGroups;
@@ -100,7 +100,7 @@ public class ModelRouteAppService(
 
             if (candidateGroups.Count == 0)
             {
-                throw new ServiceUnavailableException($"当前可见资源池中没有活跃账号支持模型 {input.ModelId}");
+                throw new ServiceUnavailableException($"分组中暂无可用账号，当前模型的所有服务账号均已不可用，请稍后重试（模型: {input.ModelId}）");
             }
 
             return candidateGroups;
@@ -125,7 +125,7 @@ public class ModelRouteAppService(
         var singleGroupCandidates = await BuildSchedulingGroupsAsync([(targetGroup, 0)], allowedCombinations: null, cancellationToken);
         if (singleGroupCandidates.Count == 0)
         {
-            throw new ServiceUnavailableException($"资源池 '{targetGroup.Name}' 中没有可用账号支持模型 {input.ModelId}");
+            throw new ServiceUnavailableException($"分组「{targetGroup.Name}」中暂无可用账号，当前模型的所有服务账号均已不可用，请稍后重试（模型: {input.ModelId}）");
         }
 
         return singleGroupCandidates;
@@ -202,13 +202,14 @@ public class ModelRouteAppService(
         };
     }
 
-    public async Task ExecuteRouteAsync(
+    public async Task<bool> ExecuteRouteAsync(
         DownRequestContext baseDownContext,
         RouteExecutionMetadata metadata,
         IReadOnlyList<RouteAccountSchedulingGroup> candidateGroups,
         Func<SelectAccountResultDto, DownRequestContext> downContextModifier,
         IRouteResponseHandler responseHandler,
-        CancellationToken cancellationToken)
+        ModelFailoverContext? failoverContext = null,
+        CancellationToken cancellationToken = default)
     {
         var attemptNumber = 0;
         var overallStopwatch = Stopwatch.StartNew();
@@ -254,13 +255,30 @@ public class ModelRouteAppService(
 
             while (true)
             {
-                var selectedAccount = await SelectRouteAccountAsync(
-                    candidateGroups,
-                    baseDownContext.SessionId ?? string.Empty,
-                    baseDownContext.ModelId,
-                    baseDownContext.Headers,
-                    excludedAccountIds,
-                    cancellationToken);
+                RouteAccountSchedulingResult selectedAccount;
+                try
+                {
+                    selectedAccount = await SelectRouteAccountAsync(
+                        candidateGroups,
+                        baseDownContext.SessionId ?? string.Empty,
+                        baseDownContext.ResolvedModelId ?? baseDownContext.ModelId,
+                        baseDownContext.Headers,
+                        excludedAccountIds,
+                        cancellationToken);
+                }
+                catch (Exception ex) when (
+                    failoverContext is { HasNextModel: true } &&
+                    ex is NotFoundException or ServiceUnavailableException)
+                {
+                    var oldModel = failoverContext.CurrentModel;
+                    failoverContext.CurrentModelIndex++;
+                    baseDownContext.ResolvedModelId = failoverContext.CurrentModel;
+                    excludedAccountIds.Clear();
+
+                    logger.LogWarning("模型 {OldModel} 所有账号已耗尽，切换至候选模型 {NewModel}",
+                        oldModel, failoverContext.CurrentModel);
+                    continue;
+                }
 
                 SelectAccountResultDto selectResult;
                 try
@@ -305,8 +323,8 @@ public class ModelRouteAppService(
                         selectedAccount.AccountToken.Id,
                         prepareFailureStatusCode,
                         ex.Message,
-                        baseDownContext.ModelId,
-                        baseDownContext.ModelId,
+                        baseDownContext.ResolvedModelId ?? baseDownContext.ModelId,
+                        baseDownContext.ResolvedModelId ?? baseDownContext.ModelId,
                         new ModelErrorAnalysisResult
                         {
                             RetryType = RetryType.NoRetry,
@@ -425,7 +443,7 @@ public class ModelRouteAppService(
                             {
                                 var (crash, statusDesc, usage, failureAnalysis) = await HandleSuccessResponseAsync(
                                     responseHandler, proxyResponse, selectResult.AccountToken.Id,
-                                    upContext.MappedModelId ?? downContext.ModelId,
+                                    upContext.MappedModelId ?? downContext.ResolvedModelId ?? downContext.ModelId,
                                     isCheckStreamHealth, tempUpBody, tempDownBody, _loggingOptions.IsBodyLoggingEnabled, cancellationToken);
 
                                 finalUsage = usage ?? finalUsage;
@@ -436,7 +454,7 @@ public class ModelRouteAppService(
                                 if (!isStreamCrash)
                                 {
                                     finalDownStatusCode = proxyResponse.StatusCode;
-                                    return;
+                                    return true;
                                 }
 
                                 attemptStatus = UsageStatus.Failed;
@@ -497,7 +515,7 @@ public class ModelRouteAppService(
                                     break;
 
                                 case FailureInstruction.SwitchAccount:
-                                    await HandleFailureAsync(new HandleFailureInputDto(selectResult.AccountToken.Id, httpStatusCode!.Value, proxyResponse.ErrorBody, downContext.ModelId, upContext.MappedModelId ?? downContext.ModelId, retryPolicy), cancellationToken);
+                                    await HandleFailureAsync(new HandleFailureInputDto(selectResult.AccountToken.Id, httpStatusCode!.Value, proxyResponse.ErrorBody, downContext.ResolvedModelId ?? downContext.ModelId, upContext.MappedModelId ?? downContext.ResolvedModelId ?? downContext.ModelId, retryPolicy), cancellationToken);
                                     shouldSwitchAccount = true;
                                     attemptStatusDesc = $"账号 '{selectResult.AccountToken.Name}' 不可用 (状态码: {httpStatusCode})，尝试切换至其他资源进行重试" + (attemptStatusDesc != null ? $"：{attemptStatusDesc}" : "");
                                     break;
@@ -505,7 +523,7 @@ public class ModelRouteAppService(
                                 case FailureInstruction.Fail:
                                     if (retryPolicy.RetryType != RetryType.UnsupportedEndpoint)
                                     {
-                                        await HandleFailureAsync(new HandleFailureInputDto(selectResult.AccountToken.Id, httpStatusCode!.Value, proxyResponse.ErrorBody, downContext.ModelId, upContext.MappedModelId ?? downContext.ModelId, retryPolicy), cancellationToken);
+                                        await HandleFailureAsync(new HandleFailureInputDto(selectResult.AccountToken.Id, httpStatusCode!.Value, proxyResponse.ErrorBody, downContext.ResolvedModelId ?? downContext.ModelId, upContext.MappedModelId ?? downContext.ResolvedModelId ?? downContext.ModelId, retryPolicy), cancellationToken);
                                     }
                                     attemptStatusDesc = retryPolicy.RetryType == RetryType.UnsupportedEndpoint
                                         ? $"端点不支持 (状态码: {httpStatusCode})，直接透传响应：{retryPolicy.Description}"
@@ -515,7 +533,7 @@ public class ModelRouteAppService(
                                     downResponseBody = LoggingSubBody(await responseHandler.OnTerminalErrorAsync(
                                         RouteTerminalError.UpstreamNormalized(httpStatusCode ?? 500, proxyResponse.ErrorBody),
                                         cancellationToken), force: true);
-                                    return;
+                                    return false;
                             }
 
                             if (!string.IsNullOrEmpty(attemptStatusDesc)) logger.LogWarning(attemptStatusDesc);
@@ -532,8 +550,8 @@ public class ModelRouteAppService(
                             attemptStatus,
                             attemptStatusDesc,
                             upResponseBody,
-                            attemptStatus == UsageStatus.Failed ? upRequestHeaders : loggingUpRequestHeaders,
-                            attemptStatus == UsageStatus.Failed ? upRequestBody : loggingUpRequestBody);
+                            loggingUpRequestHeaders,
+                            loggingUpRequestBody);
                     }
                 }
 
@@ -560,7 +578,7 @@ public class ModelRouteAppService(
                 finalDownStatusCode ??= 200;
                 logger.LogWarning(ex, finalStatusDescription);
                 responseHandler.AbortConnection();
-                return;
+                return false;
             }
             else
             {
@@ -588,10 +606,12 @@ public class ModelRouteAppService(
                 CacheCreationTokens: finalUsage?.CacheCreationTokens,
                 AttemptCount: attemptNumber,
                 DownStatusCode: finalDownStatusCode,
-                DownRequestHeaders: finalStatus == UsageStatus.Failed ? downRequestHeaders : loggingDownRequestHeaders,
-                DownRequestBody: finalStatus == UsageStatus.Failed ? downRequestBody : loggingDownRequestBody
+                DownRequestHeaders: null,
+                DownRequestBody: null
             ));
         }
+
+        return finalStatus == UsageStatus.Success;
     }
 
     private async Task<RouteAccountSchedulingResult> SelectRouteAccountAsync(
@@ -604,7 +624,7 @@ public class ModelRouteAppService(
     {
         if (excludedAccountIds.Count >= _schedulingOptions.MaxAccountSwitches)
         {
-            throw new ServiceUnavailableException($"已尝试 {_schedulingOptions.MaxAccountSwitches} 个账号，均不可用");
+            throw new ServiceUnavailableException($"分组中暂无可用账号，已轮询 {_schedulingOptions.MaxAccountSwitches} 个服务账号均已不可用，请稍后重试（模型: {modelId}）");
         }
 
         var candidateAccountIds = candidateGroups
@@ -634,7 +654,37 @@ public class ModelRouteAppService(
             return result;
         }
 
-        throw new ServiceUnavailableException($"当前候选范围中没有可用账号支持模型 {modelId}");
+        // 候选耗尽：区分"模型未开通(404)"与"临时不可用(503)"。
+        // 支持性判断覆盖全部候选账号（含被排除/冷却中的），模型是否开通与临时状态无关。
+        var anyAccountSupportsModel = string.IsNullOrEmpty(modelId);
+        if (!anyAccountSupportsModel)
+        {
+            foreach (var account in candidateGroups
+                         .SelectMany(group => group.CandidateRelations)
+                         .Select(relation => relation.AccountToken)
+                         .Where(account => account != null)
+                         .DistinctBy(account => account!.Id))
+            {
+                if (await accountTokenDomainService.IsModelSupportedAsync(account!, modelId!, cancellationToken))
+                {
+                    anyAccountSupportsModel = true;
+                    break;
+                }
+            }
+        }
+
+        throw CreateNoAccountForModelException(anyAccountSupportsModel, modelId);
+    }
+
+    /// <summary>
+    /// 候选账号耗尽时的异常分类：模型无人支持返回 404（不应重试），
+    /// 有账号支持但临时不可用返回 503（可重试）。
+    /// </summary>
+    internal static Exception CreateNoAccountForModelException(bool anyAccountSupportsModel, string? modelId)
+    {
+        return anyAccountSupportsModel
+            ? new ServiceUnavailableException($"分组中暂无可用账号，当前模型的所有服务账号均已不可用，请稍后重试（模型: {modelId}）")
+            : new NotFoundException($"当前模型未开通或不支持，请求的模型「{modelId}」在当前账号范围内未找到可用配置");
     }
 
     private async Task<IReadOnlyList<RouteAccountSchedulingGroup>> BuildSchedulingGroupsAsync(
@@ -982,7 +1032,7 @@ public class ModelRouteAppService(
                     failureDescription: $"账号 '{selectResult.AccountToken.Name}' 等待队列已满，未发起上游请求，切换其他账号");
             }
 
-            throw new ServiceUnavailableException("等待队列已满，请稍后重试");
+            throw new ServiceUnavailableException("并发请求过多，当前请求等待队列已达上限，请稍后重试");
         }
 
         try
@@ -1012,7 +1062,7 @@ public class ModelRouteAppService(
                     failureDescription: $"账号 '{selectResult.AccountToken.Name}' 等待并发槽位超时，未发起上游请求，切换其他账号");
             }
 
-            throw new ServiceUnavailableException($"账号 {selectResult.AccountToken.Name} 繁忙，请稍后重试");
+            throw new ServiceUnavailableException("并发请求过多，等待可用处理槽位超时，请稍后重试");
         }
 
         return new ConcurrencySlot(true, () => concurrencyStrategy.ReleaseSlotAsync(selectResult.AccountToken.Id, activeRequestId));
@@ -1047,4 +1097,64 @@ public class ModelRouteAppService(
             _ => 500
         };
     }
+
+    /// <inheritdoc/>
+    public async Task<ProxyModelsOutputDto> GetProxyModelsAsync(
+        Guid apiKeyId,
+        string responseFormat,
+        CancellationToken cancellationToken = default)
+    {
+        // 1. 获取 APIKey 绑定的所有分组 ID（仅需外键，无需加载导航属性）
+        var bindingQuery = await apiKeyProviderGroupBindingRepository.GetQueryableAsync(cancellationToken);
+        var groupIds = await queryableAsyncExecuter.ToListAsync(
+            bindingQuery.Where(b => b.ApiKeyId == apiKeyId).Select(b => b.ProviderGroupId).Distinct(),
+            cancellationToken);
+        if (groupIds.Count == 0)
+        {
+            return BuildEmptyResponse(responseFormat);
+        }
+
+        // 2. 批量获取所有分组下的活跃账号（已包含 AccountToken 导航属性）
+        var relations = await relationRepository.GetCandidatesByGroupIdsAsync(
+            groupIds, cancellationToken: cancellationToken);
+
+        var accounts = relations
+            .Where(r => r.AccountToken != null && r.AccountToken.IsAvailable())
+            .Select(r => r.AccountToken!)
+            .DistinctBy(a => a.Id)
+            .ToList();
+
+        // 3. 按请求协议过滤账号
+        var filtered = FilterAccountsByFormat(accounts, responseFormat);
+
+        // 4. 聚合模型 ID（仅读缓存，不发起上游请求）
+        var modelIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var account in filtered)
+        {
+            var ids = await accountModelResolver.ResolveExposedModelIdsAsync(account, cancellationToken);
+            foreach (var id in ids) modelIds.Add(id);
+        }
+
+        logger.LogDebug(
+            "GetProxyModelsAsync: ApiKeyId={ApiKeyId}, Format={Format}, Groups={Groups}, Accounts={Accounts}, Models={Models}",
+            apiKeyId, responseFormat, groupIds.Count, filtered.Count, modelIds.Count);
+
+        // 5. 按协议格式组装响应
+        return responseFormat == "anthropic"
+            ? ProxyModelsResponseFactory.CreateAnthropic(modelIds)
+            : ProxyModelsResponseFactory.CreateOpenAi(modelIds);
+    }
+
+    private static List<AccountToken> FilterAccountsByFormat(
+        List<AccountToken> accounts, string format) => format switch
+    {
+        "anthropic" => accounts.Where(a => a.Provider is Provider.Claude).ToList(),
+        "gemini"    => accounts.Where(a => a.Provider is Provider.Gemini).ToList(),
+        _           => accounts.Where(a => a.Provider is Provider.OpenAI or Provider.OpenAICompatible or Provider.Antigravity).ToList()
+    };
+
+    private static ProxyModelsOutputDto BuildEmptyResponse(string format) =>
+        format == "anthropic"
+            ? ProxyModelsResponseFactory.CreateAnthropic([])
+            : ProxyModelsResponseFactory.CreateOpenAi([]);
 }

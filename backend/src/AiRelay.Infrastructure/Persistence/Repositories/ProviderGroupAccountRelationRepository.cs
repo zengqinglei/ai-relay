@@ -27,7 +27,12 @@ public class ProviderGroupAccountRelationRepository(
         // 基础过滤条件：分组ID匹配 && 关联关系启用 && 账户存在且启用
         IQueryable<ProviderGroupAccountRelation> query = dbSet
             .Include(r => r.AccountToken)
-            .Where(r => r.ProviderGroupId == groupId && r.IsActive && r.AccountToken != null && r.AccountToken.IsActive);
+            .Where(r => r.ProviderGroupId == groupId
+                && r.IsActive
+                && r.AccountToken != null
+                && r.AccountToken.IsActive
+                && !r.AccountToken.IsDeleted
+                && r.AccountToken.Status != AccountStatus.Error);  // 异常账号不参与调度
 
         // SQL 过滤：排除指定的账号 ID
         if (excludedAccountIds != null && excludedAccountIds.Count > 0)
@@ -89,7 +94,12 @@ public class ProviderGroupAccountRelationRepository(
 
         IQueryable<ProviderGroupAccountRelation> query = dbSet
             .Include(r => r.AccountToken)
-            .Where(r => groupIds.Contains(r.ProviderGroupId) && r.IsActive && r.AccountToken != null && r.AccountToken.IsActive);
+            .Where(r => groupIds.Contains(r.ProviderGroupId)
+                && r.IsActive
+                && r.AccountToken != null
+                && r.AccountToken.IsActive
+                && !r.AccountToken.IsDeleted
+                && r.AccountToken.Status != AccountStatus.Error);  // 异常账号不暴露给下游
 
         if (allowedCombinations != null && allowedCombinations.Count > 0)
         {

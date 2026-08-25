@@ -172,7 +172,7 @@
 
       <!-- Bottom Login Link -->
       <div class="mt-8 text-center text-base text-color">
-        已有账号？ <a [routerLink]="['/auth/login']" class="font-bold text-primary hover:text-primary-emphasis hover:underline transition-colors">直接登录</a>
+        已有账号？ <a [routerLink]="['/auth/login']" [queryParams]="returnUrl ? { returnUrl: returnUrl } : null" class="font-bold text-primary hover:text-primary-emphasis hover:underline transition-colors">直接登录</a>
       </div>
     </div>
   </div>

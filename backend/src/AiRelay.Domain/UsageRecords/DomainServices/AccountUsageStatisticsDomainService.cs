@@ -1,5 +1,6 @@
 using AiRelay.Domain.ProviderAccounts.Entities;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
+using AiRelay.Domain.Shared.Utilities;
 using AiRelay.Domain.UsageRecords.Entities;
 using Leistd.Ddd.Domain.Repositories;
 
@@ -54,10 +55,11 @@ public class AccountUsageStatisticsDomainService(
         });
         var rotationWarnings = accounts.Count(a => a.GetEffectiveStatus() != AccountStatus.Normal);
 
-        // 2. 使用量统计 - 单次条件聚合查询
-        var today = DateTime.UtcNow.Date;
+        // 2. 使用量统计 - 单次条件聚合查询（对齐本地 00:00 边界的 UTC 时间点）
+        var nowUtc = DateTime.UtcNow;
+        var today = LocalDayAnchor.GetTodayUtcAnchor();
         var yesterday = today.AddDays(-1);
-        var last24Hours = DateTime.UtcNow.AddHours(-24);
+        var last24Hours = nowUtc.AddHours(-24);
 
         var query = await usageRecordRepository.GetQueryableAsync(cancellationToken);
         var usageStats = await asyncExecuter.SingleOrDefaultAsync(query

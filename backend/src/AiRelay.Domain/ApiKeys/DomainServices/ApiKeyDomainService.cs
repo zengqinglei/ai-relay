@@ -183,7 +183,7 @@ public class ApiKeyDomainService(
         }
 
         // 4. 记录使用
-        apiKey.RecordUsage();
+        apiKey.RecordUsage(DateTime.UtcNow);
         await apiKeyRepository.UpdateAsync(apiKey, cancellationToken: cancellationToken);
 
         logger.LogInformation("验证 API Key 成功: {Name} (ID: {Id})", apiKey.Name, apiKey.Id);

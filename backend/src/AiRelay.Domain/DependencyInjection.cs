@@ -47,6 +47,9 @@ public static class DependencyInjection
         services.AddTransient<RouteAccountSchedulingDomainService>();
         services.AddTransient<AccountRetryStrategyDomainService>();
 
+        // 账号模型解析领域服务（聚合白名单/映射/上游缓存，供多处复用）
+        services.AddTransient<AccountModelResolverDomainService>();
+
         // [New] Pricing Provider (模型定价服务 - Singleton 因为有全局缓存和静态锁)
         services.AddSingleton<IPricingProvider, LiteLlmPricingProvider>();
 

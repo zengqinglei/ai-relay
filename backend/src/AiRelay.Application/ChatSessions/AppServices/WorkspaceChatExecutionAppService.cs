@@ -23,7 +23,8 @@ namespace AiRelay.Application.ChatSessions.AppServices;
 public class WorkspaceChatExecutionAppService(
     IModelRouteAppService modelRouteAppService,
     IChatModelHandlerFactory chatModelHandlerFactory,
-    ILogger<WorkspaceChatExecutionAppService> logger) : BaseAppService, IWorkspaceChatExecutionAppService
+    ILogger<WorkspaceChatExecutionAppService> logger,
+    AutoModelResolver autoModelResolver) : BaseAppService, IWorkspaceChatExecutionAppService
 {
     public async IAsyncEnumerable<StreamEvent> ExecuteAsync(
         ChatSession session,
@@ -52,6 +53,9 @@ public class WorkspaceChatExecutionAppService(
             ClientIp = requestContext.ClientIp,
             Headers = new Dictionary<string, string>(requestContext.Headers, StringComparer.OrdinalIgnoreCase)
         };
+
+        // auto 模型解析：非 auto 请求返回 null，不影响现有逻辑
+        var failoverContext = await autoModelResolver.ResolveAsync(baseDownContext, cancellationToken);
 
         var metadata = new RouteExecutionMetadata(
             UsageRecordId: Guid.CreateVersion7(),
@@ -135,8 +139,15 @@ public class WorkspaceChatExecutionAppService(
         {
             try
             {
-                await modelRouteAppService.ExecuteRouteAsync(
-                    baseDownContext, metadata, candidateGroups, downContextModifier, responseHandler, linkedCts.Token);
+                var isSuccess = await modelRouteAppService.ExecuteRouteAsync(
+                    baseDownContext, metadata, candidateGroups, downContextModifier, responseHandler,
+                    failoverContext, linkedCts.Token);
+
+                // 仅在路由成功时写入粘性缓存，避免把失败的模型记为"上次成功模型"
+                if (isSuccess)
+                {
+                    await autoModelResolver.SaveStickyModelAsync(baseDownContext, failoverContext, linkedCts.Token);
+                }
             }
             catch (OperationCanceledException ex)
             {

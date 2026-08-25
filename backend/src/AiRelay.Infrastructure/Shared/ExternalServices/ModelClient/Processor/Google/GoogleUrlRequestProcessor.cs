@@ -85,7 +85,7 @@ public class GoogleUrlRequestProcessor(ChatModelConnectionOptions options) : IRe
     private void FallbackToPublicProtocol(UpRequestContext up, string relativePath, DownRequestContext down)
     {
         var action = ExtractGoogleAction(relativePath);
-        var modelId = up.MappedModelId ?? down.ModelId ?? "gemini-2.0-flash";
+        var modelId = up.MappedModelId ?? down.ResolvedModelId ?? down.ModelId ?? "gemini-2.0-flash";
 
         up.BaseUrl = !string.IsNullOrEmpty(options.BaseUrl) ? options.BaseUrl : AIStudioBaseUrl;
 

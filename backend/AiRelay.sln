@@ -98,6 +98,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Leistd.Lock.Redis", "compon
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Leistd.Lock.Memory", "components\lock\Leistd.Lock.Memory\Leistd.Lock.Memory.csproj", "{67DEF5D4-B42C-4013-AC93-99FF88F9E940}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05-4346-4AA6-1389-037BE0695223}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AiRelay.Tests", "tests\AiRelay.Tests\AiRelay.Tests.csproj", "{C9EDD874-1BF8-4849-B311-3EBBF951AC93}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -456,6 +460,18 @@ Global
 		{67DEF5D4-B42C-4013-AC93-99FF88F9E940}.Release|x64.Build.0 = Release|Any CPU
 		{67DEF5D4-B42C-4013-AC93-99FF88F9E940}.Release|x86.ActiveCfg = Release|Any CPU
 		{67DEF5D4-B42C-4013-AC93-99FF88F9E940}.Release|x86.Build.0 = Release|Any CPU
+		{C9EDD874-1BF8-4849-B311-3EBBF951AC93}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C9EDD874-1BF8-4849-B311-3EBBF951AC93}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C9EDD874-1BF8-4849-B311-3EBBF951AC93}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C9EDD874-1BF8-4849-B311-3EBBF951AC93}.Debug|x64.Build.0 = Debug|Any CPU
+		{C9EDD874-1BF8-4849-B311-3EBBF951AC93}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{C9EDD874-1BF8-4849-B311-3EBBF951AC93}.Debug|x86.Build.0 = Debug|Any CPU
+		{C9EDD874-1BF8-4849-B311-3EBBF951AC93}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C9EDD874-1BF8-4849-B311-3EBBF951AC93}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C9EDD874-1BF8-4849-B311-3EBBF951AC93}.Release|x64.ActiveCfg = Release|Any CPU
+		{C9EDD874-1BF8-4849-B311-3EBBF951AC93}.Release|x64.Build.0 = Release|Any CPU
+		{C9EDD874-1BF8-4849-B311-3EBBF951AC93}.Release|x86.ActiveCfg = Release|Any CPU
+		{C9EDD874-1BF8-4849-B311-3EBBF951AC93}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -501,6 +517,7 @@ Global
 		{E9ADDDF0-D466-4388-8C44-80CCC73C7053} = {DD008CE6-F593-EDEA-9CF5-CFC82A0C6CF2}
 		{683FB2CF-8514-4DB1-A1F0-E9CF2325C7BF} = {DD008CE6-F593-EDEA-9CF5-CFC82A0C6CF2}
 		{67DEF5D4-B42C-4013-AC93-99FF88F9E940} = {DD008CE6-F593-EDEA-9CF5-CFC82A0C6CF2}
+		{C9EDD874-1BF8-4849-B311-3EBBF951AC93} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {0D50F898-67A2-4C37-BF74-B09E0BDEACA7}

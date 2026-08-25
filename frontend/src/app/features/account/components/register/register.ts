@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { CardModule } from 'primeng/card';
@@ -40,8 +40,12 @@ import { AccountService } from '../../services/account-service';
 export class Register implements OnInit {
   private fb = inject(FormBuilder);
   private accountService = inject(AccountService);
+  private route = inject(ActivatedRoute);
   private router = inject(Router);
   private messageService = inject(MessageService);
+
+  // returnUrl：注册成功后跳转 login 时传递
+  returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
   private destroyRef = inject(DestroyRef);
   public layoutService = inject(LayoutService);
 
@@ -228,7 +232,9 @@ export class Register implements OnInit {
       );
 
       this.messageService.add({ severity: 'success', summary: '注册成功', detail: '账号创建成功，请登录' });
-      this.router.navigate(['/auth/login']);
+      this.router.navigate(['/auth/login'], {
+        queryParams: this.returnUrl ? { returnUrl: this.returnUrl } : undefined
+      });
     } catch {
       this.refreshCaptcha();
     } finally {

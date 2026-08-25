@@ -80,6 +80,11 @@ public class DownRequestContext
     // 只提供简单属性！这些属性的灌扫发生在一开始。
 
     public string? ModelId { get; set; }
+    /// <summary>
+    /// 路由解析后的当前模型 ID。auto 场景下由中间件初始化，failover 时由 ExecuteRouteAsync 更新。
+    /// 所有路由/映射/限流逻辑应读取此属性而非 ModelId。ModelId 保持原始入站值不变。
+    /// </summary>
+    public string? ResolvedModelId { get; set; }
     public string? SessionId { get; set; }
     public string? DownRequestUrl { get; init; }
     public string? ClientIp { get; init; }

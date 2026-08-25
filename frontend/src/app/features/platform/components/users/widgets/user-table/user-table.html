@@ -67,7 +67,7 @@
         <td class="bg-transparent border-b border-surface-200 dark:border-surface-700 px-6 py-4 hidden md:table-cell">
           <div class="flex max-w-[18rem] items-center gap-1 overflow-hidden whitespace-nowrap">
             @for (role of getVisibleRoles(item); track role) {
-              <p-tag [value]="role" [severity]="getRoleSeverity(role)" styleClass="text-[10px]" />
+              <p-tag [value]="getRoleLabel(role)" [severity]="getRoleSeverity(role)" styleClass="text-[10px]" />
             }
             @if (getHiddenRoles(item).length > 0) {
               <p-tag
@@ -167,7 +167,7 @@
     <div class="mb-3 text-sm font-semibold text-color">{{ rolePopoverTitle() }}</div>
     <div class="flex flex-wrap gap-2">
       @for (role of activeRoles(); track role) {
-        <p-tag [value]="role" [severity]="getRoleSeverity(role)" />
+        <p-tag [value]="getRoleLabel(role)" [severity]="getRoleSeverity(role)" />
       } @empty {
         <div class="text-sm text-muted-color">暂无角色</div>
       }

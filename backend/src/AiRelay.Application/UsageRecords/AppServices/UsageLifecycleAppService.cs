@@ -2,6 +2,7 @@ using AiRelay.Application.UsageRecords.Dtos.Lifecycle;
 using AiRelay.Domain.ApiKeys.Entities;
 using AiRelay.Domain.ProviderAccounts.Entities;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
+using AiRelay.Domain.Shared.Utilities;
 using AiRelay.Domain.UsageRecords.DomainServices;
 using AiRelay.Domain.UsageRecords.Entities;
 using Leistd.Ddd.Application.AppService;
@@ -196,7 +197,8 @@ public class UsageLifecycleAppService(
         await using var handle = await distributedLock.LockAsync($"stats:account:{accountTokenId}", cancellationToken);
         var account = await accountTokenRepository.GetByIdAsync(accountTokenId, cancellationToken);
         if (account == null) return;
-        account.AccumulateCallStats(isSuccess);
+        var todayUtcAnchor = LocalDayAnchor.GetTodayUtcAnchor();
+        account.AccumulateCallStats(isSuccess, todayUtcAnchor);
         await accountTokenRepository.UpdateAsync(account, cancellationToken: cancellationToken);
     }
 
@@ -205,7 +207,8 @@ public class UsageLifecycleAppService(
         await using var handle = await distributedLock.LockAsync($"stats:account:{accountTokenId}", cancellationToken);
         var account = await accountTokenRepository.GetByIdAsync(accountTokenId, cancellationToken);
         if (account == null) return;
-        account.AccumulateCostStats(tokens, cost);
+        var todayUtcAnchor = LocalDayAnchor.GetTodayUtcAnchor();
+        account.AccumulateCostStats(tokens, cost, todayUtcAnchor);
         await accountTokenRepository.UpdateAsync(account, cancellationToken: cancellationToken);
     }
 
@@ -214,7 +217,8 @@ public class UsageLifecycleAppService(
         await using var handle = await distributedLock.LockAsync($"stats:apikey:{apiKeyId}", cancellationToken);
         var apiKey = await apiKeyRepository.GetByIdAsync(apiKeyId, cancellationToken);
         if (apiKey == null) return;
-        apiKey.AccumulateStats(tokens, cost, isSuccess);
+        var todayUtcAnchor = LocalDayAnchor.GetTodayUtcAnchor();
+        apiKey.AccumulateStats(tokens, cost, isSuccess, todayUtcAnchor);
         await apiKeyRepository.UpdateAsync(apiKey, cancellationToken: cancellationToken);
     }
 }

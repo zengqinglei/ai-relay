@@ -37,88 +37,95 @@
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div class="flex flex-col gap-2">
             <label class="font-bold">应用名称</label>
-            <input pInputText [(ngModel)]="formModel().displayName" placeholder="例如 AiRelay Desktop" />
+            <input pInputText
+              [ngModel]="formModel().displayName"
+              (ngModelChange)="formModel.update(model => ({ ...model, displayName: $event }))"
+              placeholder="例如 AiRelay Desktop" />
           </div>
           <div class="flex flex-col gap-2">
             <label class="font-bold">Client ID</label>
             <input
               pInputText
-              [(ngModel)]="formModel().clientId"
+              [ngModel]="formModel().clientId"
+              (ngModelChange)="formModel.update(model => ({ ...model, clientId: $event }))"
               placeholder="例如 ai-relay-desktop"
               [disabled]="isEditMode()"
-              class="font-mono"
-            />
+              class="font-mono" />
           </div>
         </div>
 
         <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div class="flex flex-col gap-2">
             <label class="font-bold">应用类型</label>
-            <p-select
-              [options]="applicationTypeOptions"
-              [(ngModel)]="formModel().applicationType"
-              optionLabel="label"
-              optionValue="value"
-              appendTo="body"
-              styleClass="w-full"
-            />
+            @if (isTemplateLocked()) {
+              <p-tag [value]="applicationTypeLabels[formModel().applicationType]" severity="info" />
+            } @else {
+              <p-select
+                [options]="applicationTypeOptions"
+                [ngModel]="formModel().applicationType"
+                (ngModelChange)="formModel.update(model => ({ ...model, applicationType: $event }))"
+                optionLabel="label"
+                optionValue="value"
+                appendTo="body"
+                styleClass="w-full"
+                />
+            }
           </div>
           <div class="flex flex-col gap-2">
             <label class="font-bold">客户端类型</label>
-            <p-select
-              [options]="clientTypeOptions"
-              [(ngModel)]="formModel().clientType"
-              (onChange)="onClientTypeChange()"
-              optionLabel="label"
-              optionValue="value"
-              appendTo="body"
-              styleClass="w-full"
-            />
+            @if (isTemplateLocked()) {
+              <p-tag [value]="clientTypeLabels[formModel().clientType]" [severity]="isConfidentialClient() ? 'warn' : 'info'" />
+            } @else {
+              <p-select
+                [options]="clientTypeOptions"
+                [ngModel]="formModel().clientType"
+                (ngModelChange)="onClientTypeSelect($event)"
+                optionLabel="label"
+                optionValue="value"
+                appendTo="body"
+                styleClass="w-full"
+                />
+            }
           </div>
           <div class="flex flex-col gap-2">
             <label class="font-bold">授权确认</label>
-            <p-select
-              [options]="consentTypeOptions"
-              [(ngModel)]="formModel().consentType"
-              optionLabel="label"
-              optionValue="value"
-              appendTo="body"
-              styleClass="w-full"
-            />
+            @if (isTemplateLocked()) {
+              <p-tag [value]="consentTypeLabels[formModel().consentType]" severity="secondary" />
+            } @else {
+              <p-select
+                [options]="consentTypeOptions"
+                [ngModel]="formModel().consentType"
+                (ngModelChange)="formModel.update(model => ({ ...model, consentType: $event }))"
+                optionLabel="label"
+                optionValue="value"
+                appendTo="body"
+                styleClass="w-full"
+                />
+            }
           </div>
         </div>
 
-        @if (!isEditMode() && isConfidentialClient()) {
-          <div class="flex flex-col gap-2">
-            <label class="font-bold flex items-center gap-2">
-              Client Secret
-              <i
-                class="pi pi-info-circle cursor-help text-xs text-muted-color"
-                pTooltip="留空时后端阶段可自动生成；mock 阶段仅记录是否设置"
-                tooltipPosition="top"
-              ></i>
-            </label>
-            <input pInputText [(ngModel)]="formModel().clientSecret" placeholder="可选，留空则后续通过重置密钥生成" class="font-mono" />
-          </div>
-        }
       </div>
 
-      <p-divider align="center">
-        <span class="text-sm font-bold text-gray-500">回调地址</span>
-      </p-divider>
+      @if (formModel().applicationType !== 'service') {
+        <p-divider align="center">
+          <span class="text-sm font-bold text-muted-color">回调地址</span>
+        </p-divider>
 
-      <div class="grid grid-cols-1 gap-4">
-        <div class="rounded-xl border border-surface-200 bg-surface-50/70 p-4 dark:border-surface-700 dark:bg-surface-800/40">
-          <div class="mb-3 flex items-center justify-between gap-3">
-            <label class="font-bold">Redirect URIs</label>
-            <span class="text-xs text-muted-color">登录完成后的回调地址</span>
-          </div>
+        <div class="grid grid-cols-1 gap-4">
+          <div class="rounded-lg border border-surface-200 bg-surface-50/70 p-4 dark:border-surface-700 dark:bg-surface-800/40">
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <label class="font-bold">Redirect URIs</label>
+              <span class="text-xs text-muted-color">登录完成后的回调地址</span>
+            </div>
           <div class="flex flex-col gap-2 sm:flex-row">
             <input
               pInputText
-              [(ngModel)]="formModel().redirectUriInput"
+              [ngModel]="formModel().redirectUriInput"
+              (ngModelChange)="formModel.update(model => ({ ...model, redirectUriInput: $event }))"
               placeholder="https://example.com/callback 或 ai-relay-desktop://oauth/callback"
-              class="h-10 w-full font-mono"
+              class="w-full font-mono"
+
             />
             <p-button
               label="添加"
@@ -153,9 +160,11 @@
           <div class="flex flex-col gap-2 sm:flex-row">
             <input
               pInputText
-              [(ngModel)]="formModel().postLogoutRedirectUriInput"
+              [ngModel]="formModel().postLogoutRedirectUriInput"
+              (ngModelChange)="formModel.update(model => ({ ...model, postLogoutRedirectUriInput: $event }))"
               placeholder="https://example.com/logout-callback"
-              class="h-10 w-full font-mono"
+              class="w-full font-mono"
+
             />
             <p-button
               label="添加"
@@ -182,55 +191,77 @@
           </div>
         </div>
       </div>
+      }
 
       <p-divider align="center">
-        <span class="text-sm font-bold text-gray-500">授权能力</span>
+        <span class="text-sm font-bold text-muted-color">授权能力</span>
       </p-divider>
 
       <div class="flex flex-col gap-4">
-        <div class="flex flex-col gap-2">
-          <label class="font-bold">Permissions</label>
-          <p-multiselect
-            [options]="permissionOptions"
-            [(ngModel)]="formModel().permissions"
-            optionLabel="label"
-            optionValue="value"
-            display="chip"
-            appendTo="body"
-            styleClass="w-full"
-            placeholder="选择授权能力"
-          >
-            <ng-template let-option pTemplate="item">
-              <div class="flex w-full items-center justify-between gap-3">
-                <span>{{ option.label }}</span>
-                <span class="text-xs text-muted-color">{{ option.value }}</span>
-              </div>
-            </ng-template>
-          </p-multiselect>
-        </div>
+        @if (isServiceType()) {
+          <!-- service 类型：简化显示 -->
+          <div class="rounded-lg border border-surface-200 bg-surface-50/70 p-4 dark:border-surface-700 dark:bg-surface-800/40">
+            <div class="mb-2 flex items-center gap-2">
+              <i class="pi pi-check-circle text-green-500"></i>
+              <span class="text-sm font-medium">已根据模板自动配置</span>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              @for (p of formModel().permissions; track p) {
+                <p-tag [value]="getPermissionLabel(p)" severity="success" />
+              }
+            </div>
+            <p class="mt-2 text-xs text-muted-color">服务端客户端凭据流程，无需回调地址和 PKCE。</p>
+          </div>
+        } @else {
+          <!-- web/desktop 类型：完整编辑 -->
+          <div class="flex flex-col gap-2">
+            <label class="font-bold">Permissions</label>
+            <p-multiselect
+              [options]="permissionOptions"
+              [ngModel]="formModel().permissions"
+              (ngModelChange)="formModel.update(model => ({ ...model, permissions: $event }))"
+              optionLabel="label"
+              optionValue="value"
+              display="chip"
+              appendTo="body"
+              styleClass="w-full"
 
-        <div class="flex flex-col gap-2">
-          <label class="font-bold">Requirements</label>
-          <p-multiselect
-            [options]="requirementOptions"
-            [(ngModel)]="formModel().requirements"
-            optionLabel="label"
-            optionValue="value"
-            display="chip"
-            appendTo="body"
-            styleClass="w-full"
-            placeholder="选择安全要求"
-          />
-          @if (
-            (formModel().applicationType === 'native' || formModel().clientType === 'public') &&
-            !formModel().requirements.includes('ft:pkce')
-          ) {
-            <small class="text-red-500">Native/Public 客户端必须启用 PKCE。</small>
-          }
-          @if (formModel().permissions.includes('gt:refresh_token') && !formModel().permissions.includes('scp:offline_access')) {
-            <small class="text-orange-500">已允许 refresh_token，建议同时开放 offline_access scope。</small>
-          }
-        </div>
+              placeholder="选择授权能力"
+            >
+              <ng-template let-option pTemplate="item">
+                <div class="flex w-full items-center justify-between gap-3">
+                  <span>{{ option.label }}</span>
+                  <span class="text-xs text-muted-color">{{ option.value }}</span>
+                </div>
+              </ng-template>
+            </p-multiselect>
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <label class="font-bold">Requirements</label>
+            <p-multiselect
+              [options]="requirementOptions"
+              [ngModel]="formModel().requirements"
+              (ngModelChange)="formModel.update(model => ({ ...model, requirements: $event }))"
+              optionLabel="label"
+              optionValue="value"
+              display="chip"
+              appendTo="body"
+              styleClass="w-full"
+
+              placeholder="选择安全要求"
+            />
+            @if (
+              (formModel().applicationType === 'native' || formModel().clientType === 'public') &&
+              !formModel().requirements.includes('ft:pkce')
+            ) {
+              <small class="text-red-500">Native/Public 客户端必须启用 PKCE。</small>
+            }
+            @if (formModel().permissions.includes('gt:refresh_token') && !formModel().permissions.includes('scp:offline_access')) {
+              <small class="text-orange-500">已允许 refresh_token，建议同时开放 offline_access scope。</small>
+            }
+          </div>
+        }
       </div>
     </div>
   }

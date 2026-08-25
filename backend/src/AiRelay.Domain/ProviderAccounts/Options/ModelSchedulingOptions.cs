@@ -30,4 +30,10 @@ public class ModelSchedulingOptions
     /// 当上游显式要求等待超过该阈值时，优先切号而不是继续同号等待（秒）。
     /// </summary>
     public int LongRetryAfterSwitchThresholdSeconds { get; set; } = 30;
+
+    /// <summary>
+    /// 客户端取消请求时，请求持续时间低于此阈值（秒）视为用户主动取消（不惩罚账号），
+    /// 超过此阈值视为上游响应过慢导致客户端超时（惩罚账号进入冷却）。
+    /// </summary>
+    public int ClientCancelPenaltyThresholdSeconds { get; set; } = 30;
 }

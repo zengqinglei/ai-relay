@@ -3,7 +3,6 @@ using AiRelay.Api.Middleware.SmartProxy.ErrorHandling;
 using AiRelay.Api.Middleware.SmartProxy.Handlers;
 using AiRelay.Application.ModelRoutes;
 using AiRelay.Application.ModelRoutes.Dtos;
-using AiRelay.Application.ModelRoutes.Handlers;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Context;
@@ -22,6 +21,7 @@ public class SmartReverseProxyMiddleware(
     IChatModelHandlerFactory chatModelHandlerFactory,
     ProxyErrorFormatterFactory errorFormatterFactory,
     IOptions<UsageLoggingOptions> loggingOptions,
+    AutoModelResolver autoModelResolver,
     ICorrelationIdProvider correlationIdProvider)
 {
     private readonly UsageLoggingOptions _loggingOptions = loggingOptions.Value;
@@ -33,7 +33,10 @@ public class SmartReverseProxyMiddleware(
 
         var chatModelHandler = chatModelHandlerFactory.CreateHandler(routeProfile);
         var downContext = await ProcessDownstreamRequestAsync(context, routeProfile, chatModelHandler, apiKeyId);
-        
+
+        // auto 模型解析：非 auto 请求返回 null，不影响现有逻辑
+        var failoverContext = await autoModelResolver.ResolveAsync(downContext, context.RequestAborted);
+
         var metadata = new RouteExecutionMetadata(
             UsageRecordId: Guid.CreateVersion7(),
             UserId: userId,
@@ -66,7 +69,13 @@ public class SmartReverseProxyMiddleware(
             return downContext;
         };
 
-        await modelRouteAppService.ExecuteRouteAsync(downContext, metadata, candidateGroups, downContextModifier, responseHandler, context.RequestAborted);
+        var isSuccess = await modelRouteAppService.ExecuteRouteAsync(downContext, metadata, candidateGroups, downContextModifier, responseHandler, failoverContext, context.RequestAborted);
+
+        // 仅在路由成功时写入粘性缓存，避免把失败的模型记为"上次成功模型"
+        if (isSuccess)
+        {
+            await autoModelResolver.SaveStickyModelAsync(downContext, failoverContext, context.RequestAborted);
+        }
     }
 
     private async Task<DownRequestContext> ProcessDownstreamRequestAsync(

@@ -40,8 +40,8 @@ export const OPEN_APPLICATIONS: MockOpenApplication[] = [
     applicationType: 'web',
     clientType: 'public',
     consentType: 'implicit',
-    redirectUris: ['http://localhost:4200/auth/callback'],
-    postLogoutRedirectUris: ['http://localhost:4200/auth/logout-callback'],
+    redirectUris: ['http://localhost:61966/auth/callback'],
+    postLogoutRedirectUris: ['http://localhost:61966/auth/logout-callback'],
     permissions: [
       'ept:authorization',
       'ept:end_session',

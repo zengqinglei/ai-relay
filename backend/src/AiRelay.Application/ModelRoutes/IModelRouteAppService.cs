@@ -2,7 +2,6 @@ using AiRelay.Application.ModelRoutes.Dtos;
 using AiRelay.Application.ModelRoutes.Handlers;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Context;
-using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 using Leistd.Ddd.Application.Contracts.AppService;
 
 namespace AiRelay.Application.ModelRoutes;
@@ -26,11 +25,22 @@ public interface IModelRouteAppService : IAppService
     /// <summary>
     /// 统一的路由执行大循环（包含重试、并发控制、切号、埋点写入和流健康检查）
     /// </summary>
-    Task ExecuteRouteAsync(
+    /// <returns>路由是否最终成功（用于调用方决定是否持久化粘性状态等副作用）</returns>
+    Task<bool> ExecuteRouteAsync(
         DownRequestContext baseDownContext,
         RouteExecutionMetadata metadata,
         IReadOnlyList<RouteAccountSchedulingGroup> candidateGroups,
         Func<SelectAccountResultDto, DownRequestContext> downContextModifier,
         IRouteResponseHandler responseHandler,
-        CancellationToken cancellationToken);
+        ModelFailoverContext? failoverContext = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 聚合当前 ApiKey 绑定分组内可用的模型列表（供 /v1/models 端点调用）。
+    /// 仅读缓存，不发起上游网络请求，按协议格式返回。
+    /// </summary>
+    Task<ProxyModelsOutputDto> GetProxyModelsAsync(
+        Guid apiKeyId,
+        string responseFormat,
+        CancellationToken cancellationToken = default);
 }

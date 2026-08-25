@@ -29,7 +29,6 @@ type OpenApplicationEditFormModel = {
   displayName?: string;
   applicationType: OpenApplicationType;
   clientType: OpenApplicationClientType;
-  clientSecret?: string;
   consentType: OpenApplicationConsentType;
   redirectUris: string[];
   postLogoutRedirectUris: string[];
@@ -84,7 +83,9 @@ export class OpenApplicationEditDialogComponent {
   selectedTemplate = signal<OpenApplicationTemplate | null>(null);
 
   isEditMode = computed(() => !!this.application());
+  isTemplateLocked = computed(() => !!this.selectedTemplate() && !this.isEditMode());
   isConfidentialClient = computed(() => this.formModel().clientType === 'confidential');
+  isServiceType = computed(() => this.formModel().applicationType === 'service');
   isValid = computed(() => {
     const model = this.formModel();
     if (!this.isEditMode() && !model.clientId.trim()) {
@@ -140,6 +141,43 @@ export class OpenApplicationEditDialogComponent {
 
   requirementOptions = [{ label: '强制 PKCE', value: 'ft:pkce' }];
 
+  readonly permissionLabels: Record<string, string> = {
+    'ept:authorization': '授权端点',
+    'ept:token': 'Token 端点',
+    'ept:end_session': '登出端点',
+    'gt:authorization_code': '授权码流程',
+    'gt:refresh_token': '刷新令牌',
+    'gt:client_credentials': '客户端凭据',
+    'rst:code': 'Code 响应',
+    'scp:openid': '身份标识',
+    'scp:profile': '个人资料',
+    'scp:email': '邮箱',
+    'scp:roles': '角色',
+    'scp:offline_access': '离线访问'
+  };
+
+  readonly applicationTypeLabels: Record<string, string | undefined> = {
+    'web': 'Web',
+    'native': '桌面/原生',
+    'service': '服务端'
+  };
+
+  readonly clientTypeLabels: Record<string, string | undefined> = {
+    'public': 'Public（公开）',
+    'confidential': 'Confidential（机密）'
+  };
+
+  readonly consentTypeLabels: Record<string, string | undefined> = {
+    'implicit': '隐式同意',
+    'explicit': '显式同意',
+    'external': '外部同意',
+    'systematic': '系统同意'
+  };
+
+  getPermissionLabel(value: string): string {
+    return this.permissionLabels[value] ?? value;
+  }
+
   constructor() {
     effect(() => {
       const application = this.application();
@@ -169,7 +207,7 @@ export class OpenApplicationEditDialogComponent {
       displayName: '',
       applicationType: 'web',
       clientType: 'public',
-      consentType: 'implicit',
+      consentType: 'explicit',
       redirectUris: [],
       postLogoutRedirectUris: [],
       permissions: [...authorizationCodePermissions],
@@ -188,12 +226,11 @@ export class OpenApplicationEditDialogComponent {
         displayName: model.displayName || 'AiRelay Desktop',
         applicationType: 'native',
         clientType: 'public',
-        consentType: 'implicit',
+        consentType: 'explicit',
         redirectUris: ['ai-relay-desktop://oauth/callback'],
         postLogoutRedirectUris: ['ai-relay-desktop://oauth/logout-callback'],
         permissions: [...authorizationCodePermissions],
-        requirements: ['ft:pkce'],
-        clientSecret: undefined
+        requirements: ['ft:pkce']
       }));
       return;
     }
@@ -216,17 +253,24 @@ export class OpenApplicationEditDialogComponent {
       ...model,
       applicationType: 'web',
       clientType: 'public',
-      consentType: 'implicit',
+      consentType: 'explicit',
       permissions: [...authorizationCodePermissions],
-      requirements: ['ft:pkce'],
-      clientSecret: undefined
+      requirements: ['ft:pkce']
     }));
   }
 
   onClientTypeChange() {
     if (this.formModel().clientType === 'public') {
-      this.formModel.update(model => ({ ...model, clientSecret: undefined, requirements: this.ensurePkce(model.requirements) }));
+      this.formModel.update(model => ({ ...model, requirements: this.ensurePkce(model.requirements) }));
     }
+  }
+
+  onClientTypeSelect(clientType: OpenApplicationClientType) {
+    this.formModel.update(model => ({
+      ...model,
+      clientType,
+      requirements: clientType === 'public' ? this.ensurePkce(model.requirements) : model.requirements.filter(r => r !== 'ft:pkce')
+    }));
   }
 
   addRedirectUri() {
@@ -286,7 +330,6 @@ export class OpenApplicationEditDialogComponent {
       displayName: model.displayName,
       applicationType: model.applicationType,
       clientType: model.clientType,
-      clientSecret: model.clientType === 'confidential' ? model.clientSecret : undefined,
       consentType: model.consentType,
       redirectUris: model.redirectUris,
       postLogoutRedirectUris: model.postLogoutRedirectUris,

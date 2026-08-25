@@ -3,7 +3,7 @@
   "version": "1.0.2",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve -c debug",
+    "start": "ng serve --port 61966 -c debug",
     "build": "ng build",
     "test": "ng test",
     "lint": "npm run lint:ts && npm run lint:style && npm run format",

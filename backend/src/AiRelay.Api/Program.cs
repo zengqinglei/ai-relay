@@ -90,6 +90,7 @@ try
     builder.Services.AddSingleton<IUsageRecordQueue>(sp => sp.GetRequiredService<AccountUsageRecordWorker>());
     builder.Services.AddHostedService(sp => sp.GetRequiredService<AccountUsageRecordWorker>());
     builder.Services.AddHostedService<UsageRecordCleanupBackgroundService>();
+    builder.Services.AddHostedService<UpstreamModelCacheRefreshService>();
 
 
     // [New] Register SmartProxy Components
@@ -123,7 +124,7 @@ try
                                    ForwardedHeaders.XForwardedProto |
                                    ForwardedHeaders.XForwardedHost;
         options.ForwardLimit = 1;
-        options.KnownNetworks.Clear();
+        options.KnownIPNetworks.Clear();
         options.KnownProxies.Clear();
     });
 
@@ -173,16 +174,28 @@ try
                 .SetUserInfoEndpointUris("/connect/userinfo")
                 .SetEndSessionEndpointUris("/connect/logout");
 
+            // 设置固定 issuer（跨服务验证场景必须）
+            var oauthOpts = builder.Configuration.GetSection(OAuthOptions.SectionName).Get<OAuthOptions>() ?? new OAuthOptions();
+            if (!string.IsNullOrWhiteSpace(oauthOpts.Issuer))
+            {
+                options.SetIssuer(new Uri(oauthOpts.Issuer));
+            }
+
             options.AllowAuthorizationCodeFlow()
                 .RequireProofKeyForCodeExchange();
             options.AllowRefreshTokenFlow();
+            options.AllowClientCredentialsFlow();
+
+            // 禁用 access token 加密，允许跨服务验证（官方推荐）
+            options.DisableAccessTokenEncryption();
 
             options.RegisterScopes(
                 OpenIddictConstants.Scopes.OpenId,
                 OpenIddictConstants.Scopes.Profile,
                 OpenIddictConstants.Scopes.Email,
                 OpenIddictConstants.Scopes.Roles,
-                OpenIddictConstants.Scopes.OfflineAccess);
+                OpenIddictConstants.Scopes.OfflineAccess,
+                "s2s");
 
             var oauthOptions = builder.Configuration.GetSection(OAuthOptions.SectionName).Get<OAuthOptions>() ?? new OAuthOptions();
             if (oauthOptions.UseDevelopmentCertificates)
@@ -206,11 +219,24 @@ try
                     oauthOptions.EncryptionCertificatePassword));
             }
 
-            options.UseAspNetCore()
-                .EnableAuthorizationEndpointPassthrough()
-                .EnableTokenEndpointPassthrough()
-                .EnableUserInfoEndpointPassthrough()
-                .EnableEndSessionEndpointPassthrough();
+            // 内网 S2S 调用禁用 HTTPS 要求
+            if (oauthOptions.DisableHttpsRequirement)
+            {
+                options.UseAspNetCore()
+                    .DisableTransportSecurityRequirement()
+                    .EnableAuthorizationEndpointPassthrough()
+                    .EnableTokenEndpointPassthrough()
+                    .EnableUserInfoEndpointPassthrough()
+                    .EnableEndSessionEndpointPassthrough();
+            }
+            else
+            {
+                options.UseAspNetCore()
+                    .EnableAuthorizationEndpointPassthrough()
+                    .EnableTokenEndpointPassthrough()
+                    .EnableUserInfoEndpointPassthrough()
+                    .EnableEndSessionEndpointPassthrough();
+            }
         })
         .AddValidation(options =>
         {

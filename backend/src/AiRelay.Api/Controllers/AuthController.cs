@@ -8,7 +8,6 @@ using Leistd.Exception.Core;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace AiRelay.Api.Controllers;
 

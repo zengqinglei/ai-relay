@@ -40,6 +40,7 @@ public static class DependencyInjection
 
         // Smart Proxy AppService
         services.AddScoped<IModelRouteAppService, ModelRouteAppService>();
+        services.AddScoped<AutoModelResolver>();
 
         // Provider Groups
         services.AddScoped<IProviderGroupAppService, ProviderGroupAppService>();
@@ -63,6 +64,7 @@ public static class DependencyInjection
         // 领域事件处理器
         services.AddScoped<IEventHandler<AccountDisabledEvent>, AccountDisabledEventHandler>();
         services.AddScoped<IEventHandler<AccountCircuitBrokenEvent>, AccountCircuitBrokenEventHandler>();
+        services.AddScoped<IEventHandler<AccountModelCacheRefreshRequestedEvent>, AccountModelCacheRefreshRequestedEventHandler>();
         services.AddScoped<IEventHandler<AccountRecoveredEvent>, AccountRecoveredEventHandler>();
 
         // 提供商账户应用服务
