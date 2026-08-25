@@ -25,7 +25,8 @@ public interface IModelRouteAppService : IAppService
     /// <summary>
     /// 统一的路由执行大循环（包含重试、并发控制、切号、埋点写入和流健康检查）
     /// </summary>
-    Task ExecuteRouteAsync(
+    /// <returns>路由是否最终成功（用于调用方决定是否持久化粘性状态等副作用）</returns>
+    Task<bool> ExecuteRouteAsync(
         DownRequestContext baseDownContext,
         RouteExecutionMetadata metadata,
         IReadOnlyList<RouteAccountSchedulingGroup> candidateGroups,

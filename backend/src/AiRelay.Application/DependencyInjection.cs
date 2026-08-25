@@ -40,6 +40,7 @@ public static class DependencyInjection
 
         // Smart Proxy AppService
         services.AddScoped<IModelRouteAppService, ModelRouteAppService>();
+        services.AddScoped<AutoModelResolver>();
 
         // Provider Groups
         services.AddScoped<IProviderGroupAppService, ProviderGroupAppService>();

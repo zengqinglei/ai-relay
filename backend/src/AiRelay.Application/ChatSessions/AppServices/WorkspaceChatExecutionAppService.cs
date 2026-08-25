@@ -1,6 +1,5 @@
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
-using AiRelay.Application.ApiKeys.Options;
 using AiRelay.Application.ChatSessions.Dtos;
 using AiRelay.Application.ChatSessions.Handlers;
 using AiRelay.Application.ModelRoutes;
@@ -8,7 +7,6 @@ using AiRelay.Application.ModelRoutes.Dtos;
 using AiRelay.Application.ProviderAccounts.Dtos;
 using AiRelay.Domain.ChatSessions.Entities;
 using AiRelay.Domain.ChatSessions.ValueObjects;
-using AiRelay.Domain.ProviderAccounts.DomainServices;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient;
 using AiRelay.Domain.Shared.ExternalServices.ModelClient.Context;
@@ -16,7 +14,6 @@ using AiRelay.Domain.Shared.ExternalServices.ModelClient.Dto;
 using AiRelay.Domain.UsageRecords.ValueObjects;
 using Leistd.Ddd.Application.AppService;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace AiRelay.Application.ChatSessions.AppServices;
 
@@ -27,8 +24,7 @@ public class WorkspaceChatExecutionAppService(
     IModelRouteAppService modelRouteAppService,
     IChatModelHandlerFactory chatModelHandlerFactory,
     ILogger<WorkspaceChatExecutionAppService> logger,
-    RouteAccountSchedulingDomainService schedulingDomainService,
-    IOptions<DefaultProviderModelsOptions> defaultProviderModelsOptions) : BaseAppService, IWorkspaceChatExecutionAppService
+    AutoModelResolver autoModelResolver) : BaseAppService, IWorkspaceChatExecutionAppService
 {
     public async IAsyncEnumerable<StreamEvent> ExecuteAsync(
         ChatSession session,
@@ -58,32 +54,8 @@ public class WorkspaceChatExecutionAppService(
             Headers = new Dictionary<string, string>(requestContext.Headers, StringComparer.OrdinalIgnoreCase)
         };
 
-        // auto 模型解析：优先使用粘性缓存的上次成功模型，否则从候选列表第一个开始，后续由 failover 机制兜底
-        ModelFailoverContext? failoverContext = null;
-        if (string.Equals(session.ModelId, "auto", StringComparison.OrdinalIgnoreCase))
-        {
-            var models = defaultProviderModelsOptions.Value.Models
-                .Where(m => !string.Equals(m, "auto", StringComparison.OrdinalIgnoreCase))
-                .ToArray();
-            if (models.Length == 0)
-                throw new InvalidOperationException("DefaultProviderModels 未配置任何有效的候选模型（排除 auto 后为空）");
-
-            var startIndex = 0;
-            var cachedModel = await schedulingDomainService.GetAutoModelAsync(baseDownContext.SessionId!, cancellationToken);
-            if (cachedModel != null)
-            {
-                var idx = Array.FindIndex(models, m => string.Equals(m, cachedModel, StringComparison.OrdinalIgnoreCase));
-                if (idx >= 0) startIndex = idx;
-            }
-
-            baseDownContext.ModelId = "auto";
-            baseDownContext.ResolvedModelId = models[startIndex];
-            failoverContext = new ModelFailoverContext
-            {
-                CandidateModels = models,
-                CurrentModelIndex = startIndex
-            };
-        }
+        // auto 模型解析：非 auto 请求返回 null，不影响现有逻辑
+        var failoverContext = await autoModelResolver.ResolveAsync(baseDownContext, cancellationToken);
 
         var metadata = new RouteExecutionMetadata(
             UsageRecordId: Guid.CreateVersion7(),
@@ -167,16 +139,14 @@ public class WorkspaceChatExecutionAppService(
         {
             try
             {
-                await modelRouteAppService.ExecuteRouteAsync(
+                var isSuccess = await modelRouteAppService.ExecuteRouteAsync(
                     baseDownContext, metadata, candidateGroups, downContextModifier, responseHandler,
                     failoverContext, linkedCts.Token);
 
-                if (failoverContext != null &&
-                    baseDownContext.ResolvedModelId != null &&
-                    !string.IsNullOrEmpty(baseDownContext.SessionId))
+                // 仅在路由成功时写入粘性缓存，避免把失败的模型记为"上次成功模型"
+                if (isSuccess)
                 {
-                    await schedulingDomainService.SetAutoModelAsync(
-                        baseDownContext.SessionId, baseDownContext.ResolvedModelId, linkedCts.Token);
+                    await autoModelResolver.SaveStickyModelAsync(baseDownContext, failoverContext, linkedCts.Token);
                 }
             }
             catch (OperationCanceledException ex)

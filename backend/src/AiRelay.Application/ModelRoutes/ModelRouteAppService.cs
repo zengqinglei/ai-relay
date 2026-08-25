@@ -202,7 +202,7 @@ public class ModelRouteAppService(
         };
     }
 
-    public async Task ExecuteRouteAsync(
+    public async Task<bool> ExecuteRouteAsync(
         DownRequestContext baseDownContext,
         RouteExecutionMetadata metadata,
         IReadOnlyList<RouteAccountSchedulingGroup> candidateGroups,
@@ -454,7 +454,7 @@ public class ModelRouteAppService(
                                 if (!isStreamCrash)
                                 {
                                     finalDownStatusCode = proxyResponse.StatusCode;
-                                    return;
+                                    return true;
                                 }
 
                                 attemptStatus = UsageStatus.Failed;
@@ -533,7 +533,7 @@ public class ModelRouteAppService(
                                     downResponseBody = LoggingSubBody(await responseHandler.OnTerminalErrorAsync(
                                         RouteTerminalError.UpstreamNormalized(httpStatusCode ?? 500, proxyResponse.ErrorBody),
                                         cancellationToken), force: true);
-                                    return;
+                                    return false;
                             }
 
                             if (!string.IsNullOrEmpty(attemptStatusDesc)) logger.LogWarning(attemptStatusDesc);
@@ -578,7 +578,7 @@ public class ModelRouteAppService(
                 finalDownStatusCode ??= 200;
                 logger.LogWarning(ex, finalStatusDescription);
                 responseHandler.AbortConnection();
-                return;
+                return false;
             }
             else
             {
@@ -610,6 +610,8 @@ public class ModelRouteAppService(
                 DownRequestBody: null
             ));
         }
+
+        return finalStatus == UsageStatus.Success;
     }
 
     private async Task<RouteAccountSchedulingResult> SelectRouteAccountAsync(
