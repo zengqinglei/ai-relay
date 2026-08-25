@@ -1,5 +1,6 @@
 using AiRelay.Domain.ProviderAccounts.Events;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
+using AiRelay.Domain.Shared.Utilities;
 using Leistd.Ddd.Domain.Entities.Auditing;
 
 namespace AiRelay.Domain.ProviderAccounts.Entities;
@@ -92,40 +93,26 @@ public class AccountToken : DeletionAuditedEntity<Guid>
 
     // ── 计费统计字段 ──────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// 获取当前系统本地日期对应的 UTC 零点（锚点）。
-    /// 例如：北京时间 2026-05-28 00:00:00 -> 返回 UTC 2026-05-27 16:00:00
-    /// </summary>
-    private static DateTime CurrentLocalMidnightInUtc
-    {
-        get
-        {
-            var nowUtc = DateTime.UtcNow;
-            var nowLocal = TimeZoneInfo.ConvertTimeFromUtc(nowUtc, TimeZoneInfo.Local);
-            return TimeZoneInfo.ConvertTimeToUtc(nowLocal.Date, TimeZoneInfo.Local);
-        }
-    }
-
-    /// <summary>今日调用次数（本地自然日，跨日自动归零）</summary>
-    public long UsageToday { get; private set; }
+    /// <summary>今日调用次数（本地自然日，隔日读取自动归零）</summary>
+    public long UsageToday { get => StatsDate == LocalDayAnchor.GetTodayUtcAnchor() ? field : 0; private set; }
 
     /// <summary>累计调用次数</summary>
     public long UsageTotal { get; private set; }
 
     /// <summary>今日消耗额度（USD）</summary>
-    public decimal CostToday { get; private set; }
+    public decimal CostToday { get => StatsDate == LocalDayAnchor.GetTodayUtcAnchor() ? field : 0; private set; }
 
     /// <summary>累计消耗额度（USD）</summary>
     public decimal CostTotal { get; private set; }
 
     /// <summary>今日消耗 Token 数</summary>
-    public long TokensToday { get; private set; }
+    public long TokensToday { get => StatsDate == LocalDayAnchor.GetTodayUtcAnchor() ? field : 0; private set; }
 
     /// <summary>累计消耗 Token 数</summary>
     public long TokensTotal { get; private set; }
 
     /// <summary>今日成功次数</summary>
-    public long SuccessToday { get; private set; }
+    public long SuccessToday { get => StatsDate == LocalDayAnchor.GetTodayUtcAnchor() ? field : 0; private set; }
 
     /// <summary>累计成功次数</summary>
     public long SuccessTotal { get; private set; }

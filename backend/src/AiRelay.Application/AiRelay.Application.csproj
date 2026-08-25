@@ -19,4 +19,8 @@
     <PackageReference Include="OpenIddict.Abstractions" Version="7.5.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="AiRelay.Tests" />
+  </ItemGroup>
+
 </Project>

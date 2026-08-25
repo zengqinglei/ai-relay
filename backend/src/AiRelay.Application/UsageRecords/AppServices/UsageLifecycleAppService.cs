@@ -2,6 +2,7 @@ using AiRelay.Application.UsageRecords.Dtos.Lifecycle;
 using AiRelay.Domain.ApiKeys.Entities;
 using AiRelay.Domain.ProviderAccounts.Entities;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
+using AiRelay.Domain.Shared.Utilities;
 using AiRelay.Domain.UsageRecords.DomainServices;
 using AiRelay.Domain.UsageRecords.Entities;
 using Leistd.Ddd.Application.AppService;
@@ -196,7 +197,7 @@ public class UsageLifecycleAppService(
         await using var handle = await distributedLock.LockAsync($"stats:account:{accountTokenId}", cancellationToken);
         var account = await accountTokenRepository.GetByIdAsync(accountTokenId, cancellationToken);
         if (account == null) return;
-        var todayUtcAnchor = GetTodayUtcAnchor();
+        var todayUtcAnchor = LocalDayAnchor.GetTodayUtcAnchor();
         account.AccumulateCallStats(isSuccess, todayUtcAnchor);
         await accountTokenRepository.UpdateAsync(account, cancellationToken: cancellationToken);
     }
@@ -206,7 +207,7 @@ public class UsageLifecycleAppService(
         await using var handle = await distributedLock.LockAsync($"stats:account:{accountTokenId}", cancellationToken);
         var account = await accountTokenRepository.GetByIdAsync(accountTokenId, cancellationToken);
         if (account == null) return;
-        var todayUtcAnchor = GetTodayUtcAnchor();
+        var todayUtcAnchor = LocalDayAnchor.GetTodayUtcAnchor();
         account.AccumulateCostStats(tokens, cost, todayUtcAnchor);
         await accountTokenRepository.UpdateAsync(account, cancellationToken: cancellationToken);
     }
@@ -216,19 +217,8 @@ public class UsageLifecycleAppService(
         await using var handle = await distributedLock.LockAsync($"stats:apikey:{apiKeyId}", cancellationToken);
         var apiKey = await apiKeyRepository.GetByIdAsync(apiKeyId, cancellationToken);
         if (apiKey == null) return;
-        var todayUtcAnchor = GetTodayUtcAnchor();
+        var todayUtcAnchor = LocalDayAnchor.GetTodayUtcAnchor();
         apiKey.AccumulateStats(tokens, cost, isSuccess, todayUtcAnchor);
         await apiKeyRepository.UpdateAsync(apiKey, cancellationToken: cancellationToken);
-    }
-
-    /// <summary>
-    /// 获取当前系统本地日期对应的 UTC 零点（锚点）。
-    /// 例如：北京时间 2026-05-28 00:00:00 -> 返回 UTC 2026-05-27 16:00:00
-    /// </summary>
-    private static DateTime GetTodayUtcAnchor()
-    {
-        var nowUtc = DateTime.UtcNow;
-        var nowLocal = TimeZoneInfo.ConvertTimeFromUtc(nowUtc, TimeZoneInfo.Local);
-        return TimeZoneInfo.ConvertTimeToUtc(nowLocal.Date, TimeZoneInfo.Local);
     }
 }

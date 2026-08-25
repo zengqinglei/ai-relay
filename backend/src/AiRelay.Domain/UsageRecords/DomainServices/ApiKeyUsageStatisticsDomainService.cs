@@ -1,4 +1,5 @@
 using AiRelay.Domain.ApiKeys.Entities;
+using AiRelay.Domain.Shared.Utilities;
 using Leistd.Ddd.Domain.Repositories;
 
 namespace AiRelay.Domain.UsageRecords.DomainServices;
@@ -23,8 +24,7 @@ public class ApiKeyUsageStatisticsDomainService(
     )> GetMetricsAsync(Guid? userId, CancellationToken cancellationToken = default)
     {
         var now = DateTime.UtcNow;
-        var nowLocal = TimeZoneInfo.ConvertTimeFromUtc(now, TimeZoneInfo.Local);
-        var anchorToday = TimeZoneInfo.ConvertTimeToUtc(nowLocal.Date, TimeZoneInfo.Local);
+        var anchorToday = LocalDayAnchor.GetTodayUtcAnchor();
         var anchorYesterday = anchorToday.AddDays(-1);
         var next7Days = now.AddDays(7);
 

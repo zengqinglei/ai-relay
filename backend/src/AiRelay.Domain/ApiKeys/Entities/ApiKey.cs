@@ -1,4 +1,5 @@
 using AiRelay.Domain.ApiKeys.Events;
+using AiRelay.Domain.Shared.Utilities;
 using Leistd.Ddd.Domain.Entities.Auditing;
 
 namespace AiRelay.Domain.ApiKeys.Entities;
@@ -52,26 +53,26 @@ public class ApiKey : DeletionAuditedEntity<Guid>
 
     // ── 计费统计字段 ──────────────────────────────────────────────────────────
 
-    /// <summary>今日调用次数（本地自然日，跨日自动归零）</summary>
-    public long UsageToday { get; private set; }
+    /// <summary>今日调用次数（本地自然日，隔日读取自动归零）</summary>
+    public long UsageToday { get => StatsDate == LocalDayAnchor.GetTodayUtcAnchor() ? field : 0; private set; }
 
     /// <summary>累计调用次数</summary>
     public long UsageTotal { get; private set; }
 
     /// <summary>今日消耗额度（USD）</summary>
-    public decimal CostToday { get; private set; }
+    public decimal CostToday { get => StatsDate == LocalDayAnchor.GetTodayUtcAnchor() ? field : 0; private set; }
 
     /// <summary>累计消耗额度（USD）</summary>
     public decimal CostTotal { get; private set; }
 
     /// <summary>今日消耗 Token 数</summary>
-    public long TokensToday { get; private set; }
+    public long TokensToday { get => StatsDate == LocalDayAnchor.GetTodayUtcAnchor() ? field : 0; private set; }
 
     /// <summary>累计消耗 Token 数</summary>
     public long TokensTotal { get; private set; }
 
     /// <summary>今日成功次数</summary>
-    public long SuccessToday { get; private set; }
+    public long SuccessToday { get => StatsDate == LocalDayAnchor.GetTodayUtcAnchor() ? field : 0; private set; }
 
     /// <summary>累计成功次数</summary>
     public long SuccessTotal { get; private set; }

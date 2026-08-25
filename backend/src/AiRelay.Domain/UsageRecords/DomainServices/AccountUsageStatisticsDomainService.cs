@@ -1,5 +1,6 @@
 using AiRelay.Domain.ProviderAccounts.Entities;
 using AiRelay.Domain.ProviderAccounts.ValueObjects;
+using AiRelay.Domain.Shared.Utilities;
 using AiRelay.Domain.UsageRecords.Entities;
 using Leistd.Ddd.Domain.Repositories;
 
@@ -54,15 +55,10 @@ public class AccountUsageStatisticsDomainService(
         });
         var rotationWarnings = accounts.Count(a => a.GetEffectiveStatus() != AccountStatus.Normal);
 
-        // 2. 使用量统计 - 单次条件聚合查询
+        // 2. 使用量统计 - 单次条件聚合查询（对齐本地 00:00 边界的 UTC 时间点）
         var nowUtc = DateTime.UtcNow;
-        var nowLocal = TimeZoneInfo.ConvertTimeFromUtc(nowUtc, TimeZoneInfo.Local);
-        var todayLocalStart = nowLocal.Date;
-        var yesterdayLocalStart = todayLocalStart.AddDays(-1);
-
-        // 转换回 UTC 时间点用于数据库查询，以对齐本地 00:00 边界
-        var today = TimeZoneInfo.ConvertTimeToUtc(todayLocalStart, TimeZoneInfo.Local);
-        var yesterday = TimeZoneInfo.ConvertTimeToUtc(yesterdayLocalStart, TimeZoneInfo.Local);
+        var today = LocalDayAnchor.GetTodayUtcAnchor();
+        var yesterday = today.AddDays(-1);
         var last24Hours = nowUtc.AddHours(-24);
 
         var query = await usageRecordRepository.GetQueryableAsync(cancellationToken);
