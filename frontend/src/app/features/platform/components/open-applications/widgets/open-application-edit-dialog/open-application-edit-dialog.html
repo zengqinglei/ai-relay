@@ -86,6 +86,9 @@
                 styleClass="w-full"
                 />
             }
+            @if (isConfidentialClient() && !isEditMode()) {
+              <small class="text-muted-color"> <i class="pi pi-info-circle mr-1"></i>Client Secret 由服务端生成，创建成功后仅明文展示一次 </small>
+            }
           </div>
           <div class="flex flex-col gap-2">
             <label class="font-bold">授权确认</label>

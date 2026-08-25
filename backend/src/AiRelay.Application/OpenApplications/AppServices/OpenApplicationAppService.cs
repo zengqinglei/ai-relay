@@ -114,7 +114,10 @@ public class OpenApplicationAppService(
             throw new BadRequestException($"Client ID 已存在: {clientId}");
         }
 
-        ValidateApplication(input.ApplicationType, input.ClientType, input.ConsentType, input.ClientSecret, input.RedirectUris, input.PostLogoutRedirectUris, input.Requirements);
+        ValidateApplication(input.ApplicationType, input.ClientType, input.ConsentType, input.RedirectUris, input.PostLogoutRedirectUris, input.Requirements);
+
+        // Confidential 客户端的密钥由服务端生成，仅在本次创建响应中一次性明文返回
+        var issuedClientSecret = IssueClientSecret(input.ClientType);
 
         var descriptor = new OpenIddictApplicationDescriptor
         {
@@ -123,7 +126,7 @@ public class OpenApplicationAppService(
             ApplicationType = input.ApplicationType,
             ClientType = input.ClientType,
             ConsentType = input.ConsentType,
-            ClientSecret = input.ClientType == OpenIddictConstants.ClientTypes.Confidential ? input.ClientSecret : null
+            ClientSecret = issuedClientSecret
         };
 
         ApplyCollections(
@@ -136,7 +139,8 @@ public class OpenApplicationAppService(
 
         var application = await applicationManager.CreateAsync(descriptor, cancellationToken);
         logger.LogInformation("创建开放应用成功 (ClientId: {ClientId})", clientId);
-        return await MapToOutputAsync(application, cancellationToken);
+        var result = await MapToOutputAsync(application, cancellationToken);
+        return result with { ClientSecret = issuedClientSecret };
     }
 
     public async Task<OpenApplicationOutputDto> UpdateAsync(
@@ -144,7 +148,7 @@ public class OpenApplicationAppService(
         UpdateOpenApplicationInputDto input,
         CancellationToken cancellationToken = default)
     {
-        ValidateApplication(input.ApplicationType, input.ClientType, input.ConsentType, null, input.RedirectUris, input.PostLogoutRedirectUris, input.Requirements);
+        ValidateApplication(input.ApplicationType, input.ClientType, input.ConsentType, input.RedirectUris, input.PostLogoutRedirectUris, input.Requirements);
 
         var application = await FindRequiredAsync(id, cancellationToken);
         var descriptor = new OpenIddictApplicationDescriptor();
@@ -243,7 +247,6 @@ public class OpenApplicationAppService(
         string applicationType,
         string clientType,
         string consentType,
-        string? clientSecret,
         IReadOnlyCollection<string> redirectUris,
         IReadOnlyCollection<string> postLogoutRedirectUris,
         IReadOnlyCollection<string> requirements)
@@ -261,11 +264,6 @@ public class OpenApplicationAppService(
         if (!ConsentTypes.Contains(consentType))
         {
             throw new BadRequestException($"同意类型不支持: {consentType}");
-        }
-
-        if (clientType == OpenIddictConstants.ClientTypes.Public && !string.IsNullOrWhiteSpace(clientSecret))
-        {
-            throw new BadRequestException("Public 客户端不能配置 Client Secret");
         }
 
         if ((applicationType == OpenIddictConstants.ApplicationTypes.Native || clientType == OpenIddictConstants.ClientTypes.Public) &&
@@ -344,6 +342,16 @@ public class OpenApplicationAppService(
     private static string GenerateClientSecret()
     {
         return Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+    }
+
+    /// <summary>
+    /// 创建应用时的密钥签发：Confidential 客户端由服务端生成，其余不签发。
+    /// </summary>
+    internal static string? IssueClientSecret(string clientType)
+    {
+        return clientType == OpenIddictConstants.ClientTypes.Confidential
+            ? GenerateClientSecret()
+            : null;
     }
 
     private class IntermediateAppDto
