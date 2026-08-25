@@ -67,8 +67,9 @@ export class OpenApplicationsPage implements OnInit {
   editDialogSaving = signal(false);
   selectedApplication = signal<OpenApplicationOutputDto | null>(null);
 
-  resetSecretDialogVisible = signal(false);
-  resetSecretValue = signal('');
+  secretDialogVisible = signal(false);
+  secretDialogHeader = signal('');
+  secretValue = signal('');
 
   searchQuery = signal('');
   selectedApplicationType = signal<OpenApplicationType | null>(null);
@@ -192,7 +193,7 @@ export class OpenApplicationsPage implements OnInit {
         finalize(() => this.editDialogSaving.set(false))
       )
       .subscribe({
-        next: () => {
+        next: result => {
           this.messageService.add({
             severity: 'success',
             summary: '成功',
@@ -200,6 +201,11 @@ export class OpenApplicationsPage implements OnInit {
           });
           this.editDialogVisible.set(false);
           this.reloadList();
+
+          // Confidential 应用创建时后端一次性返回 Client Secret，立即弹窗展示
+          if (!selected && result.clientSecret) {
+            this.openSecretDialog('Client Secret 已生成', result.clientSecret);
+          }
         }
       });
   }
@@ -225,16 +231,15 @@ export class OpenApplicationsPage implements OnInit {
       icon: 'pi pi-exclamation-triangle',
       accept: () => {
         this.service.resetSecret(id).subscribe(result => {
-          this.resetSecretValue.set(result.clientSecret);
-          this.resetSecretDialogVisible.set(true);
+          this.openSecretDialog('Client Secret 已重置', result.clientSecret);
           this.reloadList();
         });
       }
     });
   }
 
-  copyResetSecret() {
-    const value = this.resetSecretValue();
+  copySecret() {
+    const value = this.secretValue();
     if (!value) {
       return;
     }
@@ -242,5 +247,11 @@ export class OpenApplicationsPage implements OnInit {
     navigator.clipboard?.writeText(value).then(() => {
       this.messageService.add({ severity: 'success', summary: '成功', detail: '已复制密钥' });
     });
+  }
+
+  private openSecretDialog(header: string, secret: string) {
+    this.secretDialogHeader.set(header);
+    this.secretValue.set(secret);
+    this.secretDialogVisible.set(true);
   }
 }

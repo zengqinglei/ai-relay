@@ -18,6 +18,8 @@ export interface OpenApplicationOutputDto {
   settings: Record<string, unknown>;
   properties: Record<string, unknown>;
   hasClientSecret: boolean;
+  /** Client Secret 明文 — 仅在创建 Confidential 应用的响应中一次性返回 */
+  clientSecret?: string;
   creationTime: string;
 }
 
@@ -26,7 +28,6 @@ export interface CreateOpenApplicationInputDto {
   displayName?: string;
   applicationType: OpenApplicationType;
   clientType: OpenApplicationClientType;
-  clientSecret?: string;
   consentType: OpenApplicationConsentType;
   redirectUris: string[];
   postLogoutRedirectUris: string[];

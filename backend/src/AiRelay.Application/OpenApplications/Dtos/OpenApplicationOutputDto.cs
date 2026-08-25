@@ -73,6 +73,11 @@ public record OpenApplicationOutputDto
     public required bool HasClientSecret { get; init; }
 
     /// <summary>
+    /// Client Secret 明文 — 仅在创建 Confidential 应用的响应中一次性返回，其余场景恒为 null
+    /// </summary>
+    public string? ClientSecret { get; init; }
+
+    /// <summary>
     /// 创建时间
     /// </summary>
     public required DateTimeOffset CreationTime { get; init; }

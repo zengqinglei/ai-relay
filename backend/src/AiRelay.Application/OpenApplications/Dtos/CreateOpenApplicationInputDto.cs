@@ -37,11 +37,6 @@ public record CreateOpenApplicationInputDto
     public required string ClientType { get; init; }
 
     /// <summary>
-    /// Client Secret
-    /// </summary>
-    public string? ClientSecret { get; init; }
-
-    /// <summary>
     /// 同意类型
     /// </summary>
     [Display(Name = "同意类型")]

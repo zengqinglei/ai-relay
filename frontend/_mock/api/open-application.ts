@@ -85,10 +85,6 @@ function validateApplication(input: CreateOpenApplicationInputDto | UpdateOpenAp
     }
   }
 
-  if (input.clientType === 'public' && 'clientSecret' in input && input.clientSecret) {
-    throw new MockException(400, { message: 'Public 客户端不能配置 Client Secret' });
-  }
-
   if ((input.applicationType === 'native' || input.clientType === 'public') && !input.requirements.includes('ft:pkce')) {
     throw new MockException(400, { message: 'Native/Public 客户端必须启用 PKCE' });
   }
@@ -97,6 +93,9 @@ function validateApplication(input: CreateOpenApplicationInputDto | UpdateOpenAp
 function createOpenApplication(req: MockRequest) {
   const body = req.body as CreateOpenApplicationInputDto;
   validateApplication(body);
+
+  // 与后端一致：Confidential 客户端由服务端生成密钥，仅在创建响应中一次性返回
+  const issuedSecret = body.clientType === 'confidential' ? `mock_secret_${Math.random().toString(36).slice(2, 14)}` : undefined;
 
   const newApplication: MockOpenApplication = {
     id: body.clientId,
@@ -111,13 +110,13 @@ function createOpenApplication(req: MockRequest) {
     requirements: body.requirements || [],
     settings: {},
     properties: {},
-    hasClientSecret: body.clientType === 'confidential' && !!body.clientSecret,
+    hasClientSecret: body.clientType === 'confidential',
     creationTime: new Date().toISOString(),
-    clientSecret: body.clientType === 'confidential' ? body.clientSecret : undefined
+    clientSecret: issuedSecret
   };
 
   applications.unshift(newApplication);
-  return toOutput(newApplication);
+  return { ...toOutput(newApplication), clientSecret: issuedSecret };
 }
 
 function updateOpenApplication(req: MockRequest) {
