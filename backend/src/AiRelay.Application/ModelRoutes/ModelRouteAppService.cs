@@ -652,7 +652,37 @@ public class ModelRouteAppService(
             return result;
         }
 
-        throw new NotFoundException($"当前模型未开通或不支持，请求的模型「{modelId}」在当前账号范围内未找到可用配置");
+        // 候选耗尽：区分"模型未开通(404)"与"临时不可用(503)"。
+        // 支持性判断覆盖全部候选账号（含被排除/冷却中的），模型是否开通与临时状态无关。
+        var anyAccountSupportsModel = string.IsNullOrEmpty(modelId);
+        if (!anyAccountSupportsModel)
+        {
+            foreach (var account in candidateGroups
+                         .SelectMany(group => group.CandidateRelations)
+                         .Select(relation => relation.AccountToken)
+                         .Where(account => account != null)
+                         .DistinctBy(account => account!.Id))
+            {
+                if (await accountTokenDomainService.IsModelSupportedAsync(account!, modelId!, cancellationToken))
+                {
+                    anyAccountSupportsModel = true;
+                    break;
+                }
+            }
+        }
+
+        throw CreateNoAccountForModelException(anyAccountSupportsModel, modelId);
+    }
+
+    /// <summary>
+    /// 候选账号耗尽时的异常分类：模型无人支持返回 404（不应重试），
+    /// 有账号支持但临时不可用返回 503（可重试）。
+    /// </summary>
+    internal static Exception CreateNoAccountForModelException(bool anyAccountSupportsModel, string? modelId)
+    {
+        return anyAccountSupportsModel
+            ? new ServiceUnavailableException($"分组中暂无可用账号，当前模型的所有服务账号均已不可用，请稍后重试（模型: {modelId}）")
+            : new NotFoundException($"当前模型未开通或不支持，请求的模型「{modelId}」在当前账号范围内未找到可用配置");
     }
 
     private async Task<IReadOnlyList<RouteAccountSchedulingGroup>> BuildSchedulingGroupsAsync(
@@ -1072,13 +1102,11 @@ public class ModelRouteAppService(
         string responseFormat,
         CancellationToken cancellationToken = default)
     {
-        // 1. 获取 APIKey 绑定的所有分组
-        var bindingQuery = await apiKeyProviderGroupBindingRepository
-            .GetQueryIncludingAsync(cancellationToken, p => p.ProviderGroup);
-        var bindings = await queryableAsyncExecuter.ToListAsync(
-            bindingQuery.Where(b => b.ApiKeyId == apiKeyId), cancellationToken);
-
-        var groupIds = bindings.Select(b => b.ProviderGroupId).Distinct().ToList();
+        // 1. 获取 APIKey 绑定的所有分组 ID（仅需外键，无需加载导航属性）
+        var bindingQuery = await apiKeyProviderGroupBindingRepository.GetQueryableAsync(cancellationToken);
+        var groupIds = await queryableAsyncExecuter.ToListAsync(
+            bindingQuery.Where(b => b.ApiKeyId == apiKeyId).Select(b => b.ProviderGroupId).Distinct(),
+            cancellationToken);
         if (groupIds.Count == 0)
         {
             return BuildEmptyResponse(responseFormat);
@@ -1111,8 +1139,8 @@ public class ModelRouteAppService(
 
         // 5. 按协议格式组装响应
         return responseFormat == "anthropic"
-            ? BuildAnthropicResponse(modelIds)
-            : BuildOpenAIResponse(modelIds);
+            ? ProxyModelsResponseFactory.CreateAnthropic(modelIds)
+            : ProxyModelsResponseFactory.CreateOpenAi(modelIds);
     }
 
     private static List<AccountToken> FilterAccountsByFormat(
@@ -1123,36 +1151,8 @@ public class ModelRouteAppService(
         _           => accounts.Where(a => a.Provider is Provider.OpenAI or Provider.OpenAICompatible or Provider.Antigravity).ToList()
     };
 
-    private static ProxyModelsOutputDto BuildOpenAIResponse(IEnumerable<string> modelIds)
-    {
-        var created = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        return new ProxyModelsOutputDto
-        {
-            Object = "list",
-            Data = modelIds.Select(id => new ProxyModelItemDto
-            {
-                Id = id,
-                Object = "model",
-                Created = created,
-                OwnedBy = "system"
-            }).ToList()
-        };
-    }
-
-    private static ProxyModelsOutputDto BuildAnthropicResponse(IEnumerable<string> modelIds)
-    {
-        return new ProxyModelsOutputDto
-        {
-            Object = null,
-            Data = modelIds.Select(id => new ProxyModelItemDto
-            {
-                Id = id,
-                DisplayName = id,
-                Object = null
-            }).ToList()
-        };
-    }
-
     private static ProxyModelsOutputDto BuildEmptyResponse(string format) =>
-        format == "anthropic" ? BuildAnthropicResponse([]) : BuildOpenAIResponse([]);
+        format == "anthropic"
+            ? ProxyModelsResponseFactory.CreateAnthropic([])
+            : ProxyModelsResponseFactory.CreateOpenAi([]);
 }

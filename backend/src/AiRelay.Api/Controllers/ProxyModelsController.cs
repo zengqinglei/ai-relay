@@ -1,5 +1,7 @@
 using AiRelay.Api.Authentication;
 using AiRelay.Application.ModelRoutes;
+using AiRelay.Application.ModelRoutes.Dtos;
+using Leistd.Exception.Core;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -17,17 +19,17 @@ public class ProxyModelsController(IModelRouteAppService modelRouteAppService) :
     /// 获取当前 ApiKey 可用的模型列表（聚合所有绑定分组，仅读缓存，无网络延迟）
     /// </summary>
     [HttpGet]
-    public async Task<IActionResult> ListModels(CancellationToken cancellationToken)
+    public async Task<ProxyModelsOutputDto> GetAsync(CancellationToken cancellationToken)
     {
         var apiKeyIdClaim = User.FindFirst(AuthenticationConstants.ApiKeyIdClaimType);
         if (apiKeyIdClaim == null || !Guid.TryParse(apiKeyIdClaim.Value, out var apiKeyId))
         {
-            return Unauthorized();
+            throw new UnauthorizedException("请求未经认证");
         }
 
         var format = DetectResponseFormat(Request);
         var result = await modelRouteAppService.GetProxyModelsAsync(apiKeyId, format, cancellationToken);
-        return Ok(result);
+        return result;
     }
 
     /// <summary>
