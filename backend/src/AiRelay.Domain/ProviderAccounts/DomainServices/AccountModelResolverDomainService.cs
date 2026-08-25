@@ -83,7 +83,7 @@ public class AccountModelResolverDomainService(
         return whitelist
             .SelectMany(pattern => pattern.Contains('*')
                 ? catalog
-                    .Where(m => AccountTokenDomainService.IsWildcardMatchPublic(m.Value, pattern))
+                    .Where(m => AccountTokenDomainService.IsWildcardMatch(m.Value, pattern))
                     .Select(m => m.Value)
                 : (IEnumerable<string>)[pattern])
             .Distinct(StringComparer.OrdinalIgnoreCase)

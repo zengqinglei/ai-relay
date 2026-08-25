@@ -108,7 +108,7 @@ public class UpstreamModelCacheRefreshService(
             {
                 if (stoppingToken.IsCancellationRequested) break;
 
-                logger.LogWarning("开始处理账号: Name={Name}, Provider={Provider}, BaseUrl={Url}",
+                logger.LogDebug("开始处理账号: Name={Name}, Provider={Provider}, BaseUrl={Url}",
                     account.Name, account.Provider, account.BaseUrl);
 
                 try
@@ -118,7 +118,7 @@ public class UpstreamModelCacheRefreshService(
                     if (models != null)
                     {
                         success++;
-                        logger.LogWarning("账号处理成功: Name={Name}, Count={Count}", account.Name, models.Count);
+                        logger.LogDebug("账号处理成功: Name={Name}, Count={Count}", account.Name, models.Count);
                     }
                     else
                     {

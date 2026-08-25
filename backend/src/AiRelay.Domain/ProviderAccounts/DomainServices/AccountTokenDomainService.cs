@@ -251,25 +251,17 @@ public class AccountTokenDomainService(
         }
 
         // 3. 获取上游模型列表 (Upstream - 绝对零 I/O)
+        // 负面缓存哨兵在 GetCachedModelIdsAsync 内部已转换为 null，此处统一走基准兜底
         var upstreamModelIds = await GetCachedModelIdsAsync(account.Id, ct);
 
         // 4. 上游优先判断 (严格模式)
         if (upstreamModelIds != null && upstreamModelIds.Count > 0)
         {
-            // 如果存在负面缓存（表示上游拉取失败），立刻降级到静态可用列表
-            if (upstreamModelIds.Count == 1 && upstreamModelIds.Contains(NegativeCacheSentinel))
-            {
-                logger.LogWarning("命中负面缓存，降级静态匹配: AccountName={Name}, Model={Model}", account.Name, requestedModel);
-                var fallbackModels = modelProvider.GetAvailableModels(account.Provider).Select(x => x.Value).ToList();
-                return fallbackModels.Any(m => m.Equals(requestedModel, StringComparison.OrdinalIgnoreCase) || 
-                    (m.EndsWith('*') && requestedModel.StartsWith(m[..^1], StringComparison.OrdinalIgnoreCase)));
-            }
-
             return upstreamModelIds.Contains(requestedModel, StringComparer.OrdinalIgnoreCase);
         }
 
         // 5. 基准模型兜底 (Baseline)
-        logger.LogWarning("模型缓存未命中，降级静态匹配: AccountName={Name}, Provider={Provider}, Model={Model}", 
+        logger.LogDebug("模型缓存未命中，降级静态匹配: AccountName={Name}, Provider={Provider}, Model={Model}",
             account.Name, account.Provider, requestedModel);
 
         var baselineModels = modelProvider.GetAvailableModels(account.Provider);
@@ -348,16 +340,10 @@ public class AccountTokenDomainService(
         return match.Value;
     }
 
-    private static bool IsWildcardMatch(string text, string pattern)
-        => IsWildcardMatchCore(text, pattern);
-
     /// <summary>
-    /// 通配符匹配（public，供 AccountModelResolverDomainService 等复用）
+    /// 通配符匹配（供调度与 AccountModelResolverDomainService 等复用）
     /// </summary>
-    public static bool IsWildcardMatchPublic(string text, string pattern)
-        => IsWildcardMatchCore(text, pattern);
-
-    private static bool IsWildcardMatchCore(string text, string pattern)
+    public static bool IsWildcardMatch(string text, string pattern)
     {
         var parts = pattern.Split('*');
         var pos = 0;
@@ -410,7 +396,7 @@ public class AccountTokenDomainService(
                 // 直接返回 null，调用方将 fallback 到白名单 / 静态基准模型，不阻塞请求。
                 if (cachedValue == NegativeCacheSentinel)
                 {
-                    logger.LogWarning("上游模型列表命中负面缓存，跳过上游请求: Name={Name}, Provider={Provider}",
+                    logger.LogInformation("上游模型列表命中负面缓存，跳过上游请求: Name={Name}, Provider={Provider}",
                         account.Name, account.Provider);
                     return null;
                 }
@@ -418,7 +404,7 @@ public class AccountTokenDomainService(
                 var cachedIds = JsonSerializer.Deserialize<List<string>>(cachedValue);
                 if (cachedIds != null && cachedIds.Count > 0)
                 {
-                    logger.LogWarning("上游模型命中缓存: Name={Name}, Provider={Provider}, Count={Count}",
+                    logger.LogDebug("上游模型命中缓存: Name={Name}, Provider={Provider}, Count={Count}",
                         account.Name, account.Provider, cachedIds.Count);
                     return cachedIds;
                 }
