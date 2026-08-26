@@ -23,23 +23,23 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v7
       with:
-        node-version: '20'
+        node-version-file: .nvmrc
         cache: 'npm'
         cache-dependency-path: frontend/package-lock.json
 
     - name: Install dependencies
       run: |
         cd frontend
-        npm ci --prefer-offline
+        npm ci --prefer-offline --no-audit --no-fund
 
     - name: Get changed frontend files
       id: changed-files
-      uses: tj-actions/changed-files@v41
+      uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
       with:
         files: |
           frontend/**/*.ts
@@ -110,7 +110,7 @@ jobs:
 
     - name: Comment PR with results
       if: failure()
-      uses: actions/github-script@v7
+      uses: actions/github-script@v9
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
@@ -161,16 +161,16 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v6
       with:
         dotnet-version: '10.0.x'
 
     - name: Get changed backend files
       id: changed-files
-      uses: tj-actions/changed-files@v41
+      uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
       with:
         files: |
           backend/**/*.cs
@@ -204,7 +204,7 @@ jobs:
 
     - name: Comment PR with results
       if: failure()
-      uses: actions/github-script@v7
+      uses: actions/github-script@v9
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |

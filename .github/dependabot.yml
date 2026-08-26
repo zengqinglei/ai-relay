@@ -1,0 +1,13 @@
+version: 2
+updates:
+  # 第三方 action 按 commit SHA 锁定，官方 actions/* 按大版本 tag。
+  # 由 Dependabot 每月集中抬版本，避免再出现「上游发新版 → 我们没改代码却红」的情况。
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "chore(ci)"
+    groups:
+      actions:
+        patterns: ['*']
