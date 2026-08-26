@@ -1,18 +1,22 @@
+# Node 版本的唯一来源是 .nvmrc，CI 通过 --build-arg NODE_VERSION=$(cat .nvmrc) 传入。
+# 这里的默认值仅用于本地 `docker build`，请与 .nvmrc 保持一致。
+ARG NODE_VERSION=24
+
 # -----------------------------------
 # Stage 1: Build Frontend (Angular)
 # -----------------------------------
-FROM node:20-alpine AS frontend-build
+FROM node:${NODE_VERSION}-alpine AS frontend-build
 WORKDIR /app
 
-# 配置 npm 使用淘宝镜像（加速国内构建）
-RUN npm config set registry https://registry.npmmirror.com
+# 默认使用官方 registry（GitHub Runner 直连更快）。
+# 国内构建可加速：--build-arg NPM_REGISTRY=https://registry.npmmirror.com
+ARG NPM_REGISTRY=https://registry.npmjs.org
+RUN npm config set registry "$NPM_REGISTRY"
 
-# 升级 npm 到最新版本
-RUN npm install -g npm@latest
-
-# 复制 package.json 并安装依赖（利用 Docker 层缓存）
-COPY frontend/package.json ./
-RUN npm install --prefer-offline --no-audit
+# 依赖安装：严格按 lockfile 还原，保证与 CI、本地完全一致
+# （不要在这里升级 npm —— 使用镜像自带版本，由 .nvmrc 统一控制）
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
 
 # 支持构建时传入 API Gateway 地址（用于前后端分离部署）
 # 使用方式: docker build --build-arg API_GATEWAY=https://api.example.com .
