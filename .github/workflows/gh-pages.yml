@@ -34,30 +34,11 @@ jobs:
         working-directory: frontend
         run: npm ci --no-audit --no-fund
 
-      - name: Generate environment.debug.ts with mock enabled
-        working-directory: frontend
-        run: |
-          cat > src/environments/environment.debug.ts << 'EOF'
-          import { environmentBase } from './environment.base';
-
-          export const environment = {
-            ...environmentBase,
-            useMock: {
-              enable: true,
-              exclude: '',
-              delay: 500,
-              log: false
-            },
-            api: {
-              ...environmentBase.api,
-              gateway: ''
-            }
-          };
-          EOF
-
+      # 预览环境定义在 frontend/src/environments/environment.pages.ts，
+      # 由 angular.json 的 `pages` 配置替换进构建 —— 不在这里生成环境文件。
       - name: Build
         working-directory: frontend
-        run: npm run build -- --configuration=debug --base-href /ai-relay/
+        run: npm run build -- --configuration=pages --base-href /ai-relay/
 
       - name: Copy index.html as 404.html
         run: cp frontend/dist/airelay-web/browser/index.html frontend/dist/airelay-web/browser/404.html
