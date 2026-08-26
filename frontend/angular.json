@@ -46,6 +46,15 @@
                 }
               ]
             },
+            "pages": {
+              "outputHashing": "all",
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.pages.ts"
+                }
+              ]
+            },
             "debug": {
               "optimization": false,
               "extractLicenses": false,
